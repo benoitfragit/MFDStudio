@@ -198,17 +198,17 @@ public:
     bool HasActivePage() const noexcept;
 
     /**
-     * @brief Returns the last authoritative active page name.
-     * @return Empty string when no active-page feedback has been received yet.
+     * @brief Returns the last authoritative active page transport id.
+     * @return Zero when no active-page feedback has been received yet.
      */
-    const std::string& ActivePageName() const noexcept;
+    mfd::TransportId ActivePageId() const noexcept;
 
     /**
-     * @brief Returns whether one authored page is currently active at render time.
-     * @param pageName Authored page name to query.
+     * @brief Returns whether one generated page is currently active at render time.
+     * @param pageId Generated transport id of the page to query.
      * @return `true` only when the runtime reported that page as active.
      */
-    bool IsPageActive(std::string_view pageName) const noexcept;
+    bool IsPageActive(mfd::TransportId pageId) const noexcept;
 
     /**
      * @brief Returns whether one dynamic reticle instance is currently captured by its page strobe.
@@ -258,15 +258,13 @@ private:
         bool hasSequence = false;
         bool captured = false;
         mfd::RuntimeDynamicId capturedRuntimeReticleId = 0;
-        std::string pageNameNormalized {};
     };
 
     void MakeRoomForPageCapture();
 
     std::unordered_map<mfd::TransportId, PageCaptureState> pageCaptureById_ {};
     std::uint64_t pageCaptureAccessOrdinal_ = 0;
-    std::string activePageName_ {};
-    std::string activePageNameNormalized_ {};
+    mfd::TransportId activePageId_ = 0;
     std::uint32_t lastActivePageSequence_ = 0;
     bool hasActivePage_ = false;
     std::uint64_t decodedFeedbackPackets_ = 0;

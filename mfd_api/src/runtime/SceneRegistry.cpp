@@ -1555,6 +1555,12 @@ std::string SceneRegistry::ActivePageName() const
     return page == nullptr ? std::string {} : page->name;
 }
 
+TransportId SceneRegistry::ActivePageTransportId() const noexcept
+{
+    const PageComponent* page = FindPage(activePage_);
+    return page == nullptr ? 0U : page->transportId;
+}
+
 std::optional<PageSummary> SceneRegistry::ActivePageSummary() const
 {
     const PageComponent* page = FindPage(activePage_);

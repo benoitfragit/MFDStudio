@@ -23,24 +23,6 @@ namespace
 {
 namespace pb = ::mfd::transport;
 
-bool ContainsControlCharacters(const std::string_view value) noexcept
-{
-    for (const unsigned char character : value)
-    {
-        if (character < 0x20U || character == 0x7FU)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-bool IsValidFeedbackIdentifier(const std::string_view value) noexcept
-{
-    return !value.empty() && !ContainsControlCharacters(value);
-}
-
 pb::WindowLifecycleState ToProtoLifecycleState(const WindowLifecycleState state) noexcept
 {
     switch (state)
@@ -80,9 +62,14 @@ std::string SerializeFeedbackPayload(const FeedbackPayload& feedback)
             }
             else if constexpr (std::is_same_v<FeedbackType, ActivePageFeedback>)
             {
+                if (value.pageId == 0U)
+                {
+                    throw std::runtime_error("Unsupported feedback payload");
+                }
+
                 pb::ActivePageFeedback* message = envelope.mutable_active_page();
                 message->set_sequence(value.sequence);
-                message->set_page(value.pageName);
+                message->set_page_id(value.pageId);
             }
             else if constexpr (std::is_same_v<FeedbackType, WindowLifecycleFeedback>)
             {
@@ -120,14 +107,14 @@ std::optional<FeedbackPayload> DeserializeFeedbackPayload(const std::string_view
         if (envelope.payload_case() == pb::FeedbackEnvelope::kActivePage)
         {
             const pb::ActivePageFeedback& message = envelope.active_page();
-            if (!IsValidFeedbackIdentifier(message.page()))
+            if (message.page_id() == 0U)
             {
                 throw std::runtime_error("Unsupported feedback payload");
             }
 
             ActivePageFeedback feedback;
             feedback.sequence = message.sequence();
-            feedback.pageName = message.page();
+            feedback.pageId = message.page_id();
             return FeedbackPayload {std::move(feedback)};
         }
 

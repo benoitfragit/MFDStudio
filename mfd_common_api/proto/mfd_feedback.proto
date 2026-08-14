@@ -26,7 +26,8 @@ message StrobeMagnetStatus
   float radius = 2;
   float strength = 3;
   bool magnetized = 4;
-  string reticle = 5;
+  reserved 5;
+  reserved "reticle";
   Vec2 target_position = 6;
   float distance = 7;
   uint64 runtime_reticle_id = 8;
@@ -34,8 +35,8 @@ message StrobeMagnetStatus
 
 message StrobeCaptureStatus
 {
-  string reticle = 1;
-  string template_id = 2;
+  reserved 1, 2;
+  reserved "reticle", "template_id";
   string label = 3;
   string category = 4;
   Vec2 position = 5;
@@ -48,20 +49,20 @@ message StrobeCaptureStatus
 message StrobeStatusFeedback
 {
   uint32 sequence = 1;
-  string page = 2;
-  string strobe_id = 3;
+  uint64 page_id = 2;
+  uint64 strobe_id = 3;
   bool active = 4;
   Vec2 position = 5;
   StrobeCaptureArea capture = 6;
   StrobeMagnetStatus magnet = 7;
   optional StrobeCaptureStatus capture_result = 8;
-  uint64 page_id = 9;
+  reserved 9;
 }
 
 message ActivePageFeedback
 {
   uint32 sequence = 1;
-  string page = 2;
+  uint64 page_id = 2;
 }
 
 enum WindowLifecycleState

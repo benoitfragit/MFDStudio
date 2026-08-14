@@ -723,17 +723,16 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureExposesRuntimeFeedbackQueries)
 
     mfd::ActivePageFeedback activePage;
     activePage.sequence = 1U;
-    activePage.pageName = "Radar";
+    activePage.pageId = upsert->pageId;
     EXPECT_TRUE(ui.ApplyFeedback(activePage));
     EXPECT_TRUE(ui.Radar().IsActive());
 
     mfd::StrobeStatusFeedback strobe;
     strobe.sequence = 2U;
     strobe.pageId = upsert->pageId;
-    strobe.pageName = "Radar";
+    strobe.strobeId = ui.Radar().strobe1.GeneratedId();
     mfd::StrobeFeedbackCapture capture;
     capture.runtimeReticleId = upsert->reticles.front().runtimeReticleId;
-    capture.reticleId = track.Id();
     strobe.captureResult = std::move(capture);
     EXPECT_TRUE(ui.ApplyFeedback(strobe));
     EXPECT_TRUE(track.IsStrobeCaptured());

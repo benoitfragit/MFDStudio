@@ -22,22 +22,29 @@ namespace
 {
 namespace pb = ::mfd::transport;
 
-bool ContainsControlCharacters(const std::string_view value) noexcept
+void ValidateStrobeFeedbackIdentifiers(const StrobeStatusFeedback& feedback)
 {
-    for (const unsigned char character : value)
+    if (feedback.pageId == 0U || feedback.strobeId == 0U ||
+        (feedback.magnet.magnetized && feedback.magnet.runtimeReticleId == 0U) ||
+        (feedback.captureResult.has_value() &&
+         (feedback.captureResult->runtimeReticleId == 0U ||
+          feedback.captureResult->sourceTemplateTransportId == 0U)))
     {
-        if (character < 0x20U || character == 0x7FU)
-        {
-            return true;
-        }
+        throw std::runtime_error("Unsupported feedback payload");
     }
-
-    return false;
 }
 
-bool IsValidFeedbackIdentifier(const std::string_view value) noexcept
+void ValidateStrobeFeedbackIdentifiers(const pb::StrobeStatusFeedback& feedback)
 {
-    return !value.empty() && !ContainsControlCharacters(value);
+    if (feedback.page_id() == 0U || feedback.strobe_id() == 0U ||
+        (feedback.has_magnet() && feedback.magnet().magnetized() &&
+         feedback.magnet().runtime_reticle_id() == 0U) ||
+        (feedback.has_capture_result() &&
+         (feedback.capture_result().runtime_reticle_id() == 0U ||
+          feedback.capture_result().source_template_transport_id() == 0U)))
+    {
+        throw std::runtime_error("Unsupported feedback payload");
+    }
 }
 
 void FillProtoVec2(const Vec2& value, pb::Vec2* target)
@@ -101,7 +108,6 @@ void FillProtoMagnet(const StrobeFeedbackMagnet& magnet, pb::StrobeMagnetStatus*
     target->set_strength(magnet.strength);
     target->set_magnetized(magnet.magnetized);
     target->set_runtime_reticle_id(magnet.runtimeReticleId);
-    target->set_reticle(magnet.reticleId);
     FillProtoVec2(magnet.targetPosition, target->mutable_target_position());
     target->set_distance(magnet.distance);
 }
@@ -114,7 +120,6 @@ StrobeFeedbackMagnet FromProtoMagnet(const pb::StrobeMagnetStatus& value)
     magnet.strength = value.strength();
     magnet.magnetized = value.magnetized();
     magnet.runtimeReticleId = value.runtime_reticle_id();
-    magnet.reticleId = value.reticle();
     if (value.has_target_position())
     {
         magnet.targetPosition = FromProtoVec2(value.target_position());
@@ -127,8 +132,6 @@ void FillProtoCaptureResult(const StrobeFeedbackCapture& capture, pb::StrobeCapt
 {
     target->set_runtime_reticle_id(capture.runtimeReticleId);
     target->set_source_template_transport_id(capture.sourceTemplateTransportId);
-    target->set_reticle(capture.reticleId);
-    target->set_template_id(capture.sourceTemplateId);
     target->set_label(capture.label);
     target->set_category(capture.category);
     FillProtoVec2(capture.position, target->mutable_position());
@@ -145,8 +148,6 @@ StrobeFeedbackCapture FromProtoCaptureResult(const pb::StrobeCaptureStatus& valu
     StrobeFeedbackCapture capture;
     capture.runtimeReticleId = value.runtime_reticle_id();
     capture.sourceTemplateTransportId = value.source_template_transport_id();
-    capture.reticleId = value.reticle();
-    capture.sourceTemplateId = value.template_id();
     capture.label = value.label();
     capture.category = value.category();
     if (value.has_position())
@@ -168,9 +169,9 @@ namespace detail
 {
 void FillStrobeStatusFeedbackProto(const StrobeStatusFeedback& feedback, pb::StrobeStatusFeedback* target)
 {
+    ValidateStrobeFeedbackIdentifiers(feedback);
     target->set_sequence(feedback.sequence);
     target->set_page_id(feedback.pageId);
-    target->set_page(feedback.pageName);
     target->set_strobe_id(feedback.strobeId);
     target->set_active(feedback.active);
     FillProtoVec2(feedback.position, target->mutable_position());
@@ -185,15 +186,11 @@ void FillStrobeStatusFeedbackProto(const StrobeStatusFeedback& feedback, pb::Str
 
 StrobeStatusFeedback ParseStrobeStatusFeedbackProto(const pb::StrobeStatusFeedback& message)
 {
-    if (!IsValidFeedbackIdentifier(message.page()) || !IsValidFeedbackIdentifier(message.strobe_id()))
-    {
-        throw std::runtime_error("Unsupported feedback payload");
-    }
+    ValidateStrobeFeedbackIdentifiers(message);
 
     StrobeStatusFeedback feedback;
     feedback.sequence = message.sequence();
     feedback.pageId = message.page_id();
-    feedback.pageName = message.page();
     feedback.strobeId = message.strobe_id();
     feedback.active = message.active();
 

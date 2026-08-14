@@ -71,6 +71,8 @@ Treat the generated header, the generated source, and the `.generated.map` as
 - the client uses the map for raw-name fallback helpers
 - `mfd_window` must load the matching `.generated.map` to accept generated
   id-based batches
+- runtime feedback sent by `mfd_window` contains numeric transport/runtime ids
+  only; it has no name-based identity fallback
 - if the generated C++ and the map drift apart, or the runtime loaded no/old
   sidecar, generated batches are **rejected**
 
@@ -119,9 +121,11 @@ window JSON, and ship the map beside the window the runtime loads.
 - authored JSON that relied on undocumented or non-canonical behavior — prefer
   canonical field names over aliases to stay forward-compatible
 
-Name-based addressing across the JSON model and the client stays meaningful: the
-identifiers that matter at runtime are the page name, the reticle instance id,
-and an optional primitive id.
+Names remain meaningful in authored JSON and in the raw `CommandClient` helper
+surface. Across the generated transport boundary, command routing and runtime
+feedback identity use numeric ids from the matching generated contract. Feedback
+strings are limited to business data such as capture labels, categories, and
+metadata; they are never used to identify a page, strobe, reticle, or template.
 
 ## Rules when adding a command or a primitive
 

@@ -272,11 +272,36 @@ TEST(SceneRegistryTests, ActivatesFirstPageAndIgnoresUnknownPage)
     mfd::SceneRegistry registry(std::move(document));
 
     EXPECT_EQ(registry.ActivePageName(), "Radar");
+    EXPECT_EQ(registry.ActivePageTransportId(), 0U);
     registry.SetActivePage("Navigation");
     EXPECT_EQ(registry.ActivePageName(), "Navigation");
+    EXPECT_EQ(registry.ActivePageTransportId(), 0U);
 
     registry.SetActivePage("Unknown");
     EXPECT_EQ(registry.ActivePageName(), "Navigation");
+}
+
+TEST(SceneRegistryTests, ReportsGeneratedTransportIdForActivePage)
+{
+    mfd::PageDefinition radarPage = MakeBlinkPage();
+    mfd::PageDefinition navigationPage;
+    navigationPage.name = "Navigation";
+    navigationPage.normalizedName = "navigation";
+    navigationPage.layers.push_back(mfd::PageLayerDefinition {std::string(kDefaultLayerId)});
+
+    mfd::MfdDocument document;
+    document.pages = {std::move(radarPage), std::move(navigationPage)};
+
+    mfd::GeneratedTransportMap map;
+    map.mappingHash = "map_hash";
+    map.pages.push_back({11U, "Radar", "radar", true, true});
+    map.pages.push_back({12U, "Navigation", "navigation", false, false});
+
+    mfd::SceneRegistry registry(std::move(document), std::move(map));
+
+    EXPECT_EQ(registry.ActivePageTransportId(), 11U);
+    registry.SetActivePage("Navigation");
+    EXPECT_EQ(registry.ActivePageTransportId(), 12U);
 }
 
 TEST(SceneRegistryTests, CompositeReticleKeysKeepDelimiterBearingIdentifiersDistinct)

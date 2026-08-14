@@ -103,6 +103,18 @@ The generated client API consumes both so it can expose `Page::IsActive()` and
 `DynamicReticle::IsStrobeCaptured()` without forcing the user to decode packets
 and correlate ids manually.
 
+The window-to-client feedback contract uses generated numeric identifiers only:
+
+- `ActivePageFeedback::pageId` identifies the rendered page
+- `StrobeStatusFeedback::pageId` and `strobeId` identify the live strobe
+- magnet and capture targets use `runtimeReticleId`
+- capture source templates use `sourceTemplateTransportId`
+
+There is no name-based fallback on this feedback path. Regenerate and deploy the
+generated client and `.generated.map` together. Text remains present only for
+capture data intended for display or business logic: `label`, `category`, and
+`metadata`.
+
 Keep the feedback endpoint on `127.0.0.1` for the default trusted-local setup.
 If you expose it on `0.0.0.0`, any reachable host can receive the stream.
 `maxPacketSize` must stay in the supported `[64, 65507]` range.
@@ -348,12 +360,13 @@ if (payload.has_value())
         std::holds_alternative<mfd::StrobeStatusFeedback>(*feedback))
     {
         const auto& strobe = std::get<mfd::StrobeStatusFeedback>(*feedback);
-        // Use strobe.pageName / strobe.active / strobe.position / strobe.captureResult
+        // Use strobe.pageId / strobe.strobeId / strobe.active /
+        // strobe.position / strobe.captureResult
     }
     else if (feedback.has_value())
     {
         const auto& activePage = std::get<mfd::ActivePageFeedback>(*feedback);
-        // Use activePage.pageName
+        // Use activePage.pageId
     }
 }
 ```
@@ -362,7 +375,7 @@ if (payload.has_value())
 
 Important fields are:
 
-- `pageName`
+- `pageId`
 - `strobeId`
 - `active`
 - `position`
@@ -372,15 +385,15 @@ Important fields are:
 
 `captureResult` gives you:
 
-- captured reticle id
-- source template id
+- captured runtime reticle id
+- generated source-template transport id
 - label
 - category
 - position
 - distance
 - metadata
 
-`strobeId` is the public reticle id of the currently active strobe cursor.
+`strobeId` is the generated transport id of the currently active strobe cursor.
 When you use generated client bindings, control still remains page-scoped
 through `page.strobe`, while authored strobe variants stay available through
 generated `StrobeType` members such as `defaultStrobe` or `designatorStrobe`.

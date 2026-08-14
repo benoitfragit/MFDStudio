@@ -119,8 +119,6 @@ StrobeFeedbackCapture ToFeedbackCapture(const StrobeCaptureResult& capture)
     return StrobeFeedbackCapture {
         capture.runtimeReticleId,
         capture.sourceTemplateTransportId,
-        capture.reticleId,
-        capture.sourceTemplateId,
         capture.label,
         capture.category,
         capture.position,
@@ -141,7 +139,6 @@ StrobeFeedbackMagnet ToFeedbackMagnet(const std::optional<StrobeMagnetSummary>& 
         magnetSummary->strength,
         magnetSummary->magnetized,
         magnetSummary->runtimeReticleId,
-        magnetSummary->reticleId,
         magnetSummary->targetPosition,
         magnetSummary->distance};
 }
@@ -165,7 +162,6 @@ bool SameFeedbackMagnet(const StrobeFeedbackMagnet& lhs, const StrobeFeedbackMag
            lhs.strength == rhs.strength &&
            lhs.magnetized == rhs.magnetized &&
            lhs.runtimeReticleId == rhs.runtimeReticleId &&
-           lhs.reticleId == rhs.reticleId &&
            SameVec2(lhs.targetPosition, rhs.targetPosition) &&
            lhs.distance == rhs.distance;
 }
@@ -174,8 +170,6 @@ bool SameFeedbackCapture(const StrobeFeedbackCapture& lhs, const StrobeFeedbackC
 {
     return lhs.runtimeReticleId == rhs.runtimeReticleId &&
            lhs.sourceTemplateTransportId == rhs.sourceTemplateTransportId &&
-           lhs.reticleId == rhs.reticleId &&
-           lhs.sourceTemplateId == rhs.sourceTemplateId &&
            lhs.label == rhs.label &&
            lhs.category == rhs.category &&
            SameVec2(lhs.position, rhs.position) &&
@@ -197,7 +191,6 @@ bool SameOptionalFeedbackCapture(const std::optional<StrobeFeedbackCapture>& lhs
 bool SameStrobeFeedbackState(const StrobeStatusFeedback& lhs, const StrobeStatusFeedback& rhs)
 {
     return lhs.pageId == rhs.pageId &&
-           lhs.pageName == rhs.pageName &&
            lhs.strobeId == rhs.strobeId &&
            lhs.active == rhs.active &&
            SameVec2(lhs.position, rhs.position) &&
@@ -444,10 +437,14 @@ public:
             return std::nullopt;
         }
 
+        if (strobe->pageId == 0U || strobe->strobeTransportId == 0U)
+        {
+            return std::nullopt;
+        }
+
         StrobeStatusFeedback feedback;
         feedback.pageId = strobe->pageId;
-        feedback.pageName = strobe->pageName;
-        feedback.strobeId = strobe->reticleId;
+        feedback.strobeId = strobe->strobeTransportId;
         feedback.active = strobe->visible;
         feedback.position = strobe->position;
         feedback.capture = strobe->capture;
@@ -540,22 +537,23 @@ public:
         bool sentHeartbeat = false;
 
         const std::string activePageName = scene_.ActivePageName();
+        const TransportId activePageId = scene_.ActivePageTransportId();
         const bool activePageChanged =
             !lastPublishedActivePage_.has_value() || *lastPublishedActivePage_ != activePageName;
-        if (!activePageName.empty() && activePageChanged && changedDue)
+        if (activePageId != 0U && activePageChanged && changedDue)
         {
             ActivePageFeedback activePageFeedback;
             activePageFeedback.sequence = nextFeedbackSequence_++;
-            activePageFeedback.pageName = activePageName;
+            activePageFeedback.pageId = activePageId;
             runtimeBridge_->EnqueueActivePageFeedback(std::move(activePageFeedback));
             lastPublishedActivePage_ = activePageName;
             sentChanged = true;
         }
-        else if (!activePageName.empty() && !activePageChanged && heartbeatDue)
+        else if (activePageId != 0U && !activePageChanged && heartbeatDue)
         {
             ActivePageFeedback activePageFeedback;
             activePageFeedback.sequence = nextFeedbackSequence_++;
-            activePageFeedback.pageName = activePageName;
+            activePageFeedback.pageId = activePageId;
             runtimeBridge_->EnqueueActivePageFeedback(std::move(activePageFeedback));
             sentHeartbeat = true;
         }

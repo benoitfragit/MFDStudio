@@ -1243,22 +1243,22 @@ TEST(AnimationTests, RuntimeFeedbackStateTracksActivePageAndCapturedDynamicRetic
 {
     mfd::client::RuntimeFeedbackState feedbackState;
     EXPECT_FALSE(feedbackState.HasActivePage());
-    EXPECT_FALSE(feedbackState.IsPageActive("Radar"));
+    EXPECT_FALSE(feedbackState.IsPageActive(42U));
     EXPECT_FALSE(feedbackState.IsDynamicReticleCaptured(42U, 1001U));
 
     mfd::ActivePageFeedback activePage;
     activePage.sequence = 3U;
-    activePage.pageName = "Radar";
+    activePage.pageId = 42U;
     EXPECT_TRUE(feedbackState.Apply(activePage));
     EXPECT_TRUE(feedbackState.HasActivePage());
-    EXPECT_EQ(feedbackState.ActivePageName(), "Radar");
-    EXPECT_TRUE(feedbackState.IsPageActive("Radar"));
-    EXPECT_FALSE(feedbackState.IsPageActive("Navigation"));
+    EXPECT_EQ(feedbackState.ActivePageId(), 42U);
+    EXPECT_TRUE(feedbackState.IsPageActive(42U));
+    EXPECT_FALSE(feedbackState.IsPageActive(43U));
 
     mfd::StrobeStatusFeedback strobe;
     strobe.sequence = 4U;
     strobe.pageId = 42U;
-    strobe.pageName = "Radar";
+    strobe.strobeId = 142U;
     mfd::StrobeFeedbackCapture capture;
     capture.runtimeReticleId = 1001U;
     strobe.captureResult = std::move(capture);
@@ -1269,7 +1269,7 @@ TEST(AnimationTests, RuntimeFeedbackStateTracksActivePageAndCapturedDynamicRetic
     mfd::StrobeStatusFeedback cleared;
     cleared.sequence = 5U;
     cleared.pageId = 42U;
-    cleared.pageName = "Radar";
+    cleared.strobeId = 142U;
     EXPECT_TRUE(feedbackState.Apply(cleared));
     EXPECT_FALSE(feedbackState.IsDynamicReticleCaptured(42U, 1001U));
 }
@@ -1284,7 +1284,7 @@ TEST(AnimationTests, RuntimeFeedbackStateEvictsLeastRecentlyAppliedHistoricalPag
         mfd::StrobeStatusFeedback feedback;
         feedback.sequence = static_cast<std::uint32_t>(pageId);
         feedback.pageId = pageId;
-        feedback.pageName = "Page_" + std::to_string(pageId);
+        feedback.strobeId = 1000U + pageId;
         mfd::StrobeFeedbackCapture capture;
         capture.runtimeReticleId = pageId;
         feedback.captureResult = std::move(capture);
@@ -1293,7 +1293,7 @@ TEST(AnimationTests, RuntimeFeedbackStateEvictsLeastRecentlyAppliedHistoricalPag
 
     mfd::ActivePageFeedback activePage;
     activePage.sequence = 1U;
-    activePage.pageName = "Page_257";
+    activePage.pageId = kNewestPageId;
     ASSERT_TRUE(feedbackState.Apply(activePage));
 
     EXPECT_TRUE(feedbackState.IsDynamicReticleCaptured(kNewestPageId, kNewestPageId));
@@ -1346,16 +1346,15 @@ TEST(AnimationTests, RuntimeFeedbackStateTracksCapturedDynamicReticleByTransport
 
     mfd::ActivePageFeedback activePage;
     activePage.sequence = 20U;
-    activePage.pageName = "Radar";
+    activePage.pageId = 42U;
     EXPECT_TRUE(feedbackState.Apply(activePage));
 
     mfd::StrobeStatusFeedback feedback;
     feedback.sequence = 21U;
     feedback.pageId = 42U;
-    feedback.pageName = "Radar";
+    feedback.strobeId = 142U;
     mfd::StrobeFeedbackCapture capture;
     capture.runtimeReticleId = 1002U;
-    capture.reticleId = "legacy_alias";
     feedback.captureResult = std::move(capture);
 
     EXPECT_TRUE(feedbackState.Apply(feedback));
@@ -1369,13 +1368,13 @@ TEST(AnimationTests, RuntimeFeedbackStateClearsStaleCaptureWhenActivePageChanges
 
     mfd::ActivePageFeedback activePage;
     activePage.sequence = 30U;
-    activePage.pageName = "Radar";
+    activePage.pageId = 42U;
     EXPECT_TRUE(feedbackState.Apply(activePage));
 
     mfd::StrobeStatusFeedback captureOnRadar;
     captureOnRadar.sequence = 31U;
     captureOnRadar.pageId = 42U;
-    captureOnRadar.pageName = "Radar";
+    captureOnRadar.strobeId = 142U;
     mfd::StrobeFeedbackCapture capture;
     capture.runtimeReticleId = 9001U;
     captureOnRadar.captureResult = std::move(capture);
@@ -1384,14 +1383,14 @@ TEST(AnimationTests, RuntimeFeedbackStateClearsStaleCaptureWhenActivePageChanges
 
     mfd::ActivePageFeedback switchToNav;
     switchToNav.sequence = 32U;
-    switchToNav.pageName = "Navigation";
+    switchToNav.pageId = 43U;
     EXPECT_TRUE(feedbackState.Apply(switchToNav));
     EXPECT_FALSE(feedbackState.IsDynamicReticleCaptured(42U, 9001U));
 
     mfd::StrobeStatusFeedback reorderedFreshRadarCapture;
     reorderedFreshRadarCapture.sequence = 34U;
     reorderedFreshRadarCapture.pageId = 42U;
-    reorderedFreshRadarCapture.pageName = "Radar";
+    reorderedFreshRadarCapture.strobeId = 142U;
     mfd::StrobeFeedbackCapture reorderedCapture;
     reorderedCapture.runtimeReticleId = 9002U;
     reorderedFreshRadarCapture.captureResult = std::move(reorderedCapture);
@@ -1400,7 +1399,7 @@ TEST(AnimationTests, RuntimeFeedbackStateClearsStaleCaptureWhenActivePageChanges
 
     mfd::ActivePageFeedback switchBackToRadar;
     switchBackToRadar.sequence = 33U;
-    switchBackToRadar.pageName = "Radar";
+    switchBackToRadar.pageId = 42U;
     EXPECT_TRUE(feedbackState.Apply(switchBackToRadar));
     EXPECT_TRUE(feedbackState.IsDynamicReticleCaptured(42U, 9002U));
 }
@@ -1411,19 +1410,19 @@ TEST(AnimationTests, RuntimeFeedbackStateIgnoresOlderOutOfOrderFeedback)
 
     mfd::ActivePageFeedback activePage;
     activePage.sequence = 10U;
-    activePage.pageName = "Radar";
+    activePage.pageId = 42U;
     EXPECT_TRUE(feedbackState.Apply(activePage));
 
     mfd::ActivePageFeedback staleActivePage;
     staleActivePage.sequence = 9U;
-    staleActivePage.pageName = "Navigation";
+    staleActivePage.pageId = 43U;
     EXPECT_FALSE(feedbackState.Apply(staleActivePage));
-    EXPECT_TRUE(feedbackState.IsPageActive("Radar"));
+    EXPECT_TRUE(feedbackState.IsPageActive(42U));
 
     mfd::StrobeStatusFeedback freshStrobe;
     freshStrobe.sequence = 12U;
     freshStrobe.pageId = 42U;
-    freshStrobe.pageName = "Radar";
+    freshStrobe.strobeId = 142U;
     mfd::StrobeFeedbackCapture freshCapture;
     freshCapture.runtimeReticleId = 9001U;
     freshStrobe.captureResult = std::move(freshCapture);
@@ -1432,7 +1431,7 @@ TEST(AnimationTests, RuntimeFeedbackStateIgnoresOlderOutOfOrderFeedback)
     mfd::StrobeStatusFeedback staleStrobe;
     staleStrobe.sequence = 11U;
     staleStrobe.pageId = 42U;
-    staleStrobe.pageName = "Radar";
+    staleStrobe.strobeId = 142U;
     EXPECT_FALSE(feedbackState.Apply(staleStrobe));
     EXPECT_TRUE(feedbackState.IsDynamicReticleCaptured(42U, 9001U));
 }
@@ -1454,16 +1453,15 @@ TEST(AnimationTests, GeneratedDynamicReticleReportsCaptureFromRuntimeFeedbackSta
 
     mfd::ActivePageFeedback activePage;
     activePage.sequence = 13U;
-    activePage.pageName = "Radar";
+    activePage.pageId = 11U;
     EXPECT_TRUE(feedbackState.Apply(activePage));
 
     mfd::StrobeStatusFeedback feedback;
     feedback.sequence = 14U;
     feedback.pageId = 11U;
-    feedback.pageName = "Radar";
+    feedback.strobeId = 12U;
     mfd::StrobeFeedbackCapture capture;
     capture.runtimeReticleId = upsert->reticles.front().runtimeReticleId;
-    capture.reticleId = track.Id();
     feedback.captureResult = std::move(capture);
     EXPECT_TRUE(feedbackState.Apply(feedback));
     EXPECT_TRUE(track.IsStrobeCaptured());
@@ -1471,12 +1469,12 @@ TEST(AnimationTests, GeneratedDynamicReticleReportsCaptureFromRuntimeFeedbackSta
     mfd::StrobeStatusFeedback cleared;
     cleared.sequence = 15U;
     cleared.pageId = 11U;
-    cleared.pageName = "Radar";
+    cleared.strobeId = 12U;
     EXPECT_TRUE(feedbackState.Apply(cleared));
     EXPECT_FALSE(track.IsStrobeCaptured());
 }
 
-TEST(AnimationTests, GeneratedDynamicReticlePrefersIdBasedCaptureWhenAvailable)
+TEST(AnimationTests, GeneratedDynamicReticleUsesRuntimeIdForCaptureIdentity)
 {
     mfd::client::RuntimeFeedbackState feedbackState;
     GeneratedDynamicFixtureSet set(&feedbackState);
@@ -1499,16 +1497,15 @@ TEST(AnimationTests, GeneratedDynamicReticlePrefersIdBasedCaptureWhenAvailable)
 
     mfd::ActivePageFeedback activePage;
     activePage.sequence = 21U;
-    activePage.pageName = "Radar";
+    activePage.pageId = 11U;
     EXPECT_TRUE(feedbackState.Apply(activePage));
 
     mfd::StrobeStatusFeedback feedback;
     feedback.sequence = 22U;
     feedback.pageId = 11U;
-    feedback.pageName = "Radar";
+    feedback.strobeId = 12U;
     mfd::StrobeFeedbackCapture capture;
     capture.runtimeReticleId = bravoRuntimeId;
-    capture.reticleId = alpha.Id();
     feedback.captureResult = std::move(capture);
 
     EXPECT_TRUE(feedbackState.Apply(feedback));

@@ -1140,8 +1140,8 @@ TEST(UdpRuntimeBridgeTests, SendsQueuedStrobeFeedbackFromWorkerThread)
     ASSERT_TRUE(bridge.Start());
     mfd::StrobeStatusFeedback feedback;
     feedback.sequence = 7;
-    feedback.pageName = "hud";
-    feedback.strobeId = "cursor";
+    feedback.pageId = 11U;
+    feedback.strobeId = 12U;
     bridge.EnqueueStrobeFeedback(std::move(feedback));
 
     ASSERT_TRUE(WaitUntil(
@@ -1221,7 +1221,7 @@ TEST(UdpRuntimeBridgeTests, SendsQueuedActivePageFeedbackFromWorkerThread)
     ASSERT_TRUE(bridge.Start());
     mfd::ActivePageFeedback feedback;
     feedback.sequence = 11U;
-    feedback.pageName = "Page1";
+    feedback.pageId = 21U;
     bridge.EnqueueActivePageFeedback(std::move(feedback));
 
     ASSERT_TRUE(WaitUntil(
@@ -1264,7 +1264,7 @@ TEST(UdpRuntimeBridgeTests, CountsFeedbackQueueOverflowDrops)
     {
         mfd::ActivePageFeedback feedback;
         feedback.sequence = static_cast<std::uint32_t>(index + 1U);
-        feedback.pageName = "Page1";
+        feedback.pageId = 21U;
         bridge.EnqueueActivePageFeedback(std::move(feedback));
     }
 

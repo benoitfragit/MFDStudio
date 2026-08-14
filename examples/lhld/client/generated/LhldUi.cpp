@@ -367,7 +367,7 @@ RadarMockupPage::RadarMockupPage(RuntimeFeedbackState* feedbackState) :
 
 bool RadarMockupPage::IsActive() const noexcept
 {
-    return feedbackState_ != nullptr && feedbackState_->IsPageActive(Name());
+    return feedbackState_ != nullptr && feedbackState_->IsPageActive(GeneratedId());
 }
 
 void RadarMockupPage::Run() noexcept
@@ -822,7 +822,7 @@ SmsMockupPage::SmsMockupPage(RuntimeFeedbackState* feedbackState) :
 
 bool SmsMockupPage::IsActive() const noexcept
 {
-    return feedbackState_ != nullptr && feedbackState_->IsPageActive(Name());
+    return feedbackState_ != nullptr && feedbackState_->IsPageActive(GeneratedId());
 }
 
 void SmsMockupPage::Run() noexcept
@@ -1436,7 +1436,7 @@ NavMockupPage::NavMockupPage(RuntimeFeedbackState* feedbackState) :
 
 bool NavMockupPage::IsActive() const noexcept
 {
-    return feedbackState_ != nullptr && feedbackState_->IsPageActive(Name());
+    return feedbackState_ != nullptr && feedbackState_->IsPageActive(GeneratedId());
 }
 
 void NavMockupPage::Run() noexcept
@@ -1940,7 +1940,7 @@ AgMockupPage::AgMockupPage(RuntimeFeedbackState* feedbackState) :
 
 bool AgMockupPage::IsActive() const noexcept
 {
-    return feedbackState_ != nullptr && feedbackState_->IsPageActive(Name());
+    return feedbackState_ != nullptr && feedbackState_->IsPageActive(GeneratedId());
 }
 
 void AgMockupPage::Run() noexcept

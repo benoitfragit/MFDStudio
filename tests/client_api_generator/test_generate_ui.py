@@ -254,7 +254,7 @@ class GenerateUiTests(unittest.TestCase):
                 "feedbackState_(feedbackState)",
                 "strobe(Name(), {defaultStrobe, strobe1}, ",
                 "bool RadarMockupPage::IsActive() const noexcept",
-                "return feedbackState_ != nullptr && feedbackState_->IsPageActive(Name());",
+                "return feedbackState_ != nullptr && feedbackState_->IsPageActive(GeneratedId());",
                 "void RadarMockupPage::Run() noexcept",
                 "strobe.ClearDirty();",
                 "strobe.ResetToAuthored();",

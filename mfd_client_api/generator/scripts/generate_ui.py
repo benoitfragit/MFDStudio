@@ -1877,7 +1877,7 @@ def emit_source(namespace_name: str,
         lines.extend([
             f"bool {page.page_class_name}::IsActive() const noexcept",
             "{",
-            "    return feedbackState_ != nullptr && feedbackState_->IsPageActive(Name());",
+            "    return feedbackState_ != nullptr && feedbackState_->IsPageActive(GeneratedId());",
             "}",
             "",
             f"void {page.page_class_name}::Run() noexcept",

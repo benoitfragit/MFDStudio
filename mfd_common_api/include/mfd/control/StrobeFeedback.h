@@ -36,10 +36,8 @@ struct StrobeFeedbackMagnet
     float strength = 1.0f;
     /** @brief Indicates whether a target is currently magnetized. */
     bool magnetized = false;
-    /** @brief Runtime identifier of the currently magnetized dynamic reticle. */
+    /** @brief Runtime identifier of the target, or zero while not magnetized. */
     mfd::RuntimeDynamicId runtimeReticleId = 0;
-    /** @brief Public id of the currently magnetized reticle. */
-    std::string reticleId;
     /** @brief Target position used by the magnetization logic. */
     Vec2 targetPosition {};
     /** @brief Distance between the strobe and the magnetized target. */
@@ -51,14 +49,10 @@ struct StrobeFeedbackMagnet
  */
 struct StrobeFeedbackCapture
 {
-    /** @brief Runtime identifier of the captured dynamic reticle instance. */
+    /** @brief Non-zero runtime identifier of the captured dynamic reticle instance. */
     mfd::RuntimeDynamicId runtimeReticleId = 0;
-    /** @brief Generated transport id of the template that created the captured reticle. */
+    /** @brief Non-zero generated transport id of the source template. */
     mfd::TransportId sourceTemplateTransportId = 0;
-    /** @brief Public id of the captured dynamic reticle. */
-    std::string reticleId;
-    /** @brief Template id originally used to create the captured reticle. */
-    std::string sourceTemplateId;
     /** @brief Human-readable label exposed by the captured reticle. */
     std::string label;
     /** @brief Category exposed by the captured reticle. */
@@ -78,12 +72,10 @@ struct StrobeStatusFeedback
 {
     /** @brief Monotonic sequence set by the window. */
     std::uint32_t sequence = 0;
-    /** @brief Generated transport id of the owning page when available. */
+    /** @brief Non-zero generated transport id of the owning page. */
     mfd::TransportId pageId = 0;
-    /** @brief Owning page name. */
-    std::string pageName;
-    /** @brief Public reticle id of the strobe cursor. */
-    std::string strobeId;
+    /** @brief Non-zero generated transport id of the active page strobe. */
+    mfd::TransportId strobeId = 0;
     /** @brief Current strobe active state. */
     bool active = true;
     /** @brief Current strobe position in logical coordinates. */
@@ -100,6 +92,7 @@ struct StrobeStatusFeedback
  * @brief Serializes a strobe feedback payload to Protocol Buffers.
  * @param feedback Feedback payload to serialize.
  * @return Binary payload ready to be sent through UDP.
+ * @pre Page, strobe, and present runtime/template identifiers are non-zero.
  */
 MFD_API std::string SerializeStrobeStatusFeedback(const StrobeStatusFeedback& feedback);
 

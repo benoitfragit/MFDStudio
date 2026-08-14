@@ -31,7 +31,14 @@ Treat those three outputs as one contract:
 
 - the client uses the generated C++ types
 - the runtime must load the matching `.generated.map`
+- window-to-client feedback identifies pages, strobes, runtime reticles, and
+  templates with numeric ids from that generated contract
 - if the generated C++ and the map drift apart, generated batches are rejected
+
+There is no name-based compatibility path for feedback identity. Regenerate and
+ship the generated C++ and map together whenever authored identifiers change.
+Only display/business payloads such as capture `label`, `category`, and
+`metadata` remain textual.
 
 See [Compatibility between runtime, map, and client](../reference/public_contract.md#compatibility-between-runtime-map-and-client)
 for the runtime-side details.

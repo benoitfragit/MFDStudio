@@ -30,8 +30,8 @@ struct ActivePageFeedback
 {
     /** @brief Monotonic sequence set by the window. */
     std::uint32_t sequence = 0;
-    /** @brief Owning page name currently rendered as active. */
-    std::string pageName;
+    /** @brief Non-zero generated transport id of the page currently rendered as active. */
+    mfd::TransportId pageId = 0;
 };
 
 /**
@@ -70,6 +70,7 @@ using FeedbackPayload = std::variant<StrobeStatusFeedback, ActivePageFeedback, W
  * @brief Serializes any supported runtime feedback payload to Protocol Buffers.
  * @param feedback Feedback payload to serialize.
  * @return Binary payload ready to be sent through UDP.
+ * @pre Identifier-bearing feedback variants contain non-zero identifiers.
  */
 MFD_API std::string SerializeFeedbackPayload(const FeedbackPayload& feedback);
 
@@ -86,6 +87,7 @@ MFD_API std::optional<FeedbackPayload> DeserializeFeedbackPayload(std::string_vi
  * @brief Serializes an active-page feedback payload to Protocol Buffers.
  * @param feedback Feedback payload to serialize.
  * @return Binary payload ready to be sent through UDP.
+ * @pre `feedback.pageId` is non-zero.
  */
 MFD_API std::string SerializeActivePageFeedback(const ActivePageFeedback& feedback);
 

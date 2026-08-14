@@ -257,15 +257,15 @@ TEST(CommandTransportTests, FeedbackTransportLoopbackDeliversSerializedFeedback)
 
     mfd::StrobeStatusFeedback feedback;
     feedback.sequence = 27U;
-    feedback.pageName = "Radar";
-    feedback.strobeId = "cursor";
+    feedback.pageId = 11U;
+    feedback.strobeId = 12U;
     feedback.active = true;
     feedback.position = {0.14f, -0.18f};
     feedback.capture.shape = mfd::StrobeCaptureShape::Rectangle;
     feedback.capture.size = {0.22f, 0.10f};
     feedback.magnet.enabled = true;
     feedback.magnet.magnetized = true;
-    feedback.magnet.reticleId = "track_9";
+    feedback.magnet.runtimeReticleId = 9001U;
 
     const std::string payload = mfd::SerializeStrobeStatusFeedback(feedback);
     ASSERT_TRUE(sender->Send(AsByteView(payload))) << sender->LastError();
@@ -277,15 +277,15 @@ TEST(CommandTransportTests, FeedbackTransportLoopbackDeliversSerializedFeedback)
     const auto decoded = mfd::DeserializeStrobeStatusFeedback(BytesToString(*received), &error);
     ASSERT_TRUE(decoded.has_value()) << error;
     EXPECT_EQ(decoded->sequence, 27U);
-    EXPECT_EQ(decoded->pageName, "Radar");
-    EXPECT_EQ(decoded->strobeId, "cursor");
+    EXPECT_EQ(decoded->pageId, 11U);
+    EXPECT_EQ(decoded->strobeId, 12U);
     EXPECT_TRUE(decoded->active);
     EXPECT_EQ(decoded->capture.shape, mfd::StrobeCaptureShape::Rectangle);
     EXPECT_FLOAT_EQ(decoded->capture.size.x, 0.22f);
     EXPECT_FLOAT_EQ(decoded->capture.size.y, 0.10f);
     EXPECT_TRUE(decoded->magnet.enabled);
     EXPECT_TRUE(decoded->magnet.magnetized);
-    EXPECT_EQ(decoded->magnet.reticleId, "track_9");
+    EXPECT_EQ(decoded->magnet.runtimeReticleId, 9001U);
 #endif
 }
 

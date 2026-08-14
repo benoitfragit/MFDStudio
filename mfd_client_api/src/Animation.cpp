@@ -26,11 +26,6 @@ constexpr mfd::RuntimeDynamicId kGeneratedDynamicRuntimeIdBit = mfd::RuntimeDyna
 constexpr std::size_t kMaxRetainedDynamicReticles = 4096U;
 constexpr std::size_t kMaxRetainedFeedbackPages = 256U;
 
-std::string NormalizeFeedbackKey(const std::string_view value)
-{
-    return mfd::NormalizePageName(value);
-}
-
 std::string NormalizeStrobeName(const std::string_view value)
 {
     return mfd::NormalizePageName(value);
@@ -548,31 +543,7 @@ bool StrobeType::IsDefaultActive() const noexcept
 
 bool RuntimeFeedbackState::Apply(const mfd::StrobeStatusFeedback& feedback)
 {
-    const std::string normalizedPageName = NormalizeFeedbackKey(feedback.pageName);
-    const auto applyCaptureState = [&feedback, &normalizedPageName](PageCaptureState& state)
-    {
-        if (state.hasSequence && !SequenceIsNewer(feedback.sequence, state.lastStrobeSequence))
-        {
-            return false;
-        }
-
-        const bool nextCaptured = feedback.captureResult.has_value();
-        const mfd::RuntimeDynamicId nextRuntimeReticleId =
-            nextCaptured ? feedback.captureResult->runtimeReticleId : mfd::RuntimeDynamicId {0};
-        const bool changed = !state.hasSequence ||
-                             state.captured != nextCaptured ||
-                             state.capturedRuntimeReticleId != nextRuntimeReticleId ||
-                             state.pageNameNormalized != normalizedPageName;
-
-        state.lastStrobeSequence = feedback.sequence;
-        state.hasSequence = true;
-        state.captured = nextCaptured;
-        state.capturedRuntimeReticleId = nextRuntimeReticleId;
-        state.pageNameNormalized = normalizedPageName;
-        return changed;
-    };
-
-    if (feedback.pageId == 0)
+    if (feedback.pageId == 0U || feedback.strobeId == 0U)
     {
         return false;
     }
@@ -585,12 +556,23 @@ bool RuntimeFeedbackState::Apply(const mfd::StrobeStatusFeedback& feedback)
     }
 
     PageCaptureState& state = pageIt->second;
-    const bool accepted = !state.hasSequence || SequenceIsNewer(feedback.sequence, state.lastStrobeSequence);
-    const bool changed = applyCaptureState(state);
-    if (accepted)
+    if (state.hasSequence && !SequenceIsNewer(feedback.sequence, state.lastStrobeSequence))
     {
-        state.accessOrdinal = ++pageCaptureAccessOrdinal_;
+        return false;
     }
+
+    const bool nextCaptured = feedback.captureResult.has_value();
+    const mfd::RuntimeDynamicId nextRuntimeReticleId =
+        nextCaptured ? feedback.captureResult->runtimeReticleId : mfd::RuntimeDynamicId {0};
+    const bool changed = !state.hasSequence ||
+                         state.captured != nextCaptured ||
+                         state.capturedRuntimeReticleId != nextRuntimeReticleId;
+
+    state.lastStrobeSequence = feedback.sequence;
+    state.accessOrdinal = ++pageCaptureAccessOrdinal_;
+    state.hasSequence = true;
+    state.captured = nextCaptured;
+    state.capturedRuntimeReticleId = nextRuntimeReticleId;
     return changed;
 }
 
@@ -604,8 +586,7 @@ void RuntimeFeedbackState::MakeRoomForPageCapture()
     auto evictionIt = pageCaptureById_.end();
     for (auto pageIt = pageCaptureById_.begin(); pageIt != pageCaptureById_.end(); ++pageIt)
     {
-        const bool belongsToActivePage =
-            hasActivePage_ && pageIt->second.pageNameNormalized == activePageNameNormalized_;
+        const bool belongsToActivePage = hasActivePage_ && pageIt->first == activePageId_;
         if (belongsToActivePage)
         {
             continue;
@@ -634,18 +615,19 @@ void RuntimeFeedbackState::MakeRoomForPageCapture()
 
 bool RuntimeFeedbackState::Apply(const mfd::ActivePageFeedback& feedback)
 {
+    if (feedback.pageId == 0U)
+    {
+        return false;
+    }
+
     if (hasActivePage_ && !SequenceIsNewer(feedback.sequence, lastActivePageSequence_))
     {
         return false;
     }
 
-    const std::string normalizedPageName = NormalizeFeedbackKey(feedback.pageName);
-    const bool changed = !hasActivePage_ ||
-                         activePageName_ != feedback.pageName ||
-                         activePageNameNormalized_ != normalizedPageName;
+    const bool changed = !hasActivePage_ || activePageId_ != feedback.pageId;
 
-    activePageName_ = feedback.pageName;
-    activePageNameNormalized_ = normalizedPageName;
+    activePageId_ = feedback.pageId;
     lastActivePageSequence_ = feedback.sequence;
     hasActivePage_ = true;
 
@@ -754,8 +736,7 @@ void RuntimeFeedbackState::Reset() noexcept
 {
     pageCaptureById_.clear();
     pageCaptureAccessOrdinal_ = 0;
-    activePageName_.clear();
-    activePageNameNormalized_.clear();
+    activePageId_ = 0;
     lastActivePageSequence_ = 0;
     hasActivePage_ = false;
     decodedFeedbackPackets_ = 0;
@@ -789,20 +770,20 @@ bool RuntimeFeedbackState::HasActivePage() const noexcept
     return hasActivePage_;
 }
 
-const std::string& RuntimeFeedbackState::ActivePageName() const noexcept
+mfd::TransportId RuntimeFeedbackState::ActivePageId() const noexcept
 {
-    return activePageName_;
+    return activePageId_;
 }
 
-bool RuntimeFeedbackState::IsPageActive(const std::string_view pageName) const noexcept
+bool RuntimeFeedbackState::IsPageActive(const mfd::TransportId pageId) const noexcept
 {
-    return hasActivePage_ && activePageNameNormalized_ == NormalizeFeedbackKey(pageName);
+    return pageId != 0U && hasActivePage_ && activePageId_ == pageId;
 }
 
 bool RuntimeFeedbackState::IsDynamicReticleCaptured(const mfd::TransportId pageId,
                                                     const mfd::RuntimeDynamicId runtimeReticleId) const noexcept
 {
-    if (pageId == 0 || runtimeReticleId == 0 || !hasActivePage_)
+    if (pageId == 0U || runtimeReticleId == 0U || !hasActivePage_ || pageId != activePageId_)
     {
         return false;
     }
@@ -814,9 +795,7 @@ bool RuntimeFeedbackState::IsDynamicReticleCaptured(const mfd::TransportId pageI
     }
 
     const PageCaptureState& state = pageIt->second;
-    return state.captured &&
-           state.capturedRuntimeReticleId == runtimeReticleId &&
-           state.pageNameNormalized == activePageNameNormalized_;
+    return state.captured && state.capturedRuntimeReticleId == runtimeReticleId;
 }
 
 ReticleBlink::ReticleBlink(mfd::ReticlePatch& patch, bool* dirty) noexcept :

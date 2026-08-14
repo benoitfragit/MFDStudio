@@ -610,12 +610,13 @@ public:
 
 std::string DescribeFeedbackTargetImpl(const StrobeStatusFeedback& feedback)
 {
-    return "page '" + feedback.pageName + "' strobe";
+    return "page transport id " + std::to_string(feedback.pageId) +
+           " strobe transport id " + std::to_string(feedback.strobeId);
 }
 
 std::string DescribeFeedbackTargetImpl(const ActivePageFeedback& feedback)
 {
-    return "active page '" + feedback.pageName + "'";
+    return "active page transport id " + std::to_string(feedback.pageId);
 }
 
 std::string DescribeFeedbackTargetImpl(const WindowLifecycleFeedback& feedback)

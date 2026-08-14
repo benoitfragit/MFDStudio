@@ -231,6 +231,8 @@ public:
     void SetActivePage(std::string_view pageName) noexcept;
     /** @brief Returns the display name of the active page. */
     std::string ActivePageName() const;
+    /** @brief Returns the generated transport id of the active page, or zero when unavailable. */
+    TransportId ActivePageTransportId() const noexcept;
     /** @brief Returns the active page summary. */
     std::optional<PageSummary> ActivePageSummary() const;
     /** @brief Returns the view of a page when it exists. */

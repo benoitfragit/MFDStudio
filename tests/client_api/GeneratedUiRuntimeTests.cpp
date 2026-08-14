@@ -114,9 +114,14 @@ public:
         return "Radar";
     }
 
+    static constexpr mfd::TransportId GeneratedId() noexcept
+    {
+        return 11U;
+    }
+
     bool IsActive() const noexcept
     {
-        return feedbackState_ != nullptr && feedbackState_->IsPageActive(Name());
+        return feedbackState_ != nullptr && feedbackState_->IsPageActive(GeneratedId());
     }
 
     void Run() noexcept
@@ -551,17 +556,16 @@ TEST(GeneratedUiRuntimeTests, GeneratedPagesAndDynamicReticlesReflectRuntimeFeed
 
     mfd::ActivePageFeedback activePage;
     activePage.sequence = 1U;
-    activePage.pageName = "Radar";
+    activePage.pageId = 11U;
     EXPECT_TRUE(ui.ApplyFeedback(activePage));
     EXPECT_TRUE(ui.Radar().IsActive());
 
     mfd::StrobeStatusFeedback strobe;
     strobe.sequence = 2U;
     strobe.pageId = 11U;
-    strobe.pageName = "Radar";
+    strobe.strobeId = 102U;
     mfd::StrobeFeedbackCapture capture;
     capture.runtimeReticleId = upsert->reticles.front().runtimeReticleId;
-    capture.reticleId = track.Id();
     strobe.captureResult = std::move(capture);
     EXPECT_TRUE(ui.ApplyFeedback(strobe));
     EXPECT_TRUE(track.IsStrobeCaptured());
@@ -569,7 +573,7 @@ TEST(GeneratedUiRuntimeTests, GeneratedPagesAndDynamicReticlesReflectRuntimeFeed
     mfd::StrobeStatusFeedback cleared;
     cleared.sequence = 3U;
     cleared.pageId = 11U;
-    cleared.pageName = "Radar";
+    cleared.strobeId = 102U;
     EXPECT_TRUE(ui.ApplyFeedback(cleared));
     EXPECT_FALSE(track.IsStrobeCaptured());
 }
@@ -580,7 +584,7 @@ TEST(GeneratedUiRuntimeTests, GeneratedUiAppliesSerializedRuntimeFeedbackPayload
 
     mfd::ActivePageFeedback activePage;
     activePage.sequence = 5U;
-    activePage.pageName = "Radar";
+    activePage.pageId = 11U;
 
     std::string error;
     EXPECT_TRUE(ui.ApplyFeedbackPayload(mfd::SerializeActivePageFeedback(activePage), &error));
