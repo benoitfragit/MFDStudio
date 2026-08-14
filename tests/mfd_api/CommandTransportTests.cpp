@@ -321,6 +321,7 @@ TEST(CommandTransportTests, UdpChannelRejectsPayloadsLargerThanSupportedDatagram
     config.bindPort = 0U;
     config.remoteAddress = "127.0.0.1";
     config.remotePort = 47220U;
+    config.maxPacketSize = mfd::kUdpMaxPayloadBytes;
 
     mfd::UdpChannel channel(config);
     ASSERT_TRUE(channel.IsReady()) << channel.LastError();
@@ -328,6 +329,31 @@ TEST(CommandTransportTests, UdpChannelRejectsPayloadsLargerThanSupportedDatagram
     std::vector<std::byte> payload(mfd::kUdpMaxPayloadBytes + 1U, std::byte {0x2A});
     EXPECT_FALSE(channel.Send(mfd::ByteView(payload.data(), payload.size())));
     EXPECT_EQ(channel.LastError(), "UDP payload exceeds maximum datagram size");
+#endif
+}
+
+TEST(CommandTransportTests, UdpChannelEnforcesConfiguredPacketSizeWhenSending)
+{
+#ifndef _WIN32
+    GTEST_SKIP() << "UDP loopback transport is implemented for Windows targets in this project";
+#else
+    mfd::UdpChannelConfig config;
+    config.bindAddress = "127.0.0.1";
+    config.bindPort = 0U;
+    config.remoteAddress = "127.0.0.1";
+    config.remotePort = 47220U;
+    config.maxPacketSize = 4096U;
+
+    mfd::UdpChannel channel(config);
+    ASSERT_TRUE(channel.IsReady()) << channel.LastError();
+
+    std::vector<std::byte> maximumPayload(config.maxPacketSize, std::byte {0x2A});
+    EXPECT_TRUE(channel.Send(mfd::ByteView(maximumPayload.data(), maximumPayload.size())))
+        << channel.LastError();
+
+    maximumPayload.push_back(std::byte {0x2A});
+    EXPECT_FALSE(channel.Send(mfd::ByteView(maximumPayload.data(), maximumPayload.size())));
+    EXPECT_EQ(channel.LastError(), "UDP payload exceeds configured maxPacketSize");
 #endif
 }
 

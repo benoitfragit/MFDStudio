@@ -186,6 +186,12 @@ bool UdpChannel::Send(const ByteView buffer)
         return false;
     }
 
+    if (buffer.size() > impl_->maxPacketSize)
+    {
+        impl_->lastError = "UDP payload exceeds configured maxPacketSize";
+        return false;
+    }
+
     if (buffer.size() > static_cast<std::size_t>((std::numeric_limits<int>::max)()))
     {
         impl_->lastError = "UDP payload exceeds the platform send limit";

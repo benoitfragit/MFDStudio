@@ -36,7 +36,7 @@ struct UdpChannelConfig
     std::string remoteAddress = "127.0.0.1";
     /** @brief Default remote target port used by `Send()`. */
     std::uint16_t remotePort = 0;
-    /** @brief Maximum receive packet size in bytes in the supported `[64, 65507]` range. */
+    /** @brief Maximum sent or received datagram payload size in the supported `[64, 65507]` range. */
     std::size_t maxPacketSize = kUdpDefaultPayloadBytes;
 };
 

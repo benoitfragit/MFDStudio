@@ -33,7 +33,7 @@ struct WindowUdpCommandTransport
     std::string address = "127.0.0.1";
     /** @brief UDP port used by the transport. */
     std::uint16_t port = 47220;
-    /** @brief Maximum Protocol Buffers UDP payload size accepted by the channel in the supported `[64, 65507]` range. */
+    /** @brief Maximum Protocol Buffers UDP payload size sent or accepted in the supported `[64, 65507]` range. */
     std::size_t maxPacketSize = kUdpDefaultPayloadBytes;
 };
 

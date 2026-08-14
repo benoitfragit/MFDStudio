@@ -43,6 +43,7 @@ struct FakeChannelState
     std::deque<std::vector<std::byte>> inboundPayloads;
     std::deque<std::vector<std::byte>> sentPayloads;
     std::string lastError {};
+    std::optional<std::size_t> maxSendBytes {};
     bool ready = true;
 
     /**
@@ -100,6 +101,12 @@ public:
         if (!state_->ready || role_ != Role::Sender)
         {
             state_->lastError = "Fake sender channel is not ready";
+            return false;
+        }
+
+        if (state_->maxSendBytes.has_value() && buffer.size() > *state_->maxSendBytes)
+        {
+            state_->lastError = "UDP payload exceeds configured maxPacketSize";
             return false;
         }
 
@@ -1238,6 +1245,53 @@ TEST(UdpRuntimeBridgeTests, SendsQueuedActivePageFeedbackFromWorkerThread)
     EXPECT_EQ(metrics.feedbackSent, 1U);
     EXPECT_EQ(metrics.feedbackDropped, 0U);
     EXPECT_FALSE(bridge.IsRunning());
+}
+
+TEST(UdpRuntimeBridgeTests, CountsOversizedCaptureFeedbackAsDropped)
+{
+    auto receiverState = std::make_shared<FakeChannelState>();
+    auto senderState = std::make_shared<FakeChannelState>();
+    senderState->maxSendBytes = 4096U;
+
+    mfd::UdpRuntimeBridge bridge(
+        [receiverState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(receiverState, FakeExchangeChannel::Role::Receiver);
+        },
+        [senderState]()
+        {
+            return std::make_unique<FakeExchangeChannel>(senderState, FakeExchangeChannel::Role::Sender);
+        });
+
+    ASSERT_TRUE(bridge.Start());
+
+    mfd::StrobeStatusFeedback feedback;
+    feedback.sequence = 12U;
+    feedback.pageId = 21U;
+    feedback.strobeId = 22U;
+    mfd::StrobeFeedbackCapture capture;
+    capture.runtimeReticleId = 7001U;
+    capture.sourceTemplateTransportId = 31U;
+    capture.metadata.emplace("oversized", std::string(5000U, 'x'));
+    feedback.captureResult = std::move(capture);
+    bridge.EnqueueStrobeFeedback(std::move(feedback));
+
+    ASSERT_TRUE(WaitUntil(
+        std::chrono::milliseconds(300),
+        [&bridge]()
+        {
+            return bridge.MetricsSnapshot().feedbackDropped == 1U;
+        }));
+
+    bridge.Stop();
+    const mfd::UdpRuntimeBridgeMetrics metrics = bridge.MetricsSnapshot();
+    EXPECT_EQ(metrics.feedbackQueued, 1U);
+    EXPECT_EQ(metrics.feedbackSent, 0U);
+    EXPECT_EQ(metrics.feedbackDropped, 1U);
+    EXPECT_EQ(bridge.LastFeedbackStatus(), "UDP payload exceeds configured maxPacketSize");
+
+    std::lock_guard lock(senderState->mutex);
+    EXPECT_TRUE(senderState->sentPayloads.empty());
 }
 
 TEST(UdpRuntimeBridgeTests, CountsFeedbackQueueOverflowDrops)

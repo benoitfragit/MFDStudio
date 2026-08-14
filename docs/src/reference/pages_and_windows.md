@@ -67,7 +67,7 @@ Command and feedback share the same UDP fields:
 | `enabled` | Enable the endpoint. |
 | `address` | IPv4 bind/target. Keep `127.0.0.1` unless you want network exposure. |
 | `port` | UDP port. |
-| `maxPacketSize` | Payload size in `[64, 65507]`. |
+| `maxPacketSize` | Maximum sent or received datagram payload size in `[64, 65507]`. |
 
 > Binding to `0.0.0.0` exposes the runtime command surface to the local network.
 > Do that only in trusted environments.

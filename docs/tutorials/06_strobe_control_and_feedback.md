@@ -117,7 +117,10 @@ capture data intended for display or business logic: `label`, `category`, and
 
 Keep the feedback endpoint on `127.0.0.1` for the default trusted-local setup.
 If you expose it on `0.0.0.0`, any reachable host can receive the stream.
-`maxPacketSize` must stay in the supported `[64, 65507]` range.
+`maxPacketSize` must stay in the supported `[64, 65507]` range. It is a
+symmetric datagram boundary: both sender and receiver reject payloads larger
+than the configured value. Runtime feedback is not fragmented, so keep capture
+labels, categories, and metadata small enough for one configured datagram.
 
 If you author the page in `mfd_editor`, use:
 
