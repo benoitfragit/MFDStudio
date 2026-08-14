@@ -151,6 +151,60 @@ TEST(CommandClientTests, ResetWindowHelperSendsResetWindowCommand)
     EXPECT_NE(std::get_if<mfd::ResetWindowCommand>(&*command), nullptr);
 }
 
+TEST(CommandClientTests, SmallBatchesCarryStableSessionAndDistinctBatchIdentities)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+    CapturingExchangeChannel* const rawChannel = channel.get();
+
+    mfd::CommandClient client(std::move(channel));
+    ASSERT_TRUE(client.IsReady());
+
+    ASSERT_TRUE(client.ResetWindow());
+    ASSERT_TRUE(client.ResetWindow());
+    ASSERT_EQ(rawChannel->SentPayloads().size(), 2U);
+
+    const auto firstBatch = DecodeBatchPayload(rawChannel->SentPayloads()[0]);
+    const auto secondBatch = DecodeBatchPayload(rawChannel->SentPayloads()[1]);
+    ASSERT_TRUE(firstBatch.has_value());
+    ASSERT_TRUE(secondBatch.has_value());
+    ASSERT_TRUE(firstBatch->fragment.has_value());
+    ASSERT_TRUE(secondBatch->fragment.has_value());
+
+    EXPECT_NE(firstBatch->fragment->clientId, 0U);
+    EXPECT_NE(firstBatch->fragment->sessionEpoch, 0U);
+    EXPECT_EQ(firstBatch->fragment->clientId, secondBatch->fragment->clientId);
+    EXPECT_EQ(firstBatch->fragment->sessionEpoch, secondBatch->fragment->sessionEpoch);
+    EXPECT_NE(firstBatch->fragment->batchId, 0U);
+    EXPECT_NE(firstBatch->fragment->batchId, secondBatch->fragment->batchId);
+    EXPECT_EQ(firstBatch->fragment->chunkIndex, 0U);
+    EXPECT_EQ(firstBatch->fragment->chunkCount, 1U);
+    EXPECT_EQ(secondBatch->fragment->chunkIndex, 0U);
+    EXPECT_EQ(secondBatch->fragment->chunkCount, 1U);
+}
+
+TEST(CommandClientTests, SeparateClientsUseSeparateTransportSessions)
+{
+    auto firstChannel = std::make_unique<CapturingExchangeChannel>();
+    CapturingExchangeChannel* const rawFirstChannel = firstChannel.get();
+    auto secondChannel = std::make_unique<CapturingExchangeChannel>();
+    CapturingExchangeChannel* const rawSecondChannel = secondChannel.get();
+
+    mfd::CommandClient firstClient(std::move(firstChannel));
+    mfd::CommandClient secondClient(std::move(secondChannel));
+    ASSERT_TRUE(firstClient.ResetWindow());
+    ASSERT_TRUE(secondClient.ResetWindow());
+
+    const auto firstBatch = DecodeBatchPayload(rawFirstChannel->SentPayloads().front());
+    const auto secondBatch = DecodeBatchPayload(rawSecondChannel->SentPayloads().front());
+    ASSERT_TRUE(firstBatch.has_value());
+    ASSERT_TRUE(secondBatch.has_value());
+    ASSERT_TRUE(firstBatch->fragment.has_value());
+    ASSERT_TRUE(secondBatch->fragment.has_value());
+
+    EXPECT_NE(firstBatch->fragment->clientId, secondBatch->fragment->clientId);
+    EXPECT_NE(firstBatch->fragment->sessionEpoch, secondBatch->fragment->sessionEpoch);
+}
+
 TEST(CommandClientTests, SplitBulkDynamicReticlesPreservesGeneratedIdentifiers)
 {
     auto channel = std::make_unique<CapturingExchangeChannel>();
@@ -158,6 +212,17 @@ TEST(CommandClientTests, SplitBulkDynamicReticlesPreservesGeneratedIdentifiers)
 
     mfd::CommandClient client(std::move(channel));
     ASSERT_TRUE(client.IsReady());
+
+    mfd::CommandBatch probeBatch;
+    probeBatch.sequence = 41U;
+    probeBatch.mappingHash = "map_hash";
+    probeBatch.commands.push_back(mfd::ResetWindowCommand {});
+    ASSERT_TRUE(client.SendBatch(probeBatch));
+
+    ASSERT_EQ(rawChannel->SentPayloads().size(), 1U);
+    const auto probe = DecodeBatchPayload(rawChannel->SentPayloads().front());
+    ASSERT_TRUE(probe.has_value());
+    ASSERT_TRUE(probe->fragment.has_value());
 
     mfd::UpsertDynamicReticlesCommand command;
     command.page = "Radar";
@@ -179,12 +244,13 @@ TEST(CommandClientTests, SplitBulkDynamicReticlesPreservesGeneratedIdentifiers)
     batch.commands.push_back(command);
 
     ASSERT_TRUE(client.SendBatch(batch));
-    ASSERT_GT(rawChannel->SentPayloads().size(), 1U);
+    ASSERT_GT(rawChannel->SentPayloads().size(), 2U);
 
     std::uint64_t fragmentedBatchId = 0U;
-    for (std::size_t chunkIndex = 0U; chunkIndex < rawChannel->SentPayloads().size(); ++chunkIndex)
+    const std::size_t fragmentedPayloadCount = rawChannel->SentPayloads().size() - 1U;
+    for (std::size_t chunkIndex = 0U; chunkIndex < fragmentedPayloadCount; ++chunkIndex)
     {
-        const std::vector<std::byte>& payloadBytes = rawChannel->SentPayloads()[chunkIndex];
+        const std::vector<std::byte>& payloadBytes = rawChannel->SentPayloads()[chunkIndex + 1U];
         const std::string payload(reinterpret_cast<const char*>(payloadBytes.data()), payloadBytes.size());
         const auto decodedBatch = mfd::DeserializeCommandBatch(payload);
 
@@ -192,14 +258,15 @@ TEST(CommandClientTests, SplitBulkDynamicReticlesPreservesGeneratedIdentifiers)
         EXPECT_EQ(decodedBatch->sequence, 42U);
         EXPECT_EQ(decodedBatch->mappingHash, "map_hash");
         ASSERT_TRUE(decodedBatch->fragment.has_value());
-        EXPECT_NE(decodedBatch->fragment->clientId, 0U);
-        EXPECT_NE(decodedBatch->fragment->sessionEpoch, 0U);
+        EXPECT_EQ(decodedBatch->fragment->clientId, probe->fragment->clientId);
+        EXPECT_EQ(decodedBatch->fragment->sessionEpoch, probe->fragment->sessionEpoch);
         EXPECT_EQ(decodedBatch->fragment->chunkIndex, chunkIndex);
-        EXPECT_EQ(decodedBatch->fragment->chunkCount, rawChannel->SentPayloads().size());
+        EXPECT_EQ(decodedBatch->fragment->chunkCount, fragmentedPayloadCount);
         if (chunkIndex == 0U)
         {
             fragmentedBatchId = decodedBatch->fragment->batchId;
             EXPECT_NE(fragmentedBatchId, 0U);
+            EXPECT_NE(fragmentedBatchId, probe->fragment->batchId);
         }
         else
         {

@@ -316,6 +316,14 @@ mfd::CommandBatch MakeFragmentedTextUpdate(const std::uint64_t clientId,
         mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, std::move(patch)});
     return chunk;
 }
+
+void ScopeSingletonBatch(mfd::CommandBatch& batch,
+                         const std::uint64_t clientId,
+                         const std::uint64_t sessionEpoch,
+                         const std::uint64_t batchId)
+{
+    batch.fragment = mfd::CommandBatchFragment {clientId, sessionEpoch, batchId, 0U, 1U};
+}
 } // namespace
 
 TEST(CommandProcessorTests, PollDoesNotOverrideSuccessfulDispatchWithStickyChannelError)
@@ -831,6 +839,22 @@ TEST(CommandProcessorTests, ArrayViewSubmissionStopsOnFirstFailureAndKeepsDiagno
     EXPECT_EQ(text->text, "000");
 }
 
+TEST(CommandProcessorTests, RejectsUnscopedSequencedGeneratedBatch)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::CommandBatch batch;
+    batch.mappingHash = "map_hash";
+    batch.sequence = 7U;
+    batch.commands.push_back(mfd::ActivatePageCommand {"", 11U});
+
+    EXPECT_FALSE(processor.Submit(batch));
+    EXPECT_EQ(
+        processor.LastError(),
+        "Sequenced generated command batch requires client and session identity");
+}
+
 TEST(CommandProcessorTests, RejectsDuplicateOrOutOfOrderSequencedBatches)
 {
     mfd::SceneRegistry registry = MakeRegistry();
@@ -839,11 +863,13 @@ TEST(CommandProcessorTests, RejectsDuplicateOrOutOfOrderSequencedBatches)
     mfd::CommandBatch firstBatch;
     firstBatch.mappingHash = "map_hash";
     firstBatch.sequence = 7U;
+    ScopeSingletonBatch(firstBatch, 101U, 201U, 1U);
     firstBatch.commands.push_back(mfd::ActivatePageCommand {"", 11U});
 
     mfd::CommandBatch duplicateBatch = firstBatch;
     mfd::CommandBatch olderBatch = firstBatch;
     olderBatch.sequence = 6U;
+    ScopeSingletonBatch(olderBatch, 101U, 201U, 2U);
 
     EXPECT_TRUE(processor.Submit(firstBatch));
     EXPECT_TRUE(processor.LastError().empty());
@@ -855,29 +881,31 @@ TEST(CommandProcessorTests, RejectsDuplicateOrOutOfOrderSequencedBatches)
     EXPECT_EQ(processor.LastError(), "Dropped stale or duplicate command batch");
 }
 
-TEST(CommandProcessorTests, AcceptsDistinctSequencedBatchesWithSameSequenceToSupportChunkedPayloads)
+TEST(CommandProcessorTests, AcceptsDistinctScopedBatchesWithSameSequence)
 {
     mfd::SceneRegistry registry = MakeRegistry();
     mfd::CommandProcessor processor(registry);
 
-    mfd::CommandBatch firstChunk;
-    firstChunk.mappingHash = "map_hash";
-    firstChunk.sequence = 12U;
-    firstChunk.commands.push_back(mfd::ActivatePageCommand {"", 11U});
+    mfd::CommandBatch firstBatch;
+    firstBatch.mappingHash = "map_hash";
+    firstBatch.sequence = 12U;
+    ScopeSingletonBatch(firstBatch, 101U, 201U, 1U);
+    firstBatch.commands.push_back(mfd::ActivatePageCommand {"", 11U});
 
     mfd::ReticlePatch patch;
     patch.text = "321";
 
-    mfd::CommandBatch secondChunk;
-    secondChunk.mappingHash = "map_hash";
-    secondChunk.sequence = 12U;
-    secondChunk.commands.push_back(
+    mfd::CommandBatch secondBatch;
+    secondBatch.mappingHash = "map_hash";
+    secondBatch.sequence = 12U;
+    ScopeSingletonBatch(secondBatch, 101U, 201U, 2U);
+    secondBatch.commands.push_back(
         mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, patch});
 
-    EXPECT_TRUE(processor.Submit(firstChunk));
+    EXPECT_TRUE(processor.Submit(firstBatch));
     EXPECT_TRUE(processor.LastError().empty());
 
-    EXPECT_TRUE(processor.Submit(secondChunk));
+    EXPECT_TRUE(processor.Submit(secondBatch));
     EXPECT_TRUE(processor.LastError().empty());
 
     const auto reticles = registry.CollectPageReticlePointers("Radar");
@@ -954,7 +982,7 @@ TEST(CommandProcessorTests, BoundsRetainedFingerprintsForASingleSequence)
 
     constexpr std::size_t kCap = 256U;
 
-    // Distinct chunked batches under a single sequence are accepted up to the documented cap.
+    // Distinct scoped batches under a single sequence are accepted up to the documented cap.
     for (std::size_t index = 0; index < kCap; ++index)
     {
         mfd::ReticlePatch patch;
@@ -963,6 +991,7 @@ TEST(CommandProcessorTests, BoundsRetainedFingerprintsForASingleSequence)
         mfd::CommandBatch chunk;
         chunk.mappingHash = "map_hash";
         chunk.sequence = 7U;
+        ScopeSingletonBatch(chunk, 101U, 201U, static_cast<std::uint64_t>(index + 1U));
         chunk.commands.push_back(
             mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, patch});
 
@@ -977,6 +1006,7 @@ TEST(CommandProcessorTests, BoundsRetainedFingerprintsForASingleSequence)
     mfd::CommandBatch overflowChunk;
     overflowChunk.mappingHash = "map_hash";
     overflowChunk.sequence = 7U;
+    ScopeSingletonBatch(overflowChunk, 101U, 201U, static_cast<std::uint64_t>(kCap + 1U));
     overflowChunk.commands.push_back(
         mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, overflowPatch});
 
@@ -990,6 +1020,7 @@ TEST(CommandProcessorTests, BoundsRetainedFingerprintsForASingleSequence)
     mfd::CommandBatch nextSequence;
     nextSequence.mappingHash = "map_hash";
     nextSequence.sequence = 8U;
+    ScopeSingletonBatch(nextSequence, 101U, 201U, static_cast<std::uint64_t>(kCap + 2U));
     nextSequence.commands.push_back(
         mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, nextPatch});
 

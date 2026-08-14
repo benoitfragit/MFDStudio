@@ -138,6 +138,15 @@ Use the generated root as a small state machine:
 | `ui.BuildCommandBatch(sequence)` | wraps the generated commands with `mappingHash` and sequence | typical transport submission |
 | `ui.SubmitLatest(...)` | builds and submits through `LatestBatchPublisher` | coalesced publisher path |
 
+`CommandClient` assigns every transmitted batch a non-zero numeric
+client/session/batch identity. A batch fitting in one datagram is encoded as
+chunk `0/1`; a larger atomic batch keeps the same identity across all chunks.
+The client and session identities remain stable for the lifetime of the
+`CommandClient`, so sequence filtering stays isolated from other clients using
+the same generated mapping. Construct a new client for a restarted transport
+session. Sequenced generated batches sent without this scope are rejected by
+the runtime.
+
 ## Coordinates and units
 
 The generated client API uses the same logical coordinate system as the authored

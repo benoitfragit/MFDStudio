@@ -1026,6 +1026,7 @@ CommandClient::CommandClient(std::unique_ptr<IExchangeChannel> channel, std::opt
     : channel_(std::move(channel)),
       transportMap_(std::move(transportMap))
 {
+    InitializeTransportIdentity();
 }
 
 CommandClient::CommandClient(const WindowCommandTransportConfig& config, std::optional<GeneratedTransportMap> transportMap)
@@ -1419,7 +1420,7 @@ bool CommandClient::SendPayload(const std::string_view payload)
     return true;
 }
 
-void CommandClient::InitializeFragmentIdentity()
+void CommandClient::InitializeTransportIdentity()
 {
     if (clientId_ != 0U && sessionEpoch_ != 0U)
     {
@@ -1428,6 +1429,21 @@ void CommandClient::InitializeFragmentIdentity()
 
     clientId_ = MakeNonZeroTransportIdentity();
     sessionEpoch_ = MakeNonZeroTransportIdentity();
+}
+
+CommandBatchFragment CommandClient::AllocateBatchIdentity()
+{
+    InitializeTransportIdentity();
+
+    std::uint64_t batchId = nextBatchId_++;
+    if (batchId == 0U)
+    {
+        sessionEpoch_ = MakeNonZeroTransportIdentity();
+        nextBatchId_ = 2U;
+        batchId = 1U;
+    }
+
+    return CommandBatchFragment {clientId_, sessionEpoch_, batchId, 0U, 1U};
 }
 
 bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
@@ -1443,6 +1459,9 @@ bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
     {
         return false;
     }
+
+    const CommandBatchFragment batchIdentity = AllocateBatchIdentity();
+    normalizedBatch.fragment = batchIdentity;
 
     const std::size_t maxPayloadBytes = MaxPayloadBytes();
     std::string error;
@@ -1487,6 +1506,7 @@ bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
     CommandBatch expandedBatch;
     expandedBatch.sequence = normalizedBatch.sequence;
     expandedBatch.mappingHash = normalizedBatch.mappingHash;
+    expandedBatch.fragment = batchIdentity;
     expandedBatch.commands = std::move(expandedCommands);
     const auto expandedPayload = TrySerializeBatch(expandedBatch, error);
     if (expandedPayload.has_value() && expandedPayload->size() <= maxPayloadBytes)
@@ -1494,18 +1514,10 @@ bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
         return SendPayload(*expandedPayload);
     }
 
-    InitializeFragmentIdentity();
-    std::uint64_t batchId = nextBatchId_++;
-    if (batchId == 0U)
-    {
-        sessionEpoch_ = MakeNonZeroTransportIdentity();
-        nextBatchId_ = 2U;
-        batchId = 1U;
-    }
     const CommandBatchFragment sizingFragment {
-        clientId_,
-        sessionEpoch_,
-        batchId,
+        batchIdentity.clientId,
+        batchIdentity.sessionEpoch,
+        batchIdentity.batchId,
         std::numeric_limits<std::uint32_t>::max() - 1U,
         std::numeric_limits<std::uint32_t>::max()};
 
@@ -1590,7 +1602,11 @@ bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
     for (std::size_t chunkIndex = 0U; chunkIndex < chunks.size(); ++chunkIndex)
     {
         chunks[chunkIndex].fragment = CommandBatchFragment {
-            clientId_, sessionEpoch_, batchId, static_cast<std::uint32_t>(chunkIndex), chunkCount};
+            batchIdentity.clientId,
+            batchIdentity.sessionEpoch,
+            batchIdentity.batchId,
+            static_cast<std::uint32_t>(chunkIndex),
+            chunkCount};
         const auto payload = TrySerializeBatch(chunks[chunkIndex], error);
         if (!payload.has_value() || payload->size() > maxPayloadBytes)
         {

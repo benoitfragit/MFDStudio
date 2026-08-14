@@ -478,7 +478,11 @@ using UserCommand = std::variant<ActivatePageCommand,
                                  ResetWindowCommand>;
 
 /**
- * @brief Wire metadata identifying one chunk of an atomically reassembled command batch.
+ * @brief Session-scoped wire identity for one command batch datagram.
+ *
+ * @note A batch contained in one datagram uses `chunkIndex == 0` and
+ * `chunkCount == 1`. Larger atomic batches reuse the same identity across
+ * every fragment and use the chunk fields for reassembly.
  */
 struct CommandBatchFragment
 {
@@ -511,7 +515,7 @@ struct CommandBatch
      * generated transport ids instead of authored names.
      */
     std::string mappingHash;
-    /** @brief Optional internal wire-fragment identity used for atomic UDP reassembly. */
+    /** @brief Optional session-scoped wire batch identity and reassembly metadata. */
     std::optional<CommandBatchFragment> fragment;
     /** @brief Commands carried by the batch. */
     std::vector<UserCommand> commands;

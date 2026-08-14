@@ -319,7 +319,10 @@ private:
      */
     bool SetGeneratedPageView(TransportId pageId, std::string_view mappingHash, Vec2 center, float zoom);
     bool NormalizeBatchForTransport(const CommandBatch& sourceBatch, CommandBatch& normalizedBatch);
-    void InitializeFragmentIdentity();
+    /** @brief Initializes the stable identity of this client transport session. */
+    void InitializeTransportIdentity();
+    /** @brief Allocates the next non-zero batch identity in this client session. */
+    CommandBatchFragment AllocateBatchIdentity();
     bool SendPayload(std::string_view payload);
     bool SendBatchedPayloads(const CommandBatch& batch);
 

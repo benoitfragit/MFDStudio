@@ -370,6 +370,7 @@ TEST(UdpRuntimeBridgeTests, DrainsReceivedBatchesFromWorkerQueue)
     mfd::CommandBatch batch;
     batch.sequence = 17U;
     batch.mappingHash = "map_hash";
+    batch.fragment = mfd::CommandBatchFragment {101U, 201U, 301U, 0U, 1U};
     batch.commands.push_back(mfd::ResetWindowCommand {});
     receiverState->PushInbound(ToBytes(mfd::SerializeCommandBatch(batch)));
 
@@ -397,6 +398,12 @@ TEST(UdpRuntimeBridgeTests, DrainsReceivedBatchesFromWorkerQueue)
     EXPECT_EQ(drained.size(), 1U);
     EXPECT_EQ(drained.front().sequence, 17U);
     EXPECT_EQ(drained.front().mappingHash, "map_hash");
+    ASSERT_TRUE(drained.front().fragment.has_value());
+    EXPECT_EQ(drained.front().fragment->clientId, 101U);
+    EXPECT_EQ(drained.front().fragment->sessionEpoch, 201U);
+    EXPECT_EQ(drained.front().fragment->batchId, 301U);
+    EXPECT_EQ(drained.front().fragment->chunkIndex, 0U);
+    EXPECT_EQ(drained.front().fragment->chunkCount, 1U);
     ASSERT_EQ(drained.front().commands.size(), 1U);
     EXPECT_NE(std::get_if<mfd::ResetWindowCommand>(&drained.front().commands.front()), nullptr);
     const mfd::UdpRuntimeBridgeMetrics metrics = bridge.MetricsSnapshot();

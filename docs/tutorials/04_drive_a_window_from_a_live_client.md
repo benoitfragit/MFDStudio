@@ -234,6 +234,12 @@ client.SendBatch(ui.BuildCommandBatch(42U));
 Use one `sequence` value per external cycle if you want a stable cycle id in the
 transport stream.
 
+`CommandClient` scopes this sequence automatically with non-zero numeric
+client, session, and batch identities. Small batches use one `0/1` chunk;
+fragmented batches preserve the same identity on every chunk. Keep one client
+instance for the lifetime of a connection, and construct a new one after a
+client restart.
+
 This is the same batching principle used by the radar load simulator in the
 demo client.
 
