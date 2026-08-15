@@ -240,6 +240,11 @@ fragmented batches preserve the same identity on every chunk. Keep one client
 instance for the lifetime of a connection, and construct a new one after a
 client restart.
 
+Keep one logical batch within 512 work units. Each dynamic reticle inside a
+bulk upsert counts as one unit; all other commands count as one. The client
+rejects a larger batch before sending anything, so split independent updates
+across cycles. Do not split updates that must remain atomic.
+
 This is the same batching principle used by the radar load simulator in the
 demo client.
 

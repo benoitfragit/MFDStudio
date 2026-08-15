@@ -153,6 +153,13 @@ inactive reassemblies after five seconds even when no new datagram arrives, and
 a successful window load or reload clears all fragment and sequence history.
 Repeated copies of an already received chunk do not extend its lifetime.
 
+One atomic batch is capped at 512 work units. A bulk dynamic-reticle command
+uses one unit per reticle; every other command uses one unit. `CommandClient`
+rejects a larger logical batch before sending its first datagram, and the
+runtime independently rejects oversized or forged batches. Multi-chunk batches
+remain atomic and their fragments are processed as frame barriers, so completing
+a reassembly cannot bypass the per-frame work ceiling.
+
 ## Coordinates and units
 
 The generated client API uses the same logical coordinate system as the authored

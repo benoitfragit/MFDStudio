@@ -98,7 +98,8 @@ public:
      *
      * @note The client automatically splits the command list into several UDP
      * datagrams when the serialized payload would exceed the configured UDP
-     * packet size.
+     * packet size. One atomic batch is limited to 512 work units; each bulk
+     * dynamic-reticle entry counts as one unit and other commands count as one.
      */
     bool SendBatch(ArrayView<const UserCommand> commands, std::uint32_t sequence = 0);
 
@@ -106,6 +107,8 @@ public:
      * @brief Sends a pre-built command batch.
      * @param batch Batch to send.
      * @return `true` if every generated UDP payload was sent successfully.
+     * @note Batches above the 512-unit atomic work limit are rejected before
+     * any payload is sent.
      */
     bool SendBatch(const CommandBatch& batch);
 

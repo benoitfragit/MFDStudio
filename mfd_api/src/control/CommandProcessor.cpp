@@ -20,6 +20,7 @@
 
 #include "mfd/control/internal/CommandIdentifierHelpers.h"
 #include "mfd/control/internal/CommandTraits.h"
+#include "mfd/control/internal/CommandWorkBudget.h"
 #include "mfd/core/internal/CompositeKey.h"
 #include "mfd/ipc/ExchangeChannel.h"
 #include "mfd/model/Reticle.h"
@@ -201,6 +202,12 @@ bool CommandProcessor::Submit(const UserCommand& command)
 {
     lastError_.clear();
 
+    if (detail::EstimateCommandWorkUnits(command) > detail::kMaxAtomicCommandWorkUnits)
+    {
+        SetFailure(detail::kAtomicCommandWorkLimitError);
+        return false;
+    }
+
     return SubmitResolved(command, {});
 }
 
@@ -247,6 +254,12 @@ bool CommandProcessor::Submit(const CommandBatch& batch)
 
 bool CommandProcessor::SubmitCompleteBatch(const CommandBatch& batch, std::string sequenceStateKey)
 {
+    if (detail::EstimateCommandWorkUnits(batch) > detail::kMaxAtomicCommandWorkUnits)
+    {
+        SetFailure(detail::kAtomicCommandWorkLimitError);
+        return false;
+    }
+
     if (!batch.mappingHash.empty() && !scene_.HasMatchingTransportMap(batch.mappingHash))
     {
         if (!scene_.HasTransportMap())
@@ -458,6 +471,14 @@ bool CommandProcessor::AcceptFragment(const CommandBatch& chunk,
         return false;
     }
 
+    const std::size_t chunkWorkUnits = detail::EstimateCommandWorkUnits(chunk);
+    if (chunkWorkUnits > detail::kMaxAtomicCommandWorkUnits - pending.workUnits)
+    {
+        ErasePendingFragmentedBatch(pendingPosition);
+        SetFailure(detail::kAtomicCommandWorkLimitError);
+        return false;
+    }
+
     std::size_t chunkMemoryBytes = SaturatingAdd(wirePayload.capacity(), wirePayload.size());
     chunkMemoryBytes = SaturatingAdd(
         chunkMemoryBytes,
@@ -484,6 +505,7 @@ bool CommandProcessor::AcceptFragment(const CommandBatch& chunk,
     destination = std::move(storedChunk);
     pending.wireBytes += destination->wirePayload.size();
     pending.commandCount += destination->commands.size();
+    pending.workUnits += chunkWorkUnits;
     pending.estimatedMemoryBytes += chunkMemoryBytes;
     pendingFragmentWireBytes_ += destination->wirePayload.size();
     pendingFragmentCommandCount_ += destination->commands.size();
@@ -753,6 +775,12 @@ bool CommandProcessor::DispatchResolved(const UserCommand& command)
 bool CommandProcessor::Submit(const ArrayView<const UserCommand> commands)
 {
     lastError_.clear();
+
+    if (detail::EstimateCommandWorkUnits(commands) > detail::kMaxAtomicCommandWorkUnits)
+    {
+        SetFailure(detail::kAtomicCommandWorkLimitError);
+        return false;
+    }
 
     return SubmitCommandsWithCurrentTransactionMode(commands, {});
 }

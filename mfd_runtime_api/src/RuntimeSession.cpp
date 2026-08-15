@@ -26,12 +26,12 @@
 #include "mfd/control/CommandProcessor.h"
 #include "mfd/control/StrobeFeedback.h"
 #include "mfd/control/WindowFeedback.h"
+#include "mfd/control/internal/CommandWorkBudget.h"
 
 namespace mfd::runtime_api
 {
 namespace
 {
-constexpr std::size_t kMaxCommandWorkUnitsPerFrame = 512U;
 constexpr std::size_t kMaxCommandBatchesPerFrame = 4U;
 constexpr float kMinimumIntervalSeconds = 0.001f;
 
@@ -301,7 +301,9 @@ public:
             pendingCommandBatches_.clear();
             const std::size_t drainedBatches =
                 runtimeBridge_->DrainReceivedBatchesForCommandBudget(
-                    pendingCommandBatches_, kMaxCommandWorkUnitsPerFrame, kMaxCommandBatchesPerFrame);
+                    pendingCommandBatches_,
+                    mfd::detail::kMaxAtomicCommandWorkUnits,
+                    kMaxCommandBatchesPerFrame);
             if (drainedBatches > 0U)
             {
                 receivedFirstClientCommand_ = true;

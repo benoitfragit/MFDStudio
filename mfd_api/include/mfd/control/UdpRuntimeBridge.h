@@ -161,7 +161,10 @@ public:
      *
      * @note The internal inbound queue is bounded by cumulative batch, command,
      * wire-byte and estimated-memory budgets. The worker drops the oldest
-     * batches first when admitting newer state would exceed a budget.
+     * batches first when admitting newer state would exceed a budget. A single
+     * batch above the shared 512-unit atomic work limit is dropped at admission.
+     * This compatibility drain does not impose a per-call frame-work budget;
+     * frame loops should use `DrainReceivedBatchesForCommandBudget`.
      */
     std::size_t DrainReceivedBatches(std::vector<CommandBatch>& destination,
                                      std::size_t maxBatches = 256);
@@ -176,7 +179,9 @@ public:
      *
      * @note Batches are never split by this method. If the next queued batch
      * does not fit the remaining command budget, it stays queued with its
-     * sequence and mapping hash intact.
+     * sequence and mapping hash intact. A fragment belonging to a multi-chunk
+     * atomic batch is drained alone so its eventual reassembly cannot combine
+     * with unrelated work during the same frame.
      */
     std::size_t DrainReceivedBatchesForCommandBudget(std::vector<CommandBatch>& destination,
                                                      std::size_t maxCommandWorkUnits,
@@ -190,7 +195,8 @@ public:
      *
      * @note This compatibility helper flattens received command batches and
      * therefore drops `sequence` and `mappingHash`. Prefer `DrainReceivedBatches`
-     * when the caller needs the full protocol envelope.
+     * when the caller needs the full protocol envelope. It counts command
+     * variants rather than weighted work and is not suitable as a frame budget.
      */
     std::size_t DrainReceivedCommands(std::vector<UserCommand>& destination,
                                       std::size_t maxCommands = 256);

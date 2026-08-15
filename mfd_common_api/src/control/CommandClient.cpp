@@ -28,6 +28,7 @@
 #include "mfd/ipc/UdpLimits.h"
 #include "mfd/model/PageName.h"
 #include "mfd/control/internal/CommandIdentifierHelpers.h"
+#include "mfd/control/internal/CommandWorkBudget.h"
 #include "mfd/control/internal/CommandWireSizeHelpers.h"
 
 namespace mfd
@@ -1452,6 +1453,12 @@ bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
     {
         lastError_.clear();
         return true;
+    }
+
+    if (detail::EstimateCommandWorkUnits(batch) > detail::kMaxAtomicCommandWorkUnits)
+    {
+        lastError_ = detail::kAtomicCommandWorkLimitError;
+        return false;
     }
 
     CommandBatch normalizedBatch;

@@ -80,6 +80,7 @@ public:
      * @return `true` if the command was accepted and applied.
      * @note Generated transport ids are rejected here because they require a
      * matching `CommandBatch::mappingHash`.
+     * @note A bulk command above the 512-unit atomic work limit is rejected.
      */
     bool Submit(const UserCommand& command);
 
@@ -87,6 +88,7 @@ public:
      * @brief Submits one typed command batch directly.
      * @param batch Batch to dispatch in order.
      * @return `true` if every command was accepted and applied.
+     * @note The batch is rejected when its logical work exceeds 512 units.
      */
     bool Submit(const CommandBatch& batch);
 
@@ -94,6 +96,7 @@ public:
      * @brief Submits a sequence of typed commands directly.
      * @param commands Commands to dispatch in order.
      * @return `true` if every command was accepted and applied.
+     * @note The sequence is rejected when its logical work exceeds 512 units.
      */
     bool Submit(ArrayView<const UserCommand> commands);
 
@@ -117,6 +120,8 @@ public:
      * @return `true` if at least one command was processed.
      * @note This helper is mainly intended for simple single-threaded hosts.
      * Multi-threaded hosts should prefer `UdpRuntimeBridge` and `Submit(...)`.
+     * This convenience method is transport-count throttled, not frame-work
+     * budgeted; frame loops must use the bridge weighted drain API.
      */
     bool Poll(IExchangeChannel& channel);
 
@@ -157,6 +162,7 @@ private:
         std::size_t receivedChunkCount = 0U;
         std::size_t wireBytes = 0U;
         std::size_t commandCount = 0U;
+        std::size_t workUnits = 0U;
         std::size_t estimatedMemoryBytes = 0U;
         std::chrono::steady_clock::time_point lastUpdate {};
     };

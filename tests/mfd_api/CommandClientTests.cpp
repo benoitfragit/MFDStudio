@@ -667,17 +667,18 @@ TEST(CommandClientTests, MaxPayloadBytesUsesSharedUdpBounds)
     EXPECT_EQ(largeClient.MaxPayloadBytes(), mfd::kUdpMaxPayloadBytes);
 }
 
-TEST(CommandClientTests, RejectsBulkDynamicReticleUpdatesBeyondRuntimeSafetyLimits)
+TEST(CommandClientTests, RejectsBulkDynamicReticlesBeyondAtomicWorkLimit)
 {
     auto channel = std::make_unique<CapturingExchangeChannel>();
+    CapturingExchangeChannel* const rawChannel = channel.get();
     mfd::CommandClient client(std::move(channel), MakeTransportMap());
     ASSERT_TRUE(client.IsReady());
 
     mfd::UpsertDynamicReticlesCommand command;
     command.page = "Radar";
     command.templateId = "radar_track";
-    command.reticles.reserve(4097U);
-    for (std::size_t index = 0; index < 4097U; ++index)
+    command.reticles.reserve(513U);
+    for (std::size_t index = 0; index < 513U; ++index)
     {
         mfd::DynamicReticleState state;
         state.reticleId = "track_" + std::to_string(index);
@@ -689,7 +690,52 @@ TEST(CommandClientTests, RejectsBulkDynamicReticleUpdatesBeyondRuntimeSafetyLimi
     batch.commands.push_back(std::move(command));
 
     EXPECT_FALSE(client.SendBatch(batch));
-    EXPECT_NE(client.LastError().find("safety limits"), std::string::npos);
+    EXPECT_EQ(client.LastError(), "Command batch exceeds the atomic work limit of 512 units");
+    EXPECT_TRUE(rawChannel->SentPayloads().empty());
+}
+
+TEST(CommandClientTests, EnforcesAtomicCommandWorkLimitBeforeSending)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+    CapturingExchangeChannel* const rawChannel = channel.get();
+    mfd::CommandClient client(std::move(channel));
+    ASSERT_TRUE(client.IsReady());
+
+    mfd::CommandBatch acceptedBatch;
+    acceptedBatch.commands.resize(512U, mfd::ResetWindowCommand {});
+    ASSERT_TRUE(client.SendBatch(acceptedBatch)) << client.LastError();
+    ASSERT_FALSE(rawChannel->SentPayloads().empty());
+    const std::size_t acceptedPayloadCount = rawChannel->SentPayloads().size();
+
+    mfd::CommandBatch rejectedBatch;
+    rejectedBatch.commands.resize(513U, mfd::ResetWindowCommand {});
+    EXPECT_FALSE(client.SendBatch(rejectedBatch));
+    EXPECT_EQ(client.LastError(), "Command batch exceeds the atomic work limit of 512 units");
+    EXPECT_EQ(rawChannel->SentPayloads().size(), acceptedPayloadCount);
+}
+
+TEST(CommandClientTests, AcceptsBulkDynamicReticlesAtAtomicWorkLimit)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+    CapturingExchangeChannel* const rawChannel = channel.get();
+    mfd::CommandClient client(std::move(channel), MakeTransportMap());
+    ASSERT_TRUE(client.IsReady());
+
+    mfd::UpsertDynamicReticlesCommand command;
+    command.page = "Radar";
+    command.templateId = "radar_track";
+    command.reticles.reserve(512U);
+    for (std::size_t index = 0U; index < 512U; ++index)
+    {
+        mfd::DynamicReticleState state;
+        state.reticleId = "track_" + std::to_string(index);
+        command.reticles.push_back(std::move(state));
+    }
+
+    mfd::CommandBatch batch;
+    batch.commands.emplace_back(std::move(command));
+    EXPECT_TRUE(client.SendBatch(batch)) << client.LastError();
+    EXPECT_FALSE(rawChannel->SentPayloads().empty());
 }
 
 TEST(CommandClientTests, SplitBulkDynamicReticlesPreservesEveryReticleInOrderWithinPayloadLimit)

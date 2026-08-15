@@ -21,7 +21,6 @@
 #include <deque>
 #include <exception>
 #include <functional>
-#include <limits>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -37,6 +36,7 @@
 #include "mfd/control/StrobeFeedback.h"
 #include "mfd/control/WindowFeedback.h"
 #include "mfd/control/internal/CommandTraits.h"
+#include "mfd/control/internal/CommandWorkBudget.h"
 #include "mfd/ipc/ExchangeChannel.h"
 
 namespace mfd
@@ -110,46 +110,14 @@ struct QueuedCommandBatch
     std::size_t estimatedMemoryBytes = 0;
 };
 
-struct CommandWorkUnitEstimator
-{
-    std::size_t operator()(const ActivatePageCommand&) const noexcept { return 1U; }
-    std::size_t operator()(const SetPageViewCommand&) const noexcept { return 1U; }
-    std::size_t operator()(const UpdateWindowDisplayCommand&) const noexcept { return 1U; }
-    std::size_t operator()(const UpdateReticleCommand&) const noexcept { return 1U; }
-    std::size_t operator()(const UpdateStrobeCommand&) const noexcept { return 1U; }
-    std::size_t operator()(const UpsertDynamicReticleCommand&) const noexcept { return 1U; }
-
-    std::size_t operator()(const UpsertDynamicReticlesCommand& command) const noexcept
-    {
-        return std::max<std::size_t>(1U, command.reticles.size());
-    }
-
-    std::size_t operator()(const RemoveDynamicReticleCommand&) const noexcept { return 1U; }
-    std::size_t operator()(const SetDynamicReticleSetVisibilityCommand&) const noexcept { return 1U; }
-    std::size_t operator()(const ResetWindowCommand&) const noexcept { return 1U; }
-    std::size_t operator()(const SetDynamicReticleSetStrobeMagnetEnabledCommand&) const noexcept { return 1U; }
-};
-
-std::size_t EstimateCommandWorkUnits(const CommandBatch& batch) noexcept
-{
-    std::size_t workUnits = 0U;
-    for (const UserCommand& command : batch.commands)
-    {
-        const std::size_t commandWorkUnits = std::visit(CommandWorkUnitEstimator {}, command);
-        if (workUnits > std::numeric_limits<std::size_t>::max() - commandWorkUnits)
-        {
-            return std::numeric_limits<std::size_t>::max();
-        }
-
-        workUnits += commandWorkUnits;
-    }
-
-    return workUnits;
-}
-
 std::size_t EstimateBatchMemoryBytes(const CommandBatch& batch, const std::size_t wireBytes) noexcept
 {
     return sizeof(CommandBatch) + batch.commands.capacity() * sizeof(UserCommand) + wireBytes;
+}
+
+bool IsMultiChunkFragment(const CommandBatch& batch) noexcept
+{
+    return batch.fragment.has_value() && batch.fragment->chunkCount > 1U;
 }
 
 CoalescingIdentifier MakeCoalescingIdentifier(const std::uint64_t numericId, const std::string_view fallbackText)
@@ -743,19 +711,20 @@ struct UdpRuntimeBridge::Impl
 
         QueuedCommandBatch queued;
         queued.commandCount = batch.commands.size();
-        queued.commandWorkUnits = EstimateCommandWorkUnits(batch);
+        queued.commandWorkUnits = detail::EstimateCommandWorkUnits(batch);
         queued.wireBytes = wireBytes;
         queued.estimatedMemoryBytes = EstimateBatchMemoryBytes(batch, wireBytes);
         queued.batch = std::move(batch);
 
         std::lock_guard lock(inboundMutex);
         if (queued.commandCount > kMaxQueuedCommands ||
+            queued.commandWorkUnits > detail::kMaxAtomicCommandWorkUnits ||
             queued.commandWorkUnits > kMaxQueuedCommandWorkUnits ||
             queued.wireBytes > kMaxQueuedWireBytes ||
             queued.estimatedMemoryBytes > kMaxQueuedEstimatedMemoryBytes)
         {
             IncrementCounter(counters.droppedBatches);
-            SetCommandStatus("UDP command batch exceeds inbound queue budget, dropping batch");
+            SetCommandStatus("UDP command batch exceeds atomic work or inbound queue budget, dropping batch");
             return;
         }
 
@@ -1220,19 +1189,16 @@ std::size_t UdpRuntimeBridge::DrainReceivedBatchesForCommandBudget(std::vector<C
     std::size_t commandWorkUnits = 0;
     while (!impl_->inboundBatches.empty() && batchCount < maxBatches)
     {
-        const std::size_t nextCommandWorkUnits = impl_->inboundBatches.front().commandWorkUnits;
+        const QueuedCommandBatch& nextBatch = impl_->inboundBatches.front();
+        const bool isMultiChunkFragment = IsMultiChunkFragment(nextBatch.batch);
+        if (isMultiChunkFragment && batchCount > 0U)
+        {
+            break;
+        }
+
+        const std::size_t nextCommandWorkUnits = nextBatch.commandWorkUnits;
         if (nextCommandWorkUnits > maxCommandWorkUnits - commandWorkUnits)
         {
-            // Always drain at least the front batch so one oversized packet
-            // cannot permanently stall the inbound queue.
-            if (batchCount == 0U)
-            {
-                commandCount += impl_->inboundBatches.front().commandCount;
-                commandWorkUnits += nextCommandWorkUnits;
-                ++batchCount;
-                QueuedCommandBatch queued = impl_->TakeOldestQueuedBatch();
-                destination.push_back(std::move(queued.batch));
-            }
             break;
         }
 
@@ -1241,6 +1207,10 @@ std::size_t UdpRuntimeBridge::DrainReceivedBatchesForCommandBudget(std::vector<C
         ++batchCount;
         QueuedCommandBatch queued = impl_->TakeOldestQueuedBatch();
         destination.push_back(std::move(queued.batch));
+        if (isMultiChunkFragment)
+        {
+            break;
+        }
     }
 
     AddCounter(impl_->counters.drainedBatches, static_cast<std::uint64_t>(batchCount));

@@ -124,6 +124,9 @@ set(MFD_TRANSPORT_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/ipc/UdpLimits.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/runtime/GeneratedTransportMap.h)
 
+set(MFD_TRANSPORT_PRIVATE_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/internal/CommandWorkBudget.h)
+
 set(MFD_TRANSPORT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/CommandClient.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/CommandTransport.cpp
@@ -141,6 +144,7 @@ set(MFD_TRANSPORT_SOURCES
 
 add_library(mfd_transport_objects OBJECT
     ${MFD_TRANSPORT_PUBLIC_HEADERS}
+    ${MFD_TRANSPORT_PRIVATE_HEADERS}
     ${MFD_TRANSPORT_SOURCES})
 
 mfd_configure_component(
@@ -167,6 +171,7 @@ endif()
 
 add_library(mfd_transport STATIC
     ${MFD_TRANSPORT_PUBLIC_HEADERS}
+    ${MFD_TRANSPORT_PRIVATE_HEADERS}
     $<TARGET_OBJECTS:mfd_transport_objects>)
 add_library(mfd::transport ALIAS mfd_transport)
 

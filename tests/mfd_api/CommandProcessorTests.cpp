@@ -346,6 +346,17 @@ void ScopeSingletonBatch(mfd::CommandBatch& batch,
 {
     batch.fragment = mfd::CommandBatchFragment {clientId, sessionEpoch, batchId, 0U, 1U};
 }
+
+mfd::CommandBatch MakeResetFragment(const std::size_t commandCount,
+                                    const std::uint32_t chunkIndex,
+                                    const std::uint32_t chunkCount)
+{
+    mfd::CommandBatch batch;
+    batch.mappingHash = "map_hash";
+    batch.fragment = mfd::CommandBatchFragment {701U, 801U, 901U, chunkIndex, chunkCount};
+    batch.commands.resize(commandCount, mfd::ResetWindowCommand {});
+    return batch;
+}
 } // namespace
 
 TEST(CommandProcessorTests, PollDoesNotOverrideSuccessfulDispatchWithStickyChannelError)
@@ -859,6 +870,97 @@ TEST(CommandProcessorTests, ArrayViewSubmissionStopsOnFirstFailureAndKeepsDiagno
     const auto* text = std::get_if<mfd::TextGeometry>(&reticles.front()->primitives.front().geometry);
     ASSERT_NE(text, nullptr);
     EXPECT_EQ(text->text, "000");
+}
+
+TEST(CommandProcessorTests, EnforcesAtomicWorkLimitForCompleteBatches)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::CommandBatch acceptedBatch;
+    acceptedBatch.commands.resize(512U, mfd::ResetWindowCommand {});
+    EXPECT_TRUE(processor.Submit(acceptedBatch)) << processor.LastError();
+
+    mfd::CommandBatch rejectedBatch;
+    rejectedBatch.commands.resize(513U, mfd::ResetWindowCommand {});
+    EXPECT_FALSE(processor.Submit(rejectedBatch));
+    EXPECT_EQ(processor.LastError(), "Command batch exceeds the atomic work limit of 512 units");
+}
+
+TEST(CommandProcessorTests, EnforcesAtomicWorkLimitForDirectSubmissionOverloads)
+{
+    mfd::SceneRegistry registry = MakeRuntimeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::UpsertDynamicReticlesCommand bulkCommand;
+    bulkCommand.page = "Radar";
+    bulkCommand.templateId = "radar_track";
+    bulkCommand.reticles.reserve(513U);
+    for (std::size_t index = 0U; index < 513U; ++index)
+    {
+        mfd::DynamicReticleState state;
+        state.reticleId = "track_" + std::to_string(index);
+        bulkCommand.reticles.push_back(std::move(state));
+    }
+
+    const mfd::UserCommand directCommand = std::move(bulkCommand);
+    EXPECT_FALSE(processor.Submit(directCommand));
+    EXPECT_EQ(processor.LastError(), "Command batch exceeds the atomic work limit of 512 units");
+    EXPECT_EQ(CountRuntimeDynamicReticles(registry, "Radar"), 0U);
+
+    std::vector<mfd::UserCommand> commandSequence(513U, mfd::ResetWindowCommand {});
+    EXPECT_FALSE(processor.Submit(mfd::ArrayView<const mfd::UserCommand>(commandSequence)));
+    EXPECT_EQ(processor.LastError(), "Command batch exceeds the atomic work limit of 512 units");
+}
+
+TEST(CommandProcessorTests, RejectsFragmentedBatchBeyondAtomicWorkLimitWithoutPartialMutation)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::ReticlePatch patch;
+    patch.text = "CHANGED";
+    mfd::CommandBatch baseline;
+    baseline.mappingHash = "map_hash";
+    baseline.commands.emplace_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, std::move(patch)});
+    ASSERT_TRUE(processor.Submit(baseline));
+
+    EXPECT_TRUE(processor.Submit(MakeResetFragment(512U, 0U, 2U))) << processor.LastError();
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "CHANGED");
+    EXPECT_FALSE(processor.Submit(MakeResetFragment(1U, 1U, 2U)));
+    EXPECT_EQ(processor.LastError(), "Command batch exceeds the atomic work limit of 512 units");
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "CHANGED");
+}
+
+TEST(CommandProcessorTests, AppliesFragmentedBatchAtAtomicWorkLimitOnlyAfterCompletion)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    mfd::ReticlePatch patch;
+    patch.text = "CHANGED";
+    mfd::CommandBatch baseline;
+    baseline.mappingHash = "map_hash";
+    baseline.commands.emplace_back(
+        mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, std::move(patch)});
+    ASSERT_TRUE(processor.Submit(baseline));
+
+    EXPECT_TRUE(processor.Submit(MakeResetFragment(256U, 0U, 2U))) << processor.LastError();
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "CHANGED");
+    EXPECT_TRUE(processor.Submit(MakeResetFragment(256U, 1U, 2U))) << processor.LastError();
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "000");
+}
+
+TEST(CommandProcessorTests, RejectsOutOfOrderFragmentsBeyondAtomicWorkLimit)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    EXPECT_TRUE(processor.Submit(MakeResetFragment(257U, 1U, 2U))) << processor.LastError();
+    EXPECT_FALSE(processor.Submit(MakeResetFragment(256U, 0U, 2U)));
+    EXPECT_EQ(processor.LastError(), "Command batch exceeds the atomic work limit of 512 units");
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "000");
 }
 
 TEST(CommandProcessorTests, RejectsUnscopedSequencedGeneratedBatch)
