@@ -28,6 +28,10 @@ namespace mfd
 {
 class IExchangeChannel;
 class SceneRegistry;
+namespace detail
+{
+struct CommandProcessorInternalAccess;
+}
 
 /**
  * @brief Chooses how multi-command submissions behave when one command fails.
@@ -137,6 +141,8 @@ public:
     std::string LastError() const;
 
 private:
+    friend struct detail::CommandProcessorInternalAccess;
+
     struct PendingFragmentChunk
     {
         std::string wirePayload {};
@@ -151,6 +157,7 @@ private:
         std::size_t receivedChunkCount = 0U;
         std::size_t wireBytes = 0U;
         std::size_t commandCount = 0U;
+        std::size_t estimatedMemoryBytes = 0U;
         std::chrono::steady_clock::time_point lastUpdate {};
     };
 
@@ -205,7 +212,11 @@ private:
     bool AcceptFragment(const CommandBatch& chunk,
                         std::optional<CommandBatch>& completedBatch,
                         std::string& sequenceStateKey);
-    void ExpireFragmentedBatches(std::chrono::steady_clock::time_point now);
+    using PendingFragmentedBatchIterator =
+        std::unordered_map<std::string, PendingFragmentedBatch>::iterator;
+    PendingFragmentedBatchIterator ErasePendingFragmentedBatch(PendingFragmentedBatchIterator position) noexcept;
+    void MaintainTransportState(std::chrono::steady_clock::time_point now) noexcept;
+    void ResetTransportState() noexcept;
     bool SubmitCommandsTransactional(ArrayView<const UserCommand> commands, std::string_view mappingHash);
     bool SubmitCommandsNonTransactional(ArrayView<const UserCommand> commands, std::string_view mappingHash);
     bool ResolveBatchCommands(ArrayView<const UserCommand> commands,
@@ -233,6 +244,10 @@ private:
     std::string lastError_ {};
     std::unordered_map<std::string, SequencedBatchState> sequencedBatchesByMappingHash_ {};
     std::unordered_map<std::string, PendingFragmentedBatch> pendingFragmentedBatches_ {};
+    std::size_t pendingFragmentWireBytes_ = 0U;
+    std::size_t pendingFragmentCommandCount_ = 0U;
+    std::size_t pendingFragmentChunkSlots_ = 0U;
+    std::size_t pendingFragmentEstimatedMemoryBytes_ = 0U;
     CommandBatchTransactionMode batchTransactionMode_ = CommandBatchTransactionMode::Transactional;
 };
 } // namespace mfd

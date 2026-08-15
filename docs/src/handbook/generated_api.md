@@ -147,6 +147,12 @@ the same generated mapping. Construct a new client for a restarted transport
 session. Sequenced generated batches sent without this scope are rejected by
 the runtime.
 
+Incomplete fragmented batches are held only within strict aggregate wire,
+estimated-memory, command-count, and chunk-slot budgets. The runtime expires
+inactive reassemblies after five seconds even when no new datagram arrives, and
+a successful window load or reload clears all fragment and sequence history.
+Repeated copies of an already received chunk do not extend its lifetime.
+
 ## Coordinates and units
 
 The generated client API uses the same logical coordinate system as the authored

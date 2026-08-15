@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "internal/RuntimeSessionInternalAccess.hpp"
+#include "control/CommandProcessorInternalAccess.hpp"
 #include "mfd/control/CommandProcessor.h"
 #include "mfd/control/StrobeFeedback.h"
 #include "mfd/control/WindowFeedback.h"
@@ -293,6 +294,7 @@ public:
     void Advance(const float deltaSeconds)
     {
         appliedCommandBatches_.clear();
+        mfd::detail::CommandProcessorInternalAccess::MaintainTransportState(commandProcessor_);
 
         if (runtimeBridge_ != nullptr)
         {
@@ -697,6 +699,7 @@ public:
 private:
     void ResetLoadedState()
     {
+        mfd::detail::CommandProcessorInternalAccess::ResetTransportState(commandProcessor_);
         feedbackThrottle_.Reset();
         lifecycleThrottle_.Reset();
         pendingCommandBatches_.clear();

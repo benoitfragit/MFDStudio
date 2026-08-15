@@ -9,6 +9,9 @@ set(MFD_RUNTIME_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/runtime/DocumentSemanticValidator.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/runtime/SceneRegistry.h)
 
+set(MFD_RUNTIME_PRIVATE_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/CommandProcessorInternalAccess.hpp)
+
 set(MFD_RUNTIME_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/CommandProcessor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/UdpRuntimeBridge.cpp
@@ -18,6 +21,7 @@ set(MFD_RUNTIME_SOURCES
 
 add_library(mfd_runtime_objects OBJECT
     ${MFD_RUNTIME_PUBLIC_HEADERS}
+    ${MFD_RUNTIME_PRIVATE_HEADERS}
     ${MFD_RUNTIME_SOURCES})
 
 mfd_configure_component(
@@ -39,6 +43,7 @@ target_link_libraries(mfd_runtime_objects
 
 add_library(mfd_runtime STATIC
     ${MFD_RUNTIME_PUBLIC_HEADERS}
+    ${MFD_RUNTIME_PRIVATE_HEADERS}
     $<TARGET_OBJECTS:mfd_runtime_objects>)
 add_library(mfd::runtime ALIAS mfd_runtime)
 

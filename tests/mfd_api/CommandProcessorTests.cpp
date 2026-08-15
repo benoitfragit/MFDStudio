@@ -10,15 +10,18 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <cstddef>
 #include <deque>
 #include <limits>
 #include <optional>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
 #include "mfd/control/CommandProcessor.h"
+#include "CommandProcessorInternalAccess.hpp"
 #include "mfd/control/CommandTypes.h"
 #include "mfd/ipc/ExchangeChannel.h"
 #include "mfd/model/PageDefinition.h"
@@ -314,6 +317,25 @@ mfd::CommandBatch MakeFragmentedTextUpdate(const std::uint64_t clientId,
         clientId, sessionEpoch, batchId, chunkIndex, chunkCount};
     chunk.commands.emplace_back(
         mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, std::move(patch)});
+    return chunk;
+}
+
+mfd::CommandBatch MakeLargeIncompleteFragment(const std::uint64_t batchId)
+{
+    constexpr std::size_t kCommandCount = 200U;
+    mfd::ReticlePatch patch;
+    patch.text = std::string(4096U, 'X');
+
+    mfd::CommandBatch chunk;
+    chunk.mappingHash = "map_hash";
+    chunk.fragment = mfd::CommandBatchFragment {501U, 601U, batchId, 0U, 2U};
+    chunk.commands.reserve(kCommandCount);
+    for (std::size_t commandIndex = 0U; commandIndex < kCommandCount; ++commandIndex)
+    {
+        chunk.commands.emplace_back(
+            mfd::UpdateReticleCommand {mfd::StaticReticleHandle {"", "", 11U, 22U}, patch});
+    }
+
     return chunk;
 }
 
@@ -962,6 +984,80 @@ TEST(CommandProcessorTests, ReassemblesMoreThanLegacyFingerprintCap)
     }
 
     EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "256");
+}
+
+TEST(CommandProcessorTests, RejectsFragmentsExceedingGlobalReassemblyBudgets)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+
+    bool rejectedByGlobalBudget = false;
+    for (std::uint64_t batchId = 1U; batchId <= 32U; ++batchId)
+    {
+        if (!processor.Submit(MakeLargeIncompleteFragment(batchId)))
+        {
+            rejectedByGlobalBudget = true;
+            EXPECT_EQ(
+                processor.LastError(),
+                "Fragmented command reassembly exceeds global memory budgets");
+            break;
+        }
+    }
+
+    EXPECT_TRUE(rejectedByGlobalBudget);
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "000");
+}
+
+TEST(CommandProcessorTests, RuntimeMaintenanceExpiresFragmentsWithoutNewTraffic)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+    const mfd::CommandBatch first = MakeFragmentedTextUpdate(21U, 31U, 41U, 0U, 2U, 12U, "FIRST");
+    const mfd::CommandBatch second = MakeFragmentedTextUpdate(21U, 31U, 41U, 1U, 2U, 12U, "EXPIRED");
+
+    ASSERT_TRUE(processor.Submit(first));
+    mfd::detail::CommandProcessorInternalAccess::MaintainTransportState(
+        processor,
+        std::chrono::steady_clock::now() + std::chrono::seconds(6));
+    ASSERT_TRUE(processor.Submit(second));
+
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "000");
+}
+
+TEST(CommandProcessorTests, IdenticalDuplicateDoesNotExtendFragmentLifetime)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+    const mfd::CommandBatch first = MakeFragmentedTextUpdate(22U, 32U, 42U, 0U, 2U, 12U, "FIRST");
+    const mfd::CommandBatch second = MakeFragmentedTextUpdate(22U, 32U, 42U, 1U, 2U, 12U, "EXPIRED");
+
+    ASSERT_TRUE(processor.Submit(first));
+    const auto expirationBoundary = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    ASSERT_TRUE(processor.Submit(first));
+    mfd::detail::CommandProcessorInternalAccess::MaintainTransportState(processor, expirationBoundary);
+    ASSERT_TRUE(processor.Submit(second));
+
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "000");
+}
+
+TEST(CommandProcessorTests, TransportResetClearsFragmentsAndSequenceHistory)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+    const mfd::CommandBatch first = MakeFragmentedTextUpdate(23U, 33U, 43U, 0U, 2U, 12U, "FIRST");
+    const mfd::CommandBatch second = MakeFragmentedTextUpdate(23U, 33U, 43U, 1U, 2U, 12U, "STALE");
+
+    ASSERT_TRUE(processor.Submit(first));
+    mfd::detail::CommandProcessorInternalAccess::ResetTransportState(processor);
+    ASSERT_TRUE(processor.Submit(second));
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "000");
+
+    mfd::detail::CommandProcessorInternalAccess::ResetTransportState(processor);
+    ASSERT_TRUE(processor.Submit(MakeFragmentedTextUpdate(23U, 33U, 44U, 0U, 1U, 99U, "HIGH")));
+    mfd::detail::CommandProcessorInternalAccess::ResetTransportState(processor);
+    ASSERT_TRUE(processor.Submit(MakeFragmentedTextUpdate(23U, 33U, 45U, 0U, 1U, 1U, "LOW")));
+    EXPECT_EQ(ReadFirstReticleText(registry, "Radar"), "LOW");
 }
 
 TEST(CommandProcessorTests, SeparatesSequenceHistoryAcrossClientSessions)

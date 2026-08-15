@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstring>
 #include <iterator>
+#include <limits>
 #include <utility>
 #include <vector>
 
@@ -39,9 +40,41 @@ constexpr std::size_t kMaxPendingFragmentedBatches = 32U;
 constexpr std::size_t kMaxChunksPerFragmentedBatch = 4096U;
 constexpr std::size_t kMaxCommandsPerReassembledBatch = 65536U;
 constexpr std::size_t kMaxWireBytesPerReassembledBatch = 32U * 1024U * 1024U;
+// Aggregate fragment budgets align reassembly pressure with the bounded UDP queue instead of
+// multiplying the per-batch allowance by every pending client batch.
+constexpr std::size_t kMaxPendingFragmentWireBytes = 16U * 1024U * 1024U;
+constexpr std::size_t kMaxPendingFragmentCommandCount = 65536U;
+constexpr std::size_t kMaxPendingFragmentChunkSlots = 4096U;
+constexpr std::size_t kMaxPendingFragmentEstimatedMemoryBytes = 32U * 1024U * 1024U;
 constexpr std::chrono::seconds kFragmentExpiry {5};
 constexpr std::uint64_t kFnvOffsetBasis = 1469598103934665603ULL;
 constexpr std::uint64_t kFnvPrime = 1099511628211ULL;
+
+std::size_t SaturatingAdd(const std::size_t lhs, const std::size_t rhs) noexcept
+{
+    return lhs > std::numeric_limits<std::size_t>::max() - rhs
+               ? std::numeric_limits<std::size_t>::max()
+               : lhs + rhs;
+}
+
+std::size_t SaturatingMultiply(const std::size_t lhs, const std::size_t rhs) noexcept
+{
+    if (lhs == 0U || rhs == 0U)
+    {
+        return 0U;
+    }
+
+    return lhs > std::numeric_limits<std::size_t>::max() / rhs
+               ? std::numeric_limits<std::size_t>::max()
+               : lhs * rhs;
+}
+
+bool WouldExceedBudget(const std::size_t current,
+                       const std::size_t increment,
+                       const std::size_t limit) noexcept
+{
+    return increment > limit || current > limit - increment;
+}
 
 std::string MakeRuntimeDynamicReticleAlias(const RuntimeDynamicId runtimeReticleId)
 {
@@ -291,19 +324,40 @@ bool CommandProcessor::SubmitCompleteBatch(const CommandBatch& batch, std::strin
     return true;
 }
 
-void CommandProcessor::ExpireFragmentedBatches(const std::chrono::steady_clock::time_point now)
+CommandProcessor::PendingFragmentedBatchIterator CommandProcessor::ErasePendingFragmentedBatch(
+    const PendingFragmentedBatchIterator position) noexcept
+{
+    const PendingFragmentedBatch& pending = position->second;
+    pendingFragmentWireBytes_ -= pending.wireBytes;
+    pendingFragmentCommandCount_ -= pending.commandCount;
+    pendingFragmentChunkSlots_ -= pending.chunks.size();
+    pendingFragmentEstimatedMemoryBytes_ -= pending.estimatedMemoryBytes;
+    return pendingFragmentedBatches_.erase(position);
+}
+
+void CommandProcessor::MaintainTransportState(const std::chrono::steady_clock::time_point now) noexcept
 {
     for (auto iterator = pendingFragmentedBatches_.begin(); iterator != pendingFragmentedBatches_.end();)
     {
         if (now - iterator->second.lastUpdate >= kFragmentExpiry)
         {
-            iterator = pendingFragmentedBatches_.erase(iterator);
+            iterator = ErasePendingFragmentedBatch(iterator);
         }
         else
         {
             ++iterator;
         }
     }
+}
+
+void CommandProcessor::ResetTransportState() noexcept
+{
+    pendingFragmentedBatches_.clear();
+    sequencedBatchesByMappingHash_.clear();
+    pendingFragmentWireBytes_ = 0U;
+    pendingFragmentCommandCount_ = 0U;
+    pendingFragmentChunkSlots_ = 0U;
+    pendingFragmentEstimatedMemoryBytes_ = 0U;
 }
 
 bool CommandProcessor::AcceptFragment(const CommandBatch& chunk,
@@ -332,7 +386,7 @@ bool CommandProcessor::AcceptFragment(const CommandBatch& chunk,
     }
 
     const auto now = std::chrono::steady_clock::now();
-    ExpireFragmentedBatches(now);
+    MaintainTransportState(now);
     const std::string batchKey = MakeFragmentedBatchKey(fragment);
     auto pendingPosition = pendingFragmentedBatches_.find(batchKey);
     if (pendingPosition == pendingFragmentedBatches_.end())
@@ -343,19 +397,42 @@ bool CommandProcessor::AcceptFragment(const CommandBatch& chunk,
             return false;
         }
 
+        const std::size_t chunkSlotBytes = SaturatingMultiply(
+            static_cast<std::size_t>(fragment.chunkCount),
+            sizeof(std::optional<PendingFragmentChunk>));
+        std::size_t estimatedMemoryBytes =
+            SaturatingAdd(sizeof(PendingFragmentedBatch), sizeof(std::string));
+        estimatedMemoryBytes = SaturatingAdd(estimatedMemoryBytes, chunkSlotBytes);
+        estimatedMemoryBytes = SaturatingAdd(estimatedMemoryBytes, batchKey.size());
+        estimatedMemoryBytes = SaturatingAdd(estimatedMemoryBytes, chunk.mappingHash.size());
+        estimatedMemoryBytes = SaturatingAdd(estimatedMemoryBytes, 3U * sizeof(void*));
+        if (WouldExceedBudget(
+                pendingFragmentChunkSlots_, fragment.chunkCount, kMaxPendingFragmentChunkSlots) ||
+            WouldExceedBudget(
+                pendingFragmentEstimatedMemoryBytes_,
+                estimatedMemoryBytes,
+                kMaxPendingFragmentEstimatedMemoryBytes))
+        {
+            SetFailure("Fragmented command reassembly exceeds global memory budgets");
+            return false;
+        }
+
         PendingFragmentedBatch pending;
         pending.sequence = chunk.sequence;
         pending.mappingHash = chunk.mappingHash;
         pending.chunks.resize(fragment.chunkCount);
+        pending.estimatedMemoryBytes = estimatedMemoryBytes;
         pending.lastUpdate = now;
         pendingPosition = pendingFragmentedBatches_.emplace(batchKey, std::move(pending)).first;
+        pendingFragmentChunkSlots_ += fragment.chunkCount;
+        pendingFragmentEstimatedMemoryBytes_ += estimatedMemoryBytes;
     }
 
     PendingFragmentedBatch& pending = pendingPosition->second;
     if (pending.sequence != chunk.sequence || pending.mappingHash != chunk.mappingHash ||
         pending.chunks.size() != fragment.chunkCount)
     {
-        pendingFragmentedBatches_.erase(pendingPosition);
+        ErasePendingFragmentedBatch(pendingPosition);
         SetFailure("Conflicting metadata for fragmented command batch");
         return false;
     }
@@ -365,11 +442,10 @@ bool CommandProcessor::AcceptFragment(const CommandBatch& chunk,
     {
         if (destination->wirePayload == wirePayload)
         {
-            pending.lastUpdate = now;
             return true;
         }
 
-        pendingFragmentedBatches_.erase(pendingPosition);
+        ErasePendingFragmentedBatch(pendingPosition);
         SetFailure("Conflicting duplicate command batch fragment");
         return false;
     }
@@ -377,8 +453,28 @@ bool CommandProcessor::AcceptFragment(const CommandBatch& chunk,
     if (wirePayload.size() > kMaxWireBytesPerReassembledBatch - pending.wireBytes ||
         chunk.commands.size() > kMaxCommandsPerReassembledBatch - pending.commandCount)
     {
-        pendingFragmentedBatches_.erase(pendingPosition);
+        ErasePendingFragmentedBatch(pendingPosition);
         SetFailure("Fragmented command batch exceeds reassembly safety budgets");
+        return false;
+    }
+
+    std::size_t chunkMemoryBytes = SaturatingAdd(wirePayload.capacity(), wirePayload.size());
+    chunkMemoryBytes = SaturatingAdd(
+        chunkMemoryBytes,
+        SaturatingMultiply(chunk.commands.size(), sizeof(UserCommand)));
+    if (WouldExceedBudget(
+            pendingFragmentWireBytes_, wirePayload.size(), kMaxPendingFragmentWireBytes) ||
+        WouldExceedBudget(
+            pendingFragmentCommandCount_,
+            chunk.commands.size(),
+            kMaxPendingFragmentCommandCount) ||
+        WouldExceedBudget(
+            pendingFragmentEstimatedMemoryBytes_,
+            chunkMemoryBytes,
+            kMaxPendingFragmentEstimatedMemoryBytes))
+    {
+        ErasePendingFragmentedBatch(pendingPosition);
+        SetFailure("Fragmented command reassembly exceeds global memory budgets");
         return false;
     }
 
@@ -388,6 +484,10 @@ bool CommandProcessor::AcceptFragment(const CommandBatch& chunk,
     destination = std::move(storedChunk);
     pending.wireBytes += destination->wirePayload.size();
     pending.commandCount += destination->commands.size();
+    pending.estimatedMemoryBytes += chunkMemoryBytes;
+    pendingFragmentWireBytes_ += destination->wirePayload.size();
+    pendingFragmentCommandCount_ += destination->commands.size();
+    pendingFragmentEstimatedMemoryBytes_ += chunkMemoryBytes;
     ++pending.receivedChunkCount;
     pending.lastUpdate = now;
     if (pending.receivedChunkCount != pending.chunks.size())
@@ -409,7 +509,7 @@ bool CommandProcessor::AcceptFragment(const CommandBatch& chunk,
 
     sequenceStateKey = MakeFragmentedSequenceKey(fragment, assembled.mappingHash);
     completedBatch = std::move(assembled);
-    pendingFragmentedBatches_.erase(pendingPosition);
+    ErasePendingFragmentedBatch(pendingPosition);
     return true;
 }
 
