@@ -320,7 +320,6 @@ RadarRadarTopLabelsReticle::RadarRadarTopLabelsReticle() :
     mfd::client::Reticle("Radar", "radar_top_labels", 9637022363458486384U, 11330656779390962016U, mfd::client::ReticleBaseline {true, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""}),
     crm_(MutableDesiredPatch(), DirtyFlag(), "crm", 16835635680914820850U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {-0.6f, 0.885f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "CRM", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
     mode_(MutableDesiredPatch(), DirtyFlag(), "mode", 16989025958358465529U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {-0.3f, 0.885f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "TWS", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
-    norm_(MutableDesiredPatch(), DirtyFlag(), "norm", 12210764294958178397U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.0f, 0.885f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "NORM", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
     override_(MutableDesiredPatch(), DirtyFlag(), "override", 12327161997873286694U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.3f, 0.885f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "OVRD", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
     control_(MutableDesiredPatch(), DirtyFlag(), "control", 11484905892805760755U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.6f, 0.885f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "CNTL", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f})
 {
@@ -336,11 +335,6 @@ TextHandle& RadarRadarTopLabelsReticle::Mode() noexcept
     return mode_;
 }
 
-TextHandle& RadarRadarTopLabelsReticle::Norm() noexcept
-{
-    return norm_;
-}
-
 TextHandle& RadarRadarTopLabelsReticle::Override() noexcept
 {
     return override_;
@@ -349,6 +343,27 @@ TextHandle& RadarRadarTopLabelsReticle::Override() noexcept
 TextHandle& RadarRadarTopLabelsReticle::Control() noexcept
 {
     return control_;
+}
+
+RadarRadarFovLabelReticle::RadarRadarFovLabelReticle() :
+    mfd::client::Reticle("Radar", "radar_fov_label", 9637022363458486384U, 10990857685352000243U, mfd::client::ReticleBaseline {true, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""}),
+    fov_(MutableDesiredPatch(), DirtyFlag(), "fov", 7757703728841104788U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.0f, 0.885f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "NORM", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f})
+{
+}
+
+void RadarRadarFovLabelReticle::SetValue(std::string value)
+{
+    Fov().SetText(std::move(value));
+}
+
+std::string_view RadarRadarFovLabelReticle::GetValue() const noexcept
+{
+    return fov_.GetText();
+}
+
+TextHandle& RadarRadarFovLabelReticle::Fov() noexcept
+{
+    return fov_;
 }
 
 RadarRadarOwnshipReticle::RadarRadarOwnshipReticle() :
@@ -391,6 +406,17 @@ RadarRadarScanLineReticle::RadarRadarScanLineReticle() :
 LineHandle& RadarRadarScanLineReticle::Sweep() noexcept
 {
     return sweep_;
+}
+
+RadarRadarExpandReferenceReticle::RadarRadarExpandReferenceReticle() :
+    mfd::client::Reticle("Radar", "radar_expand_reference", 9637022363458486384U, 1093673955681442181U, mfd::client::ReticleBaseline {false, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""}),
+    frame_(MutableDesiredPatch(), DirtyFlag(), "frame", 15636178271397179838U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.4f, 0.46f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f})
+{
+}
+
+RectangleHandle& RadarRadarExpandReferenceReticle::Frame() noexcept
+{
+    return frame_;
 }
 
 RadarRadarAcquisitionCursorVisualReticle::RadarRadarAcquisitionCursorVisualReticle() :
@@ -632,10 +658,12 @@ RadarMockupPage::RadarMockupPage(RuntimeFeedbackState* feedbackState) :
     radarScale(),
     radarPerimeter(),
     radarTopLabels(),
+    radarFovLabel(),
     radarOwnship(),
     radarSensorCue(),
     radarElevationCaret(),
     radarScanLine(),
+    radarExpandReference(),
     radarAcquisitionCursorVisual(),
     radarCursorData(),
     radarDatablock(),
@@ -664,10 +692,12 @@ void RadarMockupPage::Run() noexcept
     radarScale.ClearDirty();
     radarPerimeter.ClearDirty();
     radarTopLabels.ClearDirty();
+    radarFovLabel.ClearDirty();
     radarOwnship.ClearDirty();
     radarSensorCue.ClearDirty();
     radarElevationCaret.ClearDirty();
     radarScanLine.ClearDirty();
+    radarExpandReference.ClearDirty();
     radarAcquisitionCursorVisual.ClearDirty();
     radarCursorData.ClearDirty();
     radarDatablock.ClearDirty();
@@ -690,10 +720,12 @@ void RadarMockupPage::Initialize() noexcept
     radarScale.ResetToAuthored();
     radarPerimeter.ResetToAuthored();
     radarTopLabels.ResetToAuthored();
+    radarFovLabel.ResetToAuthored();
     radarOwnship.ResetToAuthored();
     radarSensorCue.ResetToAuthored();
     radarElevationCaret.ResetToAuthored();
     radarScanLine.ResetToAuthored();
+    radarExpandReference.ResetToAuthored();
     radarAcquisitionCursorVisual.ResetToAuthored();
     radarCursorData.ResetToAuthored();
     radarDatablock.ResetToAuthored();
@@ -721,10 +753,12 @@ std::size_t RadarMockupPage::AppendCommands(std::vector<mfd::UserCommand>& comma
     count += radarScale.AppendCommands(commands) ? 1U : 0U;
     count += radarPerimeter.AppendCommands(commands) ? 1U : 0U;
     count += radarTopLabels.AppendCommands(commands) ? 1U : 0U;
+    count += radarFovLabel.AppendCommands(commands) ? 1U : 0U;
     count += radarOwnship.AppendCommands(commands) ? 1U : 0U;
     count += radarSensorCue.AppendCommands(commands) ? 1U : 0U;
     count += radarElevationCaret.AppendCommands(commands) ? 1U : 0U;
     count += radarScanLine.AppendCommands(commands) ? 1U : 0U;
+    count += radarExpandReference.AppendCommands(commands) ? 1U : 0U;
     count += radarAcquisitionCursorVisual.AppendCommands(commands) ? 1U : 0U;
     count += radarCursorData.AppendCommands(commands) ? 1U : 0U;
     count += radarDatablock.AppendCommands(commands) ? 1U : 0U;
@@ -2335,7 +2369,7 @@ bool LhldUi::SendStartup(mfd::CommandClient& client,
 
     mfd::CommandBatch batch;
     batch.sequence = 0;
-    batch.mappingHash = "250cfc08ca449db9a7c35e5b2e79e8df25f11b27a5f03b3032f79b0d9657e5e2";
+    batch.mappingHash = "9ac6baefc0aac93f3717932a6cdc2b3b3db0fee251c851669909d142a3876013";
     batch.commands = std::move(commands);
     return client.SendBatch(batch);
 }
@@ -2420,7 +2454,7 @@ mfd::CommandBatch LhldUi::BuildCommandBatch(const std::uint32_t sequence)
 {
     mfd::CommandBatch batch;
     batch.sequence = sequence;
-    batch.mappingHash = "250cfc08ca449db9a7c35e5b2e79e8df25f11b27a5f03b3032f79b0d9657e5e2";
+    batch.mappingHash = "9ac6baefc0aac93f3717932a6cdc2b3b3db0fee251c851669909d142a3876013";
     batch.commands = BuildBatch();
     return batch;
 }
@@ -2429,7 +2463,7 @@ mfd::CommandBatch LhldUi::BuildResetCommandBatch(const std::uint32_t sequence)
 {
     mfd::CommandBatch batch;
     batch.sequence = sequence;
-    batch.mappingHash = "250cfc08ca449db9a7c35e5b2e79e8df25f11b27a5f03b3032f79b0d9657e5e2";
+    batch.mappingHash = "9ac6baefc0aac93f3717932a6cdc2b3b3db0fee251c851669909d142a3876013";
     batch.commands = BuildResetBatch();
     return batch;
 }
@@ -2469,7 +2503,7 @@ mfd::CommandBatch LhldUi::BuildShutdownCommandBatch(const std::uint32_t sequence
 {
     mfd::CommandBatch batch;
     batch.sequence = sequence;
-    batch.mappingHash = "250cfc08ca449db9a7c35e5b2e79e8df25f11b27a5f03b3032f79b0d9657e5e2";
+    batch.mappingHash = "9ac6baefc0aac93f3717932a6cdc2b3b3db0fee251c851669909d142a3876013";
     batch.commands = BuildShutdownBatch(std::move(statusText));
     return batch;
 }

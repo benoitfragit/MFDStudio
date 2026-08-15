@@ -101,6 +101,7 @@ private:
     void JettisonStores();
     void ApplyControlsToInputSource() noexcept;
     void SelectRadarSearchSubmode(RadarSubmode submode) noexcept;
+    void ToggleRadarFieldOfView();
     void BugCapturedRadarTrack();
     void EnterSingleTargetTrack();
     void ClearRadarBug() noexcept;

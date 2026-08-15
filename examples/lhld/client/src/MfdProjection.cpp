@@ -9,6 +9,7 @@
  */
 
 #include "MfdProjection.h"
+#include "MfdRadarGeometry.h"
 
 #include <algorithm>
 #include <cmath>
@@ -26,8 +27,6 @@ constexpr float kScopeHeight = kScopeTop - kScopeBottom;
 constexpr float kMaxScanHalfAngleDeg = 60.0f;
 constexpr float kMaxElevationDeg = 30.0f;
 constexpr float kFeetPerNauticalMile = 6076.12f;
-constexpr float kRadarBarSpacingDeg = 2.2f;
-constexpr float kRadarBeamHalfHeightDeg = 1.4f;
 constexpr float kCompassRadius = 0.72f;
 constexpr float kDegToRad = 0.01745329252f;
 constexpr float kRadToDeg = 57.2957795131f;
@@ -71,12 +70,6 @@ float DerivedAltitudeThousandsFt(const RadarTrack& track, const OwnshipState& ow
     const float elevationRad = Finite(track.elevationDeg, 0.0f) * kDegToRad;
     const float altitudeFt = Finite(ownship.altitudeFt, 0.0f) + rangeFt * std::sin(elevationRad);
     return altitudeFt / 1000.0f;
-}
-
-float RadarVerticalHalfCoverageDeg(const RadarSettings& radar) noexcept
-{
-    const int bars = std::clamp(radar.scanBars, 1, 4);
-    return kRadarBeamHalfHeightDeg + (static_cast<float>(bars - 1) * kRadarBarSpacingDeg * 0.5f);
 }
 
 float SearchAltitudeThousandsFt(const OwnshipState& ownship,
@@ -210,13 +203,12 @@ RadarTrackView ProjectRadarTrack(const RadarTrack& track,
         return view;
     }
 
-    const float halfScanDeg =
-        Clamp(Finite(radar.azScanDeg, 60.0f), 10.0f, kMaxScanHalfAngleDeg * 2.0f) * 0.5f;
-    const float bearingDeg = Finite(track.azimuthDeg, 0.0f);
-    const float fraction = RangeFraction(track.rangeNm, radar.rangeScaleNm);
+    const float halfScanDeg = RadarScanHalfAngleDeg(radar);
+    const RadarDisplayPoint displayPoint = RadarTrackDisplayPoint(track, radar);
+    const float fraction = RangeFraction(displayPoint.rangeNm, radar.rangeScaleNm);
 
     view.position = MfdVec2 {
-        Clamp(bearingDeg / halfScanDeg, -1.0f, 1.0f) * kScopeHalfWidth,
+        Clamp(displayPoint.azimuthDeg / halfScanDeg, -1.0f, 1.0f) * kScopeHalfWidth,
         kScopeBottom + Clamp(fraction, 0.0f, 1.0f) * kScopeHeight};
     view.rotationDegrees = WrapDegrees(track.aspectDeg);
     view.altitudeThousandsFt = DerivedAltitudeThousandsFt(track, ownship);
@@ -262,8 +254,7 @@ MfdFrame BuildMfdFrame(const MfdInputSample& input) noexcept
 
     const bool singleTargetTrack = input.radar.submode == RadarSubmode::Stt;
     radar.scanLineVisible = radar.radarPresentationVisible && !singleTargetTrack;
-    const float halfScanDeg =
-        Clamp(Finite(input.radar.azScanDeg, 60.0f), 10.0f, kMaxScanHalfAngleDeg * 2.0f) * 0.5f;
+    const float halfScanDeg = RadarScanHalfAngleDeg(input.radar);
     radar.scanLineX =
         Clamp(Finite(input.radar.antennaAzimuthDeg, 0.0f) / halfScanDeg, -1.0f, 1.0f) * kScopeHalfWidth;
     radar.elevationCaretY =
@@ -271,6 +262,9 @@ MfdFrame BuildMfdFrame(const MfdInputSample& input) noexcept
     radar.cursorPosition = MfdVec2 {
         Clamp(Finite(input.radar.cursorPosition.x, 0.0f), -1.0f, 1.0f) * kScopeHalfWidth,
         Clamp(Finite(input.radar.cursorPosition.y, 0.0f), -1.0f, 1.0f) * kScopeTop};
+    radar.expandedReferenceVisible = radar.radarPresentationVisible &&
+        input.radar.fieldOfView == RadarFieldOfView::Expanded && !singleTargetTrack;
+    radar.expandedReferencePosition = radar.cursorPosition;
     const float cursorRangeFraction =
         (Clamp(Finite(input.radar.cursorPosition.y, 0.0f), -1.0f, 1.0f) + 1.0f) * 0.5f;
     const float cursorRangeNm = cursorRangeFraction * std::max(1.0f, Finite(input.radar.rangeScaleNm, 40.0f));

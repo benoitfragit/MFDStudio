@@ -167,6 +167,8 @@ const char* OsbActionTooltip(const MfdPage page, const int osbOneBased) noexcept
         {
         case 2:
             return "Toggle range-while-search and track-while-scan radar modes.";
+        case 3:
+            return "Toggle the Falcon 4:1 EXP display about the acquisition cursor.";
         case 6:
             return "Cycle radar range scale.";
         case 17:
@@ -538,6 +540,25 @@ void MfdApplication::SelectRadarSearchSubmode(const RadarSubmode submode) noexce
     radarControls_.submode = submode;
 }
 
+void MfdApplication::ToggleRadarFieldOfView()
+{
+    if (radarControls_.submode == RadarSubmode::Stt)
+    {
+        radarControls_.fieldOfView = RadarFieldOfView::Normal;
+        SetStatus("EXP is unavailable in STT; the FCR remains in NORM.", true);
+        return;
+    }
+
+    radarControls_.fieldOfView = radarControls_.fieldOfView == RadarFieldOfView::Normal
+        ? RadarFieldOfView::Expanded
+        : RadarFieldOfView::Normal;
+    SetStatus(
+        radarControls_.fieldOfView == RadarFieldOfView::Expanded
+            ? "FCR 4:1 expanded display selected."
+            : "FCR normal display selected.",
+        false);
+}
+
 void MfdApplication::BugCapturedRadarTrack()
 {
     if (radarControls_.operatingState != RadarOperatingState::Operating)
@@ -579,6 +600,7 @@ void MfdApplication::EnterSingleTargetTrack()
         radarReturnSubmode_ = radarControls_.submode;
     }
     radarControls_.submode = RadarSubmode::Stt;
+    radarControls_.fieldOfView = RadarFieldOfView::Normal;
     SetStatus("Single-target track selected.", false);
 }
 
@@ -807,6 +829,9 @@ void MfdApplication::HandleOsbPress(const int osbOneBased)
         case 2:
             SelectRadarSearchSubmode(
                 radarReturnSubmode_ == RadarSubmode::Rws ? RadarSubmode::Tws : RadarSubmode::Rws);
+            break;
+        case 3:
+            ToggleRadarFieldOfView();
             break;
         case 6:
             radarControls_.rangeScaleNm =
@@ -1172,6 +1197,15 @@ void MfdApplication::DrawControlPanel()
             SelectRadarSearchSubmode(RadarSubmode::Tws);
         }
         ImGui::SameLine();
+        if (ModeButton(
+                "EXP",
+                radarControls_.fieldOfView == RadarFieldOfView::Expanded,
+                ImVec2(70.0f, 30.0f),
+                "Toggle the documented 4:1 display expansion about the acquisition cursor."))
+        {
+            ToggleRadarFieldOfView();
+        }
+        ImGui::SameLine();
         if (ModeButton("BUG", radarControls_.buggedTrack >= 0, ImVec2(70.0f, 30.0f), "Bug the track captured by the acquisition cursor."))
         {
             BugCapturedRadarTrack();
@@ -1404,7 +1438,7 @@ void MfdApplication::PollFeedback()
 void MfdApplication::ResetScene()
 {
     inputSource_->Reset();
-    radarControls_ = RadarSettings {};
+    radarControls_ = inputSource_->Inputs().radar;
     masterMode_ = MasterMode::AirToAir;
     stores_ = StoresState {};
     navControls_ = inputSource_->Inputs().nav;

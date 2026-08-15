@@ -467,9 +467,14 @@ void ApplyRadar(
     radar.radarOwnship.SetPosition(mfd::Vec2 {0.0f, -0.52f});
     radar.radarSensorCue.SetVisible(input.radar.operatingState != RadarOperatingState::Off);
     radar.radarTopLabels.Mode().SetText(RadarStatusCaption(input));
+    const bool expandedDisplay = input.radar.fieldOfView == RadarFieldOfView::Expanded;
+    radar.radarFovLabel.Fov().SetText(expandedDisplay ? "EXP" : "NORM");
+    radar.radarFovLabel.SetBlink(expandedDisplay, radar.fast);
     radar.radarElevationCaret.SetVisible(searchPresentation);
     radar.radarScanLine.SetVisible(frame.scanLineVisible);
     radar.radarScanLine.SetPosition(mfd::Vec2 {frame.scanLineX, 0.0f});
+    radar.radarExpandReference.SetVisible(frame.expandedReferenceVisible);
+    radar.radarExpandReference.SetPosition(ToVec(frame.expandedReferencePosition));
     radar.radarElevationCaret.SetPosition(mfd::Vec2 {0.0f, frame.elevationCaretY});
     radar.radarCursorData.SetVisible(searchPresentation);
     radar.radarCursorData.SetPosition(ToVec(frame.cursorPosition));
@@ -842,7 +847,7 @@ std::string MfdController::OsbLegend(const MfdPage page, const int osbOneBased, 
         case 2:
             return RadarStatusCaption(input);
         case 3:
-            return "NORM";
+            return input.radar.fieldOfView == RadarFieldOfView::Expanded ? "EXP" : "NORM";
         case 4:
             return "OVRD";
         case 5:

@@ -55,9 +55,14 @@ generated UI:
 - `MfdProjection.h/.cpp` - stateless projection: airspace to FCR B-scope, and
   polar navigation to the heading-up HSD compass rose, including visible route
   legs between consecutive steerpoints.
+- `MfdRadarGeometry.h/.cpp` - shared semantic radar geometry. The simulation
+  uses it to decide track publication; the projection uses it to map already
+  published measurements without owning track visibility.
 - `MfdRadarSimulation.h/.cpp` - deterministic fake airspace/radar producer. It
-  owns track motion, closure/aspect derivation and the animated azimuth sweep.
-  **Operator controls are pushed in from the panel and never mutated here.**
+  owns track motion, closure/aspect derivation, visibility and the animated
+  azimuth sweep. Operator intent is pushed in from the panel; the source
+  publishes validated effective radar state, including the mandatory NORM
+  return on STT entry.
 - `MfdController.h/.cpp` - generated-UI adapter that writes the pages every
   frame, owns text formatting and lazily retains capturable dynamic-track
   handles. It owns no simulated radar state.
@@ -87,7 +92,12 @@ business logic beyond selecting the page or toggling a control.
   while STT uses the open square-in-circle presentation. Centered `FCR OFF` and
   `NO RAD` messages replace the live presentation for power-off and RF-silent
   states. Tracks are filtered by azimuth, slant range and antenna elevation;
-  increasing the bar count expands vertical coverage and slows the sweep.
+  increasing the bar count expands vertical coverage and slows the sweep. EXP
+  provides the documented 4:1 range/azimuth magnification about the true ACQ
+  cursor. Its cyan reference frame overlays the existing B-scope without
+  changing antenna coverage or shrinking the display, and its `EXP` mnemonic
+  flashes. STT restores NORM and shows a filled `✠`-style CATA cross at target
+  range.
 - **SMS:** stores diagram with the nine weapon stations, the shared master mode,
   selected weapon and submode, the selected-station box, delivery parameters and
   a panel-side jettison action that clears the carried-store inventory.
@@ -104,8 +114,9 @@ business logic beyond selecting the page or toggling a control.
 - The top selector uses **RADAR / SMS / NAV / A-G** for clarity.
 - **OSB 12/13/14/15** select the FCR, SMS, HSD and A-G pages on any page.
 - Keyboard **1 / 2 / 3 / 4** selects RADAR, SMS, NAV and A-G respectively.
-- On **FCR**, OSB 2 toggles RWS/TWS, OSB 6 cycles range, OSB 17 toggles the
-  azimuth scan width, OSB 18 cycles bars and OSB 19 toggles PRF. The panel antenna
+- On **FCR**, OSB 2 toggles RWS/TWS, OSB 3 toggles NORM/EXP, OSB 6 cycles
+  range, OSB 17 toggles the azimuth scan width, OSB 18 cycles bars and OSB 19
+  toggles PRF. The panel antenna
   elevation slider changes the search volume, so targets can enter or leave the
   scope instead of only moving the elevation caret. OPER/SILENT/OFF exercise
   the corresponding radar presentation states.
@@ -127,7 +138,9 @@ business logic beyond selecting the page or toggling a control.
 - Click on the FCR screen, or use Cursor X/Y, to slew the normalized acquisition
   cursor. **BUG** designates exactly the dynamic track captured by the runtime
   strobe, **STT** promotes that bug to single-target track and **UNBUG** returns
-  to the previous search mode. No nearest-track calculation is used.
+  to the previous search mode. No nearest-track calculation is used. Four demo
+  tracks start closely grouped around the cursor so their EXP separation is
+  immediately visible from OSB 3 or the panel **EXP** button.
 
 ## FCR integration API
 
@@ -138,6 +151,15 @@ altitude and display placement from ownship state and current radar settings.
 The UI cursor remains a two-axis `[-1, 1]` input; conversion to azimuth, display
 range and cursor altitude limits remains inside the projection/controller
 boundary.
+
+`RadarSettings::fieldOfView` is the semantic NORM/EXP command and effective
+state. EXP is valid in RWS, a bugged RWS presentation, and TWS. The radar source
+decides which expanded targets remain published; projection applies exactly
+4:1 about the cursor but never changes `RadarTrack::active`. The cursor and
+antenna scan stay referenced to the unexpanded display, and STT always publishes
+NORM. A real radar source must also suppress target-driven bump azimuth and auto
+range changes while EXP is active; those automatic functions are absent from
+the bundled simulation.
 
 The panel and bundled simulation are demonstrators only. A real simulator should
 replace `MfdInputSource` and publish `MfdInputSample` directly; generated page

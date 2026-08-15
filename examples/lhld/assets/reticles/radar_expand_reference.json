@@ -1,0 +1,7 @@
+{
+  "id": "radar_expand_reference",
+  "lineWidth": 0.005,
+  "elements": [
+    { "id": "frame", "type": "rectangle", "width": 0.40, "height": 0.46, "filled": false }
+  ]
+}

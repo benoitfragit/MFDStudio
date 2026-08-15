@@ -92,6 +92,15 @@ enum class RadarOperatingState
     Off
 };
 
+/** @brief Fire-control-radar air-to-air display field of view. */
+enum class RadarFieldOfView
+{
+    /** @brief Unexpanded B-scope presentation. */
+    Normal,
+    /** @brief Documented 4:1 range/azimuth expansion about the ACQ cursor. */
+    Expanded
+};
+
 /** @brief Quality of the latest sensor update associated with one radar track. */
 enum class RadarTrackQuality
 {
@@ -178,7 +187,10 @@ struct RadarTrack
 };
 
 /**
- * @brief Operator radar controls, owned by the panel, not by the simulation.
+ * @brief Semantic radar controls and effective state shared with the source.
+ *
+ * The panel produces command intent. The input source validates it and may
+ * normalize constrained state, such as forcing NORM when STT is commanded.
  */
 struct RadarSettings
 {
@@ -186,6 +198,8 @@ struct RadarSettings
     RadarOperatingState operatingState = RadarOperatingState::Operating;
     /** @brief Active search/track submode. */
     RadarSubmode submode = RadarSubmode::Rws;
+    /** @brief Effective air-to-air display field of view published by the radar. */
+    RadarFieldOfView fieldOfView = RadarFieldOfView::Normal;
     /** @brief Range scale in nautical miles (10/20/40/80). */
     float rangeScaleNm = 40.0f;
     /** @brief Azimuth scan width in degrees (30/60). */
@@ -416,6 +430,10 @@ struct RadarFrame
     float elevationCaretY = 0.0f;
     /** @brief Acquisition cursor position in MFD space. */
     MfdVec2 cursorPosition {};
+    /** @brief True when the Falcon-style cyan EXP reference frame is shown. */
+    bool expandedReferenceVisible = false;
+    /** @brief EXP reference-frame center, identical to the true ACQ cursor position. */
+    MfdVec2 expandedReferencePosition {};
     /** @brief Maximum searched altitude at cursor range, in thousands of feet MSL. */
     float cursorMaximumAltitudeThousandsFt = 0.0f;
     /** @brief Minimum searched altitude at cursor range, in thousands of feet MSL. */

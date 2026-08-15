@@ -46,6 +46,7 @@ set(MFD_LHLD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MfdApplication.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MfdController.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MfdProjection.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/MfdRadarGeometry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MfdRadarSimulation.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OffscreenMfdView.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
@@ -58,6 +59,7 @@ set(MFD_LHLD_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MfdController.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MfdInputSource.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MfdProjection.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/MfdRadarGeometry.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MfdRadarSimulation.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MfdTypes.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OffscreenMfdView.h

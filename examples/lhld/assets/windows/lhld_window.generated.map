@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "mappingHash": "250cfc08ca449db9a7c35e5b2e79e8df25f11b27a5f03b3032f79b0d9657e5e2",
+  "mappingHash": "9ac6baefc0aac93f3717932a6cdc2b3b3db0fee251c851669909d142a3876013",
   "window": {
     "name": "lhld_window",
     "title": "LHLD",
@@ -266,6 +266,20 @@
       "pageId": 9637022363458486384,
       "reticleId": "radar_elevation_caret",
       "normalizedReticleId": "radar_elevation_caret",
+      "source": "static"
+    },
+    {
+      "id": 1093673955681442181,
+      "pageId": 9637022363458486384,
+      "reticleId": "radar_expand_reference",
+      "normalizedReticleId": "radar_expand_reference",
+      "source": "static"
+    },
+    {
+      "id": 10990857685352000243,
+      "pageId": 9637022363458486384,
+      "reticleId": "radar_fov_label",
+      "normalizedReticleId": "radar_fov_label",
       "source": "static"
     },
     {
@@ -1623,6 +1637,24 @@
       "exposed": true
     },
     {
+      "id": 15636178271397179838,
+      "ownerKind": "reticle",
+      "ownerId": 1093673955681442181,
+      "primitiveId": "frame",
+      "normalizedPrimitiveId": "frame",
+      "primitiveType": "rectangle",
+      "exposed": true
+    },
+    {
+      "id": 7757703728841104788,
+      "ownerKind": "reticle",
+      "ownerId": 10990857685352000243,
+      "primitiveId": "fov",
+      "normalizedPrimitiveId": "fov",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
       "id": 7706822362747384860,
       "ownerKind": "reticle",
       "ownerId": 7172646644961225399,
@@ -1835,15 +1867,6 @@
       "ownerId": 11330656779390962016,
       "primitiveId": "mode",
       "normalizedPrimitiveId": "mode",
-      "primitiveType": "text",
-      "exposed": true
-    },
-    {
-      "id": 12210764294958178397,
-      "ownerKind": "reticle",
-      "ownerId": 11330656779390962016,
-      "primitiveId": "norm",
-      "normalizedPrimitiveId": "norm",
       "primitiveType": "text",
       "exposed": true
     },

@@ -14,6 +14,7 @@ simulation is replaceable by design.
 | Replaceable semantic input source | `client/src/MfdInputSource.h` | Keep. Implement this for a real simulator feed. |
 | Fake radar/navigation/stores source | `client/src/MfdRadarSimulation.*` | Replace with a real aircraft, avionics or network source. |
 | Semantic MFD contract | `client/src/MfdTypes.h` | Keep. This is the stable frame data boundary. |
+| Shared radar geometry | `client/src/MfdRadarGeometry.*` | Keep. The radar source uses it for visibility and the projection uses it only for coordinate conversion. |
 | Stateless FCR/HSD projection | `client/src/MfdProjection.*` | Keep unless page geometry changes. It converts semantic units into page coordinates without deciding radar track visibility. |
 | Generated-UI adapter | `client/src/MfdController.*` | Keep. It owns generated dynamic-reticle handles and maps published track states to authored assets without applying radar detection rules. |
 | Offscreen runtime embedding | `client/src/OffscreenMfdView.*` | Keep if the MFD still renders inside another host window. |
@@ -69,6 +70,14 @@ from the published state. The bundled `MfdRadarSimulation` implements the demo
 detection volume and is the only place where the example decides that a track
 enters or leaves the radar picture.
 
+`RadarSettings::fieldOfView` selects NORM or EXP. In EXP, the input source owns
+the displayed-field decision and the projection applies the documented 4:1
+range/azimuth magnification about the acquisition cursor. The ACQ cursor remains
+at its true unexpanded position, the antenna scan coverage is unchanged, and
+STT forces the effective field of view back to NORM. Target-driven auto range
+and bump-azimuth logic must remain disabled in an EXP-capable real source; the
+demo does not implement either automatic function.
+
 The acquisition cursor is the only normalized input. Its `x` and `y` axes stay
 in `[-1, 1]`, which is natural for an independent UI device. `MfdProjection`
 maps that cursor to the authored B-scope and derives the displayed cursor
@@ -83,7 +92,12 @@ Falcon-style perimeter keeps the range/DLZ scale on the outer right border and
 shows a compact search-context line below the top OSB labels; after designation,
 that line switches to target aspect, heading, NCTR state, speed and closure.
 STT removes the search-volume gates and adds a CATA steering cross at target
-range when the computed collision angle remains within 60 degrees.
+range when the computed collision angle remains within 60 degrees. The cross is
+an authored filled `✠`-style vector symbol rather than a font-dependent glyph.
+
+The demo starts with four closely grouped tracks around the ACQ cursor. Toggle
+EXP with FCR OSB 3 or the panel **EXP** control to separate them while keeping
+the cursor, scan volume, range scale and antenna coverage fixed.
 
 ## Replacing the ImGui Panel
 

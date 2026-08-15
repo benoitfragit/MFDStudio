@@ -9,6 +9,7 @@ include(GoogleTest)
 add_executable(lhld_client_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/LhldProjectionTests.cpp
     ${MFD_ROOT_DIR}/examples/lhld/client/src/MfdProjection.cpp
+    ${MFD_ROOT_DIR}/examples/lhld/client/src/MfdRadarGeometry.cpp
     ${MFD_ROOT_DIR}/examples/lhld/client/src/MfdRadarSimulation.cpp)
 
 mfd_configure_test_runtime_output(lhld_client_tests)

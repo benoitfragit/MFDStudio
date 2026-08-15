@@ -9,6 +9,7 @@
  */
 
 #include "MfdRadarSimulation.h"
+#include "MfdRadarGeometry.h"
 
 #include <algorithm>
 #include <cmath>
@@ -27,10 +28,8 @@ constexpr float kMaxNavRangeNm = 160.0f;
 constexpr float kOwnshipTurnRateDegPerSecond = 0.18f;
 constexpr float kSecondsPerQualityCycle = 18.0f;
 constexpr float kExtrapolationStartSeconds = 14.0f;
-constexpr float kMaxScanHalfAngleDeg = 60.0f;
-constexpr float kMaxElevationDeg = 30.0f;
-constexpr float kRadarBarSpacingDeg = 2.2f;
-constexpr float kRadarBeamHalfHeightDeg = 1.4f;
+constexpr float kDefaultRadarRangeScaleNm = 40.0f;
+constexpr float kMaximumElevationDeg = 30.0f;
 
 float Finite(const float value, const float fallback) noexcept
 {
@@ -60,26 +59,35 @@ int ValidRadarBars(const int bars) noexcept
     return 4;
 }
 
-float RadarVerticalHalfCoverageDeg(const RadarSettings& radar) noexcept
+float RadarRangeScaleNm(const RadarSettings& radar) noexcept
 {
-    const int bars = ValidRadarBars(radar.scanBars);
-    return kRadarBeamHalfHeightDeg +
-        static_cast<float>(bars - 1) * kRadarBarSpacingDeg * 0.5f;
+    return std::max(1.0f, Finite(radar.rangeScaleNm, kDefaultRadarRangeScaleNm));
 }
 
-bool IsInsideSearchVolume(const float rangeNm,
-                          const float azimuthDeg,
-                          const float elevationDeg,
-                          const RadarSettings& radar) noexcept
+bool IsInsideSearchVolume(const RadarTrack& track, const RadarSettings& radar) noexcept
 {
-    const float rangeScaleNm = std::max(1.0f, Finite(radar.rangeScaleNm, 40.0f));
-    const float halfScanDeg =
-        std::clamp(Finite(radar.azScanDeg, 60.0f), 10.0f, kMaxScanHalfAngleDeg * 2.0f) * 0.5f;
-    const float antennaCenterDeg =
-        std::clamp(Finite(radar.antennaElevationDeg, 0.0f), -kMaxElevationDeg, kMaxElevationDeg);
-    return rangeNm >= 0.0f && rangeNm <= rangeScaleNm &&
-        std::fabs(azimuthDeg) <= halfScanDeg &&
+    const float rangeNm = Finite(track.rangeNm, -1.0f);
+    const float azimuthDeg = Finite(track.azimuthDeg, 180.0f);
+    const float elevationDeg = Finite(track.elevationDeg, kMaximumElevationDeg * 2.0f);
+    const float antennaCenterDeg = std::clamp(
+        Finite(radar.antennaElevationDeg, 0.0f),
+        -kMaximumElevationDeg,
+        kMaximumElevationDeg);
+    return rangeNm >= 0.0f && rangeNm <= RadarRangeScaleNm(radar) &&
+        std::fabs(azimuthDeg) <= RadarScanHalfAngleDeg(radar) &&
         std::fabs(elevationDeg - antennaCenterDeg) <= RadarVerticalHalfCoverageDeg(radar);
+}
+
+bool IsInsideDisplayedFieldOfView(const RadarTrack& track, const RadarSettings& radar) noexcept
+{
+    if (radar.fieldOfView != RadarFieldOfView::Expanded)
+    {
+        return true;
+    }
+
+    const RadarDisplayPoint display = RadarTrackDisplayPoint(track, radar);
+    return display.rangeNm >= 0.0f && display.rangeNm <= RadarRangeScaleNm(radar) &&
+        std::fabs(display.azimuthDeg) <= RadarScanHalfAngleDeg(radar);
 }
 
 RadarTrackState PublishedTrackState(const RadarSettings& radar, const bool designated) noexcept
@@ -109,10 +117,10 @@ struct TrackSeed
 
 constexpr TrackSeed kTrackSeeds[kMaxRadarTracks] = {
     {-8.0f, 55.0f, 0.010f, -0.200f, 24000.0f, true},
-    {6.0f, 40.0f, -0.020f, -0.160f, 18000.0f, true},
-    {12.0f, 62.0f, -0.050f, -0.100f, 27000.0f, true},
-    {-15.0f, 48.0f, 0.060f, -0.080f, 15000.0f, true},
-    {2.0f, 30.0f, 0.000f, -0.140f, 21000.0f, true},
+    {1.45f, 26.60f, -0.018f, -0.145f, 18000.0f, true},
+    {3.80f, 27.10f, -0.022f, -0.140f, 27000.0f, true},
+    {2.00f, 27.70f, -0.014f, -0.150f, 15000.0f, true},
+    {3.10f, 28.00f, -0.020f, -0.142f, 21000.0f, true},
     {-4.0f, 70.0f, 0.020f, -0.180f, 30000.0f, false},
     {18.0f, 35.0f, -0.090f, -0.050f, 12000.0f, true},
     {-20.0f, 58.0f, 0.100f, -0.060f, 26000.0f, true},
@@ -166,6 +174,7 @@ void MfdRadarSimulation::Reset() noexcept
 
     inputs_.stores = StoresState {};
     inputs_.radar = RadarSettings {};
+    inputs_.radar.cursorPosition = MfdVec2 {0.18f, 0.36f};
     sweepFraction_ = 0.0f;
     sweepDirection_ = 1.0f;
     elapsedSeconds_ = 0.0f;
@@ -177,6 +186,10 @@ void MfdRadarSimulation::ApplyRadarControls(const RadarSettings& controls) noexc
     const float preservedAntennaAzimuth = inputs_.radar.antennaAzimuthDeg;
     inputs_.radar = controls;
     inputs_.radar.scanBars = ValidRadarBars(controls.scanBars);
+    if (inputs_.radar.submode == RadarSubmode::Stt)
+    {
+        inputs_.radar.fieldOfView = RadarFieldOfView::Normal;
+    }
     inputs_.radar.antennaAzimuthDeg = preservedAntennaAzimuth;
     RefreshPublishedTracks();
 }
@@ -255,7 +268,7 @@ void MfdRadarSimulation::Step(const float deltaSeconds) noexcept
         sweepFraction_ = -1.0f;
         sweepDirection_ = 1.0f;
     }
-    const float halfScanDeg = std::clamp(Finite(inputs_.radar.azScanDeg, 60.0f), 10.0f, 120.0f) * 0.5f;
+    const float halfScanDeg = RadarScanHalfAngleDeg(inputs_.radar);
     inputs_.radar.antennaAzimuthDeg = sweepFraction_ * halfScanDeg;
 
     RefreshPublishedTracks();
@@ -317,9 +330,10 @@ void MfdRadarSimulation::RefreshPublishedTracks() noexcept
 
         const bool designated = inputs_.radar.buggedTrack == static_cast<int>(index);
         const bool radarOperating = inputs_.radar.operatingState == RadarOperatingState::Operating;
+        const bool displayed = IsInsideDisplayedFieldOfView(radarTrack, inputs_.radar);
         const bool searchTrackAllowed = inputs_.radar.submode != RadarSubmode::Stt &&
-            IsInsideSearchVolume(slantRangeNm, bearingFromNoseDeg, elevationDeg, inputs_.radar);
-        radarTrack.active = radarOperating && (designated || searchTrackAllowed);
+            IsInsideSearchVolume(radarTrack, inputs_.radar);
+        radarTrack.active = radarOperating && displayed && (designated || searchTrackAllowed);
         radarTrack.state = PublishedTrackState(inputs_.radar, designated);
     }
 }

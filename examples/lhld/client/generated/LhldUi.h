@@ -438,16 +438,45 @@ public:
     using mfd::client::Reticle::GetText;
     TextHandle& Crm() noexcept;
     TextHandle& Mode() noexcept;
-    TextHandle& Norm() noexcept;
     TextHandle& Override() noexcept;
     TextHandle& Control() noexcept;
 
 private:
     TextHandle crm_;
     TextHandle mode_;
-    TextHandle norm_;
     TextHandle override_;
     TextHandle control_;
+};
+
+class RadarRadarFovLabelReticle final : private mfd::client::Reticle
+{
+public:
+    RadarRadarFovLabelReticle();
+    using mfd::client::Reticle::AppendCommands;
+    using mfd::client::Reticle::Blink;
+    using mfd::client::Reticle::ClearDirty;
+    using mfd::client::Reticle::ResetToAuthored;
+    using mfd::client::Reticle::SetVisible;
+    using mfd::client::Reticle::SetBlinkEnabled;
+    using mfd::client::Reticle::SetBlink;
+    using mfd::client::Reticle::SetBlinkType;
+    using mfd::client::Reticle::ClearBlinkType;
+    using mfd::client::Reticle::SetPosition;
+    using mfd::client::Reticle::SetRotationDegrees;
+    using mfd::client::Reticle::SetScale;
+    using mfd::client::Reticle::SetColor;
+    using mfd::client::Reticle::SetThickness;
+    using mfd::client::Reticle::GetVisible;
+    using mfd::client::Reticle::GetPosition;
+    using mfd::client::Reticle::GetRotationDegrees;
+    using mfd::client::Reticle::GetScale;
+    using mfd::client::Reticle::GetText;
+    void SetValue(std::string value);
+    std::string_view GetValue() const noexcept;
+    TextHandle& Fov() noexcept;
+
+private:
+    TextHandle fov_;
 };
 
 class RadarRadarOwnshipReticle final : private mfd::client::Reticle
@@ -564,6 +593,35 @@ public:
 
 private:
     LineHandle sweep_;
+};
+
+class RadarRadarExpandReferenceReticle final : private mfd::client::Reticle
+{
+public:
+    RadarRadarExpandReferenceReticle();
+    using mfd::client::Reticle::AppendCommands;
+    using mfd::client::Reticle::Blink;
+    using mfd::client::Reticle::ClearDirty;
+    using mfd::client::Reticle::ResetToAuthored;
+    using mfd::client::Reticle::SetVisible;
+    using mfd::client::Reticle::SetBlinkEnabled;
+    using mfd::client::Reticle::SetBlink;
+    using mfd::client::Reticle::SetBlinkType;
+    using mfd::client::Reticle::ClearBlinkType;
+    using mfd::client::Reticle::SetPosition;
+    using mfd::client::Reticle::SetRotationDegrees;
+    using mfd::client::Reticle::SetScale;
+    using mfd::client::Reticle::SetColor;
+    using mfd::client::Reticle::SetThickness;
+    using mfd::client::Reticle::GetVisible;
+    using mfd::client::Reticle::GetPosition;
+    using mfd::client::Reticle::GetRotationDegrees;
+    using mfd::client::Reticle::GetScale;
+    using mfd::client::Reticle::GetText;
+    RectangleHandle& Frame() noexcept;
+
+private:
+    RectangleHandle frame_;
 };
 
 class RadarRadarAcquisitionCursorVisualReticle final : private mfd::client::Reticle
@@ -839,7 +897,7 @@ public:
 
     static constexpr std::string_view MappingHash() noexcept
     {
-        return "250cfc08ca449db9a7c35e5b2e79e8df25f11b27a5f03b3032f79b0d9657e5e2";
+        return "9ac6baefc0aac93f3717932a6cdc2b3b3db0fee251c851669909d142a3876013";
     }
 
     explicit RadarMockupPage(RuntimeFeedbackState* feedbackState = nullptr);
@@ -869,10 +927,12 @@ public:
     RadarRadarScaleReticle radarScale;
     RadarRadarPerimeterReticle radarPerimeter;
     RadarRadarTopLabelsReticle radarTopLabels;
+    RadarRadarFovLabelReticle radarFovLabel;
     RadarRadarOwnshipReticle radarOwnship;
     RadarRadarSensorCueReticle radarSensorCue;
     RadarRadarElevationCaretReticle radarElevationCaret;
     RadarRadarScanLineReticle radarScanLine;
+    RadarRadarExpandReferenceReticle radarExpandReference;
     RadarRadarAcquisitionCursorVisualReticle radarAcquisitionCursorVisual;
     RadarRadarCursorDataReticle radarCursorData;
     RadarRadarDatablockReticle radarDatablock;
@@ -1171,7 +1231,7 @@ public:
 
     static constexpr std::string_view MappingHash() noexcept
     {
-        return "250cfc08ca449db9a7c35e5b2e79e8df25f11b27a5f03b3032f79b0d9657e5e2";
+        return "9ac6baefc0aac93f3717932a6cdc2b3b3db0fee251c851669909d142a3876013";
     }
 
     explicit SmsMockupPage(RuntimeFeedbackState* feedbackState = nullptr);
@@ -1939,7 +1999,7 @@ public:
 
     static constexpr std::string_view MappingHash() noexcept
     {
-        return "250cfc08ca449db9a7c35e5b2e79e8df25f11b27a5f03b3032f79b0d9657e5e2";
+        return "9ac6baefc0aac93f3717932a6cdc2b3b3db0fee251c851669909d142a3876013";
     }
 
     explicit NavMockupPage(RuntimeFeedbackState* feedbackState = nullptr);
@@ -2255,7 +2315,7 @@ public:
 
     static constexpr std::string_view MappingHash() noexcept
     {
-        return "250cfc08ca449db9a7c35e5b2e79e8df25f11b27a5f03b3032f79b0d9657e5e2";
+        return "9ac6baefc0aac93f3717932a6cdc2b3b3db0fee251c851669909d142a3876013";
     }
 
     explicit AgMockupPage(RuntimeFeedbackState* feedbackState = nullptr);
@@ -2290,7 +2350,7 @@ public:
 
     static constexpr std::string_view MappingHash() noexcept
     {
-        return "250cfc08ca449db9a7c35e5b2e79e8df25f11b27a5f03b3032f79b0d9657e5e2";
+        return "9ac6baefc0aac93f3717932a6cdc2b3b3db0fee251c851669909d142a3876013";
     }
 
     LhldUi();

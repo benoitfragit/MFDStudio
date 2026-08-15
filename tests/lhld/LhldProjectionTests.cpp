@@ -10,10 +10,12 @@
 
 #include <cmath>
 #include <cstddef>
+#include <limits>
 
 #include <gtest/gtest.h>
 
 #include "MfdProjection.h"
+#include "MfdRadarGeometry.h"
 #include "MfdRadarSimulation.h"
 
 namespace
@@ -116,6 +118,87 @@ TEST(LhldProjection, CursorUsesNormalizedUiCoordinatesOnBothAxes)
 
     EXPECT_NEAR(frame.cursorPosition.x, 0.46f, 1.0e-4f);
     EXPECT_NEAR(frame.cursorPosition.y, -0.75f, 1.0e-4f);
+}
+
+TEST(LhldRadarGeometry, CursorMapsToSensorAzimuthAndRange)
+{
+    lhld::RadarSettings radar;
+    radar.azScanDeg = 60.0f;
+    radar.rangeScaleNm = 40.0f;
+    radar.cursorPosition = {0.18f, 0.36f};
+
+    const lhld::RadarDisplayPoint cursor = lhld::RadarCursorSensorPoint(radar);
+
+    EXPECT_NEAR(cursor.azimuthDeg, 5.4f, 1.0e-4f);
+    EXPECT_NEAR(cursor.rangeNm, 27.2f, 1.0e-4f);
+}
+
+TEST(LhldRadarGeometry, ExpandedDisplayAppliesExactFourToOneMagnification)
+{
+    const lhld::RadarTrack track = MakeTrack(8.0f, 27.0f);
+    lhld::RadarSettings radar;
+    radar.azScanDeg = 60.0f;
+    radar.rangeScaleNm = 40.0f;
+    radar.cursorPosition = {0.20f, 0.25f};
+
+    const lhld::RadarDisplayPoint normal = lhld::RadarTrackDisplayPoint(track, radar);
+    EXPECT_FLOAT_EQ(normal.azimuthDeg, track.azimuthDeg);
+    EXPECT_FLOAT_EQ(normal.rangeNm, track.rangeNm);
+
+    radar.fieldOfView = lhld::RadarFieldOfView::Expanded;
+    const lhld::RadarDisplayPoint cursor = lhld::RadarCursorSensorPoint(radar);
+    const lhld::RadarDisplayPoint expanded = lhld::RadarTrackDisplayPoint(track, radar);
+    EXPECT_NEAR(
+        expanded.azimuthDeg - cursor.azimuthDeg,
+        4.0f * (normal.azimuthDeg - cursor.azimuthDeg),
+        1.0e-4f);
+    EXPECT_NEAR(
+        expanded.rangeNm - cursor.rangeNm,
+        4.0f * (normal.rangeNm - cursor.rangeNm),
+        1.0e-4f);
+}
+
+TEST(LhldProjection, ExpandedTrackDisplacementIsFourTimesNormalAboutCursor)
+{
+    const lhld::RadarTrack track = MakeTrack(8.0f, 27.0f);
+    lhld::RadarSettings radar;
+    radar.cursorPosition = {0.20f, 0.25f};
+    const lhld::RadarTrackView normal =
+        lhld::ProjectRadarTrack(track, radar, lhld::OwnshipState {});
+    lhld::MfdInputSample normalInput;
+    normalInput.radar = radar;
+    const lhld::RadarFrame normalFrame = lhld::BuildMfdFrame(normalInput).radar;
+
+    radar.fieldOfView = lhld::RadarFieldOfView::Expanded;
+    lhld::MfdInputSample expandedInput;
+    expandedInput.radar = radar;
+    const lhld::RadarTrackView expanded =
+        lhld::ProjectRadarTrack(track, radar, lhld::OwnshipState {});
+    const lhld::RadarFrame expandedFrame = lhld::BuildMfdFrame(expandedInput).radar;
+
+    const lhld::MfdVec2 cursor = expandedFrame.cursorPosition;
+    EXPECT_NEAR(expanded.position.x - cursor.x, 4.0f * (normal.position.x - cursor.x), 1.0e-4f);
+    EXPECT_NEAR(expanded.position.y - cursor.y, 4.0f * (normal.position.y - cursor.y), 1.0e-4f);
+    EXPECT_TRUE(expandedFrame.expandedReferenceVisible);
+    EXPECT_FLOAT_EQ(expandedFrame.expandedReferencePosition.x, cursor.x);
+    EXPECT_FLOAT_EQ(expandedFrame.expandedReferencePosition.y, cursor.y);
+    EXPECT_FALSE(normalFrame.expandedReferenceVisible);
+    EXPECT_FLOAT_EQ(normalFrame.cursorPosition.x, expandedFrame.cursorPosition.x);
+    EXPECT_FLOAT_EQ(normalFrame.cursorPosition.y, expandedFrame.cursorPosition.y);
+}
+
+TEST(LhldRadarGeometry, NonFiniteMeasurementsRemainBounded)
+{
+    lhld::RadarTrack track = MakeTrack(
+        std::numeric_limits<float>::quiet_NaN(),
+        std::numeric_limits<float>::infinity());
+    lhld::RadarSettings radar;
+    radar.fieldOfView = lhld::RadarFieldOfView::Expanded;
+
+    const lhld::RadarDisplayPoint display = lhld::RadarTrackDisplayPoint(track, radar);
+
+    EXPECT_TRUE(std::isfinite(display.azimuthDeg));
+    EXPECT_TRUE(std::isfinite(display.rangeNm));
 }
 
 TEST(LhldProjection, SttCrossProvidesSteeringAtTargetRange)
@@ -420,12 +503,48 @@ TEST(LhldSimulation, RadarSourcePublishesOnlyDesignatedTrackInStt)
     simulation.ApplyRadarControls(controls);
 
     const lhld::MfdInputSample& input = simulation.Inputs();
+    EXPECT_EQ(input.radar.fieldOfView, lhld::RadarFieldOfView::Normal);
     EXPECT_TRUE(input.tracks[0].active);
     EXPECT_EQ(input.tracks[0].state, lhld::RadarTrackState::SingleTargetTrack);
     for (std::size_t index = 1; index < lhld::kMaxRadarTracks; ++index)
     {
         EXPECT_FALSE(input.tracks[index].active);
     }
+}
+
+TEST(LhldSimulation, ExpandedDisplayPublishesOnlyTracksInsideExpandedViewport)
+{
+    lhld::MfdRadarSimulation simulation;
+    lhld::RadarSettings controls = simulation.Inputs().radar;
+    controls.submode = lhld::RadarSubmode::Tws;
+    controls.fieldOfView = lhld::RadarFieldOfView::Expanded;
+    simulation.ApplyRadarControls(controls);
+
+    int activeTrackCount = 0;
+    for (const lhld::RadarTrack& track : simulation.Inputs().tracks)
+    {
+        if (track.active)
+        {
+            ++activeTrackCount;
+            EXPECT_EQ(track.state, lhld::RadarTrackState::Trackfile);
+        }
+    }
+
+    EXPECT_EQ(activeTrackCount, 4);
+    EXPECT_EQ(simulation.Inputs().radar.fieldOfView, lhld::RadarFieldOfView::Expanded);
+}
+
+TEST(LhldSimulation, ExpandedDisplayRemainsAvailableForBuggedRwsTrack)
+{
+    lhld::MfdRadarSimulation simulation;
+    lhld::RadarSettings controls = simulation.Inputs().radar;
+    controls.fieldOfView = lhld::RadarFieldOfView::Expanded;
+    controls.buggedTrack = 1;
+    simulation.ApplyRadarControls(controls);
+
+    EXPECT_EQ(simulation.Inputs().radar.fieldOfView, lhld::RadarFieldOfView::Expanded);
+    EXPECT_TRUE(simulation.Inputs().tracks[1].active);
+    EXPECT_EQ(simulation.Inputs().tracks[1].state, lhld::RadarTrackState::SystemTarget);
 }
 
 TEST(LhldSimulation, RadarSourceMaintainsDesignatedTrackOutsideSearchVolume)
