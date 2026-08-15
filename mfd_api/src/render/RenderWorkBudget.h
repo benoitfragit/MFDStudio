@@ -14,8 +14,14 @@
 
 namespace mfd::detail
 {
-/** @brief Maximum number of explicit Canvas draw operations emitted by one canvas. */
-constexpr std::size_t kMaxCanvasDrawOperations = 16384U;
+/**
+ * @brief Maximum logical render work emitted by one canvas.
+ *
+ * Tessellated geometry consumes triangle or segment units, text consumes units
+ * proportional to its UTF-8 byte count, and direct image/background operations
+ * consume at least one unit.
+ */
+constexpr std::size_t kMaxCanvasDrawWorkUnits = 16384U;
 
 /** @brief Maximum number of reticle visits performed by layer-local restoration in one frame. */
 constexpr std::size_t kMaxLayerRestoreVisits = 16384U;

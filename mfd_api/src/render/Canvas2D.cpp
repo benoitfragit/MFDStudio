@@ -9,6 +9,7 @@
  */
 
 #include "Canvas2D.h"
+#include "CanvasDrawWork.h"
 #include "CanvasFastPath.h"
 
 #include <algorithm>
@@ -102,7 +103,7 @@ void FillConvexPolygon(const ArrayView<const Vector2> points,
         return;
     }
 
-    const std::size_t triangleCount = points.size() - 2U;
+    const std::size_t triangleCount = detail::EstimateConvexFillWorkUnits(points.size());
     if (!drawBudget.TryConsume(triangleCount))
     {
         return;
@@ -278,7 +279,9 @@ bool IsIsotropicScale(const Vec2& scale) noexcept
 void DrawCircleOutlineFast(const Vector2 center,
                            const float radius,
                            const float thickness,
-                           const Color color) noexcept
+                           const Color color,
+                           const int segmentCount,
+                           detail::RenderWorkBudget& drawBudget) noexcept
 {
     // A degenerate circle drew nothing on the polyline path because every sampled segment had
     // zero length and was filtered out. Preserve that: without this guard DrawRing would still
@@ -291,8 +294,13 @@ void DrawCircleOutlineFast(const Vector2 center,
     const float halfThickness = thickness * 0.5f;
     const float innerRadius = std::max(0.0f, radius - halfThickness);
     const float outerRadius = radius + halfThickness;
-    const int segments = EstimateCircleSegmentCount(radius, 64);
-    DrawRing(center, innerRadius, outerRadius, 0.0f, 360.0f, segments, color);
+    if (!drawBudget.TryConsume(
+            detail::EstimateClosedStrokeWorkUnits(static_cast<std::size_t>(segmentCount))))
+    {
+        return;
+    }
+
+    DrawRing(center, innerRadius, outerRadius, 0.0f, 360.0f, segmentCount, color);
 }
 
 class ScopedStencilStateReset
@@ -322,16 +330,21 @@ void DrawSolidRingFast(const Vector2 center,
                        const bool filled,
                        const float strokeThickness,
                        const Color strokeColor,
-                       const Color fillColor) noexcept
+                       const Color fillColor,
+                       const int segmentCount,
+                       detail::RenderWorkBudget& drawBudget) noexcept
 {
     if (filled && outerRadius > innerRadius)
     {
-        const int segments = EstimateCircleSegmentCount(outerRadius, 64);
-        DrawRing(center, innerRadius, outerRadius, 0.0f, 360.0f, segments, fillColor);
+        if (drawBudget.TryConsume(
+                detail::EstimateRingFillWorkUnits(static_cast<std::size_t>(segmentCount))))
+        {
+            DrawRing(center, innerRadius, outerRadius, 0.0f, 360.0f, segmentCount, fillColor);
+        }
     }
 
-    DrawCircleOutlineFast(center, outerRadius, strokeThickness, strokeColor);
-    DrawCircleOutlineFast(center, innerRadius, strokeThickness, strokeColor);
+    DrawCircleOutlineFast(center, outerRadius, strokeThickness, strokeColor, segmentCount, drawBudget);
+    DrawCircleOutlineFast(center, innerRadius, strokeThickness, strokeColor, segmentCount, drawBudget);
 }
 
 void DrawPolylineStroke(const ArrayView<const Vector2> points,
@@ -497,14 +510,14 @@ void SampleEllipseInto(const EllipseGeometry& geometry, const int segments, std:
     }
 }
 
-void DrawAlignedText(const std::string& text,
-                     const Font& font,
-                     const float fontSize,
-                     const float letterSpacing,
-                     const Vector2 screenPosition,
-                     const Vector2 origin,
-                     const float rotationDegrees,
-                     const Color color)
+void DrawAlignedTextReserved(const std::string& text,
+                             const Font& font,
+                             const float fontSize,
+                             const float letterSpacing,
+                             const Vector2 screenPosition,
+                             const Vector2 origin,
+                             const float rotationDegrees,
+                             const Color color)
 {
     const Vector2 snappedScreenPosition = detail::SnapTextAnchor(screenPosition);
     DrawTextPro(font,
@@ -525,15 +538,22 @@ void DrawStaticTextLayout(TextLayoutCache& layoutCache,
                           const Align align,
                           const Vector2 screenPosition,
                           const float rotationDegrees,
-                          const Color color)
+                          const Color color,
+                          detail::RenderWorkBudget& drawBudget)
 {
+    if (!drawBudget.TryConsume(detail::EstimateTextDrawWorkUnits(text)))
+    {
+        return;
+    }
+
     const CachedTextLayout& layout = layoutCache.ResolveStaticText(text, font, fontSize, letterSpacing, align);
     if (!IsFiniteVector(layout.size) || !IsFiniteVector(layout.origin))
     {
         return;
     }
 
-    DrawAlignedText(layout.text, font, fontSize, letterSpacing, screenPosition, layout.origin, rotationDegrees, color);
+    DrawAlignedTextReserved(
+        layout.text, font, fontSize, letterSpacing, screenPosition, layout.origin, rotationDegrees, color);
 }
 
 void DrawTimeTextLayout(TextLayoutCache& layoutCache,
@@ -543,7 +563,8 @@ void DrawTimeTextLayout(TextLayoutCache& layoutCache,
                         const float letterSpacing,
                         const Vector2 screenPosition,
                         const float rotationDegrees,
-                        const Color color)
+                        const Color color,
+                        detail::RenderWorkBudget& drawBudget)
 {
     const CachedTextLayout& layout = layoutCache.ResolveTimeText(time, font, fontSize, letterSpacing);
     if (!IsFiniteVector(layout.size) || !IsFiniteVector(layout.origin))
@@ -551,7 +572,13 @@ void DrawTimeTextLayout(TextLayoutCache& layoutCache,
         return;
     }
 
-    DrawAlignedText(layout.text, font, fontSize, letterSpacing, screenPosition, layout.origin, rotationDegrees, color);
+    if (!drawBudget.TryConsume(detail::EstimateTextDrawWorkUnits(layout.text)))
+    {
+        return;
+    }
+
+    DrawAlignedTextReserved(
+        layout.text, font, fontSize, letterSpacing, screenPosition, layout.origin, rotationDegrees, color);
 }
 } // namespace
 
@@ -564,7 +591,8 @@ Canvas2D::Canvas2D(const int width,
                    BezierPolylineCache* bezierCache,
                    ImageTextureCache* imageCache,
                    TextLayoutCache* textLayoutCache,
-                   BackgroundRestoreCallback backgroundRestore)
+                   BackgroundRestoreCallback backgroundRestore,
+                   const std::size_t maximumDrawWorkUnits)
     : width_(width)
     , height_(height)
     , view_(view)
@@ -575,6 +603,7 @@ Canvas2D::Canvas2D(const int width,
     , bezierCache_(bezierCache)
     , imageCache_(imageCache)
     , textLayoutCache_(textLayoutCache)
+    , drawBudget_(maximumDrawWorkUnits)
 {
 }
 
@@ -620,7 +649,10 @@ void Canvas2D::DrawReticle(const ReticleGroup& reticle, const bool visible) cons
         if (const Primitive* clipPrimitive = ResolveClipPrimitive(reticle);
             clipPrimitive != nullptr && detail::OpenGlStencilApiAvailable())
         {
-            ApplyClipMask(*clipPrimitive, reticle);
+            if (!ApplyClipMask(*clipPrimitive, reticle))
+            {
+                return;
+            }
         }
     }
 
@@ -666,7 +698,7 @@ void Canvas2D::RestoreClippedBackground() const
     DrawRectangle(0, 0, width_, height_, backgroundColor_);
 }
 
-void Canvas2D::ApplyClipMask(const Primitive& primitive, const ReticleGroup& group) const
+bool Canvas2D::ApplyClipMask(const Primitive& primitive, const ReticleGroup& group) const
 {
     Vector2 circleCenter {};
     float circleRadius = 0.0f;
@@ -674,15 +706,18 @@ void Canvas2D::ApplyClipMask(const Primitive& primitive, const ReticleGroup& gro
         PrepareClipMaskPrimitive(primitive, group, circleCenter, circleRadius);
     if (maskType == PreparedClipMaskType::None)
     {
-        return;
+        return true;
     }
 
-    const std::size_t maskDrawCount = maskType == PreparedClipMaskType::Circle
-                                          ? 1U
-                                          : screenScratchA_.size() - 2U;
-    if (!drawBudget_.TryConsume(maskDrawCount))
+    const std::size_t maskDrawCount =
+        maskType == PreparedClipMaskType::Circle
+            ? detail::EstimateConvexFillWorkUnits(
+                  static_cast<std::size_t>(EstimateCircleSegmentCount(circleRadius, 64)))
+            : detail::EstimateConvexFillWorkUnits(screenScratchA_.size());
+    const std::size_t clipWorkUnits = maskDrawCount + detail::EstimateDirectDrawWorkUnits();
+    if (!drawBudget_.TryConsume(clipWorkUnits))
     {
-        return;
+        return false;
     }
 
     const ScopedStencilStateReset stencilStateReset;
@@ -719,6 +754,7 @@ void Canvas2D::ApplyClipMask(const Primitive& primitive, const ReticleGroup& gro
                                       detail::GlStencilOperation::Keep);
     detail::OpenGlSetStencilFunction(detail::GlStencilCompare::Always, 0, 0xFF);
     detail::OpenGlSetStencilEnabled(false);
+    return true;
 }
 
 Canvas2D::PreparedClipMaskType Canvas2D::PrepareClipMaskPrimitive(const Primitive& primitive,
@@ -992,13 +1028,13 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
         if (textLayoutCache_ != nullptr)
         {
             DrawStaticTextLayout(*textLayoutCache_, text->text, font, fontSize, letterSpacing, text->align,
-                                screenPosition, -combinedTransform.rotationDegrees, strokeColor);
+                                screenPosition, -combinedTransform.rotationDegrees, strokeColor, drawBudget_);
         }
         else
         {
             TextLayoutCache localTextLayoutCache;
             DrawStaticTextLayout(localTextLayoutCache, text->text, font, fontSize, letterSpacing, text->align,
-                                screenPosition, -combinedTransform.rotationDegrees, strokeColor);
+                                screenPosition, -combinedTransform.rotationDegrees, strokeColor, drawBudget_);
         }
         break;
     }
@@ -1026,13 +1062,13 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
         if (textLayoutCache_ != nullptr)
         {
             DrawTimeTextLayout(*textLayoutCache_, *time, font, fontSize, letterSpacing,
-                              screenPosition, -combinedTransform.rotationDegrees, strokeColor);
+                              screenPosition, -combinedTransform.rotationDegrees, strokeColor, drawBudget_);
         }
         else
         {
             TextLayoutCache localTextLayoutCache;
             DrawTimeTextLayout(localTextLayoutCache, *time, font, fontSize, letterSpacing,
-                              screenPosition, -combinedTransform.rotationDegrees, strokeColor);
+                              screenPosition, -combinedTransform.rotationDegrees, strokeColor, drawBudget_);
         }
         break;
     }
@@ -1067,18 +1103,22 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
         }
 
         const bool usesIsotropicFastPath = IsIsotropicScale(combinedTransform.scale);
+        const int segmentCount = EstimateCircleSegmentCount(radius, 64);
         if (style.filled && usesIsotropicFastPath)
         {
-            DrawCircleV(center, radius, fillColor);
+            if (drawBudget_.TryConsume(
+                    detail::EstimateConvexFillWorkUnits(static_cast<std::size_t>(segmentCount))))
+            {
+                DrawCircleV(center, radius, fillColor);
+            }
         }
 
         if (style.lineStyle == LineStyle::Solid && usesIsotropicFastPath)
         {
-            DrawCircleOutlineFast(center, radius, strokeThickness, strokeColor);
+            DrawCircleOutlineFast(center, radius, strokeThickness, strokeColor, segmentCount, drawBudget_);
             break;
         }
 
-        const int segmentCount = EstimateCircleSegmentCount(radius, 64);
         SampleEllipseInto(
             EllipseGeometry {circle->radius * 2.0f, circle->radius * 2.0f},
             segmentCount,
@@ -1120,6 +1160,8 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             break;
         }
 
+        const int segmentCount =
+            std::max(SanitizeSegmentCount(ring->segments, 12), EstimateCircleSegmentCount(outerRadiusPixels, 64));
         if (detail::CanUseFastSolidRingPath(style.lineStyle, combinedTransform.scale, innerRadiusPixels, outerRadiusPixels))
         {
             DrawSolidRingFast(
@@ -1129,12 +1171,12 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
                 style.filled,
                 strokeThickness,
                 strokeColor,
-                fillColor);
+                fillColor,
+                segmentCount,
+                drawBudget_);
             break;
         }
 
-        const int segmentCount =
-            std::max(SanitizeSegmentCount(ring->segments, 12), EstimateCircleSegmentCount(outerRadiusPixels, 64));
         SampleEllipseInto(
             EllipseGeometry {ring->outerRadius * 2.0f, ring->outerRadius * 2.0f},
             segmentCount,
@@ -1374,16 +1416,21 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             break;
         }
 
-        const Texture2D* texture = imageCache_->Resolve(image->file);
-        if (texture == nullptr || texture->id == 0)
-        {
-            break;
-        }
-
         const Vector2 center = ToScreen(TransformPoint({}, primitive, group));
         const float width = std::max(1.0f, ToViewPixels(image->width * std::abs(combinedTransform.scale.x)));
         const float height = std::max(1.0f, ToViewPixels(image->height * std::abs(combinedTransform.scale.y)));
         if (!IsFiniteVector(center) || !std::isfinite(width) || !std::isfinite(height))
+        {
+            break;
+        }
+
+        if (!drawBudget_.TryConsume(detail::EstimateDirectDrawWorkUnits()))
+        {
+            break;
+        }
+
+        const Texture2D* texture = imageCache_->Resolve(image->file);
+        if (texture == nullptr || texture->id == 0)
         {
             break;
         }

@@ -52,6 +52,7 @@ public:
      * @param textLayoutCache Optional text-layout cache reused across frames.
      * @param backgroundRestore Optional callback repainting the clipped background; when empty the
      *        runtime behaviour of filling the erased region with @p backgroundColor is kept.
+     * @param maximumDrawWorkUnits Logical render-work limit owned by this internal canvas instance.
      */
     Canvas2D(int width,
              int height,
@@ -62,7 +63,8 @@ public:
              BezierPolylineCache* bezierCache = nullptr,
              ImageTextureCache* imageCache = nullptr,
              TextLayoutCache* textLayoutCache = nullptr,
-             BackgroundRestoreCallback backgroundRestore = {});
+             BackgroundRestoreCallback backgroundRestore = {},
+             std::size_t maximumDrawWorkUnits = detail::kMaxCanvasDrawWorkUnits);
 
     /**
      * @brief Draws one full reticle group.
@@ -119,7 +121,11 @@ private:
                                     std::vector<Vector2>& destination) const;
     void DrawReticlePrimitives(const ReticleGroup& reticle) const;
     void RestoreClippedBackground() const;
-    void ApplyClipMask(const Primitive& primitive, const ReticleGroup& group) const;
+    /**
+     * @brief Applies a valid clipping mask when its complete work can be reserved.
+     * @return `false` only when budget exhaustion requires skipping the clipped reticle.
+     */
+    bool ApplyClipMask(const Primitive& primitive, const ReticleGroup& group) const;
     /** @brief Prepares one polygonal clip mask without mutating OpenGL state. */
     bool PrepareClipMaskPolygon(const Vec2* points,
                                 std::size_t pointCount,
@@ -151,6 +157,7 @@ private:
     mutable std::vector<Vector2> screenScratchA_ {};
     mutable std::vector<Vector2> screenScratchB_ {};
     mutable std::vector<std::size_t> triangleIndexScratch_ {};
-    mutable detail::RenderWorkBudget drawBudget_ {detail::kMaxCanvasDrawOperations};
+    /** @brief Monotonic frame budget consumed by logically const draw operations. */
+    mutable detail::RenderWorkBudget drawBudget_;
 };
 } // namespace mfd

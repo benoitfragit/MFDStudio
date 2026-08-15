@@ -164,7 +164,7 @@
       "inherits": "test-debug-win32",
       "filter": {
         "exclude": {
-          "name": "CanvasCircleStrokeRenderTests\\.DegenerateSolidCircleDrawsNothing|CanvasCircleStrokeRenderTests\\.DashedCircleRendersLessStrokeCoverageThanSolidCircle|CanvasCircleStrokeRenderTests\\.AnisotropicFilledCircleUsesTheSameTransformAsItsOutline|CanvasRingRenderTests\\..*|CanvasClippingCallbackRenderTests\\..*|CanvasClippingRenderTests\\..*|CanvasTextRenderTests\\..*|RenderResourceLifetimeTests\\..*|OffscreenSurfaceTests\\..*"
+          "name": "CanvasCircleStrokeRenderTests\\.DegenerateSolidCircleDrawsNothing|CanvasCircleStrokeRenderTests\\.DashedCircleRendersLessStrokeCoverageThanSolidCircle|CanvasCircleStrokeRenderTests\\.AnisotropicFilledCircleUsesTheSameTransformAsItsOutline|CanvasRingRenderTests\\..*|CanvasClippingCallbackRenderTests\\..*|CanvasClippingRenderTests\\..*|CanvasTextRenderTests\\..*|CanvasDrawWorkRenderTests\\..*|RenderResourceLifetimeTests\\..*|OffscreenSurfaceTests\\..*"
         }
       }
     }

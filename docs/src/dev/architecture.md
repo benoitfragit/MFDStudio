@@ -49,6 +49,12 @@ only as a convenience umbrella.
 single static `raylib`/`rlgl` instance inside the process. The published
 client-facing API therefore stays render-agnostic.
 
+Each `Canvas2D` render pass owns one monotonic logical-work budget shared by
+normal drawing and layer-local clipping restoration. Generic and optimized
+paths use equivalent costs: geometry is charged by emitted triangles or
+segments, text by bounded UTF-8 payload size, and image/background draws by a
+minimum direct-operation cost. A fast path must never bypass this shared budget.
+
 ## Client SDK boundary
 
 The packaged client SDK is deliberately curated. External consumers use
