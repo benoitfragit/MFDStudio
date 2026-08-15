@@ -1,0 +1,17 @@
+{
+  "id": "radar_bugged_track",
+  "lineWidth": 0.0045,
+  "elements": [
+    { "id": "track_symbol", "type": "square", "reticleRotationSensitive": false, "size": 0.054, "filled": true },
+    { "id": "bug_top_left_h", "type": "line", "reticleRotationSensitive": false, "start": [-0.085, 0.085], "end": [-0.050, 0.085] },
+    { "id": "bug_top_left_v", "type": "line", "reticleRotationSensitive": false, "start": [-0.085, 0.085], "end": [-0.085, 0.050] },
+    { "id": "bug_top_right_h", "type": "line", "reticleRotationSensitive": false, "start": [0.050, 0.085], "end": [0.085, 0.085] },
+    { "id": "bug_top_right_v", "type": "line", "reticleRotationSensitive": false, "start": [0.085, 0.085], "end": [0.085, 0.050] },
+    { "id": "bug_bottom_left_h", "type": "line", "reticleRotationSensitive": false, "start": [-0.085, -0.085], "end": [-0.050, -0.085] },
+    { "id": "bug_bottom_left_v", "type": "line", "reticleRotationSensitive": false, "start": [-0.085, -0.085], "end": [-0.085, -0.050] },
+    { "id": "bug_bottom_right_h", "type": "line", "reticleRotationSensitive": false, "start": [0.050, -0.085], "end": [0.085, -0.085] },
+    { "id": "bug_bottom_right_v", "type": "line", "reticleRotationSensitive": false, "start": [0.085, -0.085], "end": [0.085, -0.050] },
+    { "id": "track_vector", "type": "line", "reticleScaleSensitive": false, "start": [0.0, 0.085], "end": [0.0, 0.165] },
+    { "id": "track_altitude", "type": "text", "reticleRotationSensitive": false, "reticleScaleSensitive": false, "at": [0.095, -0.038], "size": 0.040, "align": "left", "text": "20", "letterSpacing": 0.003 }
+  ]
+}

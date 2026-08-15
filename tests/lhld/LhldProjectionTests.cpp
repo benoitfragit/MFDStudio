@@ -18,68 +18,68 @@
 
 namespace
 {
-lhld::RadarContact MakeContact(const float azimuthNorm, const float rangeNm)
+lhld::RadarTrack MakeTrack(const float azimuthDeg, const float rangeNm)
 {
-    lhld::RadarContact contact;
-    contact.active = true;
-    contact.azimuthNorm = azimuthNorm;
-    contact.rangeNm = rangeNm;
-    contact.headingDeg = 90.0f;
-    contact.altitudeFt = 20000.0f;
-    contact.hostile = true;
-    return contact;
+    lhld::RadarTrack track;
+    track.active = true;
+    track.rangeNm = rangeNm;
+    track.azimuthDeg = azimuthDeg;
+    track.elevationDeg = 0.0f;
+    track.headingDeg = 90.0f;
+    track.hostile = true;
+    return track;
 }
 } // namespace
 
-TEST(LhldProjection, RwsHidesContactOutsideScanVolume)
+TEST(LhldProjection, RwsHidesTrackOutsideScanVolume)
 {
-    // azScanDeg 60 => +/-30 deg. azimuthNorm 1.0 maps to 60 deg, outside the scan.
-    const lhld::RadarContact contact = MakeContact(1.0f, 20.0f);
+    // azScanDeg 60 represents a +/-30 degree search volume.
+    const lhld::RadarTrack track = MakeTrack(60.0f, 20.0f);
     const lhld::RadarSettings radar {};
     const lhld::OwnshipState ownship {};
 
-    EXPECT_FALSE(lhld::ProjectRadarContact(contact, radar, ownship).visible);
+    EXPECT_FALSE(lhld::ProjectRadarTrack(track, radar, ownship).visible);
 }
 
 TEST(LhldProjection, RadarBarsExpandElevationSearchVolume)
 {
-    lhld::RadarContact contact = MakeContact(0.0f, 20.0f);
-    contact.altitudeFt = 27000.0f;
+    lhld::RadarTrack track = MakeTrack(0.0f, 20.0f);
+    track.elevationDeg = 2.5f;
 
     lhld::RadarSettings radar;
     radar.scanBars = 1;
     const lhld::OwnshipState ownship {};
 
-    EXPECT_FALSE(lhld::ProjectRadarContact(contact, radar, ownship).visible);
+    EXPECT_FALSE(lhld::ProjectRadarTrack(track, radar, ownship).visible);
 
     radar.scanBars = 4;
-    EXPECT_TRUE(lhld::ProjectRadarContact(contact, radar, ownship).visible);
+    EXPECT_TRUE(lhld::ProjectRadarTrack(track, radar, ownship).visible);
 }
 
-TEST(LhldProjection, SttKeepsLockedContactVisibleOutsideScanVolume)
+TEST(LhldProjection, SttKeepsLockedTrackVisibleOutsideScanVolume)
 {
-    const lhld::RadarContact contact = MakeContact(1.0f, 20.0f);
+    const lhld::RadarTrack track = MakeTrack(60.0f, 20.0f);
     const lhld::RadarSettings radar {};
     const lhld::OwnshipState ownship {};
 
-    const lhld::RadarContactView view = lhld::ProjectBuggedTarget(contact, radar, ownship);
+    const lhld::RadarTrackView view = lhld::ProjectBuggedTrack(track, radar, ownship);
     EXPECT_TRUE(view.visible);
     EXPECT_TRUE(std::isfinite(view.position.x));
     EXPECT_TRUE(std::isfinite(view.position.y));
     // The bearing is clamped to the right edge of the B-scope rather than dropped.
-    EXPECT_NEAR(view.position.x, 0.70f, 1.0e-3f);
+    EXPECT_NEAR(view.position.x, 0.55f, 1.0e-3f);
 }
 
-TEST(LhldProjection, SttKeepsLockedContactVisibleBeyondRangeScale)
+TEST(LhldProjection, SttKeepsLockedTrackVisibleBeyondRangeScale)
 {
-    // Range 60 NM on a 40 NM scale would filter a search contact out.
-    const lhld::RadarContact contact = MakeContact(0.0f, 60.0f);
+    // Range 60 NM on a 40 NM scale would filter a search track out.
+    const lhld::RadarTrack track = MakeTrack(0.0f, 60.0f);
     const lhld::RadarSettings radar {};
     const lhld::OwnshipState ownship {};
 
-    EXPECT_FALSE(lhld::ProjectRadarContact(contact, radar, ownship).visible);
+    EXPECT_FALSE(lhld::ProjectRadarTrack(track, radar, ownship).visible);
 
-    const lhld::RadarContactView view = lhld::ProjectBuggedTarget(contact, radar, ownship);
+    const lhld::RadarTrackView view = lhld::ProjectBuggedTrack(track, radar, ownship);
     EXPECT_TRUE(view.visible);
     // Clamped to the top (maximum range) of the scope.
     EXPECT_NEAR(view.position.y, 0.75f, 1.0e-3f);
@@ -88,17 +88,71 @@ TEST(LhldProjection, SttKeepsLockedContactVisibleBeyondRangeScale)
 TEST(LhldProjection, BuildFrameKeepsBuggedTargetOutsideScanVolume)
 {
     lhld::MfdInputSample input;
-    input.contacts[0] = MakeContact(1.0f, 20.0f);
+    input.tracks[0] = MakeTrack(60.0f, 20.0f);
     input.radar.submode = lhld::RadarSubmode::Stt;
-    input.radar.buggedContact = 0;
+    input.radar.buggedTrack = 0;
 
     const lhld::MfdFrame frame = lhld::BuildMfdFrame(input);
     EXPECT_TRUE(frame.radar.buggedVisible);
     EXPECT_TRUE(frame.radar.datablockVisible);
-    EXPECT_TRUE(std::isfinite(frame.radar.buggedPosition.x));
-    EXPECT_TRUE(std::isfinite(frame.radar.buggedPosition.y));
-    // The plain search brick for the same contact still respects the scan gate.
-    EXPECT_FALSE(frame.radar.contacts[0].visible);
+    EXPECT_TRUE(std::isfinite(frame.radar.buggedTrack.position.x));
+    EXPECT_TRUE(std::isfinite(frame.radar.buggedTrack.position.y));
+    EXPECT_FALSE(frame.radar.tracks[0].visible);
+}
+
+TEST(LhldProjection, RadarTrackAltitudeIsDerivedFromRangeElevationAndOwnship)
+{
+    lhld::RadarTrack track = MakeTrack(0.0f, 20.0f);
+    track.elevationDeg = 5.0f;
+    lhld::OwnshipState ownship;
+    ownship.altitudeFt = 20000.0f;
+    lhld::RadarSettings radar;
+    radar.antennaElevationDeg = 5.0f;
+
+    const lhld::RadarTrackView view = lhld::ProjectRadarTrack(track, radar, ownship);
+
+    EXPECT_TRUE(view.visible);
+    EXPECT_NEAR(view.altitudeThousandsFt, 30.59f, 0.05f);
+}
+
+TEST(LhldProjection, CursorUsesNormalizedUiCoordinatesOnBothAxes)
+{
+    lhld::MfdInputSample input;
+    input.radar.cursorPosition = {1.0f, -1.0f};
+
+    const lhld::RadarFrame frame = lhld::BuildMfdFrame(input).radar;
+
+    EXPECT_NEAR(frame.cursorPosition.x, 0.55f, 1.0e-4f);
+    EXPECT_NEAR(frame.cursorPosition.y, -0.75f, 1.0e-4f);
+}
+
+TEST(LhldProjection, RadarPowerStatesSuppressLivePresentation)
+{
+    lhld::MfdInputSample input;
+    input.tracks[0] = MakeTrack(0.0f, 20.0f);
+    input.radar.operatingState = lhld::RadarOperatingState::Silent;
+
+    const lhld::RadarFrame silentFrame = lhld::BuildMfdFrame(input).radar;
+    EXPECT_FALSE(silentFrame.radarPresentationVisible);
+    EXPECT_FALSE(silentFrame.scanLineVisible);
+    EXPECT_FALSE(silentFrame.tracks[0].visible);
+
+    input.radar.operatingState = lhld::RadarOperatingState::Off;
+    const lhld::RadarFrame offFrame = lhld::BuildMfdFrame(input).radar;
+    EXPECT_FALSE(offFrame.radarPresentationVisible);
+    EXPECT_FALSE(offFrame.tracks[0].visible);
+}
+
+TEST(LhldProjection, ExtrapolatedQualityReachesProjectedTrackView)
+{
+    lhld::RadarTrack track = MakeTrack(0.0f, 20.0f);
+    track.quality = lhld::RadarTrackQuality::Extrapolated;
+
+    const lhld::RadarTrackView view =
+        lhld::ProjectRadarTrack(track, lhld::RadarSettings {}, lhld::OwnshipState {});
+
+    EXPECT_TRUE(view.visible);
+    EXPECT_TRUE(view.extrapolated);
 }
 
 TEST(LhldProjection, BuildFrameConnectsVisibleFlightPlanSteerpoints)
@@ -191,7 +245,7 @@ TEST(LhldProjection, BuildFrameIgnoresInactiveBuggedIndex)
 {
     lhld::MfdInputSample input;
     input.radar.submode = lhld::RadarSubmode::Stt;
-    input.radar.buggedContact = 3; // slot left inactive
+    input.radar.buggedTrack = 3; // slot left inactive
 
     const lhld::MfdFrame frame = lhld::BuildMfdFrame(input);
     EXPECT_FALSE(frame.radar.buggedVisible);
@@ -210,16 +264,17 @@ TEST(LhldSimulation, StepIsDeterministicAndFinite)
 
     const lhld::MfdInputSample& a = first.Inputs();
     const lhld::MfdInputSample& b = second.Inputs();
-    for (std::size_t index = 0; index < lhld::kMaxContacts; ++index)
+    for (std::size_t index = 0; index < lhld::kMaxRadarTracks; ++index)
     {
-        EXPECT_EQ(a.contacts[index].active, b.contacts[index].active);
-        EXPECT_FLOAT_EQ(a.contacts[index].rangeNm, b.contacts[index].rangeNm);
-        EXPECT_TRUE(std::isfinite(a.contacts[index].rangeNm));
-        EXPECT_TRUE(std::isfinite(a.contacts[index].azimuthNorm));
-        EXPECT_TRUE(std::isfinite(a.contacts[index].closureKts));
+        EXPECT_EQ(a.tracks[index].active, b.tracks[index].active);
+        EXPECT_FLOAT_EQ(a.tracks[index].rangeNm, b.tracks[index].rangeNm);
+        EXPECT_TRUE(std::isfinite(a.tracks[index].rangeNm));
+        EXPECT_TRUE(std::isfinite(a.tracks[index].azimuthDeg));
+        EXPECT_TRUE(std::isfinite(a.tracks[index].elevationDeg));
+        EXPECT_TRUE(std::isfinite(a.tracks[index].closureKts));
     }
-    EXPECT_GE(a.radar.scanSweepNorm, -1.0f);
-    EXPECT_LE(a.radar.scanSweepNorm, 1.0f);
+    EXPECT_GE(a.radar.antennaAzimuthDeg, -30.0f);
+    EXPECT_LE(a.radar.antennaAzimuthDeg, 30.0f);
 }
 
 TEST(LhldSimulation, FourBarScanSweepsSlowerThanOneBar)
@@ -236,8 +291,8 @@ TEST(LhldSimulation, FourBarScanSweepsSlowerThanOneBar)
     fourBar.ApplyRadarControls(fourBarControls);
     fourBar.Step(0.05f);
 
-    EXPECT_GT(oneBar.Inputs().radar.scanSweepNorm, fourBar.Inputs().radar.scanSweepNorm);
-    EXPECT_GT(fourBar.Inputs().radar.scanSweepNorm, 0.0f);
+    EXPECT_GT(oneBar.Inputs().radar.antennaAzimuthDeg, fourBar.Inputs().radar.antennaAzimuthDeg);
+    EXPECT_GT(fourBar.Inputs().radar.antennaAzimuthDeg, 0.0f);
 }
 
 TEST(LhldStores, JettisonAllStoresClearsSmsInventory)

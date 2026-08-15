@@ -1,0 +1,9 @@
+{
+  "id": "radar_rws_track",
+  "lineWidth": 0.004,
+  "elements": [
+    { "id": "track_symbol", "type": "rectangle", "reticleRotationSensitive": false, "width": 0.050, "height": 0.026, "filled": true },
+    { "id": "track_vector", "type": "line", "reticleScaleSensitive": false, "start": [0.0, 0.020], "end": [0.0, 0.092] },
+    { "id": "track_altitude", "type": "text", "reticleRotationSensitive": false, "reticleScaleSensitive": false, "at": [0.048, -0.034], "size": 0.036, "align": "left", "text": "20", "letterSpacing": 0.003 }
+  ]
+}

@@ -10,7 +10,7 @@
  * @brief Deterministic mini radar/airspace simulation for the LHLD client.
  *
  * @note This model is deliberately simplified. It keeps coherent relations
- * between contact geometry, closure and aspect rather than being a sensor
+ * between track geometry, closure and aspect rather than being a sensor
  * fidelity model. Its only integration output is @ref MfdInputSample, so a real
  * avionics producer can replace this class and keep the same projection,
  * controller and generated UI. Operator controls (radar scan, master mode,
@@ -67,12 +67,6 @@ public:
     void Step(float deltaSeconds) noexcept override;
 
     /**
-     * @brief Returns the index of the alive contact nearest the acquisition cursor.
-     * @return Contact index in [0, kMaxContacts), or -1 when no contact is in view.
-     */
-    int NearestContactToCursor() const noexcept override;
-
-    /**
      * @brief Returns the current semantic MFD input sample.
      */
     const MfdInputSample& Inputs() const noexcept override;
@@ -81,7 +75,7 @@ private:
     /**
      * @brief One airspace track expressed in a nose-relative Cartesian frame.
      */
-    struct SimContact
+    struct SimTrack
     {
         /** @brief True when the track exists in the airspace. */
         bool alive = false;
@@ -99,16 +93,18 @@ private:
         bool hostile = true;
     };
 
-    /** @brief Recomputes the published contact array from the airspace state. */
-    void RefreshPublishedContacts() noexcept;
+    /** @brief Recomputes the published radar tracks from the airspace state. */
+    void RefreshPublishedTracks() noexcept;
 
     /** @brief Semantic sample produced for the projection and controller. */
     MfdInputSample inputs_ {};
     /** @brief Nose-relative airspace tracks integrated each step. */
-    std::array<SimContact, kMaxContacts> airspace_ {};
-    /** @brief Animated azimuth sweep position in [-1, 1]. */
-    float sweep_ = 0.0f;
+    std::array<SimTrack, kMaxRadarTracks> airspace_ {};
+    /** @brief Animated antenna azimuth normalized to the active scan width. */
+    float sweepFraction_ = 0.0f;
     /** @brief Sweep travel direction, +1 or -1. */
     float sweepDirection_ = 1.0f;
+    /** @brief Bounded simulation clock used for deterministic track quality. */
+    float elapsedSeconds_ = 0.0f;
 };
 } // namespace lhld

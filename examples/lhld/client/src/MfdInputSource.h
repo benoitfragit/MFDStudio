@@ -64,12 +64,6 @@ public:
     virtual void Step(float deltaSeconds) noexcept = 0;
 
     /**
-     * @brief Finds the contact nearest the current acquisition cursor.
-     * @return Contact index, or -1 when no contact can be bugged.
-     */
-    virtual int NearestContactToCursor() const noexcept = 0;
-
-    /**
      * @brief Returns the complete semantic sample for the next publish pass.
      */
     virtual const MfdInputSample& Inputs() const noexcept = 0;

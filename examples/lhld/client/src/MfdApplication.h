@@ -100,6 +100,11 @@ private:
     void UpdateAgReleaseTimer(float deltaSeconds) noexcept;
     void JettisonStores();
     void ApplyControlsToInputSource() noexcept;
+    void SelectRadarSearchSubmode(RadarSubmode submode) noexcept;
+    void BugCapturedRadarTrack();
+    void EnterSingleTargetTrack();
+    void ClearRadarBug() noexcept;
+    void SetRadarOperatingState(RadarOperatingState state) noexcept;
 
     void DrawPageSelectorBar();
     void DrawMfdUnit(float deltaSeconds);
@@ -125,6 +130,8 @@ private:
     MfdInputSample inputs_ {};
     /** @brief Operator radar controls collected from the bezel/panel. */
     RadarSettings radarControls_ {};
+    /** @brief Search mode restored when STT is exited. */
+    RadarSubmode radarReturnSubmode_ = RadarSubmode::Rws;
     /** @brief Operator-selected master mode. */
     MasterMode masterMode_ = MasterMode::AirToAir;
     /** @brief Operator stores-management controls. */

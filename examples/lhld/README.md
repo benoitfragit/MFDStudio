@@ -15,7 +15,7 @@ simulation is replaceable by design.
 | Fake radar/navigation/stores source | `client/src/MfdRadarSimulation.*` | Replace with a real aircraft, avionics or network source. |
 | Semantic MFD contract | `client/src/MfdTypes.h` | Keep. This is the stable frame data boundary. |
 | Stateless FCR/HSD projection | `client/src/MfdProjection.*` | Keep unless page geometry or avionics rules change. |
-| Generated-UI adapter | `client/src/MfdController.*` | Keep. It writes `LhldUi` from `MfdInputSample`. |
+| Generated-UI adapter | `client/src/MfdController.*` | Keep. It projects semantic state, owns generated dynamic-track handles and writes `LhldUi`. |
 | Offscreen runtime embedding | `client/src/OffscreenMfdView.*` | Keep if the MFD still renders inside another host window. |
 | Generated wrappers | `client/generated/LhldUi.*` | Regenerate from assets, do not hand-edit. |
 | Authored MFD assets | `assets/windows`, `assets/pages`, `assets/reticles` | Keep as the authored LHLD layout. |
@@ -47,6 +47,24 @@ Replace `MfdRadarSimulation` with an implementation that:
 
 The projection layer expects meaningful aircraft/MFD state, not raw panel
 button events.
+
+## FCR Input Contract
+
+The radar boundary deliberately uses sensor-native values. Each `RadarTrack`
+publishes slant range in nautical miles, azimuth and elevation in degrees, plus
+track motion/classification data. Target altitude is not an input: the
+projection derives it from ownship altitude, slant range and elevation.
+
+The acquisition cursor is the only normalized input. Its `x` and `y` axes stay
+in `[-1, 1]`, which is natural for an independent UI device. `MfdProjection`
+maps that cursor to the authored B-scope and derives the displayed cursor
+altitude limits; callers never calculate page coordinates or normalized range.
+
+FCR symbols are dynamic reticles allocated only when needed. RWS search tracks
+are white, TWS trackfiles and bugged/STT tracks are yellow, and any extrapolated
+track is red. BUG designates only the dynamic track reported captured by the
+runtime strobe through `IsStrobeCaptured()`; there is no nearest-track fallback.
+The operating state drives the centered `FCR OFF` and `NO RAD` messages.
 
 ## Replacing the ImGui Panel
 

@@ -2,13 +2,9 @@
   "id": "radar_cursor",
   "lineWidth": 0.004,
   "elements": [
-    { "id": "tl_h", "type": "line", "start": [-0.075, 0.075], "end": [-0.030, 0.075] },
-    { "id": "tl_v", "type": "line", "start": [-0.075, 0.075], "end": [-0.075, 0.030] },
-    { "id": "tr_h", "type": "line", "start": [ 0.075, 0.075], "end": [ 0.030, 0.075] },
-    { "id": "tr_v", "type": "line", "start": [ 0.075, 0.075], "end": [ 0.075, 0.030] },
-    { "id": "bl_h", "type": "line", "start": [-0.075,-0.075], "end": [-0.030,-0.075] },
-    { "id": "bl_v", "type": "line", "start": [-0.075,-0.075], "end": [-0.075,-0.030] },
-    { "id": "br_h", "type": "line", "start": [ 0.075,-0.075], "end": [ 0.030,-0.075] },
-    { "id": "br_v", "type": "line", "start": [ 0.075,-0.075], "end": [ 0.075,-0.030] }
+    { "id": "left", "type": "line", "start": [-0.070, -0.072], "end": [-0.070, 0.072] },
+    { "id": "right", "type": "line", "start": [0.070, -0.072], "end": [0.070, 0.072] },
+    { "id": "left_top", "type": "line", "start": [-0.070, 0.072], "end": [-0.045, 0.072] },
+    { "id": "right_top", "type": "line", "start": [0.045, 0.072], "end": [0.070, 0.072] }
   ]
 }

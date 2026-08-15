@@ -2,17 +2,6 @@
   "id": "radar_status",
   "lineWidth": 0.003,
   "elements": [
-    {
-      "id": "status_text",
-      "type": "text",
-      "at": [
-        -0.66,
-        0.68
-      ],
-      "size": 0.055,
-      "align": "left",
-      "text": "RWS",
-      "letterSpacing": 0.006
-    }
+    { "id": "status_text", "type": "text", "at": [-0.30, 0.905], "size": 0.050, "align": "center", "text": "RWS", "letterSpacing": 0.006 }
   ]
 }

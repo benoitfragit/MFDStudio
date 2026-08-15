@@ -19,7 +19,7 @@ namespace
 {
 // B-scope geometry authored in radar.json: ownship at the bottom, azimuth
 // spread horizontally, range vertically.
-constexpr float kScopeHalfWidth = 0.70f;
+constexpr float kScopeHalfWidth = 0.55f;
 constexpr float kScopeTop = 0.75f;
 constexpr float kScopeBottom = -0.75f;
 constexpr float kScopeHeight = kScopeTop - kScopeBottom;
@@ -65,11 +65,12 @@ float RangeFraction(const float rangeNm, const float rangeScaleNm) noexcept
     return Finite(rangeNm, 0.0f) / scale;
 }
 
-float ElevationAngleDeg(const RadarContact& contact, const OwnshipState& ownship) noexcept
+float DerivedAltitudeThousandsFt(const RadarTrack& track, const OwnshipState& ownship) noexcept
 {
-    const float rangeFt = std::max(1.0f, Finite(contact.rangeNm, 0.0f) * kFeetPerNauticalMile);
-    const float altitudeDeltaFt = Finite(contact.altitudeFt, ownship.altitudeFt) - Finite(ownship.altitudeFt, 0.0f);
-    return std::atan2(altitudeDeltaFt, rangeFt) * kRadToDeg;
+    const float rangeFt = std::max(0.0f, Finite(track.rangeNm, 0.0f)) * kFeetPerNauticalMile;
+    const float elevationRad = Finite(track.elevationDeg, 0.0f) * kDegToRad;
+    const float altitudeFt = Finite(ownship.altitudeFt, 0.0f) + rangeFt * std::sin(elevationRad);
+    return altitudeFt / 1000.0f;
 }
 
 float RadarVerticalHalfCoverageDeg(const RadarSettings& radar) noexcept
@@ -78,14 +79,22 @@ float RadarVerticalHalfCoverageDeg(const RadarSettings& radar) noexcept
     return kRadarBeamHalfHeightDeg + (static_cast<float>(bars - 1) * kRadarBarSpacingDeg * 0.5f);
 }
 
-bool IsInsideRadarElevationVolume(const RadarContact& contact,
-                                  const RadarSettings& radar,
-                                  const OwnshipState& ownship) noexcept
+bool IsInsideRadarElevationVolume(const RadarTrack& track, const RadarSettings& radar) noexcept
 {
-    const float contactElevationDeg = ElevationAngleDeg(contact, ownship);
     const float antennaCenterDeg =
         Clamp(Finite(radar.antennaElevationDeg, 0.0f), -kMaxElevationDeg, kMaxElevationDeg);
-    return std::fabs(contactElevationDeg - antennaCenterDeg) <= RadarVerticalHalfCoverageDeg(radar);
+    return std::fabs(Finite(track.elevationDeg, 0.0f) - antennaCenterDeg) <=
+        RadarVerticalHalfCoverageDeg(radar);
+}
+
+float SearchAltitudeThousandsFt(const OwnshipState& ownship,
+                                const float rangeNm,
+                                const float elevationDeg) noexcept
+{
+    const float rangeFt = std::max(0.0f, Finite(rangeNm, 0.0f)) * kFeetPerNauticalMile;
+    const float altitudeFt =
+        Finite(ownship.altitudeFt, 0.0f) + rangeFt * std::sin(Finite(elevationDeg, 0.0f) * kDegToRad);
+    return altitudeFt / 1000.0f;
 }
 
 // Maps a relative bearing/range onto the heading-up HSD compass rose.
@@ -139,31 +148,31 @@ FlightPlanLegView BuildFlightPlanLeg(const NavSymbolView& start, const NavSymbol
 }
 } // namespace
 
-RadarContactView ProjectRadarContact(const RadarContact& contact,
-                                     const RadarSettings& radar,
-                                     const OwnshipState& ownship) noexcept
+RadarTrackView ProjectRadarTrack(const RadarTrack& track,
+                                 const RadarSettings& radar,
+                                 const OwnshipState& ownship) noexcept
 {
-    RadarContactView view;
-    if (!contact.active)
+    RadarTrackView view;
+    if (!track.active)
     {
         return view;
     }
 
     const float halfScanDeg =
         Clamp(Finite(radar.azScanDeg, 60.0f), 10.0f, kMaxScanHalfAngleDeg * 2.0f) * 0.5f;
-    const float bearingDeg = Finite(contact.azimuthNorm, 0.0f) * kMaxScanHalfAngleDeg;
+    const float bearingDeg = Finite(track.azimuthDeg, 0.0f);
     if (std::fabs(bearingDeg) > halfScanDeg)
     {
         return view;
     }
 
-    const float fraction = RangeFraction(contact.rangeNm, radar.rangeScaleNm);
+    const float fraction = RangeFraction(track.rangeNm, radar.rangeScaleNm);
     if (fraction < 0.0f || fraction > 1.0f)
     {
         return view;
     }
 
-    if (!IsInsideRadarElevationVolume(contact, radar, ownship))
+    if (!IsInsideRadarElevationVolume(track, radar))
     {
         return view;
     }
@@ -171,35 +180,39 @@ RadarContactView ProjectRadarContact(const RadarContact& contact,
     view.position = MfdVec2 {
         Clamp(bearingDeg / halfScanDeg, -1.0f, 1.0f) * kScopeHalfWidth,
         kScopeBottom + Clamp(fraction, 0.0f, 1.0f) * kScopeHeight};
-    view.rotationDegrees = WrapDegrees(contact.headingDeg - ownship.headingDeg);
-    view.hostile = contact.hostile;
+    view.rotationDegrees = WrapDegrees(track.headingDeg - ownship.headingDeg);
+    view.altitudeThousandsFt = DerivedAltitudeThousandsFt(track, ownship);
+    view.hostile = track.hostile;
+    view.extrapolated = track.quality == RadarTrackQuality::Extrapolated;
     view.visible = true;
     return view;
 }
 
-RadarContactView ProjectBuggedTarget(const RadarContact& contact,
-                                     const RadarSettings& radar,
-                                     const OwnshipState& ownship) noexcept
+RadarTrackView ProjectBuggedTrack(const RadarTrack& track,
+                                  const RadarSettings& radar,
+                                  const OwnshipState& ownship) noexcept
 {
-    RadarContactView view;
-    if (!contact.active)
+    RadarTrackView view;
+    if (!track.active)
     {
         return view;
     }
 
     const float halfScanDeg =
         Clamp(Finite(radar.azScanDeg, 60.0f), 10.0f, kMaxScanHalfAngleDeg * 2.0f) * 0.5f;
-    const float bearingDeg = Finite(contact.azimuthNorm, 0.0f) * kMaxScanHalfAngleDeg;
-    const float fraction = RangeFraction(contact.rangeNm, radar.rangeScaleNm);
+    const float bearingDeg = Finite(track.azimuthDeg, 0.0f);
+    const float fraction = RangeFraction(track.rangeNm, radar.rangeScaleNm);
 
     // Single-target-track keeps the antenna locked on the target, so the symbol
     // stays on the scope even outside the search volume or range scale: the
-    // position is clamped instead of the contact being filtered out.
+    // position is clamped instead of the track being filtered out.
     view.position = MfdVec2 {
         Clamp(bearingDeg / halfScanDeg, -1.0f, 1.0f) * kScopeHalfWidth,
         kScopeBottom + Clamp(fraction, 0.0f, 1.0f) * kScopeHeight};
-    view.rotationDegrees = WrapDegrees(contact.headingDeg - ownship.headingDeg);
-    view.hostile = contact.hostile;
+    view.rotationDegrees = WrapDegrees(track.headingDeg - ownship.headingDeg);
+    view.altitudeThousandsFt = DerivedAltitudeThousandsFt(track, ownship);
+    view.hostile = track.hostile;
+    view.extrapolated = track.quality == RadarTrackQuality::Extrapolated;
     view.visible = true;
     return view;
 }
@@ -231,32 +244,56 @@ MfdFrame BuildMfdFrame(const MfdInputSample& input) noexcept
 
     // FCR (Radar) page.
     RadarFrame& radar = frame.radar;
-    for (std::size_t index = 0; index < kMaxContacts; ++index)
+    radar.radarPresentationVisible = input.radar.operatingState == RadarOperatingState::Operating;
+    for (std::size_t index = 0; index < kMaxRadarTracks; ++index)
     {
-        radar.contacts[index] = ProjectRadarContact(input.contacts[index], input.radar, input.ownship);
+        radar.tracks[index] = ProjectRadarTrack(input.tracks[index], input.radar, input.ownship);
+        radar.tracks[index].visible = radar.radarPresentationVisible && radar.tracks[index].visible;
     }
 
     const bool singleTargetTrack = input.radar.submode == RadarSubmode::Stt;
-    radar.scanLineVisible = !singleTargetTrack;
-    radar.scanLineX = Clamp(Finite(input.radar.scanSweepNorm, 0.0f), -1.0f, 1.0f) * kScopeHalfWidth;
+    radar.scanLineVisible = radar.radarPresentationVisible && !singleTargetTrack;
+    const float halfScanDeg =
+        Clamp(Finite(input.radar.azScanDeg, 60.0f), 10.0f, kMaxScanHalfAngleDeg * 2.0f) * 0.5f;
+    radar.scanLineX =
+        Clamp(Finite(input.radar.antennaAzimuthDeg, 0.0f) / halfScanDeg, -1.0f, 1.0f) * kScopeHalfWidth;
     radar.elevationCaretY =
         Clamp(Finite(input.radar.antennaElevationDeg, 0.0f) / kMaxElevationDeg, -1.0f, 1.0f) * kScopeTop;
     radar.cursorPosition = MfdVec2 {
-        Clamp(Finite(input.radar.cursorAz, 0.0f), -1.0f, 1.0f) * kScopeHalfWidth,
-        kScopeBottom + Clamp(Finite(input.radar.cursorRange, 0.0f), 0.0f, 1.0f) * kScopeHeight};
+        Clamp(Finite(input.radar.cursorPosition.x, 0.0f), -1.0f, 1.0f) * kScopeHalfWidth,
+        Clamp(Finite(input.radar.cursorPosition.y, 0.0f), -1.0f, 1.0f) * kScopeTop};
+    const float cursorRangeFraction =
+        (Clamp(Finite(input.radar.cursorPosition.y, 0.0f), -1.0f, 1.0f) + 1.0f) * 0.5f;
+    const float cursorRangeNm = cursorRangeFraction * std::max(1.0f, Finite(input.radar.rangeScaleNm, 40.0f));
+    const float elevationCenterDeg =
+        Clamp(Finite(input.radar.antennaElevationDeg, 0.0f), -kMaxElevationDeg, kMaxElevationDeg);
+    const float elevationHalfCoverageDeg = RadarVerticalHalfCoverageDeg(input.radar);
+    radar.cursorMaximumAltitudeThousandsFt = SearchAltitudeThousandsFt(
+        input.ownship, cursorRangeNm, elevationCenterDeg + elevationHalfCoverageDeg);
+    radar.cursorMinimumAltitudeThousandsFt = SearchAltitudeThousandsFt(
+        input.ownship, cursorRangeNm, elevationCenterDeg - elevationHalfCoverageDeg);
 
-    const int bugged = input.radar.buggedContact;
-    if (bugged >= 0 && bugged < static_cast<int>(kMaxContacts))
+    const int bugged = input.radar.buggedTrack;
+    if (radar.radarPresentationVisible && bugged >= 0 && bugged < static_cast<int>(kMaxRadarTracks))
     {
-        const RadarContactView view =
-            ProjectBuggedTarget(input.contacts[static_cast<std::size_t>(bugged)], input.radar, input.ownship);
+        const RadarTrackView view =
+            ProjectBuggedTrack(input.tracks[static_cast<std::size_t>(bugged)], input.radar, input.ownship);
         if (view.visible)
         {
             radar.buggedVisible = true;
-            radar.buggedPosition = view.position;
-            radar.buggedAspectRotationDegrees =
-                WrapDegrees(Finite(input.contacts[static_cast<std::size_t>(bugged)].aspectDeg, 0.0f));
+            radar.buggedTrack = view;
+            radar.buggedTrack.rotationDegrees =
+                WrapDegrees(Finite(input.tracks[static_cast<std::size_t>(bugged)].aspectDeg, 0.0f));
             radar.datablockVisible = true;
+            radar.tracks[static_cast<std::size_t>(bugged)].visible = false;
+        }
+    }
+
+    if (singleTargetTrack)
+    {
+        for (RadarTrackView& track : radar.tracks)
+        {
+            track.visible = false;
         }
     }
 

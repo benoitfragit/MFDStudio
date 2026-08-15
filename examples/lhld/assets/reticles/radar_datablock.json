@@ -2,65 +2,10 @@
   "id": "radar_datablock",
   "lineWidth": 0.003,
   "elements": [
-    {
-      "id": "tgt_alt_value",
-      "type": "text",
-      "at": [
-        0.4,
-        0.62
-      ],
-      "size": 0.05,
-      "align": "left",
-      "text": "15",
-      "letterSpacing": 0.006
-    },
-    {
-      "id": "tgt_aspect_value",
-      "type": "text",
-      "at": [
-        0.4,
-        0.55
-      ],
-      "size": 0.05,
-      "align": "left",
-      "text": "R 30",
-      "letterSpacing": 0.006
-    },
-    {
-      "id": "tgt_closure_value",
-      "type": "text",
-      "at": [
-        0.4,
-        0.48
-      ],
-      "size": 0.05,
-      "align": "left",
-      "text": "C 480",
-      "letterSpacing": 0.006
-    },
-    {
-      "id": "tgt_hdg_value",
-      "type": "text",
-      "at": [
-        0.4,
-        0.41
-      ],
-      "size": 0.05,
-      "align": "left",
-      "text": "090",
-      "letterSpacing": 0.006
-    },
-    {
-      "id": "tgt_gs_value",
-      "type": "text",
-      "at": [
-        0.4,
-        0.34
-      ],
-      "size": 0.05,
-      "align": "left",
-      "text": "420",
-      "letterSpacing": 0.006
-    }
+    { "id": "tgt_alt_value", "type": "text", "at": [-0.61, 0.755], "size": 0.043, "align": "left", "text": "20", "letterSpacing": 0.004 },
+    { "id": "tgt_aspect_value", "type": "text", "at": [-0.36, 0.755], "size": 0.043, "align": "center", "text": "R 30", "letterSpacing": 0.004 },
+    { "id": "tgt_closure_value", "type": "text", "at": [0.0, 0.755], "size": 0.043, "align": "center", "text": "+450", "letterSpacing": 0.004 },
+    { "id": "tgt_hdg_value", "type": "text", "at": [0.34, 0.755], "size": 0.043, "align": "center", "text": "090", "letterSpacing": 0.004 },
+    { "id": "tgt_gs_value", "type": "text", "at": [0.61, 0.755], "size": 0.043, "align": "right", "text": "+420", "letterSpacing": 0.004 }
   ]
 }

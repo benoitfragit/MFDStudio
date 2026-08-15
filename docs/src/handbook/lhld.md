@@ -56,10 +56,11 @@ generated UI:
   polar navigation to the heading-up HSD compass rose, including visible route
   legs between consecutive steerpoints.
 - `MfdRadarSimulation.h/.cpp` - deterministic fake airspace/radar producer. It
-  owns contact motion, closure/aspect derivation and the animated azimuth sweep.
+  owns track motion, closure/aspect derivation and the animated azimuth sweep.
   **Operator controls are pushed in from the panel and never mutated here.**
-- `MfdController.h/.cpp` - stateless adapter that writes the generated pages
-  every frame and owns text formatting and per-page visibility.
+- `MfdController.h/.cpp` - generated-UI adapter that writes the pages every
+  frame, owns text formatting and lazily retains capturable dynamic-track
+  handles. It owns no simulated radar state.
 - `OffscreenMfdView` / `Dx11TextureUploader` - host the runtime offscreen and
   upload its RGBA8 frame into a DX11 texture. They are split into separate
   translation units so raylib and `windows.h`/Direct3D headers never mix.
@@ -76,14 +77,17 @@ business logic beyond selecting the page or toggling a control.
 
 ## Pages
 
-- **Radar/FCR:** B-scope with ownship at the bottom, azimuth spread
-  horizontally and range vertically. Shows search contacts (bricks), the
-  animated azimuth sweep line, the antenna-elevation caret, the acquisition
-  cursor, range/bars/scan/PRF/bullseye readouts, and - when a contact is bugged
-  (STT) - a single-target-track symbol with an aspect pointer and a target data
-  block (altitude, aspect, closure, heading, ground speed). RWS/TWS contacts are
-  filtered by azimuth, range and antenna elevation volume; increasing the bar
-  count expands vertical coverage and slows the sweep.
+- **Radar/FCR:** Falcon-style B-scope with the scan volume between cyan azimuth
+  limits and avionics data around the complete MFD perimeter. It includes the
+  horizon line, antenna-elevation caret, acquisition cursor and altitude limits,
+  range/bars/scan/PRF/bullseye data, assignment/weapon cues and bottom FCR
+  legends. RWS search tracks use white bricks; TWS trackfiles and bugged/STT
+  tracks use their distinct yellow symbols; extrapolated tracks turn red. A
+  bugged track adds target data (altitude, aspect, closure, heading and speed),
+  while STT uses the open square-in-circle presentation. Centered `FCR OFF` and
+  `NO RAD` messages replace the live presentation for power-off and RF-silent
+  states. Tracks are filtered by azimuth, slant range and antenna elevation;
+  increasing the bar count expands vertical coverage and slows the sweep.
 - **SMS:** stores diagram with the nine weapon stations, the shared master mode,
   selected weapon and submode, the selected-station box, delivery parameters and
   a panel-side jettison action that clears the carried-store inventory.
@@ -100,10 +104,11 @@ business logic beyond selecting the page or toggling a control.
 - The top selector uses **RADAR / SMS / NAV / A-G** for clarity.
 - **OSB 12/13/14/15** select the FCR, SMS, HSD and A-G pages on any page.
 - Keyboard **1 / 2 / 3 / 4** selects RADAR, SMS, NAV and A-G respectively.
-- On **FCR**, OSB 1/2 select RWS/TWS, OSB 4 cycles bars, OSB 6 cycles range,
-  OSB 7 toggles the azimuth scan width and OSB 8 toggles PRF. The panel antenna
+- On **FCR**, OSB 2 toggles RWS/TWS, OSB 6 cycles range, OSB 17 toggles the
+  azimuth scan width, OSB 18 cycles bars and OSB 19 toggles PRF. The panel antenna
   elevation slider changes the search volume, so targets can enter or leave the
-  scope instead of only moving the elevation caret.
+  scope instead of only moving the elevation caret. OPER/SILENT/OFF exercise
+  the corresponding radar presentation states.
 - On **SMS**, OSB 1/2/3 select the master mode, OSB 6 steps the station and
   OSB 7 cycles the profile. The **Stores (SMS)** control-panel section exposes
   **JETTISON**; it clears all stations in the demo inventory, hides the station
@@ -119,8 +124,20 @@ business logic beyond selecting the page or toggling a control.
   cycles quantity, OSB 10 cycles interval and OSB 11 performs a simulated
   release. MASTER ARM removes the store from the demo inventory; SIM leaves
   stores loaded but still drives release timing.
-- Click on the FCR screen to slew the acquisition cursor, then press **BUG** in
-  the control panel to lock the nearest contact (STT) and **UNBUG** to drop it.
+- Click on the FCR screen, or use Cursor X/Y, to slew the normalized acquisition
+  cursor. **BUG** designates exactly the dynamic track captured by the runtime
+  strobe, **STT** promotes that bug to single-target track and **UNBUG** returns
+  to the previous search mode. No nearest-track calculation is used.
+
+## FCR integration API
+
+An external radar publishes one `RadarTrack` per sensor track using slant range
+in nautical miles and azimuth/elevation in degrees. It does not publish target
+altitude or authored B-scope coordinates. The stateless projection derives
+altitude and display placement from ownship state and current radar settings.
+The UI cursor remains a two-axis `[-1, 1]` input; conversion to azimuth, display
+range and cursor altitude limits remains inside the projection/controller
+boundary.
 
 The panel and bundled simulation are demonstrators only. A real simulator should
 replace `MfdInputSource` and publish `MfdInputSample` directly; generated page

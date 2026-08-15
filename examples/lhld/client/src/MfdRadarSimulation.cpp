@@ -22,12 +22,11 @@ constexpr float kSweepRatePerSecond = 1.3f;
 constexpr float kMaxStepSeconds = 0.1f;
 constexpr float kRespawnRangeNm = 88.0f;
 constexpr float kRespawnBehindNm = -8.0f;
-constexpr float kFeetPerNauticalMile = 6076.12f;
-constexpr float kRadarBarSpacingDeg = 2.2f;
-constexpr float kRadarBeamHalfHeightDeg = 1.4f;
 constexpr float kMinNavRangeNm = 10.0f;
 constexpr float kMaxNavRangeNm = 160.0f;
 constexpr float kOwnshipTurnRateDegPerSecond = 0.18f;
+constexpr float kSecondsPerQualityCycle = 18.0f;
+constexpr float kExtrapolationStartSeconds = 14.0f;
 
 float Finite(const float value, const float fallback) noexcept
 {
@@ -57,26 +56,9 @@ int ValidRadarBars(const int bars) noexcept
     return 4;
 }
 
-float RadarVerticalHalfCoverageDeg(const RadarSettings& radar) noexcept
-{
-    return kRadarBeamHalfHeightDeg +
-        (static_cast<float>(ValidRadarBars(radar.scanBars) - 1) * kRadarBarSpacingDeg * 0.5f);
-}
-
-bool IsInsideRadarElevationVolume(const RadarContact& contact,
-                                  const RadarSettings& radar,
-                                  const OwnshipState& ownship) noexcept
-{
-    const float rangeFt = std::max(1.0f, Finite(contact.rangeNm, 0.0f) * kFeetPerNauticalMile);
-    const float altitudeDeltaFt = Finite(contact.altitudeFt, ownship.altitudeFt) - Finite(ownship.altitudeFt, 0.0f);
-    const float contactElevationDeg = std::atan2(altitudeDeltaFt, rangeFt) * kRadToDeg;
-    return std::fabs(contactElevationDeg - Finite(radar.antennaElevationDeg, 0.0f)) <=
-        RadarVerticalHalfCoverageDeg(radar);
-}
-
 // Deterministic scripted airspace: eight tracks with coherent closing/crossing
 // geometry so the RWS picture stays lively without any randomness.
-struct ContactSeed
+struct TrackSeed
 {
     float rightNm;
     float forwardNm;
@@ -86,7 +68,7 @@ struct ContactSeed
     bool hostile;
 };
 
-constexpr ContactSeed kContactSeeds[kMaxContacts] = {
+constexpr TrackSeed kTrackSeeds[kMaxRadarTracks] = {
     {-8.0f, 55.0f, 0.010f, -0.200f, 24000.0f, true},
     {6.0f, 40.0f, -0.020f, -0.160f, 18000.0f, true},
     {12.0f, 62.0f, -0.050f, -0.100f, 27000.0f, true},
@@ -116,10 +98,10 @@ void MfdRadarSimulation::Reset() noexcept
     inputs_.ownship.mach = 0.72f;
     inputs_.ownship.altitudeFt = 22000.0f;
 
-    for (std::size_t index = 0; index < kMaxContacts; ++index)
+    for (std::size_t index = 0; index < kMaxRadarTracks; ++index)
     {
-        const ContactSeed& seed = kContactSeeds[index];
-        SimContact& track = airspace_[index];
+        const TrackSeed& seed = kTrackSeeds[index];
+        SimTrack& track = airspace_[index];
         track.alive = index < 8U;
         track.rightNm = seed.rightNm;
         track.forwardNm = seed.forwardNm;
@@ -145,17 +127,18 @@ void MfdRadarSimulation::Reset() noexcept
 
     inputs_.stores = StoresState {};
     inputs_.radar = RadarSettings {};
-    sweep_ = 0.0f;
+    sweepFraction_ = 0.0f;
     sweepDirection_ = 1.0f;
-    RefreshPublishedContacts();
+    elapsedSeconds_ = 0.0f;
+    RefreshPublishedTracks();
 }
 
 void MfdRadarSimulation::ApplyRadarControls(const RadarSettings& controls) noexcept
 {
-    const float preservedSweep = inputs_.radar.scanSweepNorm;
+    const float preservedAntennaAzimuth = inputs_.radar.antennaAzimuthDeg;
     inputs_.radar = controls;
     inputs_.radar.scanBars = ValidRadarBars(controls.scanBars);
-    inputs_.radar.scanSweepNorm = preservedSweep;
+    inputs_.radar.antennaAzimuthDeg = preservedAntennaAzimuth;
 }
 
 void MfdRadarSimulation::SetMasterMode(const MasterMode mode) noexcept
@@ -195,11 +178,12 @@ void MfdRadarSimulation::Step(const float deltaSeconds) noexcept
     const float dt = std::min(deltaSeconds, kMaxStepSeconds);
 
     inputs_.ownship.headingDeg = Wrap360(inputs_.ownship.headingDeg + kOwnshipTurnRateDegPerSecond * dt);
-    inputs_.ownship.mach = 0.72f + 0.02f * std::sin(sweep_ * 1.7f);
+    elapsedSeconds_ = std::fmod(elapsedSeconds_ + dt, 3600.0f);
+    inputs_.ownship.mach = 0.72f + 0.02f * std::sin(sweepFraction_ * 1.7f);
 
-    for (std::size_t index = 0; index < kMaxContacts; ++index)
+    for (std::size_t index = 0; index < kMaxRadarTracks; ++index)
     {
-        SimContact& track = airspace_[index];
+        SimTrack& track = airspace_[index];
         if (!track.alive)
         {
             continue;
@@ -211,7 +195,7 @@ void MfdRadarSimulation::Step(const float deltaSeconds) noexcept
         const float range = std::hypot(track.rightNm, track.forwardNm);
         if (range > kRespawnRangeNm || track.forwardNm < kRespawnBehindNm)
         {
-            const ContactSeed& seed = kContactSeeds[index];
+            const TrackSeed& seed = kTrackSeeds[index];
             track.rightNm = seed.rightNm;
             track.forwardNm = seed.forwardNm;
             track.velRightNmS = seed.velRightNmS;
@@ -220,98 +204,78 @@ void MfdRadarSimulation::Step(const float deltaSeconds) noexcept
     }
 
     const float barRateScale = 1.0f / static_cast<float>(ValidRadarBars(inputs_.radar.scanBars));
-    sweep_ += sweepDirection_ * kSweepRatePerSecond * barRateScale * dt;
-    if (sweep_ > 1.0f)
+    sweepFraction_ += sweepDirection_ * kSweepRatePerSecond * barRateScale * dt;
+    if (sweepFraction_ > 1.0f)
     {
-        sweep_ = 1.0f;
+        sweepFraction_ = 1.0f;
         sweepDirection_ = -1.0f;
     }
-    else if (sweep_ < -1.0f)
+    else if (sweepFraction_ < -1.0f)
     {
-        sweep_ = -1.0f;
+        sweepFraction_ = -1.0f;
         sweepDirection_ = 1.0f;
     }
-    inputs_.radar.scanSweepNorm = sweep_;
+    const float halfScanDeg = std::clamp(Finite(inputs_.radar.azScanDeg, 60.0f), 10.0f, 120.0f) * 0.5f;
+    inputs_.radar.antennaAzimuthDeg = sweepFraction_ * halfScanDeg;
 
-    RefreshPublishedContacts();
+    RefreshPublishedTracks();
 }
 
-void MfdRadarSimulation::RefreshPublishedContacts() noexcept
+void MfdRadarSimulation::RefreshPublishedTracks() noexcept
 {
-    for (std::size_t index = 0; index < kMaxContacts; ++index)
+    for (std::size_t index = 0; index < kMaxRadarTracks; ++index)
     {
-        const SimContact& track = airspace_[index];
-        RadarContact& contact = inputs_.contacts[index];
-        if (!track.alive)
+        const SimTrack& simulatedTrack = airspace_[index];
+        RadarTrack& radarTrack = inputs_.tracks[index];
+        if (!simulatedTrack.alive)
         {
-            contact = RadarContact {};
-            contact.active = false;
+            radarTrack = RadarTrack {};
+            radarTrack.active = false;
             continue;
         }
 
-        const float range = std::max(0.001f, std::hypot(track.rightNm, track.forwardNm));
-        const float bearingFromNoseDeg = std::atan2(track.rightNm, track.forwardNm) * kRadToDeg;
-        const float rangeRateNmS = (track.rightNm * track.velRightNmS + track.forwardNm * track.velForwardNmS) / range;
-        const float speedNmS = std::hypot(track.velRightNmS, track.velForwardNmS);
-        const float trackRelNoseDeg = std::atan2(track.velRightNmS, track.velForwardNmS) * kRadToDeg;
+        const float horizontalRangeNm =
+            std::max(0.001f, std::hypot(simulatedTrack.rightNm, simulatedTrack.forwardNm));
+        const float altitudeDeltaNm =
+            (simulatedTrack.altitudeFt - inputs_.ownship.altitudeFt) / 6076.12f;
+        const float slantRangeNm = std::hypot(horizontalRangeNm, altitudeDeltaNm);
+        const float bearingFromNoseDeg =
+            std::atan2(simulatedTrack.rightNm, simulatedTrack.forwardNm) * kRadToDeg;
+        const float elevationDeg = std::atan2(altitudeDeltaNm, horizontalRangeNm) * kRadToDeg;
+        const float rangeRateNmS =
+            (simulatedTrack.rightNm * simulatedTrack.velRightNmS +
+             simulatedTrack.forwardNm * simulatedTrack.velForwardNmS) /
+            horizontalRangeNm;
+        const float speedNmS = std::hypot(simulatedTrack.velRightNmS, simulatedTrack.velForwardNmS);
+        const float trackRelNoseDeg =
+            std::atan2(simulatedTrack.velRightNmS, simulatedTrack.velForwardNmS) * kRadToDeg;
 
         float aspectDeg = 0.0f;
         if (speedNmS > 1.0e-4f)
         {
-            const float losRight = -track.rightNm;
-            const float losForward = -track.forwardNm;
-            const float dot = track.velRightNmS * losRight + track.velForwardNmS * losForward;
-            const float cosAspect = std::clamp(dot / (speedNmS * range), -1.0f, 1.0f);
+            const float losRight = -simulatedTrack.rightNm;
+            const float losForward = -simulatedTrack.forwardNm;
+            const float dot =
+                simulatedTrack.velRightNmS * losRight + simulatedTrack.velForwardNmS * losForward;
+            const float cosAspect = std::clamp(dot / (speedNmS * horizontalRangeNm), -1.0f, 1.0f);
             aspectDeg = std::acos(cosAspect) * kRadToDeg;
         }
 
-        contact.active = true;
-        contact.azimuthNorm = bearingFromNoseDeg / 60.0f;
-        contact.rangeNm = range;
-        contact.headingDeg = Wrap360(inputs_.ownship.headingDeg + trackRelNoseDeg);
-        contact.altitudeFt = track.altitudeFt;
-        contact.closureKts = -rangeRateNmS * 3600.0f;
-        contact.aspectDeg = aspectDeg;
-        contact.speedKts = speedNmS * 3600.0f;
-        contact.hostile = track.hostile;
+        const float qualityPhase =
+            std::fmod(elapsedSeconds_ + static_cast<float>(index) * 2.3f, kSecondsPerQualityCycle);
+        radarTrack.active = true;
+        radarTrack.rangeNm = slantRangeNm;
+        radarTrack.azimuthDeg = bearingFromNoseDeg;
+        radarTrack.elevationDeg = elevationDeg;
+        radarTrack.headingDeg = Wrap360(inputs_.ownship.headingDeg + trackRelNoseDeg);
+        radarTrack.closureKts = -rangeRateNmS * 3600.0f;
+        radarTrack.aspectDeg = aspectDeg;
+        radarTrack.speedKts = speedNmS * 3600.0f;
+        radarTrack.hostile = simulatedTrack.hostile;
+        radarTrack.quality = qualityPhase >= kExtrapolationStartSeconds
+            ? RadarTrackQuality::Extrapolated
+            : RadarTrackQuality::Measured;
     }
-}
-
-int MfdRadarSimulation::NearestContactToCursor() const noexcept
-{
-    const float halfScanDeg = std::clamp(Finite(inputs_.radar.azScanDeg, 60.0f), 10.0f, 120.0f) * 0.5f;
-    const float rangeScaleNm = std::max(1.0f, Finite(inputs_.radar.rangeScaleNm, 40.0f));
-    const float cursorBearingDeg = std::clamp(inputs_.radar.cursorAz, -1.0f, 1.0f) * halfScanDeg;
-    const float cursorRangeNm = std::clamp(inputs_.radar.cursorRange, 0.0f, 1.0f) * rangeScaleNm;
-
-    int nearest = -1;
-    float best = 0.18f;
-    for (std::size_t index = 0; index < kMaxContacts; ++index)
-    {
-        const RadarContact& contact = inputs_.contacts[index];
-        if (!contact.active)
-        {
-            continue;
-        }
-
-        const float bearingDeg = contact.azimuthNorm * 60.0f;
-        if (std::fabs(bearingDeg) > halfScanDeg || contact.rangeNm > rangeScaleNm ||
-            !IsInsideRadarElevationVolume(contact, inputs_.radar, inputs_.ownship))
-        {
-            continue;
-        }
-
-        const float dAz = (bearingDeg - cursorBearingDeg) / halfScanDeg;
-        const float dRange = (contact.rangeNm - cursorRangeNm) / rangeScaleNm;
-        const float distance = std::hypot(dAz, dRange);
-        if (distance < best)
-        {
-            best = distance;
-            nearest = static_cast<int>(index);
-        }
-    }
-
-    return nearest;
 }
 
 const MfdInputSample& MfdRadarSimulation::Inputs() const noexcept

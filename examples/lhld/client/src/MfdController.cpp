@@ -24,9 +24,11 @@ namespace lhld
 {
 namespace
 {
-constexpr mfd::ColorRgba kGreen {51, 255, 136, 255};
 constexpr mfd::ColorRgba kBright {140, 255, 190, 255};
 constexpr mfd::ColorRgba kDim {40, 150, 95, 255};
+constexpr mfd::ColorRgba kRadarSearch {255, 255, 255, 255};
+constexpr mfd::ColorRgba kRadarTrackFile {255, 222, 0, 255};
+constexpr mfd::ColorRgba kRadarExtrapolated {255, 48, 48, 255};
 constexpr mfd::ColorRgba kHsdCurrent {120, 255, 255, 255};
 constexpr mfd::ColorRgba kHsdDim {0, 210, 230, 220};
 constexpr mfd::ColorRgba kHsdRoute {0, 200, 220, 180};
@@ -105,6 +107,19 @@ const char* RadarSubmodeCaption(const RadarSubmode submode) noexcept
     return "RWS";
 }
 
+const char* RadarStatusCaption(const MfdInputSample& input) noexcept
+{
+    if (input.radar.submode == RadarSubmode::Stt)
+    {
+        return "STT";
+    }
+    if (input.radar.submode == RadarSubmode::Rws && input.radar.buggedTrack >= 0)
+    {
+        return "SAM";
+    }
+    return RadarSubmodeCaption(input.radar.submode);
+}
+
 const char* SmsSubmodeCaption(const MasterMode mode) noexcept
 {
     switch (mode)
@@ -140,25 +155,92 @@ std::string FormatFixed(const float value, const int precision)
     return buffer;
 }
 
-// The generator emits one distinct wrapper class per authored contact reticle,
-// all sharing the same base reticle contract. A single applicator over that
-// generated contract is clearer and safer than repeating the same body twelve
-// times; it stays intentionally local to this adapter.
-template <typename ContactReticle>
-void ApplyContactView(ContactReticle& reticle, const RadarContactView& view)
+std::string FormatTrackAltitude(const RadarTrackView& view)
 {
-    reticle.SetVisible(view.visible);
-    if (!view.visible)
+    return FormatInt(std::clamp(view.altitudeThousandsFt, -99.0f, 999.0f));
+}
+
+constexpr mfd::Vec2 kHiddenTrackPosition {2.0f, 2.0f};
+
+mfd::ColorRgba TrackColor(const RadarTrackView& view, const bool trackFile) noexcept
+{
+    if (view.extrapolated)
     {
+        return kRadarExtrapolated;
+    }
+    return trackFile ? kRadarTrackFile : kRadarSearch;
+}
+
+void ApplyTrackView(lhld_ui::RadarRwsTrackDynamicReticle& reticle,
+                    const RadarTrackView& view,
+                    const bool visible)
+{
+    reticle.SetVisible(visible);
+    reticle.SetBlinkEnabled(false);
+    if (!visible)
+    {
+        reticle.SetPosition(kHiddenTrackPosition);
         return;
     }
     reticle.SetPosition(ToVec(view.position));
     reticle.SetRotationDegrees(view.rotationDegrees);
-    reticle.SetColor(view.hostile ? kGreen : kDim);
+    reticle.SetColor(TrackColor(view, false));
+    reticle.TrackAltitude().SetText(FormatTrackAltitude(view));
 }
 
-// Same rationale as ApplyContactView: the authored steerpoint reticles share
-// one generated contract, so one local applicator is clearer than per-reticle copies.
+void ApplyTrackView(lhld_ui::RadarTwsTrackDynamicReticle& reticle,
+                    const RadarTrackView& view,
+                    const bool visible)
+{
+    reticle.SetVisible(visible);
+    reticle.SetBlinkEnabled(false);
+    if (!visible)
+    {
+        reticle.SetPosition(kHiddenTrackPosition);
+        return;
+    }
+    reticle.SetPosition(ToVec(view.position));
+    reticle.SetRotationDegrees(view.rotationDegrees);
+    reticle.SetColor(TrackColor(view, true));
+    reticle.TrackAltitude().SetText(FormatTrackAltitude(view));
+}
+
+void ApplyTrackView(lhld_ui::RadarBuggedTrackDynamicReticle& reticle,
+                    const RadarTrackView& view,
+                    const bool visible)
+{
+    reticle.SetVisible(visible);
+    reticle.SetBlinkEnabled(false);
+    if (!visible)
+    {
+        reticle.SetPosition(kHiddenTrackPosition);
+        return;
+    }
+    reticle.SetPosition(ToVec(view.position));
+    reticle.SetRotationDegrees(view.rotationDegrees);
+    reticle.SetColor(TrackColor(view, true));
+    reticle.TrackAltitude().SetText(FormatTrackAltitude(view));
+}
+
+void ApplyTrackView(lhld_ui::RadarSttTrackDynamicReticle& reticle,
+                    const RadarTrackView& view,
+                    const bool visible)
+{
+    reticle.SetVisible(visible);
+    reticle.SetBlinkEnabled(false);
+    if (!visible)
+    {
+        reticle.SetPosition(kHiddenTrackPosition);
+        return;
+    }
+    reticle.SetPosition(ToVec(view.position));
+    reticle.SetRotationDegrees(view.rotationDegrees);
+    reticle.SetColor(TrackColor(view, true));
+    reticle.TrackAltitude().SetText(FormatTrackAltitude(view));
+}
+
+// The authored steerpoint reticles share one generated contract, so one local
+// applicator is clearer than per-reticle copies.
 template <typename SteerpointReticle>
 void ApplySteerpoint(SteerpointReticle& reticle,
                      const NavSymbolView& view,
@@ -345,69 +427,140 @@ void ApplyStationLabels(lhld_ui::SmsSmsStationsReticle& reticle, const StoresSta
     }
 }
 
-void ApplyRadar(lhld_ui::LhldUi& ui, const MfdInputSample& input, const RadarFrame& frame)
+void ApplyRadar(
+    lhld_ui::LhldUi& ui,
+    const MfdInputSample& input,
+    const RadarFrame& frame,
+    std::array<lhld_ui::RadarRwsTrackDynamicReticle*, kMaxRadarTracks>& rwsTracks,
+    std::array<lhld_ui::RadarTwsTrackDynamicReticle*, kMaxRadarTracks>& twsTracks,
+    std::array<lhld_ui::RadarBuggedTrackDynamicReticle*, kMaxRadarTracks>& buggedTracks,
+    std::array<lhld_ui::RadarSttTrackDynamicReticle*, kMaxRadarTracks>& sttTracks)
 {
     auto& radar = ui.Radar();
 
+    const bool searchPresentation = frame.radarPresentationVisible && input.radar.submode != RadarSubmode::Stt;
+    const bool rwsPresentation = searchPresentation && input.radar.submode == RadarSubmode::Rws;
+    const bool twsPresentation = searchPresentation && input.radar.submode == RadarSubmode::Tws;
+    const bool buggedPresentation = frame.buggedVisible && input.radar.submode != RadarSubmode::Stt;
+    const bool sttPresentation = frame.buggedVisible && input.radar.submode == RadarSubmode::Stt;
+    radar.strobe = radar.acquisitionStrobe;
+    radar.strobe.SetActive(searchPresentation);
+    radar.strobe.SetPosition(ToVec(frame.cursorPosition));
+
+    radar.radarBscopeFrame.SetVisible(input.radar.operatingState != RadarOperatingState::Off);
+    radar.radarHorizon.SetVisible(frame.radarPresentationVisible);
+    radar.radarScale.SetVisible(input.radar.operatingState != RadarOperatingState::Off);
+    radar.radarElevationCaret.SetVisible(searchPresentation);
     radar.radarScanLine.SetVisible(frame.scanLineVisible);
     radar.radarScanLine.SetPosition(mfd::Vec2 {frame.scanLineX, 0.0f});
     radar.radarElevationCaret.SetPosition(mfd::Vec2 {0.0f, frame.elevationCaretY});
-    radar.radarCursor.SetVisible(true);
-    radar.radarCursor.SetPosition(ToVec(frame.cursorPosition));
+    radar.radarCursorData.SetVisible(searchPresentation);
+    radar.radarCursorData.SetPosition(ToVec(frame.cursorPosition));
+    radar.radarCursorData.MaximumAltitude().SetText(FormatInt(frame.cursorMaximumAltitudeThousandsFt));
+    radar.radarCursorData.MinimumAltitude().SetText(FormatInt(frame.cursorMinimumAltitudeThousandsFt));
 
-    ApplyContactView(radar.contact01, frame.contacts[0]);
-    ApplyContactView(radar.contact02, frame.contacts[1]);
-    ApplyContactView(radar.contact03, frame.contacts[2]);
-    ApplyContactView(radar.contact04, frame.contacts[3]);
-    ApplyContactView(radar.contact05, frame.contacts[4]);
-    ApplyContactView(radar.contact06, frame.contacts[5]);
-    ApplyContactView(radar.contact07, frame.contacts[6]);
-    ApplyContactView(radar.contact08, frame.contacts[7]);
-    ApplyContactView(radar.contact09, frame.contacts[8]);
-    ApplyContactView(radar.contact10, frame.contacts[9]);
-    ApplyContactView(radar.contact11, frame.contacts[10]);
-    ApplyContactView(radar.contact12, frame.contacts[11]);
+    radar.DynamicRadarRwsTrack().SetVisible(rwsPresentation);
+    radar.DynamicRadarTwsTrack().SetVisible(twsPresentation);
+    radar.DynamicRadarBuggedTrack().SetVisible(buggedPresentation);
+    radar.DynamicRadarSttTrack().SetVisible(sttPresentation);
 
-    radar.radarBuggedTarget.SetVisible(frame.buggedVisible);
+    const int buggedIndex = input.radar.buggedTrack;
+    for (std::size_t index = 0; index < kMaxRadarTracks; ++index)
+    {
+        const bool isBugged =
+            frame.buggedVisible && buggedIndex == static_cast<int>(index);
+        const bool rwsVisible =
+            !isBugged && input.radar.submode == RadarSubmode::Rws && frame.tracks[index].visible;
+        const bool twsVisible =
+            !isBugged && input.radar.submode == RadarSubmode::Tws && frame.tracks[index].visible;
+        const bool buggedVisible = isBugged && input.radar.submode != RadarSubmode::Stt;
+        const bool sttVisible = isBugged && input.radar.submode == RadarSubmode::Stt;
+
+        if (rwsVisible && rwsTracks[index] == nullptr)
+        {
+            rwsTracks[index] = &radar.DynamicRadarRwsTrack().Create();
+        }
+        if (twsVisible && twsTracks[index] == nullptr)
+        {
+            twsTracks[index] = &radar.DynamicRadarTwsTrack().Create();
+        }
+        if (buggedVisible && buggedTracks[index] == nullptr)
+        {
+            buggedTracks[index] = &radar.DynamicRadarBuggedTrack().Create();
+        }
+        if (sttVisible && sttTracks[index] == nullptr)
+        {
+            sttTracks[index] = &radar.DynamicRadarSttTrack().Create();
+        }
+
+        if (rwsTracks[index] != nullptr)
+        {
+            ApplyTrackView(*rwsTracks[index], frame.tracks[index], rwsVisible);
+        }
+        if (twsTracks[index] != nullptr)
+        {
+            ApplyTrackView(*twsTracks[index], frame.tracks[index], twsVisible);
+        }
+        if (buggedTracks[index] != nullptr)
+        {
+            ApplyTrackView(*buggedTracks[index], frame.buggedTrack, buggedVisible);
+        }
+        if (sttTracks[index] != nullptr)
+        {
+            ApplyTrackView(*sttTracks[index], frame.buggedTrack, sttVisible);
+        }
+    }
+
     radar.radarDatablock.SetVisible(frame.datablockVisible);
     if (frame.buggedVisible)
     {
-        radar.radarBuggedTarget.SetPosition(ToVec(frame.buggedPosition));
-        radar.radarBuggedTarget.SetRotationDegrees(frame.buggedAspectRotationDegrees);
-
-        const int bugged = input.radar.buggedContact;
-        if (bugged >= 0 && bugged < static_cast<int>(kMaxContacts))
+        if (buggedIndex >= 0 && buggedIndex < static_cast<int>(kMaxRadarTracks))
         {
-            const RadarContact& contact = input.contacts[static_cast<std::size_t>(bugged)];
+            const RadarTrack& track = input.tracks[static_cast<std::size_t>(buggedIndex)];
             char buffer[24] {};
-            std::snprintf(buffer, sizeof(buffer), "%d", static_cast<int>(std::lround(contact.altitudeFt / 1000.0f)));
+            std::snprintf(
+                buffer,
+                sizeof(buffer),
+                "%d",
+                static_cast<int>(std::lround(frame.buggedTrack.altitudeThousandsFt)));
             radar.radarDatablock.TgtAltValue().SetText(buffer);
-            std::snprintf(buffer, sizeof(buffer), "A %02d", static_cast<int>(std::lround(contact.aspectDeg)));
+            std::snprintf(
+                buffer,
+                sizeof(buffer),
+                "%c %02d",
+                track.azimuthDeg < 0.0f ? 'L' : 'R',
+                static_cast<int>(std::lround(track.aspectDeg / 10.0f)));
             radar.radarDatablock.TgtAspectValue().SetText(buffer);
-            std::snprintf(buffer, sizeof(buffer), "C %d", static_cast<int>(std::lround(contact.closureKts)));
+            std::snprintf(buffer, sizeof(buffer), "%+dK", static_cast<int>(std::lround(track.closureKts)));
             radar.radarDatablock.TgtClosureValue().SetText(buffer);
-            radar.radarDatablock.TgtHdgValue().SetText(FormatHeading(contact.headingDeg));
-            radar.radarDatablock.TgtGsValue().SetText(FormatInt(contact.speedKts));
+            radar.radarDatablock.TgtHdgValue().SetText(FormatHeading(track.headingDeg));
+            std::snprintf(buffer, sizeof(buffer), "%+d", static_cast<int>(std::lround(track.speedKts)));
+            radar.radarDatablock.TgtGsValue().SetText(buffer);
         }
     }
 
     radar.radarScale.RangeTop().SetText(FormatInt(input.radar.rangeScaleNm));
     radar.radarScale.RangeMid().SetText(FormatInt(input.radar.rangeScaleNm * 0.5f));
     radar.radarScale.Bars().SetText(FormatInt(static_cast<float>(input.radar.scanBars)) + "B");
-    radar.radarScale.Scan().SetText("A" + FormatInt(input.radar.azScanDeg));
-    radar.radarScale.Prf().SetText(input.radar.highPrf ? "HI" : "MED");
+    radar.radarScale.Scan().SetText("A" + FormatInt(input.radar.azScanDeg * 0.05f));
+    radar.radarScale.Prf().SetText(input.radar.highPrf ? "M+" : "M3");
+    radar.radarScale.Iff().SetText("M4");
     {
         char buffer[24] {};
         std::snprintf(
             buffer,
             sizeof(buffer),
-            "BE %03d/%02d",
+            "%03d  %02d",
             static_cast<int>(std::lround(input.nav.bullseyeBearingDeg)) % 360,
             static_cast<int>(std::lround(input.nav.bullseyeRangeNm)));
         radar.radarScale.Bull().SetText(buffer);
     }
 
-    radar.SetStatusCaption(RadarSubmodeCaption(input.radar.submode));
+    radar.radarMessage.SetVisible(input.radar.operatingState != RadarOperatingState::Operating);
+    radar.radarMessage.Message().SetText(
+        input.radar.operatingState == RadarOperatingState::Off ? "FCR OFF" : "NO RAD");
+
+    radar.SetStatusCaption(RadarStatusCaption(input));
 
     for (int osb = 1; osb <= static_cast<int>(kOsbCount); ++osb)
     {
@@ -602,10 +755,44 @@ void ApplyAg(lhld_ui::LhldUi& ui, const MfdInputSample& input)
 }
 } // namespace
 
-void MfdController::Populate(lhld_ui::LhldUi& ui, const MfdInputSample& input) const
+void MfdController::Initialize(lhld_ui::LhldUi& ui)
+{
+    auto& radar = ui.Radar();
+    rwsTracks_.fill(nullptr);
+    twsTracks_.fill(nullptr);
+    buggedTracks_.fill(nullptr);
+    sttTracks_.fill(nullptr);
+
+    radar.DynamicRadarRwsTrack().SetStrobeMagnetEnabled(false);
+    radar.DynamicRadarTwsTrack().SetStrobeMagnetEnabled(false);
+    radar.DynamicRadarBuggedTrack().SetStrobeMagnetEnabled(false);
+    radar.DynamicRadarSttTrack().SetStrobeMagnetEnabled(false);
+    radar.DynamicRadarRwsTrack().SetVisible(false);
+    radar.DynamicRadarTwsTrack().SetVisible(false);
+    radar.DynamicRadarBuggedTrack().SetVisible(false);
+    radar.DynamicRadarSttTrack().SetVisible(false);
+}
+
+int MfdController::CapturedTrackIndex() const noexcept
+{
+    for (std::size_t index = 0; index < kMaxRadarTracks; ++index)
+    {
+        const bool rwsCaptured =
+            rwsTracks_[index] != nullptr && rwsTracks_[index]->IsStrobeCaptured();
+        const bool twsCaptured =
+            twsTracks_[index] != nullptr && twsTracks_[index]->IsStrobeCaptured();
+        if (rwsCaptured || twsCaptured)
+        {
+            return static_cast<int>(index);
+        }
+    }
+    return -1;
+}
+
+void MfdController::Populate(lhld_ui::LhldUi& ui, const MfdInputSample& input)
 {
     const MfdFrame frame = BuildMfdFrame(input);
-    ApplyRadar(ui, input, frame.radar);
+    ApplyRadar(ui, input, frame.radar, rwsTracks_, twsTracks_, buggedTracks_, sttTracks_);
     ApplySms(ui, input);
     ApplyNav(ui, input, frame.nav);
     ApplyAg(ui, input);
@@ -634,19 +821,23 @@ std::string MfdController::OsbLegend(const MfdPage page, const int osbOneBased, 
         switch (osbOneBased)
         {
         case 1:
-            return "RWS";
+            return "CRM";
         case 2:
-            return "TWS";
+            return RadarStatusCaption(input);
+        case 3:
+            return "NORM";
         case 4:
-            return FormatInt(static_cast<float>(input.radar.scanBars)) + "B";
+            return "OVRD";
+        case 5:
+            return "CNTL";
         case 6:
             return FormatInt(input.radar.rangeScaleNm);
-        case 7:
-            return "A" + FormatInt(input.radar.azScanDeg);
-        case 8:
-            return input.radar.highPrf ? "HI" : "MED";
+        case 17:
+            return "A" + FormatInt(input.radar.azScanDeg * 0.05f);
         case 18:
-            return "DCLT";
+            return FormatInt(static_cast<float>(input.radar.scanBars)) + "B";
+        case 19:
+            return input.radar.highPrf ? "M+" : "M3";
         default:
             return "";
         }

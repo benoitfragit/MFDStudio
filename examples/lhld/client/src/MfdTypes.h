@@ -26,8 +26,8 @@ namespace lhld
  * @{
  */
 
-/** @brief Maximum number of radar contacts tracked by the demo airspace. */
-inline constexpr std::size_t kMaxContacts = 12U;
+/** @brief Maximum number of radar tracks published by the demo sensor. */
+inline constexpr std::size_t kMaxRadarTracks = 12U;
 /** @brief Maximum number of authored steerpoint slots shown on the HSD flight plan. */
 inline constexpr std::size_t kSteerpointCount = 8U;
 /** @brief Number of weapon stations on the SMS stores diagram. */
@@ -81,6 +81,26 @@ enum class RadarSubmode
     Stt
 };
 
+/** @brief Fire-control-radar power and RF-emission state. */
+enum class RadarOperatingState
+{
+    /** @brief Radar powered and radiating normally. */
+    Operating,
+    /** @brief Radar powered but prevented from radiating by RF silence. */
+    Silent,
+    /** @brief Fire-control radar power is off. */
+    Off
+};
+
+/** @brief Quality of the latest sensor update associated with one radar track. */
+enum class RadarTrackQuality
+{
+    /** @brief Position is backed by a current radar measurement. */
+    Measured,
+    /** @brief Position is extrapolated from the last valid radar measurement. */
+    Extrapolated
+};
+
 /** @brief Air-to-ground delivery format selected on the stores profile. */
 enum class AirGroundDeliveryMode
 {
@@ -106,33 +126,34 @@ struct OwnshipState
 };
 
 /**
- * @brief One radar contact in the demo airspace, in semantic units.
+ * @brief One fire-control-radar track in sensor-native semantic units.
  *
- * Azimuth is relative to the aircraft nose in the range [-1, 1] mapped to the
- * scanned half-angle; range is a physical distance and closure/aspect follow
- * standard fighter conventions. The projection layer turns these into B-scope
- * coordinates.
+ * Range, azimuth and elevation form the natural radar measurement boundary.
+ * The projection derives B-scope coordinates and target altitude; callers do
+ * not need to know authored page coordinates or duplicate projection math.
  */
-struct RadarContact
+struct RadarTrack
 {
-    /** @brief True when the contact currently exists in the airspace. */
+    /** @brief True when the track currently exists in the sensor picture. */
     bool active = false;
-    /** @brief Contact bearing relative to the nose, [-1, 1] across the scan. */
-    float azimuthNorm = 0.0f;
-    /** @brief Slant range to the contact in nautical miles. */
+    /** @brief Slant range to the track in nautical miles. */
     float rangeNm = 20.0f;
-    /** @brief Contact ground track heading in degrees. */
+    /** @brief Azimuth relative to aircraft boresight in degrees, positive right. */
+    float azimuthDeg = 0.0f;
+    /** @brief Elevation relative to aircraft boresight in degrees, positive up. */
+    float elevationDeg = 0.0f;
+    /** @brief Track ground heading in degrees. */
     float headingDeg = 90.0f;
-    /** @brief Contact altitude in feet MSL. */
-    float altitudeFt = 20000.0f;
     /** @brief Closure in knots; positive means the range is decreasing. */
     float closureKts = 0.0f;
     /** @brief Target aspect angle in degrees. */
     float aspectDeg = 0.0f;
-    /** @brief Contact ground speed in knots. */
+    /** @brief Track ground speed in knots. */
     float speedKts = 0.0f;
-    /** @brief True when the contact is classified hostile. */
+    /** @brief True when the track is classified hostile. */
     bool hostile = true;
+    /** @brief Whether the current position is measured or extrapolated. */
+    RadarTrackQuality quality = RadarTrackQuality::Measured;
 };
 
 /**
@@ -140,6 +161,8 @@ struct RadarContact
  */
 struct RadarSettings
 {
+    /** @brief Radar power/RF state controlling FCR OFF and NO RAD presentation. */
+    RadarOperatingState operatingState = RadarOperatingState::Operating;
     /** @brief Active search/track submode. */
     RadarSubmode submode = RadarSubmode::Rws;
     /** @brief Range scale in nautical miles (10/20/40/80). */
@@ -150,16 +173,14 @@ struct RadarSettings
     int scanBars = 4;
     /** @brief High/medium PRF selection; true means high PRF. */
     bool highPrf = true;
-    /** @brief Acquisition cursor azimuth in [-1, 1]. */
-    float cursorAz = 0.0f;
-    /** @brief Acquisition cursor range fraction in [0, 1]. */
-    float cursorRange = 0.5f;
+    /** @brief Acquisition cursor position in UI space, each axis in [-1, 1]. */
+    MfdVec2 cursorPosition {};
     /** @brief Antenna elevation command in degrees, [-30, 30]. */
     float antennaElevationDeg = 0.0f;
-    /** @brief Index of the bugged (STT) contact, or -1 when none. */
-    int buggedContact = -1;
-    /** @brief Animated azimuth-sweep position in [-1, 1], updated by the simulation. */
-    float scanSweepNorm = 0.0f;
+    /** @brief Index of the bugged track, or -1 when no track is designated. */
+    int buggedTrack = -1;
+    /** @brief Animated antenna azimuth in degrees, updated by the simulation. */
+    float antennaAzimuthDeg = 0.0f;
 };
 
 /**
@@ -330,25 +351,29 @@ struct MfdInputSample
     OwnshipState ownship {};
     /** @brief Operator radar controls. */
     RadarSettings radar {};
-    /** @brief Radar contacts in the demo airspace. */
-    std::array<RadarContact, kMaxContacts> contacts {};
+    /** @brief Sensor-native fire-control-radar tracks. */
+    std::array<RadarTrack, kMaxRadarTracks> tracks {};
     /** @brief Stores-management state. */
     StoresState stores {};
     /** @brief Navigation state. */
     NavState nav {};
 };
 
-/** @brief Projected B-scope position of one radar contact. */
-struct RadarContactView
+/** @brief Projected B-scope presentation of one radar track. */
+struct RadarTrackView
 {
-    /** @brief True when the contact should be drawn this frame. */
+    /** @brief True when the track should be drawn this frame. */
     bool visible = false;
     /** @brief B-scope position in MFD space. */
     MfdVec2 position {};
-    /** @brief Contact heading rotation in degrees relative to the display. */
+    /** @brief Track heading rotation in degrees relative to the display. */
     float rotationDegrees = 0.0f;
-    /** @brief True when the contact is hostile (used for coloring). */
+    /** @brief Derived target altitude in thousands of feet MSL. */
+    float altitudeThousandsFt = 0.0f;
+    /** @brief True when the track is hostile. */
     bool hostile = true;
+    /** @brief True when the displayed position is extrapolated. */
+    bool extrapolated = false;
 };
 
 /**
@@ -356,8 +381,10 @@ struct RadarContactView
  */
 struct RadarFrame
 {
-    /** @brief Per-contact projected B-scope symbology. */
-    std::array<RadarContactView, kMaxContacts> contacts {};
+    /** @brief Per-track projected B-scope symbology. */
+    std::array<RadarTrackView, kMaxRadarTracks> tracks {};
+    /** @brief True when live radar symbology should be rendered. */
+    bool radarPresentationVisible = true;
     /** @brief True when the azimuth sweep line should be drawn (hidden in STT). */
     bool scanLineVisible = true;
     /** @brief Azimuth sweep line horizontal position in MFD space. */
@@ -366,12 +393,14 @@ struct RadarFrame
     float elevationCaretY = 0.0f;
     /** @brief Acquisition cursor position in MFD space. */
     MfdVec2 cursorPosition {};
-    /** @brief True when a bugged (STT) target should be drawn. */
+    /** @brief Maximum searched altitude at cursor range, in thousands of feet MSL. */
+    float cursorMaximumAltitudeThousandsFt = 0.0f;
+    /** @brief Minimum searched altitude at cursor range, in thousands of feet MSL. */
+    float cursorMinimumAltitudeThousandsFt = 0.0f;
+    /** @brief True when a bugged or STT target should be drawn. */
     bool buggedVisible = false;
-    /** @brief Bugged target position in MFD space. */
-    MfdVec2 buggedPosition {};
-    /** @brief Bugged target aspect pointer rotation in degrees. */
-    float buggedAspectRotationDegrees = 0.0f;
+    /** @brief Projected presentation of the bugged track. */
+    RadarTrackView buggedTrack {};
     /** @brief True when the target data block should be drawn. */
     bool datablockVisible = false;
 };

@@ -1,0 +1,8 @@
+{
+  "id": "radar_cursor_data",
+  "lineWidth": 0.003,
+  "elements": [
+    { "id": "maximum_altitude", "type": "text", "reticleRotationSensitive": false, "reticleScaleSensitive": false, "at": [0.105, 0.060], "size": 0.037, "align": "left", "text": "25", "letterSpacing": 0.003 },
+    { "id": "minimum_altitude", "type": "text", "reticleRotationSensitive": false, "reticleScaleSensitive": false, "at": [0.105, -0.068], "size": 0.037, "align": "left", "text": "18", "letterSpacing": 0.003 }
+  ]
+}

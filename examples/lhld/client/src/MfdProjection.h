@@ -28,30 +28,30 @@ namespace lhld
 MfdFrame BuildMfdFrame(const MfdInputSample& input) noexcept;
 
 /**
- * @brief Projects one radar contact into B-scope MFD coordinates.
- * @param contact Semantic radar contact.
+ * @brief Projects one radar track into B-scope MFD coordinates.
+ * @param track Sensor-native radar track.
  * @param radar Operator radar controls (azimuth, bars, elevation and range).
- * @param ownship Ownship state (for relative motion rotation).
- * @return Projected contact view; @ref RadarContactView::visible is false when
- * the contact falls outside the current scan volume or range scale.
+ * @param ownship Ownship state used for relative motion and derived altitude.
+ * @return Projected track view; @ref RadarTrackView::visible is false when the
+ * track falls outside the current scan volume or range scale.
  */
-RadarContactView ProjectRadarContact(const RadarContact& contact,
-                                     const RadarSettings& radar,
-                                     const OwnshipState& ownship) noexcept;
+RadarTrackView ProjectRadarTrack(const RadarTrack& track,
+                                 const RadarSettings& radar,
+                                 const OwnshipState& ownship) noexcept;
 
 /**
- * @brief Projects the locked single-target-track (STT) contact.
- * @param contact Semantic radar contact currently bugged.
+ * @brief Projects a bugged or single-target-track target.
+ * @param track Sensor-native radar track currently designated.
  * @param radar Operator radar controls (scan width and range scale).
  * @param ownship Ownship state (for relative motion rotation).
- * @return Projected view; visible whenever the contact is active, with the
- * position clamped into the scope. Unlike @ref ProjectRadarContact, a lock
+ * @return Projected view; visible whenever the track is active, with the
+ * position clamped into the scope. Unlike @ref ProjectRadarTrack, a lock
  * outside the RWS/TWS search volume or beyond the range scale is kept on the
  * display rather than filtered out, because the antenna stays on the target.
  */
-RadarContactView ProjectBuggedTarget(const RadarContact& contact,
-                                     const RadarSettings& radar,
-                                     const OwnshipState& ownship) noexcept;
+RadarTrackView ProjectBuggedTrack(const RadarTrack& track,
+                                  const RadarSettings& radar,
+                                  const OwnshipState& ownship) noexcept;
 
 /**
  * @brief Returns the fixed SMS select-box center for one 1-based station.

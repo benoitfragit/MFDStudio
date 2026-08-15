@@ -1,0 +1,10 @@
+{
+  "id": "radar_stt_track",
+  "lineWidth": 0.0045,
+  "elements": [
+    { "id": "track_symbol", "type": "square", "reticleRotationSensitive": false, "size": 0.058, "filled": false },
+    { "id": "stt_ring", "type": "circle", "reticleRotationSensitive": false, "radius": 0.078, "filled": false },
+    { "id": "aspect_vector", "type": "line", "reticleScaleSensitive": false, "start": [0.0, 0.078], "end": [0.0, 0.170] },
+    { "id": "track_altitude", "type": "text", "reticleRotationSensitive": false, "reticleScaleSensitive": false, "at": [0.090, -0.038], "size": 0.040, "align": "left", "text": "20", "letterSpacing": 0.003 }
+  ]
+}

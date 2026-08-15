@@ -15,19 +15,193 @@
 
 namespace lhld_ui
 {
+RadarBuggedTrackDynamicReticle::RadarBuggedTrackDynamicReticle(std::string_view reticleId) :
+    mfd::client::DynamicReticle(reticleId, mfd::client::ReticleBaseline {true, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""}),
+    trackAltitude_(MutableDesiredPatch(), DirtyFlag(), "track_altitude", 14060470994403626555U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.095f, -0.038f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "20", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f})
+{
+}
+
+void RadarBuggedTrackDynamicReticle::SetValue(std::string value)
+{
+    TrackAltitude().SetText(std::move(value));
+}
+
+std::string_view RadarBuggedTrackDynamicReticle::GetValue() const noexcept
+{
+    return trackAltitude_.GetText();
+}
+
+TextHandle& RadarBuggedTrackDynamicReticle::TrackAltitude() noexcept
+{
+    return trackAltitude_;
+}
+
+RadarBuggedTrackDynamicReticleSet::RadarBuggedTrackDynamicReticleSet(std::string_view pageName, const mfd::TransportId pageTransportId, RuntimeFeedbackState* feedbackState) :
+    mfd::client::GeneratedDynamicReticleSet(pageName, "radar_bugged_track", pageTransportId, 17290680954904873293U, feedbackState)
+{
+}
+
+RadarBuggedTrackDynamicReticle& RadarBuggedTrackDynamicReticleSet::Create()
+{
+    return static_cast<RadarBuggedTrackDynamicReticle&>(mfd::client::GeneratedDynamicReticleSet::Create());
+}
+
+void RadarBuggedTrackDynamicReticleSet::Remove(RadarBuggedTrackDynamicReticle& reticle)
+{
+    mfd::client::GeneratedDynamicReticleSet::Remove(reticle);
+}
+
+std::unique_ptr<mfd::client::DynamicReticle> RadarBuggedTrackDynamicReticleSet::CreateReticle(std::string_view reticleId)
+{
+    auto reticle = std::make_unique<RadarBuggedTrackDynamicReticle>(reticleId);
+    return std::unique_ptr<mfd::client::DynamicReticle>(reticle.release());
+}
+
+RadarRwsTrackDynamicReticle::RadarRwsTrackDynamicReticle(std::string_view reticleId) :
+    mfd::client::DynamicReticle(reticleId, mfd::client::ReticleBaseline {true, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""}),
+    trackAltitude_(MutableDesiredPatch(), DirtyFlag(), "track_altitude", 11615703653661148188U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.048f, -0.034f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "20", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f})
+{
+}
+
+void RadarRwsTrackDynamicReticle::SetValue(std::string value)
+{
+    TrackAltitude().SetText(std::move(value));
+}
+
+std::string_view RadarRwsTrackDynamicReticle::GetValue() const noexcept
+{
+    return trackAltitude_.GetText();
+}
+
+TextHandle& RadarRwsTrackDynamicReticle::TrackAltitude() noexcept
+{
+    return trackAltitude_;
+}
+
+RadarRwsTrackDynamicReticleSet::RadarRwsTrackDynamicReticleSet(std::string_view pageName, const mfd::TransportId pageTransportId, RuntimeFeedbackState* feedbackState) :
+    mfd::client::GeneratedDynamicReticleSet(pageName, "radar_rws_track", pageTransportId, 4980929863269460966U, feedbackState)
+{
+}
+
+RadarRwsTrackDynamicReticle& RadarRwsTrackDynamicReticleSet::Create()
+{
+    return static_cast<RadarRwsTrackDynamicReticle&>(mfd::client::GeneratedDynamicReticleSet::Create());
+}
+
+void RadarRwsTrackDynamicReticleSet::Remove(RadarRwsTrackDynamicReticle& reticle)
+{
+    mfd::client::GeneratedDynamicReticleSet::Remove(reticle);
+}
+
+std::unique_ptr<mfd::client::DynamicReticle> RadarRwsTrackDynamicReticleSet::CreateReticle(std::string_view reticleId)
+{
+    auto reticle = std::make_unique<RadarRwsTrackDynamicReticle>(reticleId);
+    return std::unique_ptr<mfd::client::DynamicReticle>(reticle.release());
+}
+
+RadarSttTrackDynamicReticle::RadarSttTrackDynamicReticle(std::string_view reticleId) :
+    mfd::client::DynamicReticle(reticleId, mfd::client::ReticleBaseline {true, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""}),
+    trackAltitude_(MutableDesiredPatch(), DirtyFlag(), "track_altitude", 2527027689229591327U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.09f, -0.038f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "20", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f})
+{
+}
+
+void RadarSttTrackDynamicReticle::SetValue(std::string value)
+{
+    TrackAltitude().SetText(std::move(value));
+}
+
+std::string_view RadarSttTrackDynamicReticle::GetValue() const noexcept
+{
+    return trackAltitude_.GetText();
+}
+
+TextHandle& RadarSttTrackDynamicReticle::TrackAltitude() noexcept
+{
+    return trackAltitude_;
+}
+
+RadarSttTrackDynamicReticleSet::RadarSttTrackDynamicReticleSet(std::string_view pageName, const mfd::TransportId pageTransportId, RuntimeFeedbackState* feedbackState) :
+    mfd::client::GeneratedDynamicReticleSet(pageName, "radar_stt_track", pageTransportId, 14609474351681918445U, feedbackState)
+{
+}
+
+RadarSttTrackDynamicReticle& RadarSttTrackDynamicReticleSet::Create()
+{
+    return static_cast<RadarSttTrackDynamicReticle&>(mfd::client::GeneratedDynamicReticleSet::Create());
+}
+
+void RadarSttTrackDynamicReticleSet::Remove(RadarSttTrackDynamicReticle& reticle)
+{
+    mfd::client::GeneratedDynamicReticleSet::Remove(reticle);
+}
+
+std::unique_ptr<mfd::client::DynamicReticle> RadarSttTrackDynamicReticleSet::CreateReticle(std::string_view reticleId)
+{
+    auto reticle = std::make_unique<RadarSttTrackDynamicReticle>(reticleId);
+    return std::unique_ptr<mfd::client::DynamicReticle>(reticle.release());
+}
+
+RadarTwsTrackDynamicReticle::RadarTwsTrackDynamicReticle(std::string_view reticleId) :
+    mfd::client::DynamicReticle(reticleId, mfd::client::ReticleBaseline {true, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""}),
+    trackAltitude_(MutableDesiredPatch(), DirtyFlag(), "track_altitude", 5075757522601661682U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.05f, -0.035f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "20", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f})
+{
+}
+
+void RadarTwsTrackDynamicReticle::SetValue(std::string value)
+{
+    TrackAltitude().SetText(std::move(value));
+}
+
+std::string_view RadarTwsTrackDynamicReticle::GetValue() const noexcept
+{
+    return trackAltitude_.GetText();
+}
+
+TextHandle& RadarTwsTrackDynamicReticle::TrackAltitude() noexcept
+{
+    return trackAltitude_;
+}
+
+RadarTwsTrackDynamicReticleSet::RadarTwsTrackDynamicReticleSet(std::string_view pageName, const mfd::TransportId pageTransportId, RuntimeFeedbackState* feedbackState) :
+    mfd::client::GeneratedDynamicReticleSet(pageName, "radar_tws_track", pageTransportId, 18421232895075446592U, feedbackState)
+{
+}
+
+RadarTwsTrackDynamicReticle& RadarTwsTrackDynamicReticleSet::Create()
+{
+    return static_cast<RadarTwsTrackDynamicReticle&>(mfd::client::GeneratedDynamicReticleSet::Create());
+}
+
+void RadarTwsTrackDynamicReticleSet::Remove(RadarTwsTrackDynamicReticle& reticle)
+{
+    mfd::client::GeneratedDynamicReticleSet::Remove(reticle);
+}
+
+std::unique_ptr<mfd::client::DynamicReticle> RadarTwsTrackDynamicReticleSet::CreateReticle(std::string_view reticleId)
+{
+    auto reticle = std::make_unique<RadarTwsTrackDynamicReticle>(reticleId);
+    return std::unique_ptr<mfd::client::DynamicReticle>(reticle.release());
+}
+
 RadarRadarBscopeFrameReticle::RadarRadarBscopeFrameReticle() :
     mfd::client::Reticle("Radar", "radar_bscope_frame", 9637022363458486384U, 3500597299456941462U, mfd::client::ReticleBaseline {true, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""})
 {
 }
 
+RadarRadarHorizonReticle::RadarRadarHorizonReticle() :
+    mfd::client::Reticle("Radar", "radar_horizon", 9637022363458486384U, 16976283202409906468U, mfd::client::ReticleBaseline {true, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""})
+{
+}
+
 RadarRadarScaleReticle::RadarRadarScaleReticle() :
     mfd::client::Reticle("Radar", "radar_scale", 9637022363458486384U, 10873039906535990210U, mfd::client::ReticleBaseline {true, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""}),
-    rangeTop_(MutableDesiredPatch(), DirtyFlag(), "range_top", 9672775536434477013U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.665f, 0.7f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "40", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
-    rangeMid_(MutableDesiredPatch(), DirtyFlag(), "range_mid", 3547530838288159762U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.665f, 0.02f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "20", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
-    bars_(MutableDesiredPatch(), DirtyFlag(), "bars", 5415352705471202640U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {-0.66f, 0.58f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "4B", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
-    scan_(MutableDesiredPatch(), DirtyFlag(), "scan", 1428794935483242118U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {-0.66f, 0.5f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "A60", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
-    prf_(MutableDesiredPatch(), DirtyFlag(), "prf", 10638476267567207591U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {-0.66f, -0.6f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "HI", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
-    bull_(MutableDesiredPatch(), DirtyFlag(), "bull", 14600220755514577646U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.665f, -0.68f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "BE 250/42", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f})
+    rangeTop_(MutableDesiredPatch(), DirtyFlag(), "range_top", 9672775536434477013U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.665f, 0.685f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "40", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    rangeMid_(MutableDesiredPatch(), DirtyFlag(), "range_mid", 3547530838288159762U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.665f, 0.015f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "20", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    bars_(MutableDesiredPatch(), DirtyFlag(), "bars", 5415352705471202640U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {-0.665f, 0.555f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "4B", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    scan_(MutableDesiredPatch(), DirtyFlag(), "scan", 1428794935483242118U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {-0.665f, 0.485f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "A6", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    prf_(MutableDesiredPatch(), DirtyFlag(), "prf", 10638476267567207591U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {-0.665f, -0.575f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "M+", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    iff_(MutableDesiredPatch(), DirtyFlag(), "iff", 3115844587682499782U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {-0.665f, -0.645f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "M4", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    bull_(MutableDesiredPatch(), DirtyFlag(), "bull", 14600220755514577646U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {-0.665f, -0.705f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "250 42", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f})
 {
 }
 
@@ -56,9 +230,127 @@ TextHandle& RadarRadarScaleReticle::Prf() noexcept
     return prf_;
 }
 
+TextHandle& RadarRadarScaleReticle::Iff() noexcept
+{
+    return iff_;
+}
+
 TextHandle& RadarRadarScaleReticle::Bull() noexcept
 {
     return bull_;
+}
+
+RadarRadarPerimeterReticle::RadarRadarPerimeterReticle() :
+    mfd::client::Reticle("Radar", "radar_perimeter", 9637022363458486384U, 2152272498441853728U, mfd::client::ReticleBaseline {true, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""}),
+    dlMode_(MutableDesiredPatch(), DirtyFlag(), "dl_mode", 7414829950613817003U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {-0.67f, 0.35f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "DL", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    dlChannel_(MutableDesiredPatch(), DirtyFlag(), "dl_channel", 18046971010963950696U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {-0.67f, 0.29f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "12", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    expand_(MutableDesiredPatch(), DirtyFlag(), "expand", 9614902796697862752U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {-0.67f, -0.21f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "EXP", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    assign_(MutableDesiredPatch(), DirtyFlag(), "assign", 12589703756400990955U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.67f, 0.57f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "ASGN", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    missile_(MutableDesiredPatch(), DirtyFlag(), "missile", 5360585565207832366U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.67f, 0.5f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "A120", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    missileCount_(MutableDesiredPatch(), DirtyFlag(), "missile_count", 14560001940501512370U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.67f, 0.43f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "4", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    weaponOne_(MutableDesiredPatch(), DirtyFlag(), "weapon_one", 16230964011504551550U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.74f, 0.33f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "1", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    weaponTwo_(MutableDesiredPatch(), DirtyFlag(), "weapon_two", 6482220349185904931U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.74f, 0.13f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "2", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    weaponThree_(MutableDesiredPatch(), DirtyFlag(), "weapon_three", 7511465407144912703U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.74f, -0.07f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "3", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    weaponFour_(MutableDesiredPatch(), DirtyFlag(), "weapon_four", 12426387163576326751U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.74f, -0.27f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "4", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    swap_(MutableDesiredPatch(), DirtyFlag(), "swap", 7731207422170846306U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {-0.5f, -0.82f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "SWAP", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    fcr_(MutableDesiredPatch(), DirtyFlag(), "fcr", 9532018708799179353U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {-0.25f, -0.82f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "FCR", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    sensor_(MutableDesiredPatch(), DirtyFlag(), "sensor", 10464667483678869688U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.0f, -0.82f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "T", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    test_(MutableDesiredPatch(), DirtyFlag(), "test", 12077256177276748246U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.25f, -0.82f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "TEST", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    declutter_(MutableDesiredPatch(), DirtyFlag(), "declutter", 6528144286134817467U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.5f, -0.82f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "DCLT", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    lowerRightMode_(MutableDesiredPatch(), DirtyFlag(), "lower_right_mode", 553275837184965370U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.67f, -0.56f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "TGT", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    lowerRightScan_(MutableDesiredPatch(), DirtyFlag(), "lower_right_scan", 3152319377756736860U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.67f, -0.63f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "AUTO", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    lowerRightDeclutter_(MutableDesiredPatch(), DirtyFlag(), "lower_right_declutter", 14898900308770528925U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.67f, -0.7f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "DCLT", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f})
+{
+}
+
+TextHandle& RadarRadarPerimeterReticle::DlMode() noexcept
+{
+    return dlMode_;
+}
+
+TextHandle& RadarRadarPerimeterReticle::DlChannel() noexcept
+{
+    return dlChannel_;
+}
+
+TextHandle& RadarRadarPerimeterReticle::Expand() noexcept
+{
+    return expand_;
+}
+
+TextHandle& RadarRadarPerimeterReticle::Assign() noexcept
+{
+    return assign_;
+}
+
+TextHandle& RadarRadarPerimeterReticle::Missile() noexcept
+{
+    return missile_;
+}
+
+TextHandle& RadarRadarPerimeterReticle::MissileCount() noexcept
+{
+    return missileCount_;
+}
+
+TextHandle& RadarRadarPerimeterReticle::WeaponOne() noexcept
+{
+    return weaponOne_;
+}
+
+TextHandle& RadarRadarPerimeterReticle::WeaponTwo() noexcept
+{
+    return weaponTwo_;
+}
+
+TextHandle& RadarRadarPerimeterReticle::WeaponThree() noexcept
+{
+    return weaponThree_;
+}
+
+TextHandle& RadarRadarPerimeterReticle::WeaponFour() noexcept
+{
+    return weaponFour_;
+}
+
+TextHandle& RadarRadarPerimeterReticle::Swap() noexcept
+{
+    return swap_;
+}
+
+TextHandle& RadarRadarPerimeterReticle::Fcr() noexcept
+{
+    return fcr_;
+}
+
+TextHandle& RadarRadarPerimeterReticle::Sensor() noexcept
+{
+    return sensor_;
+}
+
+TextHandle& RadarRadarPerimeterReticle::Test() noexcept
+{
+    return test_;
+}
+
+TextHandle& RadarRadarPerimeterReticle::Declutter() noexcept
+{
+    return declutter_;
+}
+
+TextHandle& RadarRadarPerimeterReticle::LowerRightMode() noexcept
+{
+    return lowerRightMode_;
+}
+
+TextHandle& RadarRadarPerimeterReticle::LowerRightScan() noexcept
+{
+    return lowerRightScan_;
+}
+
+TextHandle& RadarRadarPerimeterReticle::LowerRightDeclutter() noexcept
+{
+    return lowerRightDeclutter_;
 }
 
 RadarRadarElevationCaretReticle::RadarRadarElevationCaretReticle() :
@@ -77,78 +369,30 @@ LineHandle& RadarRadarScanLineReticle::Sweep() noexcept
     return sweep_;
 }
 
-RadarContact01Reticle::RadarContact01Reticle() :
-    mfd::client::Reticle("Radar", "contact_01", 9637022363458486384U, 9085931033594965621U, mfd::client::ReticleBaseline {false, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""})
+RadarRadarCursorDataReticle::RadarRadarCursorDataReticle() :
+    mfd::client::Reticle("Radar", "radar_cursor_data", 9637022363458486384U, 9978657914971030877U, mfd::client::ReticleBaseline {true, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""}),
+    maximumAltitude_(MutableDesiredPatch(), DirtyFlag(), "maximum_altitude", 1966305340636263646U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.105f, 0.06f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "25", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    minimumAltitude_(MutableDesiredPatch(), DirtyFlag(), "minimum_altitude", 17349616675046908166U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.105f, -0.068f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "18", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f})
 {
 }
 
-RadarContact02Reticle::RadarContact02Reticle() :
-    mfd::client::Reticle("Radar", "contact_02", 9637022363458486384U, 10356154936319957853U, mfd::client::ReticleBaseline {false, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""})
+TextHandle& RadarRadarCursorDataReticle::MaximumAltitude() noexcept
 {
+    return maximumAltitude_;
 }
 
-RadarContact03Reticle::RadarContact03Reticle() :
-    mfd::client::Reticle("Radar", "contact_03", 9637022363458486384U, 5383231330859149623U, mfd::client::ReticleBaseline {false, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""})
+TextHandle& RadarRadarCursorDataReticle::MinimumAltitude() noexcept
 {
-}
-
-RadarContact04Reticle::RadarContact04Reticle() :
-    mfd::client::Reticle("Radar", "contact_04", 9637022363458486384U, 13342688759934410237U, mfd::client::ReticleBaseline {false, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""})
-{
-}
-
-RadarContact05Reticle::RadarContact05Reticle() :
-    mfd::client::Reticle("Radar", "contact_05", 9637022363458486384U, 9927653876851739677U, mfd::client::ReticleBaseline {false, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""})
-{
-}
-
-RadarContact06Reticle::RadarContact06Reticle() :
-    mfd::client::Reticle("Radar", "contact_06", 9637022363458486384U, 16932608227915268409U, mfd::client::ReticleBaseline {false, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""})
-{
-}
-
-RadarContact07Reticle::RadarContact07Reticle() :
-    mfd::client::Reticle("Radar", "contact_07", 9637022363458486384U, 17949234781045604367U, mfd::client::ReticleBaseline {false, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""})
-{
-}
-
-RadarContact08Reticle::RadarContact08Reticle() :
-    mfd::client::Reticle("Radar", "contact_08", 9637022363458486384U, 13044546668574874783U, mfd::client::ReticleBaseline {false, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""})
-{
-}
-
-RadarContact09Reticle::RadarContact09Reticle() :
-    mfd::client::Reticle("Radar", "contact_09", 9637022363458486384U, 8527551583820943095U, mfd::client::ReticleBaseline {false, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""})
-{
-}
-
-RadarContact10Reticle::RadarContact10Reticle() :
-    mfd::client::Reticle("Radar", "contact_10", 9637022363458486384U, 13415773420186990900U, mfd::client::ReticleBaseline {false, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""})
-{
-}
-
-RadarContact11Reticle::RadarContact11Reticle() :
-    mfd::client::Reticle("Radar", "contact_11", 9637022363458486384U, 2530427218959995615U, mfd::client::ReticleBaseline {false, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""})
-{
-}
-
-RadarContact12Reticle::RadarContact12Reticle() :
-    mfd::client::Reticle("Radar", "contact_12", 9637022363458486384U, 6117628619303221452U, mfd::client::ReticleBaseline {false, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""})
-{
-}
-
-RadarRadarBuggedTargetReticle::RadarRadarBuggedTargetReticle() :
-    mfd::client::Reticle("Radar", "radar_bugged_target", 9637022363458486384U, 1712911784726496237U, mfd::client::ReticleBaseline {false, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""})
-{
+    return minimumAltitude_;
 }
 
 RadarRadarDatablockReticle::RadarRadarDatablockReticle() :
     mfd::client::Reticle("Radar", "radar_datablock", 9637022363458486384U, 7943573145641400727U, mfd::client::ReticleBaseline {false, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""}),
-    tgtAltValue_(MutableDesiredPatch(), DirtyFlag(), "tgt_alt_value", 10239663155942804586U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.4f, 0.62f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "15", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
-    tgtAspectValue_(MutableDesiredPatch(), DirtyFlag(), "tgt_aspect_value", 11178778372744812545U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.4f, 0.55f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "R 30", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
-    tgtClosureValue_(MutableDesiredPatch(), DirtyFlag(), "tgt_closure_value", 2663713194770507325U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.4f, 0.48f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "C 480", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
-    tgtHdgValue_(MutableDesiredPatch(), DirtyFlag(), "tgt_hdg_value", 6427579040954066794U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.4f, 0.41f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "090", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
-    tgtGsValue_(MutableDesiredPatch(), DirtyFlag(), "tgt_gs_value", 3997375332142002268U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.4f, 0.34f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "420", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f})
+    tgtAltValue_(MutableDesiredPatch(), DirtyFlag(), "tgt_alt_value", 10239663155942804586U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {-0.61f, 0.755f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "20", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    tgtAspectValue_(MutableDesiredPatch(), DirtyFlag(), "tgt_aspect_value", 11178778372744812545U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {-0.36f, 0.755f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "R 30", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    tgtClosureValue_(MutableDesiredPatch(), DirtyFlag(), "tgt_closure_value", 2663713194770507325U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.0f, 0.755f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "+450", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    tgtHdgValue_(MutableDesiredPatch(), DirtyFlag(), "tgt_hdg_value", 6427579040954066794U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.34f, 0.755f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "090", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f}),
+    tgtGsValue_(MutableDesiredPatch(), DirtyFlag(), "tgt_gs_value", 3997375332142002268U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.61f, 0.755f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "+420", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f})
 {
 }
 
@@ -187,14 +431,9 @@ TextHandle& RadarRadarDatablockReticle::TgtGsValue() noexcept
     return tgtGsValue_;
 }
 
-RadarRadarCursorReticle::RadarRadarCursorReticle() :
-    mfd::client::Reticle("Radar", "radar_cursor", 9637022363458486384U, 5317400876400328359U, mfd::client::ReticleBaseline {true, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""})
-{
-}
-
 RadarRadarStatusReticle::RadarRadarStatusReticle() :
-    mfd::client::Reticle("Radar", "radar_status", 9637022363458486384U, 4044906131749056143U, mfd::client::ReticleBaseline {true, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""}),
-    statusText_(MutableDesiredPatch(), DirtyFlag(), "status_text", 14260332756364011828U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {-0.66f, 0.68f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "RWS", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f})
+    mfd::client::Reticle("Radar", "radar_status", 9637022363458486384U, 4044906131749056143U, mfd::client::ReticleBaseline {false, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""}),
+    statusText_(MutableDesiredPatch(), DirtyFlag(), "status_text", 14260332756364011828U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {-0.3f, 0.905f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "RWS", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f})
 {
 }
 
@@ -211,6 +450,27 @@ std::string_view RadarRadarStatusReticle::GetValue() const noexcept
 TextHandle& RadarRadarStatusReticle::StatusText() noexcept
 {
     return statusText_;
+}
+
+RadarRadarMessageReticle::RadarRadarMessageReticle() :
+    mfd::client::Reticle("Radar", "radar_message", 9637022363458486384U, 7172646644961225399U, mfd::client::ReticleBaseline {false, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""}),
+    message_(MutableDesiredPatch(), DirtyFlag(), "message", 7706822362747384860U, PrimitiveTransportIds(), mfd::client::PrimitiveBaseline {true, mfd::Vec2 {0.0f, 0.02f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, "FCR OFF", mfd::Vec2 {-0.0208f, 0.0f}, mfd::Vec2 {0.0208f, 0.0f}, 0.0208f, 0.0167f, 0.0208f, 0.0417f, 0.0208f, std::vector<mfd::Vec2> {}, false, 32, 0.0f, 180.0f})
+{
+}
+
+void RadarRadarMessageReticle::SetValue(std::string value)
+{
+    Message().SetText(std::move(value));
+}
+
+std::string_view RadarRadarMessageReticle::GetValue() const noexcept
+{
+    return message_.GetText();
+}
+
+TextHandle& RadarRadarMessageReticle::Message() noexcept
+{
+    return message_;
 }
 
 RadarOsbLegendsReticle::RadarOsbLegendsReticle() :
@@ -338,30 +598,30 @@ TextHandle& RadarOsbLegendsReticle::Osb20() noexcept
     return osb20_;
 }
 
+RadarAcquisitionStrobeReticle::RadarAcquisitionStrobeReticle() :
+    mfd::client::Reticle("Radar", "radar_acquisition_cursor", 9637022363458486384U, 10330388686924625043U, mfd::client::ReticleBaseline {true, mfd::Vec2 {0.0f, 0.0f}, 0.0f, mfd::Vec2 {1.0f, 1.0f}, ""})
+{
+}
+
 RadarMockupPage::RadarMockupPage(RuntimeFeedbackState* feedbackState) :
     feedbackState_(feedbackState),
-    strobe(Name(), StrobeInfo {}, 9637022363458486384U),
+    strobe(Name(), {acquisitionStrobe}, 9637022363458486384U),
+    acquisitionReticle(),
     radarBscopeFrame(),
+    radarHorizon(),
     radarScale(),
+    radarPerimeter(),
     radarElevationCaret(),
     radarScanLine(),
-    contact01(),
-    contact02(),
-    contact03(),
-    contact04(),
-    contact05(),
-    contact06(),
-    contact07(),
-    contact08(),
-    contact09(),
-    contact10(),
-    contact11(),
-    contact12(),
-    radarBuggedTarget(),
+    radarCursorData(),
     radarDatablock(),
-    radarCursor(),
     radarStatus(),
-    osbLegends()
+    radarMessage(),
+    osbLegends(),
+    dynamicRadarRwsTrack_(Name(), 9637022363458486384U, feedbackState),
+    dynamicRadarTwsTrack_(Name(), 9637022363458486384U, feedbackState),
+    dynamicRadarBuggedTrack_(Name(), 9637022363458486384U, feedbackState),
+    dynamicRadarSttTrack_(Name(), 9637022363458486384U, feedbackState)
 {
 }
 
@@ -373,53 +633,43 @@ bool RadarMockupPage::IsActive() const noexcept
 void RadarMockupPage::Run() noexcept
 {
     strobe.ClearDirty();
+    acquisitionReticle.ClearDirty();
     radarBscopeFrame.ClearDirty();
+    radarHorizon.ClearDirty();
     radarScale.ClearDirty();
+    radarPerimeter.ClearDirty();
     radarElevationCaret.ClearDirty();
     radarScanLine.ClearDirty();
-    contact01.ClearDirty();
-    contact02.ClearDirty();
-    contact03.ClearDirty();
-    contact04.ClearDirty();
-    contact05.ClearDirty();
-    contact06.ClearDirty();
-    contact07.ClearDirty();
-    contact08.ClearDirty();
-    contact09.ClearDirty();
-    contact10.ClearDirty();
-    contact11.ClearDirty();
-    contact12.ClearDirty();
-    radarBuggedTarget.ClearDirty();
+    radarCursorData.ClearDirty();
     radarDatablock.ClearDirty();
-    radarCursor.ClearDirty();
     radarStatus.ClearDirty();
+    radarMessage.ClearDirty();
     osbLegends.ClearDirty();
+    dynamicRadarRwsTrack_.ClearDirty();
+    dynamicRadarTwsTrack_.ClearDirty();
+    dynamicRadarBuggedTrack_.ClearDirty();
+    dynamicRadarSttTrack_.ClearDirty();
 }
 
 void RadarMockupPage::Initialize() noexcept
 {
     strobe.ResetToAuthored();
+    acquisitionReticle.ResetToAuthored();
     radarBscopeFrame.ResetToAuthored();
+    radarHorizon.ResetToAuthored();
     radarScale.ResetToAuthored();
+    radarPerimeter.ResetToAuthored();
     radarElevationCaret.ResetToAuthored();
     radarScanLine.ResetToAuthored();
-    contact01.ResetToAuthored();
-    contact02.ResetToAuthored();
-    contact03.ResetToAuthored();
-    contact04.ResetToAuthored();
-    contact05.ResetToAuthored();
-    contact06.ResetToAuthored();
-    contact07.ResetToAuthored();
-    contact08.ResetToAuthored();
-    contact09.ResetToAuthored();
-    contact10.ResetToAuthored();
-    contact11.ResetToAuthored();
-    contact12.ResetToAuthored();
-    radarBuggedTarget.ResetToAuthored();
+    radarCursorData.ResetToAuthored();
     radarDatablock.ResetToAuthored();
-    radarCursor.ResetToAuthored();
     radarStatus.ResetToAuthored();
+    radarMessage.ResetToAuthored();
     osbLegends.ResetToAuthored();
+    dynamicRadarRwsTrack_.ResetToAuthored();
+    dynamicRadarTwsTrack_.ResetToAuthored();
+    dynamicRadarBuggedTrack_.ResetToAuthored();
+    dynamicRadarSttTrack_.ResetToAuthored();
 }
 
 std::size_t RadarMockupPage::AppendCommands(std::vector<mfd::UserCommand>& commands)
@@ -427,27 +677,25 @@ std::size_t RadarMockupPage::AppendCommands(std::vector<mfd::UserCommand>& comma
     std::size_t count = 0;
 
     count += strobe.AppendCommands(commands) ? 1U : 0U;
+    if (strobe.IsSelected(acquisitionStrobe))
+    {
+        count += acquisitionReticle.AppendCommands(commands) ? 1U : 0U;
+    }
     count += radarBscopeFrame.AppendCommands(commands) ? 1U : 0U;
+    count += radarHorizon.AppendCommands(commands) ? 1U : 0U;
     count += radarScale.AppendCommands(commands) ? 1U : 0U;
+    count += radarPerimeter.AppendCommands(commands) ? 1U : 0U;
     count += radarElevationCaret.AppendCommands(commands) ? 1U : 0U;
     count += radarScanLine.AppendCommands(commands) ? 1U : 0U;
-    count += contact01.AppendCommands(commands) ? 1U : 0U;
-    count += contact02.AppendCommands(commands) ? 1U : 0U;
-    count += contact03.AppendCommands(commands) ? 1U : 0U;
-    count += contact04.AppendCommands(commands) ? 1U : 0U;
-    count += contact05.AppendCommands(commands) ? 1U : 0U;
-    count += contact06.AppendCommands(commands) ? 1U : 0U;
-    count += contact07.AppendCommands(commands) ? 1U : 0U;
-    count += contact08.AppendCommands(commands) ? 1U : 0U;
-    count += contact09.AppendCommands(commands) ? 1U : 0U;
-    count += contact10.AppendCommands(commands) ? 1U : 0U;
-    count += contact11.AppendCommands(commands) ? 1U : 0U;
-    count += contact12.AppendCommands(commands) ? 1U : 0U;
-    count += radarBuggedTarget.AppendCommands(commands) ? 1U : 0U;
+    count += radarCursorData.AppendCommands(commands) ? 1U : 0U;
     count += radarDatablock.AppendCommands(commands) ? 1U : 0U;
-    count += radarCursor.AppendCommands(commands) ? 1U : 0U;
     count += radarStatus.AppendCommands(commands) ? 1U : 0U;
+    count += radarMessage.AppendCommands(commands) ? 1U : 0U;
     count += osbLegends.AppendCommands(commands) ? 1U : 0U;
+    count += dynamicRadarRwsTrack_.AppendCommands(commands);
+    count += dynamicRadarTwsTrack_.AppendCommands(commands);
+    count += dynamicRadarBuggedTrack_.AppendCommands(commands);
+    count += dynamicRadarSttTrack_.AppendCommands(commands);
 
     return count;
 }
@@ -459,6 +707,10 @@ std::size_t RadarMockupPage::AppendShutdownCommands(std::vector<mfd::UserCommand
     SetStatusCaption(std::move(statusText));
     count += AppendCommands(commands);
 
+    count += dynamicRadarRwsTrack_.AppendRemovalCommands(commands);
+    count += dynamicRadarTwsTrack_.AppendRemovalCommands(commands);
+    count += dynamicRadarBuggedTrack_.AppendRemovalCommands(commands);
+    count += dynamicRadarSttTrack_.AppendRemovalCommands(commands);
 
     return count;
 }
@@ -466,6 +718,26 @@ std::size_t RadarMockupPage::AppendShutdownCommands(std::vector<mfd::UserCommand
 void RadarMockupPage::SetStatusCaption(std::string value)
 {
     radarStatus.StatusText().SetText(std::move(value));
+}
+
+RadarRwsTrackDynamicReticleSet& RadarMockupPage::DynamicRadarRwsTrack() noexcept
+{
+    return dynamicRadarRwsTrack_;
+}
+
+RadarTwsTrackDynamicReticleSet& RadarMockupPage::DynamicRadarTwsTrack() noexcept
+{
+    return dynamicRadarTwsTrack_;
+}
+
+RadarBuggedTrackDynamicReticleSet& RadarMockupPage::DynamicRadarBuggedTrack() noexcept
+{
+    return dynamicRadarBuggedTrack_;
+}
+
+RadarSttTrackDynamicReticleSet& RadarMockupPage::DynamicRadarSttTrack() noexcept
+{
+    return dynamicRadarSttTrack_;
 }
 
 SmsSmsStationsReticle::SmsSmsStationsReticle() :
@@ -2027,7 +2299,7 @@ bool LhldUi::SendStartup(mfd::CommandClient& client,
 
     mfd::CommandBatch batch;
     batch.sequence = 0;
-    batch.mappingHash = "eecaf4e5342e10ecabbdfc2033d386f1a5882f3c64ed52c749e0099ad574ad68";
+    batch.mappingHash = "7368761abc6c6561bb0c37bb454ca355c7f3375013f588f8e7c13d848cf6b058";
     batch.commands = std::move(commands);
     return client.SendBatch(batch);
 }
@@ -2112,7 +2384,7 @@ mfd::CommandBatch LhldUi::BuildCommandBatch(const std::uint32_t sequence)
 {
     mfd::CommandBatch batch;
     batch.sequence = sequence;
-    batch.mappingHash = "eecaf4e5342e10ecabbdfc2033d386f1a5882f3c64ed52c749e0099ad574ad68";
+    batch.mappingHash = "7368761abc6c6561bb0c37bb454ca355c7f3375013f588f8e7c13d848cf6b058";
     batch.commands = BuildBatch();
     return batch;
 }
@@ -2121,7 +2393,7 @@ mfd::CommandBatch LhldUi::BuildResetCommandBatch(const std::uint32_t sequence)
 {
     mfd::CommandBatch batch;
     batch.sequence = sequence;
-    batch.mappingHash = "eecaf4e5342e10ecabbdfc2033d386f1a5882f3c64ed52c749e0099ad574ad68";
+    batch.mappingHash = "7368761abc6c6561bb0c37bb454ca355c7f3375013f588f8e7c13d848cf6b058";
     batch.commands = BuildResetBatch();
     return batch;
 }
@@ -2161,7 +2433,7 @@ mfd::CommandBatch LhldUi::BuildShutdownCommandBatch(const std::uint32_t sequence
 {
     mfd::CommandBatch batch;
     batch.sequence = sequence;
-    batch.mappingHash = "eecaf4e5342e10ecabbdfc2033d386f1a5882f3c64ed52c749e0099ad574ad68";
+    batch.mappingHash = "7368761abc6c6561bb0c37bb454ca355c7f3375013f588f8e7c13d848cf6b058";
     batch.commands = BuildShutdownBatch(std::move(statusText));
     return batch;
 }

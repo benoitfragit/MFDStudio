@@ -165,17 +165,15 @@ const char* OsbActionTooltip(const MfdPage page, const int osbOneBased) noexcept
     case MfdPage::Radar:
         switch (osbOneBased)
         {
-        case 1:
-            return "Select range-while-search radar mode.";
         case 2:
-            return "Select track-while-scan radar mode.";
-        case 4:
-            return "Cycle radar bar scan count.";
+            return "Toggle range-while-search and track-while-scan radar modes.";
         case 6:
             return "Cycle radar range scale.";
-        case 7:
+        case 17:
             return "Toggle radar azimuth scan width.";
-        case 8:
+        case 18:
+            return "Cycle radar bar scan count.";
+        case 19:
             return "Toggle radar pulse-repetition frequency.";
         default:
             return "No action assigned to this radar OSB.";
@@ -510,6 +508,7 @@ bool MfdApplication::Connect(const MfdConfig& config, std::string& error)
     feedbackReceiver_ = mfd::CreateFeedbackReceiverChannel(config.feedbackTransport);
     livenessMonitor_.Reset();
     ui_.Initialize();
+    controller_.Initialize(ui_);
     if (!ui_.SendStartup(*startupClient_, config.pageView, "LHLD DEMO | READY"))
     {
         error = startupClient_->LastError();
@@ -527,6 +526,71 @@ void MfdApplication::ApplyControlsToInputSource() noexcept
     inputSource_->SetMasterMode(masterMode_);
     inputSource_->SetStores(stores_);
     inputSource_->SetNavState(navControls_);
+}
+
+void MfdApplication::SelectRadarSearchSubmode(const RadarSubmode submode) noexcept
+{
+    if (submode != RadarSubmode::Rws && submode != RadarSubmode::Tws)
+    {
+        return;
+    }
+    radarReturnSubmode_ = submode;
+    radarControls_.submode = submode;
+}
+
+void MfdApplication::BugCapturedRadarTrack()
+{
+    if (radarControls_.operatingState != RadarOperatingState::Operating)
+    {
+        SetStatus("The FCR must be operating before a track can be bugged.", true);
+        return;
+    }
+
+    const int capturedTrack = controller_.CapturedTrackIndex();
+    if (capturedTrack < 0)
+    {
+        SetStatus("No radar track is captured by the acquisition cursor.", true);
+        return;
+    }
+
+    if (radarControls_.submode == RadarSubmode::Stt)
+    {
+        radarControls_.submode = radarReturnSubmode_;
+    }
+    radarControls_.buggedTrack = capturedTrack;
+    SetStatus("Radar track bugged from runtime strobe capture.", false);
+}
+
+void MfdApplication::EnterSingleTargetTrack()
+{
+    if (radarControls_.buggedTrack < 0)
+    {
+        SetStatus("Bug a captured radar track before selecting STT.", true);
+        return;
+    }
+    if (radarControls_.operatingState != RadarOperatingState::Operating)
+    {
+        SetStatus("The FCR must be operating before entering STT.", true);
+        return;
+    }
+
+    if (radarControls_.submode != RadarSubmode::Stt)
+    {
+        radarReturnSubmode_ = radarControls_.submode;
+    }
+    radarControls_.submode = RadarSubmode::Stt;
+    SetStatus("Single-target track selected.", false);
+}
+
+void MfdApplication::ClearRadarBug() noexcept
+{
+    radarControls_.buggedTrack = -1;
+    radarControls_.submode = radarReturnSubmode_;
+}
+
+void MfdApplication::SetRadarOperatingState(const RadarOperatingState state) noexcept
+{
+    radarControls_.operatingState = state;
 }
 
 void MfdApplication::DrawFrame(const float deltaSeconds)
@@ -623,8 +687,8 @@ void MfdApplication::DrawMfdUnit(const float deltaSeconds)
             const ImVec2 mouse = ImGui::GetMousePos();
             const float fracX = std::clamp((mouse.x - imageTopLeft.x) / imageSide, 0.0f, 1.0f);
             const float fracY = std::clamp((mouse.y - imageTopLeft.y) / imageSide, 0.0f, 1.0f);
-            radarControls_.cursorAz = 2.0f * fracX - 1.0f;
-            radarControls_.cursorRange = 1.0f - fracY;
+            radarControls_.cursorPosition.x = 2.0f * fracX - 1.0f;
+            radarControls_.cursorPosition.y = 1.0f - 2.0f * fracY;
         }
     }
     else
@@ -740,24 +804,21 @@ void MfdApplication::HandleOsbPress(const int osbOneBased)
     case MfdPage::Radar:
         switch (osbOneBased)
         {
-        case 1:
-            radarControls_.submode = RadarSubmode::Rws;
-            radarControls_.buggedContact = -1;
-            break;
         case 2:
-            radarControls_.submode = RadarSubmode::Tws;
-            break;
-        case 4:
-            radarControls_.scanBars = radarControls_.scanBars >= 4 ? 1 : radarControls_.scanBars * 2;
+            SelectRadarSearchSubmode(
+                radarReturnSubmode_ == RadarSubmode::Rws ? RadarSubmode::Tws : RadarSubmode::Rws);
             break;
         case 6:
             radarControls_.rangeScaleNm =
                 radarControls_.rangeScaleNm >= 80.0f ? 10.0f : radarControls_.rangeScaleNm * 2.0f;
             break;
-        case 7:
+        case 17:
             radarControls_.azScanDeg = radarControls_.azScanDeg >= 60.0f ? 30.0f : 60.0f;
             break;
-        case 8:
+        case 18:
+            radarControls_.scanBars = radarControls_.scanBars >= 4 ? 1 : radarControls_.scanBars * 2;
+            break;
+        case 19:
             radarControls_.highPrf = !radarControls_.highPrf;
             break;
         default:
@@ -1103,44 +1164,50 @@ void MfdApplication::DrawControlPanel()
     {
         if (ModeButton("RWS", radarControls_.submode == RadarSubmode::Rws, ImVec2(80.0f, 30.0f), "Select range-while-search radar mode."))
         {
-            radarControls_.submode = RadarSubmode::Rws;
-            radarControls_.buggedContact = -1;
+            SelectRadarSearchSubmode(RadarSubmode::Rws);
         }
         ImGui::SameLine();
         if (ModeButton("TWS", radarControls_.submode == RadarSubmode::Tws, ImVec2(80.0f, 30.0f), "Select track-while-scan radar mode."))
         {
-            radarControls_.submode = RadarSubmode::Tws;
+            SelectRadarSearchSubmode(RadarSubmode::Tws);
         }
         ImGui::SameLine();
-        if (ModeButton("BUG", radarControls_.submode == RadarSubmode::Stt, ImVec2(80.0f, 30.0f), "Bug the contact nearest the acquisition cursor."))
+        if (ModeButton("BUG", radarControls_.buggedTrack >= 0, ImVec2(70.0f, 30.0f), "Bug the track captured by the acquisition cursor."))
         {
-            const int nearest = inputSource_->NearestContactToCursor();
-            if (nearest >= 0)
-            {
-                radarControls_.buggedContact = nearest;
-                radarControls_.submode = RadarSubmode::Stt;
-            }
-            else
-            {
-                SetStatus("No contact under the acquisition cursor.", true);
-            }
+            BugCapturedRadarTrack();
         }
         ImGui::SameLine();
-        if (PanelButton("UNBUG", ImVec2(80.0f, 30.0f), "Clear the bugged contact and return to search."))
+        if (ModeButton("STT", radarControls_.submode == RadarSubmode::Stt, ImVec2(70.0f, 30.0f), "Enter single-target track on the bugged track."))
         {
-            radarControls_.buggedContact = -1;
-            if (radarControls_.submode == RadarSubmode::Stt)
-            {
-                radarControls_.submode = RadarSubmode::Rws;
-            }
+            EnterSingleTargetTrack();
+        }
+        ImGui::SameLine();
+        if (PanelButton("UNBUG", ImVec2(80.0f, 30.0f), "Clear the bugged track and return to search."))
+        {
+            ClearRadarBug();
+        }
+
+        if (ModeButton("OPER", radarControls_.operatingState == RadarOperatingState::Operating, ImVec2(80.0f, 28.0f), "Power and radiate the FCR."))
+        {
+            SetRadarOperatingState(RadarOperatingState::Operating);
+        }
+        ImGui::SameLine();
+        if (ModeButton("SILENT", radarControls_.operatingState == RadarOperatingState::Silent, ImVec2(80.0f, 28.0f), "Keep the FCR powered without RF emission."))
+        {
+            SetRadarOperatingState(RadarOperatingState::Silent);
+        }
+        ImGui::SameLine();
+        if (ModeButton("OFF", radarControls_.operatingState == RadarOperatingState::Off, ImVec2(80.0f, 28.0f), "Remove FCR power."))
+        {
+            SetRadarOperatingState(RadarOperatingState::Off);
         }
 
         ImGui::SliderFloat("Antenna elevation", &radarControls_.antennaElevationDeg, -30.0f, 30.0f, "%.0f deg");
         ShowLastItemTooltip("Move the radar elevation volume up or down.");
-        ImGui::SliderFloat("Cursor azimuth", &radarControls_.cursorAz, -1.0f, 1.0f, "%.2f");
-        ShowLastItemTooltip("Move the acquisition cursor left or right.");
-        ImGui::SliderFloat("Cursor range", &radarControls_.cursorRange, 0.0f, 1.0f, "%.2f");
-        ShowLastItemTooltip("Move the acquisition cursor in range.");
+        ImGui::SliderFloat("Cursor X", &radarControls_.cursorPosition.x, -1.0f, 1.0f, "%.2f");
+        ShowLastItemTooltip("Move the acquisition cursor horizontally in normalized UI space.");
+        ImGui::SliderFloat("Cursor Y", &radarControls_.cursorPosition.y, -1.0f, 1.0f, "%.2f");
+        ShowLastItemTooltip("Move the acquisition cursor vertically in normalized UI space.");
         ImGui::Text("Range %.0f NM | %dB | A%.0f | %s",
                     radarControls_.rangeScaleNm,
                     radarControls_.scanBars,
@@ -1346,6 +1413,8 @@ void MfdApplication::ResetScene()
     activePage_ = MfdPage::Radar;
     inputs_ = inputSource_->Inputs();
     ui_.Initialize();
+    controller_.Initialize(ui_);
+    radarReturnSubmode_ = RadarSubmode::Rws;
     offscreenView_.SetActivePage(PageName(activePage_));
     SetStatus("Scene reset.", false);
 }

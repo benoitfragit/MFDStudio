@@ -43,10 +43,234 @@ using TextHandle = mfd::client::TextHandle;
 using TimeHandle = mfd::client::TimeHandle;
 using WindowDisplay = mfd::client::WindowDisplay;
 
+class RadarBuggedTrackDynamicReticle final : private mfd::client::DynamicReticle
+{
+public:
+    explicit RadarBuggedTrackDynamicReticle(std::string_view reticleId);
+    using mfd::client::DynamicReticle::Blink;
+    using mfd::client::DynamicReticle::ClearDirty;
+    using mfd::client::DynamicReticle::Id;
+    using mfd::client::DynamicReticle::IsAlive;
+    using mfd::client::DynamicReticle::IsStrobeCaptured;
+    using mfd::client::DynamicReticle::SetVisible;
+    using mfd::client::DynamicReticle::SetBlinkEnabled;
+    using mfd::client::DynamicReticle::SetBlink;
+    using mfd::client::DynamicReticle::SetBlinkType;
+    using mfd::client::DynamicReticle::ClearBlinkType;
+    using mfd::client::DynamicReticle::SetPosition;
+    using mfd::client::DynamicReticle::SetRotationDegrees;
+    using mfd::client::DynamicReticle::SetColor;
+    using mfd::client::DynamicReticle::SetThickness;
+    using mfd::client::DynamicReticle::GetVisible;
+    using mfd::client::DynamicReticle::GetPosition;
+    using mfd::client::DynamicReticle::GetRotationDegrees;
+    using mfd::client::DynamicReticle::GetScale;
+    using mfd::client::DynamicReticle::GetText;
+    void SetValue(std::string value);
+    std::string_view GetValue() const noexcept;
+    TextHandle& TrackAltitude() noexcept;
+
+private:
+    friend class RadarBuggedTrackDynamicReticleSet;
+    TextHandle trackAltitude_;
+};
+
+class RadarBuggedTrackDynamicReticleSet final : private mfd::client::GeneratedDynamicReticleSet
+{
+public:
+    explicit RadarBuggedTrackDynamicReticleSet(std::string_view pageName, mfd::TransportId pageTransportId = 0, RuntimeFeedbackState* feedbackState = nullptr);
+    using mfd::client::GeneratedDynamicReticleSet::AppendCommands;
+    using mfd::client::GeneratedDynamicReticleSet::AppendRemovalCommands;
+    using mfd::client::GeneratedDynamicReticleSet::ClearDirty;
+    using mfd::client::GeneratedDynamicReticleSet::ResetToAuthored;
+    using mfd::client::GeneratedDynamicReticleSet::SetStrobeMagnetEnabled;
+    using mfd::client::GeneratedDynamicReticleSet::SetVisible;
+    RadarBuggedTrackDynamicReticle& Create();
+    void Remove(RadarBuggedTrackDynamicReticle& reticle);
+
+protected:
+    std::unique_ptr<mfd::client::DynamicReticle> CreateReticle(std::string_view reticleId) override;
+};
+
+class RadarRwsTrackDynamicReticle final : private mfd::client::DynamicReticle
+{
+public:
+    explicit RadarRwsTrackDynamicReticle(std::string_view reticleId);
+    using mfd::client::DynamicReticle::Blink;
+    using mfd::client::DynamicReticle::ClearDirty;
+    using mfd::client::DynamicReticle::Id;
+    using mfd::client::DynamicReticle::IsAlive;
+    using mfd::client::DynamicReticle::IsStrobeCaptured;
+    using mfd::client::DynamicReticle::SetVisible;
+    using mfd::client::DynamicReticle::SetBlinkEnabled;
+    using mfd::client::DynamicReticle::SetBlink;
+    using mfd::client::DynamicReticle::SetBlinkType;
+    using mfd::client::DynamicReticle::ClearBlinkType;
+    using mfd::client::DynamicReticle::SetPosition;
+    using mfd::client::DynamicReticle::SetRotationDegrees;
+    using mfd::client::DynamicReticle::SetColor;
+    using mfd::client::DynamicReticle::SetThickness;
+    using mfd::client::DynamicReticle::GetVisible;
+    using mfd::client::DynamicReticle::GetPosition;
+    using mfd::client::DynamicReticle::GetRotationDegrees;
+    using mfd::client::DynamicReticle::GetScale;
+    using mfd::client::DynamicReticle::GetText;
+    void SetValue(std::string value);
+    std::string_view GetValue() const noexcept;
+    TextHandle& TrackAltitude() noexcept;
+
+private:
+    friend class RadarRwsTrackDynamicReticleSet;
+    TextHandle trackAltitude_;
+};
+
+class RadarRwsTrackDynamicReticleSet final : private mfd::client::GeneratedDynamicReticleSet
+{
+public:
+    explicit RadarRwsTrackDynamicReticleSet(std::string_view pageName, mfd::TransportId pageTransportId = 0, RuntimeFeedbackState* feedbackState = nullptr);
+    using mfd::client::GeneratedDynamicReticleSet::AppendCommands;
+    using mfd::client::GeneratedDynamicReticleSet::AppendRemovalCommands;
+    using mfd::client::GeneratedDynamicReticleSet::ClearDirty;
+    using mfd::client::GeneratedDynamicReticleSet::ResetToAuthored;
+    using mfd::client::GeneratedDynamicReticleSet::SetStrobeMagnetEnabled;
+    using mfd::client::GeneratedDynamicReticleSet::SetVisible;
+    RadarRwsTrackDynamicReticle& Create();
+    void Remove(RadarRwsTrackDynamicReticle& reticle);
+
+protected:
+    std::unique_ptr<mfd::client::DynamicReticle> CreateReticle(std::string_view reticleId) override;
+};
+
+class RadarSttTrackDynamicReticle final : private mfd::client::DynamicReticle
+{
+public:
+    explicit RadarSttTrackDynamicReticle(std::string_view reticleId);
+    using mfd::client::DynamicReticle::Blink;
+    using mfd::client::DynamicReticle::ClearDirty;
+    using mfd::client::DynamicReticle::Id;
+    using mfd::client::DynamicReticle::IsAlive;
+    using mfd::client::DynamicReticle::IsStrobeCaptured;
+    using mfd::client::DynamicReticle::SetVisible;
+    using mfd::client::DynamicReticle::SetBlinkEnabled;
+    using mfd::client::DynamicReticle::SetBlink;
+    using mfd::client::DynamicReticle::SetBlinkType;
+    using mfd::client::DynamicReticle::ClearBlinkType;
+    using mfd::client::DynamicReticle::SetPosition;
+    using mfd::client::DynamicReticle::SetRotationDegrees;
+    using mfd::client::DynamicReticle::SetColor;
+    using mfd::client::DynamicReticle::SetThickness;
+    using mfd::client::DynamicReticle::GetVisible;
+    using mfd::client::DynamicReticle::GetPosition;
+    using mfd::client::DynamicReticle::GetRotationDegrees;
+    using mfd::client::DynamicReticle::GetScale;
+    using mfd::client::DynamicReticle::GetText;
+    void SetValue(std::string value);
+    std::string_view GetValue() const noexcept;
+    TextHandle& TrackAltitude() noexcept;
+
+private:
+    friend class RadarSttTrackDynamicReticleSet;
+    TextHandle trackAltitude_;
+};
+
+class RadarSttTrackDynamicReticleSet final : private mfd::client::GeneratedDynamicReticleSet
+{
+public:
+    explicit RadarSttTrackDynamicReticleSet(std::string_view pageName, mfd::TransportId pageTransportId = 0, RuntimeFeedbackState* feedbackState = nullptr);
+    using mfd::client::GeneratedDynamicReticleSet::AppendCommands;
+    using mfd::client::GeneratedDynamicReticleSet::AppendRemovalCommands;
+    using mfd::client::GeneratedDynamicReticleSet::ClearDirty;
+    using mfd::client::GeneratedDynamicReticleSet::ResetToAuthored;
+    using mfd::client::GeneratedDynamicReticleSet::SetStrobeMagnetEnabled;
+    using mfd::client::GeneratedDynamicReticleSet::SetVisible;
+    RadarSttTrackDynamicReticle& Create();
+    void Remove(RadarSttTrackDynamicReticle& reticle);
+
+protected:
+    std::unique_ptr<mfd::client::DynamicReticle> CreateReticle(std::string_view reticleId) override;
+};
+
+class RadarTwsTrackDynamicReticle final : private mfd::client::DynamicReticle
+{
+public:
+    explicit RadarTwsTrackDynamicReticle(std::string_view reticleId);
+    using mfd::client::DynamicReticle::Blink;
+    using mfd::client::DynamicReticle::ClearDirty;
+    using mfd::client::DynamicReticle::Id;
+    using mfd::client::DynamicReticle::IsAlive;
+    using mfd::client::DynamicReticle::IsStrobeCaptured;
+    using mfd::client::DynamicReticle::SetVisible;
+    using mfd::client::DynamicReticle::SetBlinkEnabled;
+    using mfd::client::DynamicReticle::SetBlink;
+    using mfd::client::DynamicReticle::SetBlinkType;
+    using mfd::client::DynamicReticle::ClearBlinkType;
+    using mfd::client::DynamicReticle::SetPosition;
+    using mfd::client::DynamicReticle::SetRotationDegrees;
+    using mfd::client::DynamicReticle::SetColor;
+    using mfd::client::DynamicReticle::SetThickness;
+    using mfd::client::DynamicReticle::GetVisible;
+    using mfd::client::DynamicReticle::GetPosition;
+    using mfd::client::DynamicReticle::GetRotationDegrees;
+    using mfd::client::DynamicReticle::GetScale;
+    using mfd::client::DynamicReticle::GetText;
+    void SetValue(std::string value);
+    std::string_view GetValue() const noexcept;
+    TextHandle& TrackAltitude() noexcept;
+
+private:
+    friend class RadarTwsTrackDynamicReticleSet;
+    TextHandle trackAltitude_;
+};
+
+class RadarTwsTrackDynamicReticleSet final : private mfd::client::GeneratedDynamicReticleSet
+{
+public:
+    explicit RadarTwsTrackDynamicReticleSet(std::string_view pageName, mfd::TransportId pageTransportId = 0, RuntimeFeedbackState* feedbackState = nullptr);
+    using mfd::client::GeneratedDynamicReticleSet::AppendCommands;
+    using mfd::client::GeneratedDynamicReticleSet::AppendRemovalCommands;
+    using mfd::client::GeneratedDynamicReticleSet::ClearDirty;
+    using mfd::client::GeneratedDynamicReticleSet::ResetToAuthored;
+    using mfd::client::GeneratedDynamicReticleSet::SetStrobeMagnetEnabled;
+    using mfd::client::GeneratedDynamicReticleSet::SetVisible;
+    RadarTwsTrackDynamicReticle& Create();
+    void Remove(RadarTwsTrackDynamicReticle& reticle);
+
+protected:
+    std::unique_ptr<mfd::client::DynamicReticle> CreateReticle(std::string_view reticleId) override;
+};
+
 class RadarRadarBscopeFrameReticle final : private mfd::client::Reticle
 {
 public:
     RadarRadarBscopeFrameReticle();
+    using mfd::client::Reticle::AppendCommands;
+    using mfd::client::Reticle::Blink;
+    using mfd::client::Reticle::ClearDirty;
+    using mfd::client::Reticle::ResetToAuthored;
+    using mfd::client::Reticle::SetVisible;
+    using mfd::client::Reticle::SetBlinkEnabled;
+    using mfd::client::Reticle::SetBlink;
+    using mfd::client::Reticle::SetBlinkType;
+    using mfd::client::Reticle::ClearBlinkType;
+    using mfd::client::Reticle::SetPosition;
+    using mfd::client::Reticle::SetRotationDegrees;
+    using mfd::client::Reticle::SetScale;
+    using mfd::client::Reticle::SetColor;
+    using mfd::client::Reticle::SetThickness;
+    using mfd::client::Reticle::GetVisible;
+    using mfd::client::Reticle::GetPosition;
+    using mfd::client::Reticle::GetRotationDegrees;
+    using mfd::client::Reticle::GetScale;
+    using mfd::client::Reticle::GetText;
+
+private:
+    // No exposed primitive for this authored reticle.
+};
+
+class RadarRadarHorizonReticle final : private mfd::client::Reticle
+{
+public:
+    RadarRadarHorizonReticle();
     using mfd::client::Reticle::AppendCommands;
     using mfd::client::Reticle::Blink;
     using mfd::client::Reticle::ClearDirty;
@@ -99,6 +323,7 @@ public:
     TextHandle& Bars() noexcept;
     TextHandle& Scan() noexcept;
     TextHandle& Prf() noexcept;
+    TextHandle& Iff() noexcept;
     TextHandle& Bull() noexcept;
 
 private:
@@ -107,7 +332,71 @@ private:
     TextHandle bars_;
     TextHandle scan_;
     TextHandle prf_;
+    TextHandle iff_;
     TextHandle bull_;
+};
+
+class RadarRadarPerimeterReticle final : private mfd::client::Reticle
+{
+public:
+    RadarRadarPerimeterReticle();
+    using mfd::client::Reticle::AppendCommands;
+    using mfd::client::Reticle::Blink;
+    using mfd::client::Reticle::ClearDirty;
+    using mfd::client::Reticle::ResetToAuthored;
+    using mfd::client::Reticle::SetVisible;
+    using mfd::client::Reticle::SetBlinkEnabled;
+    using mfd::client::Reticle::SetBlink;
+    using mfd::client::Reticle::SetBlinkType;
+    using mfd::client::Reticle::ClearBlinkType;
+    using mfd::client::Reticle::SetPosition;
+    using mfd::client::Reticle::SetRotationDegrees;
+    using mfd::client::Reticle::SetScale;
+    using mfd::client::Reticle::SetColor;
+    using mfd::client::Reticle::SetThickness;
+    using mfd::client::Reticle::GetVisible;
+    using mfd::client::Reticle::GetPosition;
+    using mfd::client::Reticle::GetRotationDegrees;
+    using mfd::client::Reticle::GetScale;
+    using mfd::client::Reticle::GetText;
+    TextHandle& DlMode() noexcept;
+    TextHandle& DlChannel() noexcept;
+    TextHandle& Expand() noexcept;
+    TextHandle& Assign() noexcept;
+    TextHandle& Missile() noexcept;
+    TextHandle& MissileCount() noexcept;
+    TextHandle& WeaponOne() noexcept;
+    TextHandle& WeaponTwo() noexcept;
+    TextHandle& WeaponThree() noexcept;
+    TextHandle& WeaponFour() noexcept;
+    TextHandle& Swap() noexcept;
+    TextHandle& Fcr() noexcept;
+    TextHandle& Sensor() noexcept;
+    TextHandle& Test() noexcept;
+    TextHandle& Declutter() noexcept;
+    TextHandle& LowerRightMode() noexcept;
+    TextHandle& LowerRightScan() noexcept;
+    TextHandle& LowerRightDeclutter() noexcept;
+
+private:
+    TextHandle dlMode_;
+    TextHandle dlChannel_;
+    TextHandle expand_;
+    TextHandle assign_;
+    TextHandle missile_;
+    TextHandle missileCount_;
+    TextHandle weaponOne_;
+    TextHandle weaponTwo_;
+    TextHandle weaponThree_;
+    TextHandle weaponFour_;
+    TextHandle swap_;
+    TextHandle fcr_;
+    TextHandle sensor_;
+    TextHandle test_;
+    TextHandle declutter_;
+    TextHandle lowerRightMode_;
+    TextHandle lowerRightScan_;
+    TextHandle lowerRightDeclutter_;
 };
 
 class RadarRadarElevationCaretReticle final : private mfd::client::Reticle
@@ -167,10 +456,10 @@ private:
     LineHandle sweep_;
 };
 
-class RadarContact01Reticle final : private mfd::client::Reticle
+class RadarRadarCursorDataReticle final : private mfd::client::Reticle
 {
 public:
-    RadarContact01Reticle();
+    RadarRadarCursorDataReticle();
     using mfd::client::Reticle::AppendCommands;
     using mfd::client::Reticle::Blink;
     using mfd::client::Reticle::ClearDirty;
@@ -190,345 +479,12 @@ public:
     using mfd::client::Reticle::GetRotationDegrees;
     using mfd::client::Reticle::GetScale;
     using mfd::client::Reticle::GetText;
+    TextHandle& MaximumAltitude() noexcept;
+    TextHandle& MinimumAltitude() noexcept;
 
 private:
-    // No exposed primitive for this authored reticle.
-};
-
-class RadarContact02Reticle final : private mfd::client::Reticle
-{
-public:
-    RadarContact02Reticle();
-    using mfd::client::Reticle::AppendCommands;
-    using mfd::client::Reticle::Blink;
-    using mfd::client::Reticle::ClearDirty;
-    using mfd::client::Reticle::ResetToAuthored;
-    using mfd::client::Reticle::SetVisible;
-    using mfd::client::Reticle::SetBlinkEnabled;
-    using mfd::client::Reticle::SetBlink;
-    using mfd::client::Reticle::SetBlinkType;
-    using mfd::client::Reticle::ClearBlinkType;
-    using mfd::client::Reticle::SetPosition;
-    using mfd::client::Reticle::SetRotationDegrees;
-    using mfd::client::Reticle::SetScale;
-    using mfd::client::Reticle::SetColor;
-    using mfd::client::Reticle::SetThickness;
-    using mfd::client::Reticle::GetVisible;
-    using mfd::client::Reticle::GetPosition;
-    using mfd::client::Reticle::GetRotationDegrees;
-    using mfd::client::Reticle::GetScale;
-    using mfd::client::Reticle::GetText;
-
-private:
-    // No exposed primitive for this authored reticle.
-};
-
-class RadarContact03Reticle final : private mfd::client::Reticle
-{
-public:
-    RadarContact03Reticle();
-    using mfd::client::Reticle::AppendCommands;
-    using mfd::client::Reticle::Blink;
-    using mfd::client::Reticle::ClearDirty;
-    using mfd::client::Reticle::ResetToAuthored;
-    using mfd::client::Reticle::SetVisible;
-    using mfd::client::Reticle::SetBlinkEnabled;
-    using mfd::client::Reticle::SetBlink;
-    using mfd::client::Reticle::SetBlinkType;
-    using mfd::client::Reticle::ClearBlinkType;
-    using mfd::client::Reticle::SetPosition;
-    using mfd::client::Reticle::SetRotationDegrees;
-    using mfd::client::Reticle::SetScale;
-    using mfd::client::Reticle::SetColor;
-    using mfd::client::Reticle::SetThickness;
-    using mfd::client::Reticle::GetVisible;
-    using mfd::client::Reticle::GetPosition;
-    using mfd::client::Reticle::GetRotationDegrees;
-    using mfd::client::Reticle::GetScale;
-    using mfd::client::Reticle::GetText;
-
-private:
-    // No exposed primitive for this authored reticle.
-};
-
-class RadarContact04Reticle final : private mfd::client::Reticle
-{
-public:
-    RadarContact04Reticle();
-    using mfd::client::Reticle::AppendCommands;
-    using mfd::client::Reticle::Blink;
-    using mfd::client::Reticle::ClearDirty;
-    using mfd::client::Reticle::ResetToAuthored;
-    using mfd::client::Reticle::SetVisible;
-    using mfd::client::Reticle::SetBlinkEnabled;
-    using mfd::client::Reticle::SetBlink;
-    using mfd::client::Reticle::SetBlinkType;
-    using mfd::client::Reticle::ClearBlinkType;
-    using mfd::client::Reticle::SetPosition;
-    using mfd::client::Reticle::SetRotationDegrees;
-    using mfd::client::Reticle::SetScale;
-    using mfd::client::Reticle::SetColor;
-    using mfd::client::Reticle::SetThickness;
-    using mfd::client::Reticle::GetVisible;
-    using mfd::client::Reticle::GetPosition;
-    using mfd::client::Reticle::GetRotationDegrees;
-    using mfd::client::Reticle::GetScale;
-    using mfd::client::Reticle::GetText;
-
-private:
-    // No exposed primitive for this authored reticle.
-};
-
-class RadarContact05Reticle final : private mfd::client::Reticle
-{
-public:
-    RadarContact05Reticle();
-    using mfd::client::Reticle::AppendCommands;
-    using mfd::client::Reticle::Blink;
-    using mfd::client::Reticle::ClearDirty;
-    using mfd::client::Reticle::ResetToAuthored;
-    using mfd::client::Reticle::SetVisible;
-    using mfd::client::Reticle::SetBlinkEnabled;
-    using mfd::client::Reticle::SetBlink;
-    using mfd::client::Reticle::SetBlinkType;
-    using mfd::client::Reticle::ClearBlinkType;
-    using mfd::client::Reticle::SetPosition;
-    using mfd::client::Reticle::SetRotationDegrees;
-    using mfd::client::Reticle::SetScale;
-    using mfd::client::Reticle::SetColor;
-    using mfd::client::Reticle::SetThickness;
-    using mfd::client::Reticle::GetVisible;
-    using mfd::client::Reticle::GetPosition;
-    using mfd::client::Reticle::GetRotationDegrees;
-    using mfd::client::Reticle::GetScale;
-    using mfd::client::Reticle::GetText;
-
-private:
-    // No exposed primitive for this authored reticle.
-};
-
-class RadarContact06Reticle final : private mfd::client::Reticle
-{
-public:
-    RadarContact06Reticle();
-    using mfd::client::Reticle::AppendCommands;
-    using mfd::client::Reticle::Blink;
-    using mfd::client::Reticle::ClearDirty;
-    using mfd::client::Reticle::ResetToAuthored;
-    using mfd::client::Reticle::SetVisible;
-    using mfd::client::Reticle::SetBlinkEnabled;
-    using mfd::client::Reticle::SetBlink;
-    using mfd::client::Reticle::SetBlinkType;
-    using mfd::client::Reticle::ClearBlinkType;
-    using mfd::client::Reticle::SetPosition;
-    using mfd::client::Reticle::SetRotationDegrees;
-    using mfd::client::Reticle::SetScale;
-    using mfd::client::Reticle::SetColor;
-    using mfd::client::Reticle::SetThickness;
-    using mfd::client::Reticle::GetVisible;
-    using mfd::client::Reticle::GetPosition;
-    using mfd::client::Reticle::GetRotationDegrees;
-    using mfd::client::Reticle::GetScale;
-    using mfd::client::Reticle::GetText;
-
-private:
-    // No exposed primitive for this authored reticle.
-};
-
-class RadarContact07Reticle final : private mfd::client::Reticle
-{
-public:
-    RadarContact07Reticle();
-    using mfd::client::Reticle::AppendCommands;
-    using mfd::client::Reticle::Blink;
-    using mfd::client::Reticle::ClearDirty;
-    using mfd::client::Reticle::ResetToAuthored;
-    using mfd::client::Reticle::SetVisible;
-    using mfd::client::Reticle::SetBlinkEnabled;
-    using mfd::client::Reticle::SetBlink;
-    using mfd::client::Reticle::SetBlinkType;
-    using mfd::client::Reticle::ClearBlinkType;
-    using mfd::client::Reticle::SetPosition;
-    using mfd::client::Reticle::SetRotationDegrees;
-    using mfd::client::Reticle::SetScale;
-    using mfd::client::Reticle::SetColor;
-    using mfd::client::Reticle::SetThickness;
-    using mfd::client::Reticle::GetVisible;
-    using mfd::client::Reticle::GetPosition;
-    using mfd::client::Reticle::GetRotationDegrees;
-    using mfd::client::Reticle::GetScale;
-    using mfd::client::Reticle::GetText;
-
-private:
-    // No exposed primitive for this authored reticle.
-};
-
-class RadarContact08Reticle final : private mfd::client::Reticle
-{
-public:
-    RadarContact08Reticle();
-    using mfd::client::Reticle::AppendCommands;
-    using mfd::client::Reticle::Blink;
-    using mfd::client::Reticle::ClearDirty;
-    using mfd::client::Reticle::ResetToAuthored;
-    using mfd::client::Reticle::SetVisible;
-    using mfd::client::Reticle::SetBlinkEnabled;
-    using mfd::client::Reticle::SetBlink;
-    using mfd::client::Reticle::SetBlinkType;
-    using mfd::client::Reticle::ClearBlinkType;
-    using mfd::client::Reticle::SetPosition;
-    using mfd::client::Reticle::SetRotationDegrees;
-    using mfd::client::Reticle::SetScale;
-    using mfd::client::Reticle::SetColor;
-    using mfd::client::Reticle::SetThickness;
-    using mfd::client::Reticle::GetVisible;
-    using mfd::client::Reticle::GetPosition;
-    using mfd::client::Reticle::GetRotationDegrees;
-    using mfd::client::Reticle::GetScale;
-    using mfd::client::Reticle::GetText;
-
-private:
-    // No exposed primitive for this authored reticle.
-};
-
-class RadarContact09Reticle final : private mfd::client::Reticle
-{
-public:
-    RadarContact09Reticle();
-    using mfd::client::Reticle::AppendCommands;
-    using mfd::client::Reticle::Blink;
-    using mfd::client::Reticle::ClearDirty;
-    using mfd::client::Reticle::ResetToAuthored;
-    using mfd::client::Reticle::SetVisible;
-    using mfd::client::Reticle::SetBlinkEnabled;
-    using mfd::client::Reticle::SetBlink;
-    using mfd::client::Reticle::SetBlinkType;
-    using mfd::client::Reticle::ClearBlinkType;
-    using mfd::client::Reticle::SetPosition;
-    using mfd::client::Reticle::SetRotationDegrees;
-    using mfd::client::Reticle::SetScale;
-    using mfd::client::Reticle::SetColor;
-    using mfd::client::Reticle::SetThickness;
-    using mfd::client::Reticle::GetVisible;
-    using mfd::client::Reticle::GetPosition;
-    using mfd::client::Reticle::GetRotationDegrees;
-    using mfd::client::Reticle::GetScale;
-    using mfd::client::Reticle::GetText;
-
-private:
-    // No exposed primitive for this authored reticle.
-};
-
-class RadarContact10Reticle final : private mfd::client::Reticle
-{
-public:
-    RadarContact10Reticle();
-    using mfd::client::Reticle::AppendCommands;
-    using mfd::client::Reticle::Blink;
-    using mfd::client::Reticle::ClearDirty;
-    using mfd::client::Reticle::ResetToAuthored;
-    using mfd::client::Reticle::SetVisible;
-    using mfd::client::Reticle::SetBlinkEnabled;
-    using mfd::client::Reticle::SetBlink;
-    using mfd::client::Reticle::SetBlinkType;
-    using mfd::client::Reticle::ClearBlinkType;
-    using mfd::client::Reticle::SetPosition;
-    using mfd::client::Reticle::SetRotationDegrees;
-    using mfd::client::Reticle::SetScale;
-    using mfd::client::Reticle::SetColor;
-    using mfd::client::Reticle::SetThickness;
-    using mfd::client::Reticle::GetVisible;
-    using mfd::client::Reticle::GetPosition;
-    using mfd::client::Reticle::GetRotationDegrees;
-    using mfd::client::Reticle::GetScale;
-    using mfd::client::Reticle::GetText;
-
-private:
-    // No exposed primitive for this authored reticle.
-};
-
-class RadarContact11Reticle final : private mfd::client::Reticle
-{
-public:
-    RadarContact11Reticle();
-    using mfd::client::Reticle::AppendCommands;
-    using mfd::client::Reticle::Blink;
-    using mfd::client::Reticle::ClearDirty;
-    using mfd::client::Reticle::ResetToAuthored;
-    using mfd::client::Reticle::SetVisible;
-    using mfd::client::Reticle::SetBlinkEnabled;
-    using mfd::client::Reticle::SetBlink;
-    using mfd::client::Reticle::SetBlinkType;
-    using mfd::client::Reticle::ClearBlinkType;
-    using mfd::client::Reticle::SetPosition;
-    using mfd::client::Reticle::SetRotationDegrees;
-    using mfd::client::Reticle::SetScale;
-    using mfd::client::Reticle::SetColor;
-    using mfd::client::Reticle::SetThickness;
-    using mfd::client::Reticle::GetVisible;
-    using mfd::client::Reticle::GetPosition;
-    using mfd::client::Reticle::GetRotationDegrees;
-    using mfd::client::Reticle::GetScale;
-    using mfd::client::Reticle::GetText;
-
-private:
-    // No exposed primitive for this authored reticle.
-};
-
-class RadarContact12Reticle final : private mfd::client::Reticle
-{
-public:
-    RadarContact12Reticle();
-    using mfd::client::Reticle::AppendCommands;
-    using mfd::client::Reticle::Blink;
-    using mfd::client::Reticle::ClearDirty;
-    using mfd::client::Reticle::ResetToAuthored;
-    using mfd::client::Reticle::SetVisible;
-    using mfd::client::Reticle::SetBlinkEnabled;
-    using mfd::client::Reticle::SetBlink;
-    using mfd::client::Reticle::SetBlinkType;
-    using mfd::client::Reticle::ClearBlinkType;
-    using mfd::client::Reticle::SetPosition;
-    using mfd::client::Reticle::SetRotationDegrees;
-    using mfd::client::Reticle::SetScale;
-    using mfd::client::Reticle::SetColor;
-    using mfd::client::Reticle::SetThickness;
-    using mfd::client::Reticle::GetVisible;
-    using mfd::client::Reticle::GetPosition;
-    using mfd::client::Reticle::GetRotationDegrees;
-    using mfd::client::Reticle::GetScale;
-    using mfd::client::Reticle::GetText;
-
-private:
-    // No exposed primitive for this authored reticle.
-};
-
-class RadarRadarBuggedTargetReticle final : private mfd::client::Reticle
-{
-public:
-    RadarRadarBuggedTargetReticle();
-    using mfd::client::Reticle::AppendCommands;
-    using mfd::client::Reticle::Blink;
-    using mfd::client::Reticle::ClearDirty;
-    using mfd::client::Reticle::ResetToAuthored;
-    using mfd::client::Reticle::SetVisible;
-    using mfd::client::Reticle::SetBlinkEnabled;
-    using mfd::client::Reticle::SetBlink;
-    using mfd::client::Reticle::SetBlinkType;
-    using mfd::client::Reticle::ClearBlinkType;
-    using mfd::client::Reticle::SetPosition;
-    using mfd::client::Reticle::SetRotationDegrees;
-    using mfd::client::Reticle::SetScale;
-    using mfd::client::Reticle::SetColor;
-    using mfd::client::Reticle::SetThickness;
-    using mfd::client::Reticle::GetVisible;
-    using mfd::client::Reticle::GetPosition;
-    using mfd::client::Reticle::GetRotationDegrees;
-    using mfd::client::Reticle::GetScale;
-    using mfd::client::Reticle::GetText;
-
-private:
-    // No exposed primitive for this authored reticle.
+    TextHandle maximumAltitude_;
+    TextHandle minimumAltitude_;
 };
 
 class RadarRadarDatablockReticle final : private mfd::client::Reticle
@@ -570,34 +526,6 @@ private:
     TextHandle tgtGsValue_;
 };
 
-class RadarRadarCursorReticle final : private mfd::client::Reticle
-{
-public:
-    RadarRadarCursorReticle();
-    using mfd::client::Reticle::AppendCommands;
-    using mfd::client::Reticle::Blink;
-    using mfd::client::Reticle::ClearDirty;
-    using mfd::client::Reticle::ResetToAuthored;
-    using mfd::client::Reticle::SetVisible;
-    using mfd::client::Reticle::SetBlinkEnabled;
-    using mfd::client::Reticle::SetBlink;
-    using mfd::client::Reticle::SetBlinkType;
-    using mfd::client::Reticle::ClearBlinkType;
-    using mfd::client::Reticle::SetPosition;
-    using mfd::client::Reticle::SetRotationDegrees;
-    using mfd::client::Reticle::SetScale;
-    using mfd::client::Reticle::SetColor;
-    using mfd::client::Reticle::SetThickness;
-    using mfd::client::Reticle::GetVisible;
-    using mfd::client::Reticle::GetPosition;
-    using mfd::client::Reticle::GetRotationDegrees;
-    using mfd::client::Reticle::GetScale;
-    using mfd::client::Reticle::GetText;
-
-private:
-    // No exposed primitive for this authored reticle.
-};
-
 class RadarRadarStatusReticle final : private mfd::client::Reticle
 {
 public:
@@ -627,6 +555,37 @@ public:
 
 private:
     TextHandle statusText_;
+};
+
+class RadarRadarMessageReticle final : private mfd::client::Reticle
+{
+public:
+    RadarRadarMessageReticle();
+    using mfd::client::Reticle::AppendCommands;
+    using mfd::client::Reticle::Blink;
+    using mfd::client::Reticle::ClearDirty;
+    using mfd::client::Reticle::ResetToAuthored;
+    using mfd::client::Reticle::SetVisible;
+    using mfd::client::Reticle::SetBlinkEnabled;
+    using mfd::client::Reticle::SetBlink;
+    using mfd::client::Reticle::SetBlinkType;
+    using mfd::client::Reticle::ClearBlinkType;
+    using mfd::client::Reticle::SetPosition;
+    using mfd::client::Reticle::SetRotationDegrees;
+    using mfd::client::Reticle::SetScale;
+    using mfd::client::Reticle::SetColor;
+    using mfd::client::Reticle::SetThickness;
+    using mfd::client::Reticle::GetVisible;
+    using mfd::client::Reticle::GetPosition;
+    using mfd::client::Reticle::GetRotationDegrees;
+    using mfd::client::Reticle::GetScale;
+    using mfd::client::Reticle::GetText;
+    void SetValue(std::string value);
+    std::string_view GetValue() const noexcept;
+    TextHandle& Message() noexcept;
+
+private:
+    TextHandle message_;
 };
 
 class RadarOsbLegendsReticle final : private mfd::client::Reticle
@@ -696,6 +655,34 @@ private:
     TextHandle osb20_;
 };
 
+class RadarAcquisitionStrobeReticle final : private mfd::client::Reticle
+{
+public:
+    RadarAcquisitionStrobeReticle();
+    using mfd::client::Reticle::AppendCommands;
+    using mfd::client::Reticle::Blink;
+    using mfd::client::Reticle::ClearDirty;
+    using mfd::client::Reticle::ResetToAuthored;
+    using mfd::client::Reticle::SetVisible;
+    using mfd::client::Reticle::SetBlinkEnabled;
+    using mfd::client::Reticle::SetBlink;
+    using mfd::client::Reticle::SetBlinkType;
+    using mfd::client::Reticle::ClearBlinkType;
+    using mfd::client::Reticle::SetPosition;
+    using mfd::client::Reticle::SetRotationDegrees;
+    using mfd::client::Reticle::SetScale;
+    using mfd::client::Reticle::SetColor;
+    using mfd::client::Reticle::SetThickness;
+    using mfd::client::Reticle::GetVisible;
+    using mfd::client::Reticle::GetPosition;
+    using mfd::client::Reticle::GetRotationDegrees;
+    using mfd::client::Reticle::GetScale;
+    using mfd::client::Reticle::GetText;
+
+private:
+    // No exposed primitive for this authored strobe reticle.
+};
+
 class RadarMockupPage
 {
 private:
@@ -716,7 +703,7 @@ public:
 
     static constexpr std::string_view MappingHash() noexcept
     {
-        return "eecaf4e5342e10ecabbdfc2033d386f1a5882f3c64ed52c749e0099ad574ad68";
+        return "7368761abc6c6561bb0c37bb454ca355c7f3375013f588f8e7c13d848cf6b058";
     }
 
     explicit RadarMockupPage(RuntimeFeedbackState* feedbackState = nullptr);
@@ -728,33 +715,35 @@ public:
     std::size_t AppendShutdownCommands(std::vector<mfd::UserCommand>& commands, std::string statusText);
     void SetStatusCaption(std::string value);
 
+    RadarRwsTrackDynamicReticleSet& DynamicRadarRwsTrack() noexcept;
+    RadarTwsTrackDynamicReticleSet& DynamicRadarTwsTrack() noexcept;
+    RadarBuggedTrackDynamicReticleSet& DynamicRadarBuggedTrack() noexcept;
+    RadarSttTrackDynamicReticleSet& DynamicRadarSttTrack() noexcept;
+
     BlinkType fast {"fast", 10579882429258731661U};
     BlinkType caution {"caution", 16267563161619148549U};
 
+    StrobeType acquisitionStrobe = StrobeType {"Acquisition", StrobeInfo {true, mfd::StrobeCaptureConfig {mfd::StrobeCaptureShape::Rectangle, 0.0875f, mfd::Vec2 {0.18f, 0.14f}}, mfd::StrobeMagnetConfig {false, 0.075f, 1.0f}}, 526981107035575048U, true};
+
     StrobeHandle strobe;
+    RadarAcquisitionStrobeReticle acquisitionReticle;
     RadarRadarBscopeFrameReticle radarBscopeFrame;
+    RadarRadarHorizonReticle radarHorizon;
     RadarRadarScaleReticle radarScale;
+    RadarRadarPerimeterReticle radarPerimeter;
     RadarRadarElevationCaretReticle radarElevationCaret;
     RadarRadarScanLineReticle radarScanLine;
-    RadarContact01Reticle contact01;
-    RadarContact02Reticle contact02;
-    RadarContact03Reticle contact03;
-    RadarContact04Reticle contact04;
-    RadarContact05Reticle contact05;
-    RadarContact06Reticle contact06;
-    RadarContact07Reticle contact07;
-    RadarContact08Reticle contact08;
-    RadarContact09Reticle contact09;
-    RadarContact10Reticle contact10;
-    RadarContact11Reticle contact11;
-    RadarContact12Reticle contact12;
-    RadarRadarBuggedTargetReticle radarBuggedTarget;
+    RadarRadarCursorDataReticle radarCursorData;
     RadarRadarDatablockReticle radarDatablock;
-    RadarRadarCursorReticle radarCursor;
     RadarRadarStatusReticle radarStatus;
+    RadarRadarMessageReticle radarMessage;
     RadarOsbLegendsReticle osbLegends;
 
 private:
+    RadarRwsTrackDynamicReticleSet dynamicRadarRwsTrack_;
+    RadarTwsTrackDynamicReticleSet dynamicRadarTwsTrack_;
+    RadarBuggedTrackDynamicReticleSet dynamicRadarBuggedTrack_;
+    RadarSttTrackDynamicReticleSet dynamicRadarSttTrack_;
 };
 
 class SmsSmsStationsReticle final : private mfd::client::Reticle
@@ -1041,7 +1030,7 @@ public:
 
     static constexpr std::string_view MappingHash() noexcept
     {
-        return "eecaf4e5342e10ecabbdfc2033d386f1a5882f3c64ed52c749e0099ad574ad68";
+        return "7368761abc6c6561bb0c37bb454ca355c7f3375013f588f8e7c13d848cf6b058";
     }
 
     explicit SmsMockupPage(RuntimeFeedbackState* feedbackState = nullptr);
@@ -1809,7 +1798,7 @@ public:
 
     static constexpr std::string_view MappingHash() noexcept
     {
-        return "eecaf4e5342e10ecabbdfc2033d386f1a5882f3c64ed52c749e0099ad574ad68";
+        return "7368761abc6c6561bb0c37bb454ca355c7f3375013f588f8e7c13d848cf6b058";
     }
 
     explicit NavMockupPage(RuntimeFeedbackState* feedbackState = nullptr);
@@ -2125,7 +2114,7 @@ public:
 
     static constexpr std::string_view MappingHash() noexcept
     {
-        return "eecaf4e5342e10ecabbdfc2033d386f1a5882f3c64ed52c749e0099ad574ad68";
+        return "7368761abc6c6561bb0c37bb454ca355c7f3375013f588f8e7c13d848cf6b058";
     }
 
     explicit AgMockupPage(RuntimeFeedbackState* feedbackState = nullptr);
@@ -2160,7 +2149,7 @@ public:
 
     static constexpr std::string_view MappingHash() noexcept
     {
-        return "eecaf4e5342e10ecabbdfc2033d386f1a5882f3c64ed52c749e0099ad574ad68";
+        return "7368761abc6c6561bb0c37bb454ca355c7f3375013f588f8e7c13d848cf6b058";
     }
 
     LhldUi();
