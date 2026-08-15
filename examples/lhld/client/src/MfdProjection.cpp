@@ -19,7 +19,7 @@ namespace
 {
 // B-scope geometry authored in radar.json: ownship at the bottom, azimuth
 // spread horizontally, range vertically.
-constexpr float kScopeHalfWidth = 0.55f;
+constexpr float kScopeHalfWidth = 0.46f;
 constexpr float kScopeTop = 0.75f;
 constexpr float kScopeBottom = -0.75f;
 constexpr float kScopeHeight = kScopeTop - kScopeBottom;
@@ -95,6 +95,66 @@ float SearchAltitudeThousandsFt(const OwnshipState& ownship,
     const float altitudeFt =
         Finite(ownship.altitudeFt, 0.0f) + rangeFt * std::sin(Finite(elevationDeg, 0.0f) * kDegToRad);
     return altitudeFt / 1000.0f;
+}
+
+bool ComputeInterceptSteeringAngleDeg(const RadarTrack& track,
+                                      const OwnshipState& ownship,
+                                      float& steeringAngleDeg) noexcept
+{
+    const float rangeNm = std::max(0.0f, Finite(track.rangeNm, 0.0f));
+    const float azimuthRad = Finite(track.azimuthDeg, 0.0f) * kDegToRad;
+    const float relativeHeadingRad =
+        WrapDegrees(Finite(track.headingDeg, 0.0f) - Finite(ownship.headingDeg, 0.0f)) * kDegToRad;
+    const float ownshipSpeedNmPerSecond =
+        std::max(1.0f, Finite(ownship.speedKts, 1.0f)) / 3600.0f;
+    const float targetSpeedNmPerSecond =
+        std::max(0.0f, Finite(track.speedKts, 0.0f)) / 3600.0f;
+
+    const float rangeX = rangeNm * std::sin(azimuthRad);
+    const float rangeY = rangeNm * std::cos(azimuthRad);
+    const float targetVelocityX = targetSpeedNmPerSecond * std::sin(relativeHeadingRad);
+    const float targetVelocityY = targetSpeedNmPerSecond * std::cos(relativeHeadingRad);
+    const float quadraticA = targetSpeedNmPerSecond * targetSpeedNmPerSecond -
+        ownshipSpeedNmPerSecond * ownshipSpeedNmPerSecond;
+    const float quadraticB = 2.0f * (rangeX * targetVelocityX + rangeY * targetVelocityY);
+    const float quadraticC = rangeNm * rangeNm;
+
+    float interceptSeconds = -1.0f;
+    if (std::fabs(quadraticA) < 1.0e-8f)
+    {
+        if (std::fabs(quadraticB) > 1.0e-8f)
+        {
+            interceptSeconds = -quadraticC / quadraticB;
+        }
+    }
+    else
+    {
+        const float discriminant = quadraticB * quadraticB - 4.0f * quadraticA * quadraticC;
+        if (discriminant >= 0.0f && std::isfinite(discriminant))
+        {
+            const float root = std::sqrt(discriminant);
+            const float firstSeconds = (-quadraticB - root) / (2.0f * quadraticA);
+            const float secondSeconds = (-quadraticB + root) / (2.0f * quadraticA);
+            if (firstSeconds > 0.0f && secondSeconds > 0.0f)
+            {
+                interceptSeconds = std::min(firstSeconds, secondSeconds);
+            }
+            else
+            {
+                interceptSeconds = std::max(firstSeconds, secondSeconds);
+            }
+        }
+    }
+
+    if (!(interceptSeconds > 0.0f) || !std::isfinite(interceptSeconds))
+    {
+        return false;
+    }
+
+    const float interceptX = rangeX + targetVelocityX * interceptSeconds;
+    const float interceptY = rangeY + targetVelocityY * interceptSeconds;
+    steeringAngleDeg = std::atan2(interceptX, interceptY) * kRadToDeg;
+    return std::isfinite(steeringAngleDeg);
 }
 
 // Maps a relative bearing/range onto the heading-up HSD compass rose.
@@ -180,7 +240,7 @@ RadarTrackView ProjectRadarTrack(const RadarTrack& track,
     view.position = MfdVec2 {
         Clamp(bearingDeg / halfScanDeg, -1.0f, 1.0f) * kScopeHalfWidth,
         kScopeBottom + Clamp(fraction, 0.0f, 1.0f) * kScopeHeight};
-    view.rotationDegrees = WrapDegrees(track.headingDeg - ownship.headingDeg);
+    view.rotationDegrees = WrapDegrees(track.aspectDeg);
     view.altitudeThousandsFt = DerivedAltitudeThousandsFt(track, ownship);
     view.hostile = track.hostile;
     view.extrapolated = track.quality == RadarTrackQuality::Extrapolated;
@@ -209,7 +269,7 @@ RadarTrackView ProjectBuggedTrack(const RadarTrack& track,
     view.position = MfdVec2 {
         Clamp(bearingDeg / halfScanDeg, -1.0f, 1.0f) * kScopeHalfWidth,
         kScopeBottom + Clamp(fraction, 0.0f, 1.0f) * kScopeHeight};
-    view.rotationDegrees = WrapDegrees(track.headingDeg - ownship.headingDeg);
+    view.rotationDegrees = WrapDegrees(track.aspectDeg);
     view.altitudeThousandsFt = DerivedAltitudeThousandsFt(track, ownship);
     view.hostile = track.hostile;
     view.extrapolated = track.quality == RadarTrackQuality::Extrapolated;
@@ -286,6 +346,18 @@ MfdFrame BuildMfdFrame(const MfdInputSample& input) noexcept
                 WrapDegrees(Finite(input.tracks[static_cast<std::size_t>(bugged)].aspectDeg, 0.0f));
             radar.datablockVisible = true;
             radar.tracks[static_cast<std::size_t>(bugged)].visible = false;
+
+            float steeringAngleDeg = 0.0f;
+            const RadarTrack& buggedTrack = input.tracks[static_cast<std::size_t>(bugged)];
+            if (singleTargetTrack &&
+                ComputeInterceptSteeringAngleDeg(buggedTrack, input.ownship, steeringAngleDeg) &&
+                std::fabs(steeringAngleDeg) <= kMaxScanHalfAngleDeg)
+            {
+                radar.sttInterceptVisible = true;
+                radar.sttInterceptPosition = MfdVec2 {
+                    Clamp(steeringAngleDeg / kMaxScanHalfAngleDeg, -1.0f, 1.0f) * kScopeHalfWidth,
+                    radar.buggedTrack.position.y};
+            }
         }
     }
 

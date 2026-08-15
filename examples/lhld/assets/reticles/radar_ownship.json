@@ -1,0 +1,11 @@
+{
+  "id": "radar_ownship",
+  "lineWidth": 0.006,
+  "elements": [
+    { "id": "body", "type": "line", "start": [0.0, -0.035], "end": [0.0, 0.035] },
+    { "id": "left_wing", "type": "line", "start": [-0.055, -0.015], "end": [0.055, -0.015] },
+    { "id": "left_nose", "type": "line", "start": [-0.025, 0.015], "end": [0.0, 0.045] },
+    { "id": "right_nose", "type": "line", "start": [0.025, 0.015], "end": [0.0, 0.045] },
+    { "id": "left_tail", "type": "line", "start": [-0.024, -0.035], "end": [0.024, -0.035] }
+  ]
+}

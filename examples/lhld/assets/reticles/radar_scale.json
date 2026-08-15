@@ -1,15 +1,22 @@
 {
   "id": "radar_scale",
-  "lineWidth": 0.003,
+  "lineWidth": 0.0045,
   "elements": [
-    { "id": "range_top", "type": "text", "at": [0.665, 0.685], "size": 0.044, "align": "right", "text": "40", "letterSpacing": 0.004 },
-    { "id": "range_mid", "type": "text", "at": [0.665, 0.015], "size": 0.044, "align": "right", "text": "20", "letterSpacing": 0.004 },
-    { "id": "bars", "type": "text", "at": [-0.665, 0.555], "size": 0.044, "align": "left", "text": "4B", "letterSpacing": 0.004 },
-    { "id": "scan", "type": "text", "at": [-0.665, 0.485], "size": 0.044, "align": "left", "text": "A6", "letterSpacing": 0.004 },
-    { "id": "prf", "type": "text", "at": [-0.665, -0.575], "size": 0.044, "align": "left", "text": "M+", "letterSpacing": 0.004 },
-    { "id": "iff", "type": "text", "at": [-0.665, -0.645], "size": 0.040, "align": "left", "text": "M4", "letterSpacing": 0.004 },
-    { "id": "bull", "type": "text", "at": [-0.665, -0.705], "size": 0.040, "align": "left", "text": "250 42", "letterSpacing": 0.004 },
-    { "id": "bull_symbol", "type": "circle", "center": [-0.665, -0.765], "radius": 0.035, "filled": false },
-    { "id": "bull_dot", "type": "circle", "center": [-0.665, -0.765], "radius": 0.006, "filled": true }
+    { "id": "left_tick_1", "type": "line", "start": [-0.79, 0.47], "end": [-0.75, 0.47] },
+    { "id": "left_tick_2", "type": "line", "start": [-0.79, 0.28], "end": [-0.75, 0.28] },
+    { "id": "left_tick_3", "type": "line", "start": [-0.79, 0.09], "end": [-0.75, 0.09] },
+    { "id": "left_tick_4", "type": "line", "start": [-0.79, -0.10], "end": [-0.75, -0.10] },
+    { "id": "left_tick_5", "type": "line", "start": [-0.79, -0.29], "end": [-0.75, -0.29] },
+    { "id": "left_tick_6", "type": "line", "start": [-0.79, -0.48], "end": [-0.75, -0.48] },
+    { "id": "scan", "type": "text", "at": [-0.91, 0.30], "size": 0.090, "align": "left", "text": "A", "letterSpacing": 0.004 },
+    { "id": "bars", "type": "text", "at": [-0.91, 0.18], "size": 0.090, "align": "left", "text": "2", "letterSpacing": 0.004 },
+    { "id": "iff", "type": "text", "at": [-0.91, 0.06], "size": 0.090, "align": "left", "text": "I", "letterSpacing": 0.004 },
+    { "id": "bar_count", "type": "text", "at": [-0.91, -0.06], "size": 0.090, "align": "left", "text": "3", "letterSpacing": 0.004 },
+    { "id": "band", "type": "text", "at": [-0.91, -0.22], "size": 0.090, "align": "left", "text": "B", "letterSpacing": 0.004 },
+    { "id": "prf", "type": "text", "at": [-0.91, -0.45], "size": 0.090, "align": "left", "text": "M+", "letterSpacing": 0.004 },
+    { "id": "bull_circle", "type": "circle", "center": [-0.82, -0.66], "radius": 0.060, "filled": false },
+    { "id": "bull_tick", "type": "line", "start": [-0.775, -0.615], "end": [-0.745, -0.585] },
+    { "id": "bull_range", "type": "text", "at": [-0.82, -0.675], "size": 0.070, "align": "center", "text": "42", "letterSpacing": 0.002 },
+    { "id": "bull_bearing", "type": "text", "at": [-0.82, -0.785], "size": 0.078, "align": "center", "text": "250", "letterSpacing": 0.003 }
   ]
 }

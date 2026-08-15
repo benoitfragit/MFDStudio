@@ -403,6 +403,10 @@ struct RadarFrame
     RadarTrackView buggedTrack {};
     /** @brief True when the target data block should be drawn. */
     bool datablockVisible = false;
+    /** @brief True when the STT collision-antenna-train-angle steering cross is valid. */
+    bool sttInterceptVisible = false;
+    /** @brief STT steering-cross position; its vertical coordinate matches target range. */
+    MfdVec2 sttInterceptPosition {};
 };
 
 /** @brief Projected HSD symbol position (steerpoint or bullseye). */

@@ -1,0 +1,7 @@
+{
+  "id": "radar_sensor_cue",
+  "lineWidth": 0.0045,
+  "elements": [
+    { "id": "sensor", "type": "text", "at": [0.0, -0.82], "size": 0.080, "align": "center", "text": "T", "letterSpacing": 0.004 }
+  ]
+}

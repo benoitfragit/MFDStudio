@@ -67,7 +67,7 @@ TEST(LhldProjection, SttKeepsLockedTrackVisibleOutsideScanVolume)
     EXPECT_TRUE(std::isfinite(view.position.x));
     EXPECT_TRUE(std::isfinite(view.position.y));
     // The bearing is clamped to the right edge of the B-scope rather than dropped.
-    EXPECT_NEAR(view.position.x, 0.55f, 1.0e-3f);
+    EXPECT_NEAR(view.position.x, 0.46f, 1.0e-3f);
 }
 
 TEST(LhldProjection, SttKeepsLockedTrackVisibleBeyondRangeScale)
@@ -122,8 +122,42 @@ TEST(LhldProjection, CursorUsesNormalizedUiCoordinatesOnBothAxes)
 
     const lhld::RadarFrame frame = lhld::BuildMfdFrame(input).radar;
 
-    EXPECT_NEAR(frame.cursorPosition.x, 0.55f, 1.0e-4f);
+    EXPECT_NEAR(frame.cursorPosition.x, 0.46f, 1.0e-4f);
     EXPECT_NEAR(frame.cursorPosition.y, -0.75f, 1.0e-4f);
+}
+
+TEST(LhldProjection, SttCrossProvidesSteeringAtTargetRange)
+{
+    lhld::MfdInputSample input;
+    input.ownship.headingDeg = 0.0f;
+    input.ownship.speedKts = 420.0f;
+    input.tracks[0] = MakeTrack(15.0f, 20.0f);
+    input.tracks[0].headingDeg = 0.0f;
+    input.tracks[0].speedKts = 0.0f;
+    input.radar.submode = lhld::RadarSubmode::Stt;
+    input.radar.buggedTrack = 0;
+
+    const lhld::RadarFrame frame = lhld::BuildMfdFrame(input).radar;
+
+    EXPECT_TRUE(frame.sttInterceptVisible);
+    EXPECT_NEAR(frame.sttInterceptPosition.x, 0.115f, 1.0e-3f);
+    EXPECT_NEAR(frame.sttInterceptPosition.y, frame.buggedTrack.position.y, 1.0e-4f);
+}
+
+TEST(LhldProjection, SttCrossIsHiddenOutsideSixtyDegreeCollisionAngle)
+{
+    lhld::MfdInputSample input;
+    input.ownship.headingDeg = 0.0f;
+    input.tracks[0] = MakeTrack(70.0f, 20.0f);
+    input.tracks[0].headingDeg = 0.0f;
+    input.tracks[0].speedKts = 0.0f;
+    input.radar.submode = lhld::RadarSubmode::Stt;
+    input.radar.buggedTrack = 0;
+
+    const lhld::RadarFrame frame = lhld::BuildMfdFrame(input).radar;
+
+    EXPECT_TRUE(frame.buggedVisible);
+    EXPECT_FALSE(frame.sttInterceptVisible);
 }
 
 TEST(LhldProjection, RadarPowerStatesSuppressLivePresentation)

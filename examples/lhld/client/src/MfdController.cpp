@@ -27,7 +27,7 @@ namespace
 constexpr mfd::ColorRgba kBright {140, 255, 190, 255};
 constexpr mfd::ColorRgba kDim {40, 150, 95, 255};
 constexpr mfd::ColorRgba kRadarSearch {255, 255, 255, 255};
-constexpr mfd::ColorRgba kRadarTrackFile {255, 222, 0, 255};
+constexpr mfd::ColorRgba kRadarTrackFile {210, 235, 0, 255};
 constexpr mfd::ColorRgba kRadarExtrapolated {255, 48, 48, 255};
 constexpr mfd::ColorRgba kHsdCurrent {120, 255, 255, 255};
 constexpr mfd::ColorRgba kHsdDim {0, 210, 230, 220};
@@ -176,7 +176,7 @@ void ApplyTrackView(lhld_ui::RadarRwsTrackDynamicReticle& reticle,
                     const bool visible)
 {
     reticle.SetVisible(visible);
-    reticle.SetBlinkEnabled(false);
+    reticle.SetBlinkEnabled(view.extrapolated);
     if (!visible)
     {
         reticle.SetPosition(kHiddenTrackPosition);
@@ -193,7 +193,7 @@ void ApplyTrackView(lhld_ui::RadarTwsTrackDynamicReticle& reticle,
                     const bool visible)
 {
     reticle.SetVisible(visible);
-    reticle.SetBlinkEnabled(false);
+    reticle.SetBlinkEnabled(view.extrapolated);
     if (!visible)
     {
         reticle.SetPosition(kHiddenTrackPosition);
@@ -210,7 +210,7 @@ void ApplyTrackView(lhld_ui::RadarBuggedTrackDynamicReticle& reticle,
                     const bool visible)
 {
     reticle.SetVisible(visible);
-    reticle.SetBlinkEnabled(false);
+    reticle.SetBlinkEnabled(view.extrapolated);
     if (!visible)
     {
         reticle.SetPosition(kHiddenTrackPosition);
@@ -227,7 +227,7 @@ void ApplyTrackView(lhld_ui::RadarSttTrackDynamicReticle& reticle,
                     const bool visible)
 {
     reticle.SetVisible(visible);
-    reticle.SetBlinkEnabled(false);
+    reticle.SetBlinkEnabled(view.extrapolated);
     if (!visible)
     {
         reticle.SetPosition(kHiddenTrackPosition);
@@ -446,10 +446,16 @@ void ApplyRadar(
     radar.strobe = radar.acquisitionStrobe;
     radar.strobe.SetActive(searchPresentation);
     radar.strobe.SetPosition(ToVec(frame.cursorPosition));
+    radar.radarAcquisitionCursorVisual.SetVisible(searchPresentation);
+    radar.radarAcquisitionCursorVisual.SetPosition(ToVec(frame.cursorPosition));
 
-    radar.radarBscopeFrame.SetVisible(input.radar.operatingState != RadarOperatingState::Off);
+    radar.radarBscopeFrame.SetVisible(searchPresentation);
     radar.radarHorizon.SetVisible(frame.radarPresentationVisible);
     radar.radarScale.SetVisible(input.radar.operatingState != RadarOperatingState::Off);
+    radar.radarOwnship.SetVisible(searchPresentation);
+    radar.radarOwnship.SetPosition(mfd::Vec2 {0.0f, -0.52f});
+    radar.radarSensorCue.SetVisible(input.radar.operatingState != RadarOperatingState::Off);
+    radar.radarTopLabels.Mode().SetText(RadarStatusCaption(input));
     radar.radarElevationCaret.SetVisible(searchPresentation);
     radar.radarScanLine.SetVisible(frame.scanLineVisible);
     radar.radarScanLine.SetPosition(mfd::Vec2 {frame.scanLineX, 0.0f});
@@ -458,6 +464,8 @@ void ApplyRadar(
     radar.radarCursorData.SetPosition(ToVec(frame.cursorPosition));
     radar.radarCursorData.MaximumAltitude().SetText(FormatInt(frame.cursorMaximumAltitudeThousandsFt));
     radar.radarCursorData.MinimumAltitude().SetText(FormatInt(frame.cursorMinimumAltitudeThousandsFt));
+    radar.radarSttInterceptCross.SetVisible(sttPresentation && frame.sttInterceptVisible);
+    radar.radarSttInterceptCross.SetPosition(ToVec(frame.sttInterceptPosition));
 
     radar.DynamicRadarRwsTrack().SetVisible(rwsPresentation);
     radar.DynamicRadarTwsTrack().SetVisible(twsPresentation);
@@ -511,7 +519,7 @@ void ApplyRadar(
         }
     }
 
-    radar.radarDatablock.SetVisible(frame.datablockVisible);
+    radar.radarDatablock.SetVisible(frame.radarPresentationVisible);
     if (frame.buggedVisible)
     {
         if (buggedIndex >= 0 && buggedIndex < static_cast<int>(kMaxRadarTracks))
@@ -521,50 +529,50 @@ void ApplyRadar(
             std::snprintf(
                 buffer,
                 sizeof(buffer),
-                "%d",
-                static_cast<int>(std::lround(frame.buggedTrack.altitudeThousandsFt)));
-            radar.radarDatablock.TgtAltValue().SetText(buffer);
-            std::snprintf(
-                buffer,
-                sizeof(buffer),
-                "%c %02d",
-                track.azimuthDeg < 0.0f ? 'L' : 'R',
-                static_cast<int>(std::lround(track.aspectDeg / 10.0f)));
+                "%d%c",
+                std::abs(static_cast<int>(std::lround(track.aspectDeg / 10.0f))),
+                track.aspectDeg < 0.0f ? 'L' : 'R');
             radar.radarDatablock.TgtAspectValue().SetText(buffer);
             std::snprintf(buffer, sizeof(buffer), "%+dK", static_cast<int>(std::lround(track.closureKts)));
             radar.radarDatablock.TgtClosureValue().SetText(buffer);
             radar.radarDatablock.TgtHdgValue().SetText(FormatHeading(track.headingDeg));
-            std::snprintf(buffer, sizeof(buffer), "%+d", static_cast<int>(std::lround(track.speedKts)));
+            radar.radarDatablock.TgtIdentValue().SetText("WAIT");
+            std::snprintf(buffer, sizeof(buffer), "%d", static_cast<int>(std::lround(track.speedKts)));
             radar.radarDatablock.TgtGsValue().SetText(buffer);
         }
     }
+    else
+    {
+        radar.radarDatablock.TgtAspectValue().SetText(
+            FormatInt(static_cast<float>(input.radar.scanBars)) + "B");
+        radar.radarDatablock.TgtHdgValue().SetText(FormatInt(input.radar.azScanDeg));
+        radar.radarDatablock.TgtIdentValue().SetText("WAIT");
+        radar.radarDatablock.TgtGsValue().SetText(FormatInt(input.ownship.speedKts));
+        radar.radarDatablock.TgtClosureValue().SetText("");
+    }
 
-    radar.radarScale.RangeTop().SetText(FormatInt(input.radar.rangeScaleNm));
-    radar.radarScale.RangeMid().SetText(FormatInt(input.radar.rangeScaleNm * 0.5f));
-    radar.radarScale.Bars().SetText(FormatInt(static_cast<float>(input.radar.scanBars)) + "B");
-    radar.radarScale.Scan().SetText("A" + FormatInt(input.radar.azScanDeg * 0.05f));
+    radar.radarPerimeter.RangeTop().SetText(FormatInt(input.radar.rangeScaleNm));
+    radar.radarScale.Scan().SetText("A");
+    radar.radarScale.Bars().SetText("2");
+    radar.radarScale.Iff().SetText("I");
+    radar.radarScale.BarCount().SetText("3");
+    radar.radarScale.Band().SetText("B");
     radar.radarScale.Prf().SetText(input.radar.highPrf ? "M+" : "M3");
-    radar.radarScale.Iff().SetText("M4");
     {
         char buffer[24] {};
-        std::snprintf(
-            buffer,
-            sizeof(buffer),
-            "%03d  %02d",
-            static_cast<int>(std::lround(input.nav.bullseyeBearingDeg)) % 360,
-            static_cast<int>(std::lround(input.nav.bullseyeRangeNm)));
-        radar.radarScale.Bull().SetText(buffer);
+        std::snprintf(buffer, sizeof(buffer), "%02d", static_cast<int>(std::lround(input.nav.bullseyeRangeNm)) % 100);
+        radar.radarScale.BullRange().SetText(buffer);
+        std::snprintf(buffer, sizeof(buffer), "%03d", static_cast<int>(std::lround(input.nav.bullseyeBearingDeg)) % 360);
+        radar.radarScale.BullBearing().SetText(buffer);
     }
 
     radar.radarMessage.SetVisible(input.radar.operatingState != RadarOperatingState::Operating);
     radar.radarMessage.Message().SetText(
         input.radar.operatingState == RadarOperatingState::Off ? "FCR OFF" : "NO RAD");
 
-    radar.SetStatusCaption(RadarStatusCaption(input));
-
     for (int osb = 1; osb <= static_cast<int>(kOsbCount); ++osb)
     {
-        SetOsbLegend(radar.osbLegends, osb, MfdController::OsbLegend(MfdPage::Radar, osb, input));
+        SetOsbLegend(radar.osbLegends, osb, "");
     }
 }
 
@@ -800,19 +808,18 @@ void MfdController::Populate(lhld_ui::LhldUi& ui, const MfdInputSample& input)
 
 std::string MfdController::OsbLegend(const MfdPage page, const int osbOneBased, const MfdInputSample& input)
 {
-    // Page-select row (bottom OSB 12/13/14) is common to every page.
-    switch (osbOneBased)
+    // The FCR authors its own Falcon-style bottom row. Other pages keep the
+    // common page-select row provided by the shared OSB template.
+    if (page != MfdPage::Radar)
     {
-    case 12:
-        return "FCR";
-    case 13:
-        return "SMS";
-    case 14:
-        return "HSD";
-    case 15:
-        return "A-G";
-    default:
-        break;
+        switch (osbOneBased)
+        {
+        case 12: return "FCR";
+        case 13: return "SMS";
+        case 14: return "HSD";
+        case 15: return "A-G";
+        default: break;
+        }
     }
 
     switch (page)
@@ -830,14 +837,6 @@ std::string MfdController::OsbLegend(const MfdPage page, const int osbOneBased, 
             return "OVRD";
         case 5:
             return "CNTL";
-        case 6:
-            return FormatInt(input.radar.rangeScaleNm);
-        case 17:
-            return "A" + FormatInt(input.radar.azScanDeg * 0.05f);
-        case 18:
-            return FormatInt(static_cast<float>(input.radar.scanBars)) + "B";
-        case 19:
-            return input.radar.highPrf ? "M+" : "M3";
         default:
             return "";
         }

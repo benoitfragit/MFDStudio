@@ -1,11 +1,11 @@
 {
   "id": "radar_datablock",
-  "lineWidth": 0.003,
+  "lineWidth": 0.004,
   "elements": [
-    { "id": "tgt_alt_value", "type": "text", "at": [-0.61, 0.755], "size": 0.043, "align": "left", "text": "20", "letterSpacing": 0.004 },
-    { "id": "tgt_aspect_value", "type": "text", "at": [-0.36, 0.755], "size": 0.043, "align": "center", "text": "R 30", "letterSpacing": 0.004 },
-    { "id": "tgt_closure_value", "type": "text", "at": [0.0, 0.755], "size": 0.043, "align": "center", "text": "+450", "letterSpacing": 0.004 },
-    { "id": "tgt_hdg_value", "type": "text", "at": [0.34, 0.755], "size": 0.043, "align": "center", "text": "090", "letterSpacing": 0.004 },
-    { "id": "tgt_gs_value", "type": "text", "at": [0.61, 0.755], "size": 0.043, "align": "right", "text": "+420", "letterSpacing": 0.004 }
+    { "id": "tgt_aspect_value", "type": "text", "at": [-0.60, 0.765], "size": 0.088, "align": "center", "text": "6L", "letterSpacing": 0.004 },
+    { "id": "tgt_hdg_value", "type": "text", "at": [-0.30, 0.765], "size": 0.088, "align": "center", "text": "160°", "letterSpacing": 0.004 },
+    { "id": "tgt_ident_value", "type": "text", "at": [0.0, 0.765], "size": 0.088, "align": "center", "text": "WAIT", "letterSpacing": 0.004 },
+    { "id": "tgt_gs_value", "type": "text", "at": [0.30, 0.765], "size": 0.088, "align": "center", "text": "270", "letterSpacing": 0.004 },
+    { "id": "tgt_closure_value", "type": "text", "at": [0.60, 0.765], "size": 0.088, "align": "center", "text": "+335K", "letterSpacing": 0.004 }
   ]
 }

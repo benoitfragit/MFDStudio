@@ -64,7 +64,12 @@ FCR symbols are dynamic reticles allocated only when needed. RWS search tracks
 are white, TWS trackfiles and bugged/STT tracks are yellow, and any extrapolated
 track is red. BUG designates only the dynamic track reported captured by the
 runtime strobe through `IsStrobeCaptured()`; there is no nearest-track fallback.
-The operating state drives the centered `FCR OFF` and `NO RAD` messages.
+The operating state drives the centered `FCR OFF` and `NO RAD` messages. The
+Falcon-style perimeter keeps the range/DLZ scale on the outer right border and
+shows a compact search-context line below the top OSB labels; after designation,
+that line switches to target aspect, heading, NCTR state, speed and closure.
+STT removes the search-volume gates and adds a CATA steering cross at target
+range when the computed collision angle remains within 60 degrees.
 
 ## Replacing the ImGui Panel
 

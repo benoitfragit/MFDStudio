@@ -1,10 +1,10 @@
 {
   "id": "radar_cursor",
-  "lineWidth": 0.004,
+  "lineWidth": 0.006,
   "elements": [
-    { "id": "left", "type": "line", "start": [-0.070, -0.072], "end": [-0.070, 0.072] },
-    { "id": "right", "type": "line", "start": [0.070, -0.072], "end": [0.070, 0.072] },
-    { "id": "left_top", "type": "line", "start": [-0.070, 0.072], "end": [-0.045, 0.072] },
-    { "id": "right_top", "type": "line", "start": [0.045, 0.072], "end": [0.070, 0.072] }
+    { "id": "left", "type": "line", "start": [-0.075, -0.078], "end": [-0.075, 0.078] },
+    { "id": "right", "type": "line", "start": [0.075, -0.078], "end": [0.075, 0.078] },
+    { "id": "left_top", "type": "line", "start": [-0.075, 0.078], "end": [-0.045, 0.078] },
+    { "id": "right_top", "type": "line", "start": [0.045, 0.078], "end": [0.075, 0.078] }
   ]
 }

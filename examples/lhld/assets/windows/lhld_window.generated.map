@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "mappingHash": "7368761abc6c6561bb0c37bb454ca355c7f3375013f588f8e7c13d848cf6b058",
+  "mappingHash": "250cfc08ca449db9a7c35e5b2e79e8df25f11b27a5f03b3032f79b0d9657e5e2",
   "window": {
     "name": "lhld_window",
     "title": "LHLD",
@@ -234,6 +234,13 @@
       "source": "static"
     },
     {
+      "id": 438879717884931638,
+      "pageId": 9637022363458486384,
+      "reticleId": "radar_acquisition_cursor_visual",
+      "normalizedReticleId": "radar_acquisition_cursor_visual",
+      "source": "static"
+    },
+    {
       "id": 3500597299456941462,
       "pageId": 9637022363458486384,
       "reticleId": "radar_bscope_frame",
@@ -276,6 +283,20 @@
       "source": "static"
     },
     {
+      "id": 17065940970459402097,
+      "pageId": 9637022363458486384,
+      "reticleId": "radar_outline",
+      "normalizedReticleId": "radar_outline",
+      "source": "static"
+    },
+    {
+      "id": 13174424015316666128,
+      "pageId": 9637022363458486384,
+      "reticleId": "radar_ownship",
+      "normalizedReticleId": "radar_ownship",
+      "source": "static"
+    },
+    {
       "id": 2152272498441853728,
       "pageId": 9637022363458486384,
       "reticleId": "radar_perimeter",
@@ -297,10 +318,24 @@
       "source": "static"
     },
     {
-      "id": 4044906131749056143,
+      "id": 4806526986434761967,
       "pageId": 9637022363458486384,
-      "reticleId": "radar_status",
-      "normalizedReticleId": "radar_status",
+      "reticleId": "radar_sensor_cue",
+      "normalizedReticleId": "radar_sensor_cue",
+      "source": "static"
+    },
+    {
+      "id": 5821503409965812071,
+      "pageId": 9637022363458486384,
+      "reticleId": "radar_stt_intercept_cross",
+      "normalizedReticleId": "radar_stt_intercept_cross",
+      "source": "static"
+    },
+    {
+      "id": 11330656779390962016,
+      "pageId": 9637022363458486384,
+      "reticleId": "radar_top_labels",
+      "normalizedReticleId": "radar_top_labels",
       "source": "static"
     },
     {
@@ -1543,15 +1578,6 @@
       "exposed": true
     },
     {
-      "id": 10239663155942804586,
-      "ownerKind": "reticle",
-      "ownerId": 7943573145641400727,
-      "primitiveId": "tgt_alt_value",
-      "normalizedPrimitiveId": "tgt_alt_value",
-      "primitiveType": "text",
-      "exposed": true
-    },
-    {
       "id": 11178778372744812545,
       "ownerKind": "reticle",
       "ownerId": 7943573145641400727,
@@ -1588,6 +1614,15 @@
       "exposed": true
     },
     {
+      "id": 15260586172068432387,
+      "ownerKind": "reticle",
+      "ownerId": 7943573145641400727,
+      "primitiveId": "tgt_ident_value",
+      "normalizedPrimitiveId": "tgt_ident_value",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
       "id": 7706822362747384860,
       "ownerKind": "reticle",
       "ownerId": 7172646644961225399,
@@ -1615,33 +1650,6 @@
       "exposed": true
     },
     {
-      "id": 18046971010963950696,
-      "ownerKind": "reticle",
-      "ownerId": 2152272498441853728,
-      "primitiveId": "dl_channel",
-      "normalizedPrimitiveId": "dl_channel",
-      "primitiveType": "text",
-      "exposed": true
-    },
-    {
-      "id": 7414829950613817003,
-      "ownerKind": "reticle",
-      "ownerId": 2152272498441853728,
-      "primitiveId": "dl_mode",
-      "normalizedPrimitiveId": "dl_mode",
-      "primitiveType": "text",
-      "exposed": true
-    },
-    {
-      "id": 9614902796697862752,
-      "ownerKind": "reticle",
-      "ownerId": 2152272498441853728,
-      "primitiveId": "expand",
-      "normalizedPrimitiveId": "expand",
-      "primitiveType": "text",
-      "exposed": true
-    },
-    {
       "id": 9532018708799179353,
       "ownerKind": "reticle",
       "ownerId": 2152272498441853728,
@@ -1651,56 +1659,47 @@
       "exposed": true
     },
     {
-      "id": 14898900308770528925,
+      "id": 11799441742673077547,
       "ownerKind": "reticle",
       "ownerId": 2152272498441853728,
-      "primitiveId": "lower_right_declutter",
-      "normalizedPrimitiveId": "lower_right_declutter",
+      "primitiveId": "range_top",
+      "normalizedPrimitiveId": "range_top",
       "primitiveType": "text",
       "exposed": true
     },
     {
-      "id": 553275837184965370,
+      "id": 152794632690547250,
       "ownerKind": "reticle",
       "ownerId": 2152272498441853728,
-      "primitiveId": "lower_right_mode",
-      "normalizedPrimitiveId": "lower_right_mode",
+      "primitiveId": "right_four",
+      "normalizedPrimitiveId": "right_four",
       "primitiveType": "text",
       "exposed": true
     },
     {
-      "id": 3152319377756736860,
+      "id": 6359807692503244047,
       "ownerKind": "reticle",
       "ownerId": 2152272498441853728,
-      "primitiveId": "lower_right_scan",
-      "normalizedPrimitiveId": "lower_right_scan",
+      "primitiveId": "right_one",
+      "normalizedPrimitiveId": "right_one",
       "primitiveType": "text",
       "exposed": true
     },
     {
-      "id": 5360585565207832366,
+      "id": 3977194178556029952,
       "ownerKind": "reticle",
       "ownerId": 2152272498441853728,
-      "primitiveId": "missile",
-      "normalizedPrimitiveId": "missile",
+      "primitiveId": "right_three",
+      "normalizedPrimitiveId": "right_three",
       "primitiveType": "text",
       "exposed": true
     },
     {
-      "id": 14560001940501512370,
+      "id": 14625907430230768417,
       "ownerKind": "reticle",
       "ownerId": 2152272498441853728,
-      "primitiveId": "missile_count",
-      "normalizedPrimitiveId": "missile_count",
-      "primitiveType": "text",
-      "exposed": true
-    },
-    {
-      "id": 10464667483678869688,
-      "ownerKind": "reticle",
-      "ownerId": 2152272498441853728,
-      "primitiveId": "sensor",
-      "normalizedPrimitiveId": "sensor",
+      "primitiveId": "right_two",
+      "normalizedPrimitiveId": "right_two",
       "primitiveType": "text",
       "exposed": true
     },
@@ -1723,38 +1722,20 @@
       "exposed": true
     },
     {
-      "id": 12426387163576326751,
+      "id": 9326330387569698706,
       "ownerKind": "reticle",
-      "ownerId": 2152272498441853728,
-      "primitiveId": "weapon_four",
-      "normalizedPrimitiveId": "weapon_four",
+      "ownerId": 10873039906535990210,
+      "primitiveId": "band",
+      "normalizedPrimitiveId": "band",
       "primitiveType": "text",
       "exposed": true
     },
     {
-      "id": 16230964011504551550,
+      "id": 9179448622700078002,
       "ownerKind": "reticle",
-      "ownerId": 2152272498441853728,
-      "primitiveId": "weapon_one",
-      "normalizedPrimitiveId": "weapon_one",
-      "primitiveType": "text",
-      "exposed": true
-    },
-    {
-      "id": 7511465407144912703,
-      "ownerKind": "reticle",
-      "ownerId": 2152272498441853728,
-      "primitiveId": "weapon_three",
-      "normalizedPrimitiveId": "weapon_three",
-      "primitiveType": "text",
-      "exposed": true
-    },
-    {
-      "id": 6482220349185904931,
-      "ownerKind": "reticle",
-      "ownerId": 2152272498441853728,
-      "primitiveId": "weapon_two",
-      "normalizedPrimitiveId": "weapon_two",
+      "ownerId": 10873039906535990210,
+      "primitiveId": "bar_count",
+      "normalizedPrimitiveId": "bar_count",
       "primitiveType": "text",
       "exposed": true
     },
@@ -1768,11 +1749,20 @@
       "exposed": true
     },
     {
-      "id": 14600220755514577646,
+      "id": 36501988401887448,
       "ownerKind": "reticle",
       "ownerId": 10873039906535990210,
-      "primitiveId": "bull",
-      "normalizedPrimitiveId": "bull",
+      "primitiveId": "bull_bearing",
+      "normalizedPrimitiveId": "bull_bearing",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 15754982694449563688,
+      "ownerKind": "reticle",
+      "ownerId": 10873039906535990210,
+      "primitiveId": "bull_range",
+      "normalizedPrimitiveId": "bull_range",
       "primitiveType": "text",
       "exposed": true
     },
@@ -1795,24 +1785,6 @@
       "exposed": true
     },
     {
-      "id": 3547530838288159762,
-      "ownerKind": "reticle",
-      "ownerId": 10873039906535990210,
-      "primitiveId": "range_mid",
-      "normalizedPrimitiveId": "range_mid",
-      "primitiveType": "text",
-      "exposed": true
-    },
-    {
-      "id": 9672775536434477013,
-      "ownerKind": "reticle",
-      "ownerId": 10873039906535990210,
-      "primitiveId": "range_top",
-      "normalizedPrimitiveId": "range_top",
-      "primitiveType": "text",
-      "exposed": true
-    },
-    {
       "id": 1428794935483242118,
       "ownerKind": "reticle",
       "ownerId": 10873039906535990210,
@@ -1831,12 +1803,66 @@
       "exposed": true
     },
     {
-      "id": 14260332756364011828,
+      "id": 10357000067850239660,
       "ownerKind": "reticle",
-      "ownerId": 4044906131749056143,
-      "primitiveId": "status_text",
-      "normalizedPrimitiveId": "status_text",
+      "ownerId": 4806526986434761967,
+      "primitiveId": "sensor",
+      "normalizedPrimitiveId": "sensor",
       "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 11484905892805760755,
+      "ownerKind": "reticle",
+      "ownerId": 11330656779390962016,
+      "primitiveId": "control",
+      "normalizedPrimitiveId": "control",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 16835635680914820850,
+      "ownerKind": "reticle",
+      "ownerId": 11330656779390962016,
+      "primitiveId": "crm",
+      "normalizedPrimitiveId": "crm",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 16989025958358465529,
+      "ownerKind": "reticle",
+      "ownerId": 11330656779390962016,
+      "primitiveId": "mode",
+      "normalizedPrimitiveId": "mode",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 12210764294958178397,
+      "ownerKind": "reticle",
+      "ownerId": 11330656779390962016,
+      "primitiveId": "norm",
+      "normalizedPrimitiveId": "norm",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 12327161997873286694,
+      "ownerKind": "reticle",
+      "ownerId": 11330656779390962016,
+      "primitiveId": "override",
+      "normalizedPrimitiveId": "override",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 5888203269026502720,
+      "ownerKind": "reticle",
+      "ownerId": 10330388686924625043,
+      "primitiveId": "capture_anchor",
+      "normalizedPrimitiveId": "capture_anchor",
+      "primitiveType": "line",
       "exposed": true
     },
     {

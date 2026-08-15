@@ -1,0 +1,7 @@
+{
+  "id": "radar_capture_strobe",
+  "lineWidth": 0.001,
+  "elements": [
+    { "id": "capture_anchor", "type": "line", "start": [0.0, 0.0], "end": [0.0, 0.001] }
+  ]
+}

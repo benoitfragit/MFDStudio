@@ -2,6 +2,6 @@
   "id": "radar_message",
   "lineWidth": 0.003,
   "elements": [
-    { "id": "message", "type": "text", "at": [0.0, 0.02], "size": 0.085, "align": "center", "text": "FCR OFF", "letterSpacing": 0.008 }
+    { "id": "message", "type": "text", "at": [0.0, 0.02], "size": 0.120, "align": "center", "text": "FCR OFF", "letterSpacing": 0.008 }
   ]
 }

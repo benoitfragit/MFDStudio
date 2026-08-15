@@ -1,0 +1,31 @@
+{
+  "id": "radar_outline",
+  "lineWidth": 0.005,
+  "elements": [
+    { "id": "left_border", "type": "line", "start": [-0.965, -0.955], "end": [-0.965, 0.955] },
+    { "id": "right_border", "type": "line", "start": [0.965, -0.955], "end": [0.965, 0.955] },
+    { "id": "top_border", "type": "line", "start": [-0.965, 0.955], "end": [0.965, 0.955] },
+    { "id": "bottom_border", "type": "line", "start": [-0.965, -0.955], "end": [0.965, -0.955] },
+
+    { "id": "top_tick_1", "type": "line", "start": [-0.74, 0.955], "end": [-0.74, 0.925] },
+    { "id": "top_tick_2", "type": "line", "start": [-0.37, 0.955], "end": [-0.37, 0.925] },
+    { "id": "top_tick_3", "type": "line", "start": [0.00, 0.955], "end": [0.00, 0.925] },
+    { "id": "top_tick_4", "type": "line", "start": [0.37, 0.955], "end": [0.37, 0.925] },
+    { "id": "top_tick_5", "type": "line", "start": [0.74, 0.955], "end": [0.74, 0.925] },
+
+    { "id": "bottom_tick_1", "type": "line", "start": [-0.74, -0.955], "end": [-0.74, -0.925] },
+    { "id": "bottom_tick_2", "type": "line", "start": [-0.37, -0.955], "end": [-0.37, -0.925] },
+    { "id": "bottom_tick_3", "type": "line", "start": [0.00, -0.955], "end": [0.00, -0.925] },
+    { "id": "bottom_tick_4", "type": "line", "start": [0.37, -0.955], "end": [0.37, -0.925] },
+    { "id": "bottom_tick_5", "type": "line", "start": [0.74, -0.955], "end": [0.74, -0.925] },
+
+    { "id": "scope_tick_1", "type": "line", "start": [-0.42, -0.75], "end": [-0.42, -0.70] },
+    { "id": "scope_tick_2", "type": "line", "start": [-0.28, -0.75], "end": [-0.28, -0.70] },
+    { "id": "scope_tick_3", "type": "line", "start": [-0.14, -0.75], "end": [-0.14, -0.70] },
+    { "id": "scope_center_left", "type": "line", "start": [-0.025, -0.75], "end": [-0.025, -0.67] },
+    { "id": "scope_center_right", "type": "line", "start": [0.025, -0.75], "end": [0.025, -0.67] },
+    { "id": "scope_tick_4", "type": "line", "start": [0.14, -0.75], "end": [0.14, -0.70] },
+    { "id": "scope_tick_5", "type": "line", "start": [0.28, -0.75], "end": [0.28, -0.70] },
+    { "id": "scope_tick_6", "type": "line", "start": [0.42, -0.75], "end": [0.42, -0.70] }
+  ]
+}

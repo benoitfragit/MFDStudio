@@ -19,8 +19,8 @@
     {
       "name": "Acquisition",
       "id": "radar_acquisition_cursor",
-      "template": "radar_cursor",
-      "stroke": "#FFFFFFFF",
+      "template": "radar_capture_strobe",
+      "stroke": "#00000000",
       "position": { "x": 0.0, "y": 0.0 },
       "capture": { "shape": "rectangle", "size": [0.18, 0.14] },
       "magnet": { "enabled": false, "radius": 0.075, "strength": 1.0 }
@@ -33,15 +33,20 @@
     { "templateId": "radar_stt_track", "layerId": "tracks", "orderInLayer": 3 }
   ],
   "staticReticles": [
-    { "id": "radar_bscope_frame", "layerId": "background", "template": "radar_bscope_frame", "stroke": "#00D9FFFF" },
-    { "id": "radar_horizon", "layerId": "background", "template": "radar_horizon", "stroke": "#FF00E6FF" },
-    { "id": "radar_scale", "layerId": "background", "template": "radar_scale", "stroke": "#00D9FFFF" },
-    { "id": "radar_perimeter", "layerId": "background", "template": "radar_perimeter", "stroke": "#FFFFFFFF" },
-    { "id": "radar_elevation_caret", "layerId": "scan", "template": "radar_elevation_caret", "stroke": "#00D9FFFF" },
+    { "id": "radar_outline", "layerId": "background", "template": "radar_outline", "stroke": "#D7E5E9FF" },
+    { "id": "radar_bscope_frame", "layerId": "background", "template": "radar_bscope_frame", "stroke": "#00A8E8FF" },
+    { "id": "radar_horizon", "layerId": "background", "template": "radar_horizon", "stroke": "#F000D8FF" },
+    { "id": "radar_scale", "layerId": "background", "template": "radar_scale", "stroke": "#00A8E8FF" },
+    { "id": "radar_perimeter", "layerId": "background", "template": "radar_perimeter", "stroke": "#D7E5E9FF" },
+    { "id": "radar_top_labels", "layerId": "background", "template": "radar_top_labels", "stroke": "#D7E5E9FF" },
+    { "id": "radar_ownship", "layerId": "background", "template": "radar_ownship", "stroke": "#D7E5E9FF" },
+    { "id": "radar_sensor_cue", "layerId": "background", "template": "radar_sensor_cue", "stroke": "#00A8E8FF" },
+    { "id": "radar_elevation_caret", "layerId": "scan", "template": "radar_elevation_caret", "stroke": "#00A8E8FF" },
     { "id": "radar_scan_line", "layerId": "scan", "template": "radar_scan_line", "stroke": "#008CA6B0" },
+    { "id": "radar_acquisition_cursor_visual", "layerId": "tracks", "template": "radar_cursor", "stroke": "#D7E5E9FF" },
     { "id": "radar_cursor_data", "layerId": "tracks", "template": "radar_cursor_data", "stroke": "#FFFFFFFF" },
-    { "id": "radar_datablock", "layerId": "overlay", "template": "radar_datablock", "show": false, "stroke": "#FFFFFFFF" },
-    { "id": "radar_status", "layerId": "overlay", "template": "radar_status", "show": false, "stroke": "#FFFFFFFF" },
+    { "id": "radar_datablock", "layerId": "overlay", "template": "radar_datablock", "show": false, "stroke": "#D7E5E9FF" },
+    { "id": "radar_stt_intercept_cross", "layerId": "overlay", "template": "radar_stt_intercept_cross", "show": false, "stroke": "#D7E5E9FF" },
     { "id": "radar_message", "layerId": "overlay", "template": "radar_message", "show": false, "stroke": "#FFFFFFFF" },
     { "id": "osb_legends", "layerId": "overlay", "template": "osb_legends_tpl", "stroke": "#FFFFFFFF" }
   ]
