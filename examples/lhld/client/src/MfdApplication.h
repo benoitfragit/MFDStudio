@@ -105,12 +105,18 @@ private:
     void BugCapturedRadarTrack();
     void EnterSingleTargetTrack();
     void ClearRadarBug() noexcept;
-    void SetRadarOperatingState(RadarOperatingState state) noexcept;
+    void SetRadarPowerEnabled(bool enabled) noexcept;
+    void SetRadarRfEnabled(bool enabled) noexcept;
 
     void DrawPageSelectorBar();
     void DrawMfdUnit(float deltaSeconds);
     void DrawBezelButtons(float unitOriginX, float unitOriginY, float unitSide, float imageInset);
     void DrawControlPanel();
+    void DrawMasterModeControls();
+    void DrawRadarControls();
+    void DrawStoresControls();
+    void DrawAirGroundControls();
+    void DrawNavigationControls();
     void PublishFrame();
     void PollFeedback();
     void ResetScene();

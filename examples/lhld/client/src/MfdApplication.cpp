@@ -20,6 +20,7 @@
 
 #include <imgui.h>
 
+#include "CockpitUi.h"
 #include "MfdRadarSimulation.h"
 #include "mfd/control/CommandClient.h"
 #include "mfd/control/FeedbackTransport.h"
@@ -91,27 +92,22 @@ void ShowLastItemTooltip(const char* tooltip)
 
 bool ModeButton(const char* label, const bool active, const ImVec2 size, const char* tooltip = nullptr)
 {
-    if (active)
-    {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.12f, 0.55f, 0.36f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.16f, 0.66f, 0.44f, 1.0f));
-    }
-    else
-    {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.16f, 0.20f, 0.24f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.22f, 0.29f, 0.34f, 1.0f));
-    }
-    const bool pressed = ImGui::Button(label, size);
-    ImGui::PopStyleColor(2);
-    ShowLastItemTooltip(tooltip);
-    return pressed;
+    return cockpit::ModeButton(label, active, size, tooltip);
 }
 
 bool PanelButton(const char* label, const ImVec2 size, const char* tooltip)
 {
-    const bool pressed = ImGui::Button(label, size);
-    ShowLastItemTooltip(tooltip);
-    return pressed;
+    return cockpit::ActionButton(label, size, tooltip);
+}
+
+float TwoColumnButtonWidth() noexcept
+{
+    return std::max(72.0f, (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) * 0.5f);
+}
+
+float ThreeColumnButtonWidth() noexcept
+{
+    return std::max(64.0f, (ImGui::GetContentRegionAvail().x - 2.0f * ImGui::GetStyle().ItemSpacing.x) / 3.0f);
 }
 
 bool IsPageSelectOsb(const int osbOneBased) noexcept
@@ -610,9 +606,27 @@ void MfdApplication::ClearRadarBug() noexcept
     radarControls_.submode = radarReturnSubmode_;
 }
 
-void MfdApplication::SetRadarOperatingState(const RadarOperatingState state) noexcept
+void MfdApplication::SetRadarPowerEnabled(const bool enabled) noexcept
 {
-    radarControls_.operatingState = state;
+    if (!enabled)
+    {
+        radarControls_.operatingState = RadarOperatingState::Off;
+        return;
+    }
+
+    if (radarControls_.operatingState == RadarOperatingState::Off)
+    {
+        radarControls_.operatingState = RadarOperatingState::Silent;
+    }
+}
+
+void MfdApplication::SetRadarRfEnabled(const bool enabled) noexcept
+{
+    if (radarControls_.operatingState == RadarOperatingState::Off)
+    {
+        return;
+    }
+    radarControls_.operatingState = enabled ? RadarOperatingState::Operating : RadarOperatingState::Silent;
 }
 
 void MfdApplication::DrawFrame(const float deltaSeconds)
@@ -636,35 +650,53 @@ void MfdApplication::DrawFrame(const float deltaSeconds)
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos);
     ImGui::SetNextWindowSize(viewport->WorkSize);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    cockpit::PushTheme();
     ImGui::Begin(
         "LHLD",
         nullptr,
         ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus);
 
-    DrawPageSelectorBar();
-
-    // Reserve room for the control panel below the visualization so the square
-    // MFD unit cannot consume the whole height and hide DrawControlPanel().
-    const float contentHeight = ImGui::GetContentRegionAvail().y;
-    const float reservedControlPanelHeight = std::clamp(contentHeight * 0.34f, 220.0f, 360.0f);
-    const float mfdRegionHeight = std::max(240.0f, contentHeight - reservedControlPanelHeight);
-
+    cockpit::DrawBackplate();
+    ImGui::SetWindowFontScale(1.08f);
     ImGui::BeginChild(
-        "##mfd_region",
-        ImVec2(0.0f, mfdRegionHeight),
-        ImGuiChildFlags_None,
+        "##annunciator_rail",
+        ImVec2(0.0f, 52.0f),
+        ImGuiChildFlags_Borders,
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    DrawMfdUnit(deltaSeconds);
+    DrawPageSelectorBar();
     ImGui::EndChild();
 
-    ImGui::Separator();
-    DrawControlPanel();
+    const ImVec2 available = ImGui::GetContentRegionAvail();
+    const cockpit::ConsoleLayout layout = cockpit::ResolveConsoleLayout(available);
+    if (layout.sideBySide)
+    {
+        ImGui::BeginChild(
+            "##mfd_bay",
+            ImVec2(layout.mfdWidth, 0.0f),
+            ImGuiChildFlags_None,
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        DrawMfdUnit(deltaSeconds);
+        ImGui::EndChild();
+        ImGui::SameLine(0.0f, layout.gap);
+        DrawControlPanel();
+    }
+    else
+    {
+        const float reservedControlHeight = std::clamp(available.y * 0.40f, 250.0f, 350.0f);
+        const float mfdRegionHeight = std::max(320.0f, available.y - reservedControlHeight - 8.0f);
+        ImGui::BeginChild(
+            "##mfd_bay",
+            ImVec2(0.0f, mfdRegionHeight),
+            ImGuiChildFlags_None,
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        DrawMfdUnit(deltaSeconds);
+        ImGui::EndChild();
+        DrawControlPanel();
+    }
 
     ImGui::End();
-    ImGui::PopStyleVar(2);
+    cockpit::PopTheme();
 
     ApplyControlsToInputSource();
     inputs_ = inputSource_->Inputs();
@@ -1138,260 +1170,336 @@ void MfdApplication::DrawPageSelectorBar()
 
 void MfdApplication::DrawControlPanel()
 {
-    ImGui::BeginChild("##control_panel", ImVec2(0.0f, 0.0f), ImGuiChildFlags_None);
+    ImGui::BeginChild(
+        "##control_panel",
+        ImVec2(0.0f, 0.0f),
+        ImGuiChildFlags_Borders,
+        ImGuiWindowFlags_AlwaysVerticalScrollbar);
+    cockpit::DrawPanelHeader("AVIONICS CONTROL", offscreenView_.ActivePageName().c_str());
 
-    ImGui::TextColored(
-        connected_ ? ImVec4(0.35f, 0.95f, 0.58f, 1.0f) : ImVec4(1.0f, 0.55f, 0.42f, 1.0f),
-        "%s",
-        connected_ ? "streaming" : "disconnected");
+    cockpit::DrawStatusLamp("DATA", connected_);
     ImGui::SameLine();
-    ImGui::TextColored(
-        statusIsError_ ? ImVec4(1.0f, 0.55f, 0.42f, 1.0f) : ImVec4(0.72f, 0.86f, 0.95f, 1.0f),
-        "%s",
-        status_.empty() ? "Ready." : status_.c_str());
+    cockpit::DrawStatusLamp("SIM RUN", running_);
     ImGui::SameLine();
-    ImGui::Text("| page %s", offscreenView_.ActivePageName().c_str());
+    cockpit::DrawStatusLamp("FAULT", statusIsError_, true);
+    ImGui::TextWrapped("%s", status_.empty() ? "Ready." : status_.c_str());
 
-    if (PanelButton(running_ ? "PAUSE" : "RUN", ImVec2(120.0f, 32.0f), "Pause or resume the mini-simulation."))
+    const float actionWidth = TwoColumnButtonWidth();
+    if (PanelButton(running_ ? "PAUSE" : "RUN", ImVec2(actionWidth, 32.0f), "Pause or resume the mini-simulation."))
     {
         running_ = !running_;
     }
     ImGui::SameLine();
-    if (PanelButton("RESET SCENE", ImVec2(140.0f, 32.0f), "Reset radar, stores, navigation and generated UI state."))
+    if (PanelButton("RESET", ImVec2(actionWidth, 32.0f), "Reset radar, stores, navigation and generated UI state."))
     {
         ResetScene();
     }
 
-    if (ImGui::CollapsingHeader("Master mode", ImGuiTreeNodeFlags_DefaultOpen))
+    DrawMasterModeControls();
+    switch (activePage_)
     {
-        if (ModeButton("NAV", masterMode_ == MasterMode::Nav, ImVec2(90.0f, 34.0f), "Select navigation master mode."))
-        {
-            masterMode_ = MasterMode::Nav;
-        }
-        ImGui::SameLine();
-        if (ModeButton("A-A", masterMode_ == MasterMode::AirToAir, ImVec2(90.0f, 34.0f), "Select air-to-air master mode."))
-        {
-            masterMode_ = MasterMode::AirToAir;
-        }
-        ImGui::SameLine();
-        if (ModeButton("A-G", masterMode_ == MasterMode::AirToGround, ImVec2(90.0f, 34.0f), "Select air-to-ground master mode."))
-        {
-            masterMode_ = MasterMode::AirToGround;
-        }
-        ImGui::SameLine();
-        if (ModeButton("DGFT", masterMode_ == MasterMode::Dogfight, ImVec2(90.0f, 34.0f), "Select dogfight override mode."))
-        {
-            masterMode_ = MasterMode::Dogfight;
-        }
+    case MfdPage::Radar:
+        DrawRadarControls();
+        break;
+    case MfdPage::Sms:
+        DrawStoresControls();
+        break;
+    case MfdPage::Nav:
+        DrawNavigationControls();
+        break;
+    case MfdPage::Ag:
+        DrawAirGroundControls();
+        break;
     }
-
-    if (ImGui::CollapsingHeader("Radar (FCR)", ImGuiTreeNodeFlags_DefaultOpen))
-    {
-        if (ModeButton("RWS", radarControls_.submode == RadarSubmode::Rws, ImVec2(80.0f, 30.0f), "Select range-while-search radar mode."))
-        {
-            SelectRadarSearchSubmode(RadarSubmode::Rws);
-        }
-        ImGui::SameLine();
-        if (ModeButton("TWS", radarControls_.submode == RadarSubmode::Tws, ImVec2(80.0f, 30.0f), "Select track-while-scan radar mode."))
-        {
-            SelectRadarSearchSubmode(RadarSubmode::Tws);
-        }
-        ImGui::SameLine();
-        if (ModeButton(
-                "EXP",
-                radarControls_.fieldOfView == RadarFieldOfView::Expanded,
-                ImVec2(70.0f, 30.0f),
-                "Toggle the documented 4:1 display expansion about the acquisition cursor."))
-        {
-            ToggleRadarFieldOfView();
-        }
-        ImGui::SameLine();
-        if (ModeButton("BUG", radarControls_.buggedTrack >= 0, ImVec2(70.0f, 30.0f), "Bug the track captured by the acquisition cursor."))
-        {
-            BugCapturedRadarTrack();
-        }
-        ImGui::SameLine();
-        if (ModeButton("STT", radarControls_.submode == RadarSubmode::Stt, ImVec2(70.0f, 30.0f), "Enter single-target track on the bugged track."))
-        {
-            EnterSingleTargetTrack();
-        }
-        ImGui::SameLine();
-        if (PanelButton("UNBUG", ImVec2(80.0f, 30.0f), "Clear the bugged track and return to search."))
-        {
-            ClearRadarBug();
-        }
-
-        if (ModeButton("OPER", radarControls_.operatingState == RadarOperatingState::Operating, ImVec2(80.0f, 28.0f), "Power and radiate the FCR."))
-        {
-            SetRadarOperatingState(RadarOperatingState::Operating);
-        }
-        ImGui::SameLine();
-        if (ModeButton("SILENT", radarControls_.operatingState == RadarOperatingState::Silent, ImVec2(80.0f, 28.0f), "Keep the FCR powered without RF emission."))
-        {
-            SetRadarOperatingState(RadarOperatingState::Silent);
-        }
-        ImGui::SameLine();
-        if (ModeButton("OFF", radarControls_.operatingState == RadarOperatingState::Off, ImVec2(80.0f, 28.0f), "Remove FCR power."))
-        {
-            SetRadarOperatingState(RadarOperatingState::Off);
-        }
-
-        ImGui::SliderFloat("Antenna elevation", &radarControls_.antennaElevationDeg, -30.0f, 30.0f, "%.0f deg");
-        ShowLastItemTooltip("Move the radar elevation volume up or down.");
-        ImGui::SliderFloat("Cursor X", &radarControls_.cursorPosition.x, -1.0f, 1.0f, "%.2f");
-        ShowLastItemTooltip("Move the acquisition cursor horizontally in normalized UI space.");
-        ImGui::SliderFloat("Cursor Y", &radarControls_.cursorPosition.y, -1.0f, 1.0f, "%.2f");
-        ShowLastItemTooltip("Move the acquisition cursor vertically in normalized UI space.");
-        ImGui::Text("Range %.0f NM | %dB | A%.0f | %s",
-                    radarControls_.rangeScaleNm,
-                    radarControls_.scanBars,
-                    radarControls_.azScanDeg,
-                    radarControls_.highPrf ? "HI" : "MED");
-    }
-
-    if (ImGui::CollapsingHeader("Stores (SMS)"))
-    {
-        ImGui::Text(
-            "Station %d | stores %d/%zu | A-G ready %d",
-            stores_.selectedStation,
-            CountLoadedStores(stores_),
-            kStationCount,
-            CountReadyAirGroundStores(stores_));
-        ImGui::SameLine();
-        if (PanelButton("STEP", ImVec2(80.0f, 28.0f), "Step through every stores station."))
-        {
-            StepSmsStation();
-        }
-        ImGui::SameLine();
-        if (PanelButton("PROFILE", ImVec2(90.0f, 28.0f), "Cycle the SMS delivery profile."))
-        {
-            stores_.profile = stores_.profile >= 3 ? 1 : stores_.profile + 1;
-        }
-        ImGui::SameLine();
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.56f, 0.18f, 0.08f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.72f, 0.24f, 0.10f, 1.0f));
-        if (PanelButton("JETTISON", ImVec2(100.0f, 28.0f), "Clear all stores from the demo inventory."))
-        {
-            JettisonStores();
-        }
-        ImGui::PopStyleColor(2);
-        ImGui::Checkbox("MASTER ARM", &stores_.masterArm);
-        ShowLastItemTooltip("Allow live demo release to remove a store from inventory.");
-        ImGui::SameLine();
-        ImGui::Checkbox("SIM", &stores_.simulateMode);
-        ShowLastItemTooltip("Allow simulated release cues without removing stores.");
-    }
-
-    if (ImGui::CollapsingHeader("A-G profile", ImGuiTreeNodeFlags_DefaultOpen))
-    {
-        if (ModeButton("CCIP", stores_.deliveryMode == AirGroundDeliveryMode::Ccip, ImVec2(80.0f, 30.0f), "Select CCIP-style A-G delivery presentation."))
-        {
-            SelectAgDeliveryMode(AirGroundDeliveryMode::Ccip);
-        }
-        ImGui::SameLine();
-        if (ModeButton("CCRP", stores_.deliveryMode == AirGroundDeliveryMode::Ccrp, ImVec2(80.0f, 30.0f), "Select CCRP-style A-G delivery presentation."))
-        {
-            SelectAgDeliveryMode(AirGroundDeliveryMode::Ccrp);
-        }
-        ImGui::SameLine();
-        if (PanelButton("A-G PAGE", ImVec2(95.0f, 30.0f), "Show the A-G profile page in the MFD."))
-        {
-            SelectPage(MfdPage::Ag);
-        }
-
-        ImGui::Text(
-            "Mode %s | profile %d | station %d",
-            DeliveryModeLabel(stores_.deliveryMode),
-            stores_.profile,
-            stores_.selectedStation);
-        if (PanelButton("STA", ImVec2(70.0f, 28.0f), "Step to the next loaded A-G release station."))
-        {
-            StepAgStation();
-        }
-        ImGui::SameLine();
-        if (PanelButton("QTY", ImVec2(70.0f, 28.0f), "Cycle release quantity."))
-        {
-            CycleAgQuantity();
-        }
-        ImGui::SameLine();
-        if (PanelButton("PAIR", ImVec2(70.0f, 28.0f), "Toggle single or pair release."))
-        {
-            ToggleAgPairs();
-        }
-        ImGui::SameLine();
-        if (PanelButton("INTVL", ImVec2(70.0f, 28.0f), "Cycle ripple interval in seconds."))
-        {
-            CycleReleaseInterval();
-        }
-        ImGui::SameLine();
-        if (PanelButton("PICKLE", ImVec2(80.0f, 28.0f), "Run the A-G release action for the selected A-G station."))
-        {
-            ReleaseSelectedAgStore();
-        }
-
-        ImGui::Text(
-            "QTY %d | %s | INTVL %.2f | TT %d",
-            stores_.rippleQuantity,
-            stores_.ripplePairs == 2 ? "PAIR" : "SGL",
-            stores_.releaseIntervalSeconds,
-            stores_.releaseSeconds);
-        if (stores_.releaseInProgress)
-        {
-            ImGui::Text("Release STA %d | impact %.1f", stores_.releasedStation, stores_.impactTimeRemainingSeconds);
-        }
-    }
-
-    if (ImGui::CollapsingHeader("Navigation (HSD)"))
-    {
-        ImGui::Text(
-            "Steerpoint %d/%d | range %.0f NM",
-            navControls_.currentSteerpoint,
-            ClampWaypointCount(navControls_.waypointCount),
-            navControls_.rangeScaleNm);
-        if (ModeButton(
-                navControls_.centeredDisplay ? "CNTR" : "DCTR",
-                navControls_.centeredDisplay,
-                ImVec2(80.0f, 28.0f),
-                "Toggle centered or decentered HSD presentation."))
-        {
-            ToggleHsdCenteredDisplay();
-        }
-        ImGui::SameLine();
-        if (ModeButton(
-                "DCLT",
-                navControls_.declutterActive,
-                ImVec2(80.0f, 28.0f),
-                "Toggle HSD declutter for route legs and bullseye."))
-        {
-            ToggleHsdDeclutter();
-        }
-        ImGui::SameLine();
-        if (PanelButton("STEP STPT", ImVec2(110.0f, 28.0f), "Step the selected HSD steerpoint."))
-        {
-            StepNavSteerpoint();
-        }
-        ImGui::SameLine();
-        if (PanelButton("RANGE", ImVec2(80.0f, 28.0f), "Cycle the HSD range scale."))
-        {
-            CycleNavRange();
-        }
-
-        ImGui::SliderFloat("New waypoint bearing", &waypointDraftBearingDeg_, 0.0f, 359.0f, "%.0f deg");
-        ShowLastItemTooltip("Bearing used by ADD WPT and OVERWRITE.");
-        ImGui::SliderFloat("New waypoint range", &waypointDraftRangeNm_, 1.0f, 160.0f, "%.1f NM");
-        ShowLastItemTooltip("Range used by ADD WPT and OVERWRITE.");
-        if (PanelButton("ADD WPT", ImVec2(100.0f, 28.0f), "Insert the draft waypoint after the selected steerpoint."))
-        {
-            AddWaypointFromDraft();
-        }
-        ImGui::SameLine();
-        if (PanelButton("OVERWRITE", ImVec2(110.0f, 28.0f), "Replace the selected steerpoint with the draft waypoint."))
-        {
-            OverwriteCurrentWaypointFromDraft();
-        }
-    }
-
     ImGui::EndChild();
+}
+
+void MfdApplication::DrawMasterModeControls()
+{
+    cockpit::DrawSectionHeader("MASTER MODE", "ICP");
+    const float buttonWidth = TwoColumnButtonWidth();
+    if (ModeButton("NAV", masterMode_ == MasterMode::Nav, ImVec2(buttonWidth, 32.0f), "Select navigation master mode."))
+    {
+        masterMode_ = MasterMode::Nav;
+    }
+    ImGui::SameLine();
+    if (ModeButton("A-A", masterMode_ == MasterMode::AirToAir, ImVec2(buttonWidth, 32.0f), "Select air-to-air master mode."))
+    {
+        masterMode_ = MasterMode::AirToAir;
+    }
+    if (ModeButton("A-G", masterMode_ == MasterMode::AirToGround, ImVec2(buttonWidth, 32.0f), "Select air-to-ground master mode."))
+    {
+        masterMode_ = MasterMode::AirToGround;
+    }
+    ImGui::SameLine();
+    if (ModeButton("DGFT", masterMode_ == MasterMode::Dogfight, ImVec2(buttonWidth, 32.0f), "Select dogfight override mode."))
+    {
+        masterMode_ = MasterMode::Dogfight;
+    }
+}
+
+void MfdApplication::DrawRadarControls()
+{
+    cockpit::DrawSectionHeader("FIRE CONTROL RADAR", "AN/APG-68");
+    const float buttonWidth = ThreeColumnButtonWidth();
+    if (ModeButton("RWS", radarControls_.submode == RadarSubmode::Rws, ImVec2(buttonWidth, 30.0f), "Select range-while-search radar mode."))
+    {
+        SelectRadarSearchSubmode(RadarSubmode::Rws);
+    }
+    ImGui::SameLine();
+    if (ModeButton("TWS", radarControls_.submode == RadarSubmode::Tws, ImVec2(buttonWidth, 30.0f), "Select track-while-scan radar mode."))
+    {
+        SelectRadarSearchSubmode(RadarSubmode::Tws);
+    }
+    ImGui::SameLine();
+    if (ModeButton(
+            "EXP",
+            radarControls_.fieldOfView == RadarFieldOfView::Expanded,
+            ImVec2(buttonWidth, 30.0f),
+            "Toggle the documented 4:1 display expansion about the acquisition cursor."))
+    {
+        ToggleRadarFieldOfView();
+    }
+
+    if (ModeButton("BUG", radarControls_.buggedTrack >= 0, ImVec2(buttonWidth, 30.0f), "Bug the track captured by the acquisition cursor."))
+    {
+        BugCapturedRadarTrack();
+    }
+    ImGui::SameLine();
+    if (ModeButton("STT", radarControls_.submode == RadarSubmode::Stt, ImVec2(buttonWidth, 30.0f), "Enter single-target track on the bugged track."))
+    {
+        EnterSingleTargetTrack();
+    }
+    ImGui::SameLine();
+    if (PanelButton("UNBUG", ImVec2(buttonWidth, 30.0f), "Clear the bugged track and return to search."))
+    {
+        ClearRadarBug();
+    }
+
+    const bool fcrPowerEnabled = radarControls_.operatingState != RadarOperatingState::Off;
+    const bool rfEnabled = radarControls_.operatingState == RadarOperatingState::Operating;
+    if (cockpit::TwoPositionSwitch(
+            "fcr_power",
+            "FCR PWR",
+            fcrPowerEnabled,
+            true,
+            "FCR power. OFF displays FCR OFF; ON powers the radar without forcing RF emission."))
+    {
+        SetRadarPowerEnabled(!fcrPowerEnabled);
+    }
+    ImGui::SameLine();
+    if (cockpit::TwoPositionSwitch(
+            "rf_emission",
+            "RF",
+            rfEnabled,
+            fcrPowerEnabled,
+            "RF emission. OFF while powered displays NO RAD; ON commands normal radar operation."))
+    {
+        SetRadarRfEnabled(!rfEnabled);
+    }
+
+    cockpit::VerticalThumbwheel(
+        "antenna_elevation",
+        "ANT ELEV",
+        radarControls_.antennaElevationDeg,
+        -30.0f,
+        30.0f,
+        0.35f,
+        "%+.0f DEG",
+        "Drag the wheel vertically, or use the mouse wheel, to move the radar elevation volume.");
+    ImGui::SameLine();
+    cockpit::SlewControl(
+        "acquisition_cursor",
+        "CURSOR SLEW",
+        radarControls_.cursorPosition.x,
+        radarControls_.cursorPosition.y,
+        "Drag to slew the acquisition cursor. Double-click to recenter it.");
+    ImGui::Text("RNG %.0f NM  |  %dB  |  A%.0f  |  %s",
+                radarControls_.rangeScaleNm,
+                radarControls_.scanBars,
+                radarControls_.azScanDeg,
+                radarControls_.highPrf ? "HI" : "MED");
+}
+
+void MfdApplication::DrawStoresControls()
+{
+    cockpit::DrawSectionHeader("STORES MANAGEMENT", "SMS");
+    ImGui::Text("STA %d  |  STORES %d/%zu  |  A-G READY %d",
+                stores_.selectedStation,
+                CountLoadedStores(stores_),
+                kStationCount,
+                CountReadyAirGroundStores(stores_));
+    const float buttonWidth = TwoColumnButtonWidth();
+    if (PanelButton("STEP STA", ImVec2(buttonWidth, 30.0f), "Step through every stores station."))
+    {
+        StepSmsStation();
+    }
+    ImGui::SameLine();
+    if (PanelButton("PROFILE", ImVec2(buttonWidth, 30.0f), "Cycle the SMS delivery profile."))
+    {
+        stores_.profile = stores_.profile >= 3 ? 1 : stores_.profile + 1;
+    }
+    if (cockpit::ActionButton(
+            "EMERGENCY JETTISON",
+            ImVec2(-1.0f, 32.0f),
+            "Clear all stores from the demo inventory.",
+            cockpit::ActionTone::Caution))
+    {
+        JettisonStores();
+    }
+
+    if (cockpit::TwoPositionSwitch(
+            "master_arm_sms",
+            "MASTER ARM",
+            stores_.masterArm,
+            true,
+            "Allow live demo release to remove a store from inventory."))
+    {
+        stores_.masterArm = !stores_.masterArm;
+    }
+    ImGui::SameLine();
+    if (cockpit::TwoPositionSwitch(
+            "simulation_sms",
+            "SIM",
+            stores_.simulateMode,
+            true,
+            "Allow simulated release cues without removing stores."))
+    {
+        stores_.simulateMode = !stores_.simulateMode;
+    }
+}
+
+void MfdApplication::DrawAirGroundControls()
+{
+    cockpit::DrawSectionHeader("AIR-TO-GROUND DELIVERY", "SMS");
+    const float modeWidth = TwoColumnButtonWidth();
+    if (ModeButton("CCIP", stores_.deliveryMode == AirGroundDeliveryMode::Ccip, ImVec2(modeWidth, 30.0f), "Select CCIP-style A-G delivery presentation."))
+    {
+        SelectAgDeliveryMode(AirGroundDeliveryMode::Ccip);
+    }
+    ImGui::SameLine();
+    if (ModeButton("CCRP", stores_.deliveryMode == AirGroundDeliveryMode::Ccrp, ImVec2(modeWidth, 30.0f), "Select CCRP-style A-G delivery presentation."))
+    {
+        SelectAgDeliveryMode(AirGroundDeliveryMode::Ccrp);
+    }
+
+    ImGui::Text("%s  |  PROF %d  |  STA %d",
+                DeliveryModeLabel(stores_.deliveryMode),
+                stores_.profile,
+                stores_.selectedStation);
+    const float actionWidth = ThreeColumnButtonWidth();
+    if (PanelButton("STA", ImVec2(actionWidth, 30.0f), "Step to the next loaded A-G release station."))
+    {
+        StepAgStation();
+    }
+    ImGui::SameLine();
+    if (PanelButton("QTY", ImVec2(actionWidth, 30.0f), "Cycle release quantity."))
+    {
+        CycleAgQuantity();
+    }
+    ImGui::SameLine();
+    if (PanelButton("PAIR", ImVec2(actionWidth, 30.0f), "Toggle single or pair release."))
+    {
+        ToggleAgPairs();
+    }
+    if (PanelButton("INTERVAL", ImVec2(modeWidth, 30.0f), "Cycle ripple interval in seconds."))
+    {
+        CycleReleaseInterval();
+    }
+    ImGui::SameLine();
+    if (cockpit::ActionButton(
+            "PICKLE",
+            ImVec2(modeWidth, 30.0f),
+            "Run the A-G release action for the selected A-G station.",
+            cockpit::ActionTone::Caution))
+    {
+        ReleaseSelectedAgStore();
+    }
+
+    if (cockpit::TwoPositionSwitch(
+            "master_arm_ag",
+            "MASTER ARM",
+            stores_.masterArm,
+            true,
+            "Allow live demo release to remove a store from inventory."))
+    {
+        stores_.masterArm = !stores_.masterArm;
+    }
+    ImGui::SameLine();
+    if (cockpit::TwoPositionSwitch(
+            "simulation_ag",
+            "SIM",
+            stores_.simulateMode,
+            true,
+            "Allow simulated release cues without removing stores."))
+    {
+        stores_.simulateMode = !stores_.simulateMode;
+    }
+
+    ImGui::Text("QTY %d  |  %s  |  INTVL %.2f  |  TT %d",
+                stores_.rippleQuantity,
+                stores_.ripplePairs == 2 ? "PAIR" : "SGL",
+                stores_.releaseIntervalSeconds,
+                stores_.releaseSeconds);
+    if (stores_.releaseInProgress)
+    {
+        ImGui::Text("RELEASE STA %d  |  IMPACT %.1f", stores_.releasedStation, stores_.impactTimeRemainingSeconds);
+    }
+}
+
+void MfdApplication::DrawNavigationControls()
+{
+    cockpit::DrawSectionHeader("NAVIGATION DISPLAY", "HSD");
+    ImGui::Text("STPT %d/%d  |  RNG %.0f NM",
+                navControls_.currentSteerpoint,
+                ClampWaypointCount(navControls_.waypointCount),
+                navControls_.rangeScaleNm);
+    const float buttonWidth = TwoColumnButtonWidth();
+    if (ModeButton(
+            navControls_.centeredDisplay ? "CENTERED" : "DECENTERED",
+            navControls_.centeredDisplay,
+            ImVec2(buttonWidth, 30.0f),
+            "Toggle centered or decentered HSD presentation."))
+    {
+        ToggleHsdCenteredDisplay();
+    }
+    ImGui::SameLine();
+    if (ModeButton(
+            "DECLUTTER",
+            navControls_.declutterActive,
+            ImVec2(buttonWidth, 30.0f),
+            "Toggle HSD declutter for route legs and bullseye."))
+    {
+        ToggleHsdDeclutter();
+    }
+    if (PanelButton("STEP STPT", ImVec2(buttonWidth, 30.0f), "Step the selected HSD steerpoint."))
+    {
+        StepNavSteerpoint();
+    }
+    ImGui::SameLine();
+    if (PanelButton("RANGE", ImVec2(buttonWidth, 30.0f), "Cycle the HSD range scale."))
+    {
+        CycleNavRange();
+    }
+
+    cockpit::DrawSectionHeader("WAYPOINT DATA", "EDIT");
+    ImGui::TextDisabled("BEARING");
+    ImGui::SetNextItemWidth(-1.0f);
+    ImGui::SliderFloat("##waypoint_bearing", &waypointDraftBearingDeg_, 0.0f, 359.0f, "%.0f deg");
+    ShowLastItemTooltip("Bearing used by ADD WPT and OVERWRITE.");
+    ImGui::TextDisabled("RANGE");
+    ImGui::SetNextItemWidth(-1.0f);
+    ImGui::SliderFloat("##waypoint_range", &waypointDraftRangeNm_, 1.0f, 160.0f, "%.1f NM");
+    ShowLastItemTooltip("Range used by ADD WPT and OVERWRITE.");
+    if (PanelButton("ADD WPT", ImVec2(buttonWidth, 30.0f), "Insert the draft waypoint after the selected steerpoint."))
+    {
+        AddWaypointFromDraft();
+    }
+    ImGui::SameLine();
+    if (PanelButton("OVERWRITE", ImVec2(buttonWidth, 30.0f), "Replace the selected steerpoint with the draft waypoint."))
+    {
+        OverwriteCurrentWaypointFromDraft();
+    }
 }
 
 void MfdApplication::PublishFrame()

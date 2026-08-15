@@ -21,11 +21,11 @@ int main()
     {
         Win32Dx11ImGuiHost host;
         Win32Dx11ImGuiHost::Config hostConfig;
-        hostConfig.width = 900;
-        hostConfig.height = 960;
-        hostConfig.minWidth = 760;
-        hostConfig.minHeight = 780;
-        hostConfig.title = "LHLD";
+        hostConfig.width = 1280;
+        hostConfig.height = 860;
+        hostConfig.minWidth = 900;
+        hostConfig.minHeight = 720;
+        hostConfig.title = "LHLD - Left Avionics Console";
 
         std::string error;
         if (!host.Initialize(hostConfig, error))

@@ -69,12 +69,14 @@ generated UI:
 - `OffscreenMfdView` / `Dx11TextureUploader` - host the runtime offscreen and
   upload its RGBA8 frame into a DX11 texture. They are split into separate
   translation units so raylib and `windows.h`/Direct3D headers never mix.
-- `MfdApplication.h/.cpp` - the ImGui bezel, MFD image and control panel.
+- `MfdApplication.h/.cpp` - the ImGui bezel, MFD image and operator controls.
+- `CockpitUi.h/.cpp` - the cockpit-only visual primitives, responsive console
+  layout, annunciators, tactile buttons and two-position switches.
 
 ## Control is separate from the simulation
 
 Exactly like the HUD, the control surface (the 20 OSB bezel and the
-collapsible control panel) only collects operator intent into
+context-sensitive cockpit console) only collects operator intent into
 `RadarSettings`, `StoresState`, the shared `MasterMode` and the navigation
 selection. That intent is pushed into the simulation once per frame; the
 simulation owns physics and airspace state. The bezel buttons carry no
@@ -111,15 +113,22 @@ business logic beyond selecting the page or toggling a control.
 
 ## Interaction
 
+- The host opens as a wide left-avionics console: the unchanged MFD rendering
+  sits in its bezel on the left, while the page-specific cockpit controls sit
+  in a separate panel on the right. The console stacks below the MFD when the
+  window is narrowed; page assets and MFD projection do not participate in
+  this responsive host layout.
 - The top selector uses **RADAR / SMS / NAV / A-G** for clarity.
 - **OSB 12/13/14/15** select the FCR, SMS, HSD and A-G pages on any page.
 - Keyboard **1 / 2 / 3 / 4** selects RADAR, SMS, NAV and A-G respectively.
 - On **FCR**, OSB 2 toggles RWS/TWS, OSB 3 toggles NORM/EXP, OSB 6 cycles
   range, OSB 17 toggles the azimuth scan width, OSB 18 cycles bars and OSB 19
-  toggles PRF. The panel antenna
-  elevation slider changes the search volume, so targets can enter or leave the
-  scope instead of only moving the elevation caret. OPER/SILENT/OFF exercise
-  the corresponding radar presentation states.
+  toggles PRF. The panel **ANT ELEV** thumbwheel changes the search volume, so
+  targets can enter or leave the scope instead of only moving the elevation
+  caret. The physical **FCR PWR**
+  and **RF** switches compose the corresponding radar presentation states:
+  FCR power OFF produces `FCR OFF`, powered with RF OFF produces `NO RAD`, and
+  both switches ON command normal operation.
 - On **SMS**, OSB 1/2/3 select the master mode, OSB 6 steps the station and
   OSB 7 cycles the profile. The **Stores (SMS)** control-panel section exposes
   **JETTISON**; it clears all stations in the demo inventory, hides the station
@@ -135,8 +144,9 @@ business logic beyond selecting the page or toggling a control.
   cycles quantity, OSB 10 cycles interval and OSB 11 performs a simulated
   release. MASTER ARM removes the store from the demo inventory; SIM leaves
   stores loaded but still drives release timing.
-- Click on the FCR screen, or use Cursor X/Y, to slew the normalized acquisition
-  cursor. **BUG** designates exactly the dynamic track captured by the runtime
+- Click on the FCR screen, or drag the two-axis **CURSOR SLEW** controller, to
+  slew the normalized acquisition cursor. Double-clicking the controller
+  recenters it. **BUG** designates exactly the dynamic track captured by the runtime
   strobe, **STT** promotes that bug to single-target track and **UNBUG** returns
   to the previous search mode. No nearest-track calculation is used. Four demo
   tracks start closely grouped around the cursor so their EXP separation is

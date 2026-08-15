@@ -42,6 +42,7 @@ set(MFD_LHLD_PLATFORM_SOURCES
     ${MFD_IMGUI_SOURCE_DIR}/backends/imgui_impl_win32.cpp)
 
 set(MFD_LHLD_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CockpitUi.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Dx11TextureUploader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MfdApplication.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MfdController.cpp
@@ -54,6 +55,7 @@ set(MFD_LHLD_SOURCES
     ${MFD_LHLD_PLATFORM_SOURCES})
 
 set(MFD_LHLD_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CockpitUi.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Dx11TextureUploader.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MfdApplication.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/MfdController.h

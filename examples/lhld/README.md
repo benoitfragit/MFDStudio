@@ -10,7 +10,8 @@ simulation is replaceable by design.
 | Area | File | Keep or Replace |
 |---|---|---|
 | Host startup | `client/src/main.cpp` | Keep unless the application shell changes. |
-| ImGui bezel, control panel and publishing loop | `client/src/MfdApplication.*` | Replace or thin down when embedding in a real cockpit. |
+| ImGui bezel, cockpit console and publishing loop | `client/src/MfdApplication.*` | Replace or thin down when embedding in a real cockpit. |
+| Cockpit-only drawing primitives | `client/src/CockpitUi.*` | Keep for the demo host; it does not affect authored MFD pages. |
 | Replaceable semantic input source | `client/src/MfdInputSource.h` | Keep. Implement this for a real simulator feed. |
 | Fake radar/navigation/stores source | `client/src/MfdRadarSimulation.*` | Replace with a real aircraft, avionics or network source. |
 | Semantic MFD contract | `client/src/MfdTypes.h` | Keep. This is the stable frame data boundary. |
@@ -101,9 +102,16 @@ the cursor, scan volume, range scale and antenna coverage fixed.
 
 ## Replacing the ImGui Panel
 
-The ImGui panel in `MfdApplication` is a sample operator surface. A real
+The ImGui panel in `MfdApplication` is a sample operator surface. Its responsive
+cockpit shell and physical-looking controls live in `CockpitUi`; the MFD texture,
+authored pages and projection remain independent. A real
 cockpit, plugin, network bridge or scripted test can replace it. Keep these
 contracts intact:
+
+The demo FCR console uses independent **FCR PWR** and **RF** two-position
+switches, an **ANT ELEV** thumbwheel and a normalized two-axis cursor-slew pad.
+Those widgets only collect semantic operator intent; radar detection and track
+publication remain owned by the input source.
 
 - `MfdInputSample` is the only data consumed by `MfdController::Populate()`;
 - panel commands should update the real input source or semantic state first;
