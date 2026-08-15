@@ -101,6 +101,19 @@ enum class RadarTrackQuality
     Extrapolated
 };
 
+/** @brief Radar-owned lifecycle state controlling the FCR symbol family. */
+enum class RadarTrackState
+{
+    /** @brief RWS search return. */
+    Search,
+    /** @brief TWS trackfile maintained by the radar. */
+    Trackfile,
+    /** @brief Designated system target (bugged track). */
+    SystemTarget,
+    /** @brief Track maintained in single-target-track mode. */
+    SingleTargetTrack
+};
+
 /** @brief Air-to-ground delivery format selected on the stores profile. */
 enum class AirGroundDeliveryMode
 {
@@ -131,11 +144,19 @@ struct OwnshipState
  * Range, azimuth and elevation form the natural radar measurement boundary.
  * The projection derives B-scope coordinates and target altitude; callers do
  * not need to know authored page coordinates or duplicate projection math.
+ * Track presence and lifecycle are authoritative sensor outputs: downstream
+ * page code must not infer detection or loss from measurement geometry.
  */
 struct RadarTrack
 {
-    /** @brief True when the track currently exists in the sensor picture. */
+    /**
+     * @brief True when the radar source publishes this track to the FCR.
+     * @note Detection volume, radar power and track-loss decisions belong to
+     * the input source. The projection and controller trust this value.
+     */
     bool active = false;
+    /** @brief Radar-owned state selecting the corresponding FCR symbol family. */
+    RadarTrackState state = RadarTrackState::Search;
     /** @brief Slant range to the track in nautical miles. */
     float rangeNm = 20.0f;
     /** @brief Azimuth relative to aircraft boresight in degrees, positive right. */
@@ -362,8 +383,10 @@ struct MfdInputSample
 /** @brief Projected B-scope presentation of one radar track. */
 struct RadarTrackView
 {
-    /** @brief True when the track should be drawn this frame. */
+    /** @brief Direct projection of @ref RadarTrack::active. */
     bool visible = false;
+    /** @brief Direct projection of the radar-owned track lifecycle state. */
+    RadarTrackState state = RadarTrackState::Search;
     /** @brief B-scope position in MFD space. */
     MfdVec2 position {};
     /** @brief Track heading rotation in degrees relative to the display. */
@@ -399,6 +422,8 @@ struct RadarFrame
     float cursorMinimumAltitudeThousandsFt = 0.0f;
     /** @brief True when a bugged or STT target should be drawn. */
     bool buggedVisible = false;
+    /** @brief Slot of the radar-published system target or STT track, or -1. */
+    int designatedTrackIndex = -1;
     /** @brief Projected presentation of the bugged track. */
     RadarTrackView buggedTrack {};
     /** @brief True when the target data block should be drawn. */

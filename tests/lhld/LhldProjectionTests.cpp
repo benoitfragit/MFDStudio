@@ -31,73 +31,65 @@ lhld::RadarTrack MakeTrack(const float azimuthDeg, const float rangeNm)
 }
 } // namespace
 
-TEST(LhldProjection, RwsHidesTrackOutsideScanVolume)
+TEST(LhldProjection, ActiveTrackIsNotCulledOutsideScanVolume)
 {
-    // azScanDeg 60 represents a +/-30 degree search volume.
     const lhld::RadarTrack track = MakeTrack(60.0f, 20.0f);
     const lhld::RadarSettings radar {};
     const lhld::OwnshipState ownship {};
 
-    EXPECT_FALSE(lhld::ProjectRadarTrack(track, radar, ownship).visible);
+    const lhld::RadarTrackView view = lhld::ProjectRadarTrack(track, radar, ownship);
+    EXPECT_TRUE(view.visible);
+    EXPECT_NEAR(view.position.x, 0.46f, 1.0e-3f);
 }
 
-TEST(LhldProjection, RadarBarsExpandElevationSearchVolume)
+TEST(LhldProjection, ActiveTrackIsNotCulledByElevationBars)
 {
     lhld::RadarTrack track = MakeTrack(0.0f, 20.0f);
-    track.elevationDeg = 2.5f;
+    track.elevationDeg = 20.0f;
 
     lhld::RadarSettings radar;
     radar.scanBars = 1;
     const lhld::OwnshipState ownship {};
 
-    EXPECT_FALSE(lhld::ProjectRadarTrack(track, radar, ownship).visible);
-
-    radar.scanBars = 4;
     EXPECT_TRUE(lhld::ProjectRadarTrack(track, radar, ownship).visible);
 }
 
-TEST(LhldProjection, SttKeepsLockedTrackVisibleOutsideScanVolume)
+TEST(LhldProjection, ActiveTrackIsClampedBeyondRangeScale)
 {
-    const lhld::RadarTrack track = MakeTrack(60.0f, 20.0f);
-    const lhld::RadarSettings radar {};
-    const lhld::OwnshipState ownship {};
-
-    const lhld::RadarTrackView view = lhld::ProjectBuggedTrack(track, radar, ownship);
-    EXPECT_TRUE(view.visible);
-    EXPECT_TRUE(std::isfinite(view.position.x));
-    EXPECT_TRUE(std::isfinite(view.position.y));
-    // The bearing is clamped to the right edge of the B-scope rather than dropped.
-    EXPECT_NEAR(view.position.x, 0.46f, 1.0e-3f);
-}
-
-TEST(LhldProjection, SttKeepsLockedTrackVisibleBeyondRangeScale)
-{
-    // Range 60 NM on a 40 NM scale would filter a search track out.
     const lhld::RadarTrack track = MakeTrack(0.0f, 60.0f);
     const lhld::RadarSettings radar {};
     const lhld::OwnshipState ownship {};
 
-    EXPECT_FALSE(lhld::ProjectRadarTrack(track, radar, ownship).visible);
-
-    const lhld::RadarTrackView view = lhld::ProjectBuggedTrack(track, radar, ownship);
+    const lhld::RadarTrackView view = lhld::ProjectRadarTrack(track, radar, ownship);
     EXPECT_TRUE(view.visible);
-    // Clamped to the top (maximum range) of the scope.
     EXPECT_NEAR(view.position.y, 0.75f, 1.0e-3f);
+}
+
+TEST(LhldProjection, InactiveTrackRemainsHidden)
+{
+    lhld::RadarTrack track = MakeTrack(0.0f, 20.0f);
+    track.active = false;
+    const lhld::RadarSettings radar {};
+    const lhld::OwnshipState ownship {};
+
+    EXPECT_FALSE(lhld::ProjectRadarTrack(track, radar, ownship).visible);
 }
 
 TEST(LhldProjection, BuildFrameKeepsBuggedTargetOutsideScanVolume)
 {
     lhld::MfdInputSample input;
     input.tracks[0] = MakeTrack(60.0f, 20.0f);
+    input.tracks[0].state = lhld::RadarTrackState::SingleTargetTrack;
     input.radar.submode = lhld::RadarSubmode::Stt;
-    input.radar.buggedTrack = 0;
 
     const lhld::MfdFrame frame = lhld::BuildMfdFrame(input);
     EXPECT_TRUE(frame.radar.buggedVisible);
     EXPECT_TRUE(frame.radar.datablockVisible);
     EXPECT_TRUE(std::isfinite(frame.radar.buggedTrack.position.x));
     EXPECT_TRUE(std::isfinite(frame.radar.buggedTrack.position.y));
-    EXPECT_FALSE(frame.radar.tracks[0].visible);
+    EXPECT_EQ(frame.radar.designatedTrackIndex, 0);
+    EXPECT_TRUE(frame.radar.tracks[0].visible);
+    EXPECT_EQ(frame.radar.tracks[0].state, lhld::RadarTrackState::SingleTargetTrack);
 }
 
 TEST(LhldProjection, RadarTrackAltitudeIsDerivedFromRangeElevationAndOwnship)
@@ -132,10 +124,10 @@ TEST(LhldProjection, SttCrossProvidesSteeringAtTargetRange)
     input.ownship.headingDeg = 0.0f;
     input.ownship.speedKts = 420.0f;
     input.tracks[0] = MakeTrack(15.0f, 20.0f);
+    input.tracks[0].state = lhld::RadarTrackState::SingleTargetTrack;
     input.tracks[0].headingDeg = 0.0f;
     input.tracks[0].speedKts = 0.0f;
     input.radar.submode = lhld::RadarSubmode::Stt;
-    input.radar.buggedTrack = 0;
 
     const lhld::RadarFrame frame = lhld::BuildMfdFrame(input).radar;
 
@@ -149,10 +141,10 @@ TEST(LhldProjection, SttCrossIsHiddenOutsideSixtyDegreeCollisionAngle)
     lhld::MfdInputSample input;
     input.ownship.headingDeg = 0.0f;
     input.tracks[0] = MakeTrack(70.0f, 20.0f);
+    input.tracks[0].state = lhld::RadarTrackState::SingleTargetTrack;
     input.tracks[0].headingDeg = 0.0f;
     input.tracks[0].speedKts = 0.0f;
     input.radar.submode = lhld::RadarSubmode::Stt;
-    input.radar.buggedTrack = 0;
 
     const lhld::RadarFrame frame = lhld::BuildMfdFrame(input).radar;
 
@@ -160,7 +152,7 @@ TEST(LhldProjection, SttCrossIsHiddenOutsideSixtyDegreeCollisionAngle)
     EXPECT_FALSE(frame.sttInterceptVisible);
 }
 
-TEST(LhldProjection, RadarPowerStatesSuppressLivePresentation)
+TEST(LhldProjection, RadarPowerStateDoesNotOverridePublishedTrackActivity)
 {
     lhld::MfdInputSample input;
     input.tracks[0] = MakeTrack(0.0f, 20.0f);
@@ -169,12 +161,38 @@ TEST(LhldProjection, RadarPowerStatesSuppressLivePresentation)
     const lhld::RadarFrame silentFrame = lhld::BuildMfdFrame(input).radar;
     EXPECT_FALSE(silentFrame.radarPresentationVisible);
     EXPECT_FALSE(silentFrame.scanLineVisible);
-    EXPECT_FALSE(silentFrame.tracks[0].visible);
+    EXPECT_TRUE(silentFrame.tracks[0].visible);
 
     input.radar.operatingState = lhld::RadarOperatingState::Off;
     const lhld::RadarFrame offFrame = lhld::BuildMfdFrame(input).radar;
     EXPECT_FALSE(offFrame.radarPresentationVisible);
-    EXPECT_FALSE(offFrame.tracks[0].visible);
+    EXPECT_TRUE(offFrame.tracks[0].visible);
+}
+
+TEST(LhldProjection, RadarOwnedTrackStateReachesProjectedView)
+{
+    lhld::RadarTrack track = MakeTrack(0.0f, 20.0f);
+    track.state = lhld::RadarTrackState::Trackfile;
+
+    const lhld::RadarTrackView view =
+        lhld::ProjectRadarTrack(track, lhld::RadarSettings {}, lhld::OwnshipState {});
+
+    EXPECT_EQ(view.state, lhld::RadarTrackState::Trackfile);
+}
+
+TEST(LhldProjection, SttPageDoesNotSuppressSourcePublishedTracks)
+{
+    lhld::MfdInputSample input;
+    input.radar.submode = lhld::RadarSubmode::Stt;
+    input.tracks[0] = MakeTrack(-10.0f, 20.0f);
+    input.tracks[0].state = lhld::RadarTrackState::Search;
+    input.tracks[1] = MakeTrack(10.0f, 25.0f);
+    input.tracks[1].state = lhld::RadarTrackState::Trackfile;
+
+    const lhld::RadarFrame frame = lhld::BuildMfdFrame(input).radar;
+
+    EXPECT_TRUE(frame.tracks[0].visible);
+    EXPECT_TRUE(frame.tracks[1].visible);
 }
 
 TEST(LhldProjection, ExtrapolatedQualityReachesProjectedTrackView)
@@ -275,15 +293,16 @@ TEST(LhldProjection, HsdSupportsInsertedWaypointSlots)
     EXPECT_FALSE(frame.nav.steerpoints[7].visible);
 }
 
-TEST(LhldProjection, BuildFrameIgnoresInactiveBuggedIndex)
+TEST(LhldProjection, BuildFrameIgnoresInactiveDesignatedTrack)
 {
     lhld::MfdInputSample input;
+    input.tracks[3].state = lhld::RadarTrackState::SingleTargetTrack;
     input.radar.submode = lhld::RadarSubmode::Stt;
-    input.radar.buggedTrack = 3; // slot left inactive
 
     const lhld::MfdFrame frame = lhld::BuildMfdFrame(input);
     EXPECT_FALSE(frame.radar.buggedVisible);
     EXPECT_FALSE(frame.radar.datablockVisible);
+    EXPECT_EQ(frame.radar.designatedTrackIndex, -1);
 }
 
 TEST(LhldSimulation, StepIsDeterministicAndFinite)
@@ -301,6 +320,7 @@ TEST(LhldSimulation, StepIsDeterministicAndFinite)
     for (std::size_t index = 0; index < lhld::kMaxRadarTracks; ++index)
     {
         EXPECT_EQ(a.tracks[index].active, b.tracks[index].active);
+        EXPECT_EQ(a.tracks[index].state, b.tracks[index].state);
         EXPECT_FLOAT_EQ(a.tracks[index].rangeNm, b.tracks[index].rangeNm);
         EXPECT_TRUE(std::isfinite(a.tracks[index].rangeNm));
         EXPECT_TRUE(std::isfinite(a.tracks[index].azimuthDeg));
@@ -327,6 +347,101 @@ TEST(LhldSimulation, FourBarScanSweepsSlowerThanOneBar)
 
     EXPECT_GT(oneBar.Inputs().radar.antennaAzimuthDeg, fourBar.Inputs().radar.antennaAzimuthDeg);
     EXPECT_GT(fourBar.Inputs().radar.antennaAzimuthDeg, 0.0f);
+}
+
+TEST(LhldSimulation, RadarSourceOwnsSearchVolumeFiltering)
+{
+    lhld::MfdRadarSimulation simulation;
+    lhld::RadarSettings controls;
+    controls.rangeScaleNm = 40.0f;
+    controls.azScanDeg = 60.0f;
+    controls.scanBars = 1;
+    simulation.ApplyRadarControls(controls);
+
+    // Seed 6 is inside azimuth/range but below the narrow one-bar elevation volume.
+    EXPECT_FALSE(simulation.Inputs().tracks[6].active);
+
+    controls.scanBars = 4;
+    simulation.ApplyRadarControls(controls);
+    EXPECT_TRUE(simulation.Inputs().tracks[6].active);
+    EXPECT_EQ(simulation.Inputs().tracks[6].state, lhld::RadarTrackState::Search);
+
+    controls.azScanDeg = 30.0f;
+    simulation.ApplyRadarControls(controls);
+    EXPECT_FALSE(simulation.Inputs().tracks[6].active);
+}
+
+TEST(LhldSimulation, RadarSourceSuppressesTracksWhenRfIsUnavailable)
+{
+    lhld::MfdRadarSimulation simulation;
+    lhld::RadarSettings controls;
+    controls.operatingState = lhld::RadarOperatingState::Silent;
+    simulation.ApplyRadarControls(controls);
+
+    for (const lhld::RadarTrack& track : simulation.Inputs().tracks)
+    {
+        EXPECT_FALSE(track.active);
+    }
+
+    controls.operatingState = lhld::RadarOperatingState::Off;
+    simulation.ApplyRadarControls(controls);
+    for (const lhld::RadarTrack& track : simulation.Inputs().tracks)
+    {
+        EXPECT_FALSE(track.active);
+    }
+}
+
+TEST(LhldSimulation, RadarSourcePublishesTwsTrackfileState)
+{
+    lhld::MfdRadarSimulation simulation;
+    lhld::RadarSettings controls;
+    controls.submode = lhld::RadarSubmode::Tws;
+    simulation.ApplyRadarControls(controls);
+
+    bool foundTrackfile = false;
+    for (const lhld::RadarTrack& track : simulation.Inputs().tracks)
+    {
+        if (track.active)
+        {
+            EXPECT_EQ(track.state, lhld::RadarTrackState::Trackfile);
+            foundTrackfile = true;
+        }
+    }
+    EXPECT_TRUE(foundTrackfile);
+}
+
+TEST(LhldSimulation, RadarSourcePublishesOnlyDesignatedTrackInStt)
+{
+    lhld::MfdRadarSimulation simulation;
+    lhld::RadarSettings controls;
+    controls.submode = lhld::RadarSubmode::Stt;
+    controls.rangeScaleNm = 40.0f;
+    controls.buggedTrack = 0;
+    simulation.ApplyRadarControls(controls);
+
+    const lhld::MfdInputSample& input = simulation.Inputs();
+    EXPECT_TRUE(input.tracks[0].active);
+    EXPECT_EQ(input.tracks[0].state, lhld::RadarTrackState::SingleTargetTrack);
+    for (std::size_t index = 1; index < lhld::kMaxRadarTracks; ++index)
+    {
+        EXPECT_FALSE(input.tracks[index].active);
+    }
+}
+
+TEST(LhldSimulation, RadarSourceMaintainsDesignatedTrackOutsideSearchVolume)
+{
+    lhld::MfdRadarSimulation simulation;
+    lhld::RadarSettings controls;
+    controls.rangeScaleNm = 40.0f;
+    controls.buggedTrack = 0;
+    simulation.ApplyRadarControls(controls);
+
+    // Seed 0 starts beyond the 40 NM search scale, but the radar owns and
+    // maintains its designated system target independently of page clipping.
+    const lhld::RadarTrack& systemTarget = simulation.Inputs().tracks[0];
+    EXPECT_GT(systemTarget.rangeNm, controls.rangeScaleNm);
+    EXPECT_TRUE(systemTarget.active);
+    EXPECT_EQ(systemTarget.state, lhld::RadarTrackState::SystemTarget);
 }
 
 TEST(LhldStores, JettisonAllStoresClearsSmsInventory)

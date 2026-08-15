@@ -14,8 +14,8 @@ simulation is replaceable by design.
 | Replaceable semantic input source | `client/src/MfdInputSource.h` | Keep. Implement this for a real simulator feed. |
 | Fake radar/navigation/stores source | `client/src/MfdRadarSimulation.*` | Replace with a real aircraft, avionics or network source. |
 | Semantic MFD contract | `client/src/MfdTypes.h` | Keep. This is the stable frame data boundary. |
-| Stateless FCR/HSD projection | `client/src/MfdProjection.*` | Keep unless page geometry or avionics rules change. |
-| Generated-UI adapter | `client/src/MfdController.*` | Keep. It projects semantic state, owns generated dynamic-track handles and writes `LhldUi`. |
+| Stateless FCR/HSD projection | `client/src/MfdProjection.*` | Keep unless page geometry changes. It converts semantic units into page coordinates without deciding radar track visibility. |
+| Generated-UI adapter | `client/src/MfdController.*` | Keep. It owns generated dynamic-reticle handles and maps published track states to authored assets without applying radar detection rules. |
 | Offscreen runtime embedding | `client/src/OffscreenMfdView.*` | Keep if the MFD still renders inside another host window. |
 | Generated wrappers | `client/generated/LhldUi.*` | Regenerate from assets, do not hand-edit. |
 | Authored MFD assets | `assets/windows`, `assets/pages`, `assets/reticles` | Keep as the authored LHLD layout. |
@@ -44,9 +44,15 @@ Replace `MfdRadarSimulation` with an implementation that:
 - advances only in `Step(float deltaSeconds)`;
 - clamps or validates non-finite external values before publishing them;
 - keeps radar controls, master mode, stores and HSD navigation state semantic.
+- owns radar detection volume, track loss, extrapolation, designation and STT
+  lifecycle decisions before publishing tracks.
 
 The projection layer expects meaningful aircraft/MFD state, not raw panel
-button events.
+button events. In particular, an implementation must publish
+`RadarTrack::active == false` when a track is absent from the radar picture
+(outside the applicable search volume, lost, or unavailable because the radar
+is off/silent). It must also publish the radar-owned `RadarTrackState` used for
+RWS search returns, TWS trackfiles, system targets and STT tracks.
 
 ## FCR Input Contract
 
@@ -54,6 +60,14 @@ The radar boundary deliberately uses sensor-native values. Each `RadarTrack`
 publishes slant range in nautical miles, azimuth and elevation in degrees, plus
 track motion/classification data. Target altitude is not an input: the
 projection derives it from ownship altitude, slant range and elevation.
+
+`RadarTrack::active` and `RadarTrack::state` are authoritative input data. The
+projection never removes an active track based on range, azimuth, elevation,
+radar power or submode; it only clamps coordinates defensively to the authored
+B-scope. The controller then chooses the matching RWS, TWS, bugged or STT asset
+from the published state. The bundled `MfdRadarSimulation` implements the demo
+detection volume and is the only place where the example decides that a track
+enters or leaves the radar picture.
 
 The acquisition cursor is the only normalized input. Its `x` and `y` axes stay
 in `[-1, 1]`, which is natural for an independent UI device. `MfdProjection`

@@ -93,7 +93,11 @@ private:
         bool hostile = true;
     };
 
-    /** @brief Recomputes the published radar tracks from the airspace state. */
+    /**
+     * @brief Recomputes radar-owned lifecycle and measurements from airspace.
+     * @note This is the sole owner of detection-volume and track suppression
+     * rules in the demo; downstream page code only presents this result.
+     */
     void RefreshPublishedTracks() noexcept;
 
     /** @brief Semantic sample produced for the projection and controller. */

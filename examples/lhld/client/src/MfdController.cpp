@@ -107,13 +107,26 @@ const char* RadarSubmodeCaption(const RadarSubmode submode) noexcept
     return "RWS";
 }
 
+bool HasActiveTrackState(const MfdInputSample& input, const RadarTrackState state) noexcept
+{
+    for (const RadarTrack& track : input.tracks)
+    {
+        if (track.active && track.state == state)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 const char* RadarStatusCaption(const MfdInputSample& input) noexcept
 {
-    if (input.radar.submode == RadarSubmode::Stt)
+    if (HasActiveTrackState(input, RadarTrackState::SingleTargetTrack))
     {
         return "STT";
     }
-    if (input.radar.submode == RadarSubmode::Rws && input.radar.buggedTrack >= 0)
+    if (input.radar.submode == RadarSubmode::Rws &&
+        HasActiveTrackState(input, RadarTrackState::SystemTarget))
     {
         return "SAM";
     }
@@ -439,10 +452,8 @@ void ApplyRadar(
     auto& radar = ui.Radar();
 
     const bool searchPresentation = frame.radarPresentationVisible && input.radar.submode != RadarSubmode::Stt;
-    const bool rwsPresentation = searchPresentation && input.radar.submode == RadarSubmode::Rws;
-    const bool twsPresentation = searchPresentation && input.radar.submode == RadarSubmode::Tws;
-    const bool buggedPresentation = frame.buggedVisible && input.radar.submode != RadarSubmode::Stt;
-    const bool sttPresentation = frame.buggedVisible && input.radar.submode == RadarSubmode::Stt;
+    const bool sttPresentation = frame.buggedVisible &&
+        frame.buggedTrack.state == RadarTrackState::SingleTargetTrack;
     radar.strobe = radar.acquisitionStrobe;
     radar.strobe.SetActive(searchPresentation);
     radar.strobe.SetPosition(ToVec(frame.cursorPosition));
@@ -467,22 +478,20 @@ void ApplyRadar(
     radar.radarSttInterceptCross.SetVisible(sttPresentation && frame.sttInterceptVisible);
     radar.radarSttInterceptCross.SetPosition(ToVec(frame.sttInterceptPosition));
 
-    radar.DynamicRadarRwsTrack().SetVisible(rwsPresentation);
-    radar.DynamicRadarTwsTrack().SetVisible(twsPresentation);
-    radar.DynamicRadarBuggedTrack().SetVisible(buggedPresentation);
-    radar.DynamicRadarSttTrack().SetVisible(sttPresentation);
+    radar.DynamicRadarRwsTrack().SetVisible(true);
+    radar.DynamicRadarTwsTrack().SetVisible(true);
+    radar.DynamicRadarBuggedTrack().SetVisible(true);
+    radar.DynamicRadarSttTrack().SetVisible(true);
 
-    const int buggedIndex = input.radar.buggedTrack;
+    // No sensor filtering belongs here: the radar-published state selects one
+    // authored symbol family, while active is forwarded by the projection.
     for (std::size_t index = 0; index < kMaxRadarTracks; ++index)
     {
-        const bool isBugged =
-            frame.buggedVisible && buggedIndex == static_cast<int>(index);
-        const bool rwsVisible =
-            !isBugged && input.radar.submode == RadarSubmode::Rws && frame.tracks[index].visible;
-        const bool twsVisible =
-            !isBugged && input.radar.submode == RadarSubmode::Tws && frame.tracks[index].visible;
-        const bool buggedVisible = isBugged && input.radar.submode != RadarSubmode::Stt;
-        const bool sttVisible = isBugged && input.radar.submode == RadarSubmode::Stt;
+        const RadarTrackView& track = frame.tracks[index];
+        const bool rwsVisible = track.visible && track.state == RadarTrackState::Search;
+        const bool twsVisible = track.visible && track.state == RadarTrackState::Trackfile;
+        const bool buggedVisible = track.visible && track.state == RadarTrackState::SystemTarget;
+        const bool sttVisible = track.visible && track.state == RadarTrackState::SingleTargetTrack;
 
         if (rwsVisible && rwsTracks[index] == nullptr)
         {
@@ -503,23 +512,24 @@ void ApplyRadar(
 
         if (rwsTracks[index] != nullptr)
         {
-            ApplyTrackView(*rwsTracks[index], frame.tracks[index], rwsVisible);
+            ApplyTrackView(*rwsTracks[index], track, rwsVisible);
         }
         if (twsTracks[index] != nullptr)
         {
-            ApplyTrackView(*twsTracks[index], frame.tracks[index], twsVisible);
+            ApplyTrackView(*twsTracks[index], track, twsVisible);
         }
         if (buggedTracks[index] != nullptr)
         {
-            ApplyTrackView(*buggedTracks[index], frame.buggedTrack, buggedVisible);
+            ApplyTrackView(*buggedTracks[index], track, buggedVisible);
         }
         if (sttTracks[index] != nullptr)
         {
-            ApplyTrackView(*sttTracks[index], frame.buggedTrack, sttVisible);
+            ApplyTrackView(*sttTracks[index], track, sttVisible);
         }
     }
 
     radar.radarDatablock.SetVisible(frame.radarPresentationVisible);
+    const int buggedIndex = frame.designatedTrackIndex;
     if (frame.buggedVisible)
     {
         if (buggedIndex >= 0 && buggedIndex < static_cast<int>(kMaxRadarTracks))

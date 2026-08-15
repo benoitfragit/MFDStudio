@@ -79,14 +79,6 @@ float RadarVerticalHalfCoverageDeg(const RadarSettings& radar) noexcept
     return kRadarBeamHalfHeightDeg + (static_cast<float>(bars - 1) * kRadarBarSpacingDeg * 0.5f);
 }
 
-bool IsInsideRadarElevationVolume(const RadarTrack& track, const RadarSettings& radar) noexcept
-{
-    const float antennaCenterDeg =
-        Clamp(Finite(radar.antennaElevationDeg, 0.0f), -kMaxElevationDeg, kMaxElevationDeg);
-    return std::fabs(Finite(track.elevationDeg, 0.0f) - antennaCenterDeg) <=
-        RadarVerticalHalfCoverageDeg(radar);
-}
-
 float SearchAltitudeThousandsFt(const OwnshipState& ownship,
                                 const float rangeNm,
                                 const float elevationDeg) noexcept
@@ -221,21 +213,7 @@ RadarTrackView ProjectRadarTrack(const RadarTrack& track,
     const float halfScanDeg =
         Clamp(Finite(radar.azScanDeg, 60.0f), 10.0f, kMaxScanHalfAngleDeg * 2.0f) * 0.5f;
     const float bearingDeg = Finite(track.azimuthDeg, 0.0f);
-    if (std::fabs(bearingDeg) > halfScanDeg)
-    {
-        return view;
-    }
-
     const float fraction = RangeFraction(track.rangeNm, radar.rangeScaleNm);
-    if (fraction < 0.0f || fraction > 1.0f)
-    {
-        return view;
-    }
-
-    if (!IsInsideRadarElevationVolume(track, radar))
-    {
-        return view;
-    }
 
     view.position = MfdVec2 {
         Clamp(bearingDeg / halfScanDeg, -1.0f, 1.0f) * kScopeHalfWidth,
@@ -244,35 +222,7 @@ RadarTrackView ProjectRadarTrack(const RadarTrack& track,
     view.altitudeThousandsFt = DerivedAltitudeThousandsFt(track, ownship);
     view.hostile = track.hostile;
     view.extrapolated = track.quality == RadarTrackQuality::Extrapolated;
-    view.visible = true;
-    return view;
-}
-
-RadarTrackView ProjectBuggedTrack(const RadarTrack& track,
-                                  const RadarSettings& radar,
-                                  const OwnshipState& ownship) noexcept
-{
-    RadarTrackView view;
-    if (!track.active)
-    {
-        return view;
-    }
-
-    const float halfScanDeg =
-        Clamp(Finite(radar.azScanDeg, 60.0f), 10.0f, kMaxScanHalfAngleDeg * 2.0f) * 0.5f;
-    const float bearingDeg = Finite(track.azimuthDeg, 0.0f);
-    const float fraction = RangeFraction(track.rangeNm, radar.rangeScaleNm);
-
-    // Single-target-track keeps the antenna locked on the target, so the symbol
-    // stays on the scope even outside the search volume or range scale: the
-    // position is clamped instead of the track being filtered out.
-    view.position = MfdVec2 {
-        Clamp(bearingDeg / halfScanDeg, -1.0f, 1.0f) * kScopeHalfWidth,
-        kScopeBottom + Clamp(fraction, 0.0f, 1.0f) * kScopeHeight};
-    view.rotationDegrees = WrapDegrees(track.aspectDeg);
-    view.altitudeThousandsFt = DerivedAltitudeThousandsFt(track, ownship);
-    view.hostile = track.hostile;
-    view.extrapolated = track.quality == RadarTrackQuality::Extrapolated;
+    view.state = track.state;
     view.visible = true;
     return view;
 }
@@ -308,7 +258,6 @@ MfdFrame BuildMfdFrame(const MfdInputSample& input) noexcept
     for (std::size_t index = 0; index < kMaxRadarTracks; ++index)
     {
         radar.tracks[index] = ProjectRadarTrack(input.tracks[index], input.radar, input.ownship);
-        radar.tracks[index].visible = radar.radarPresentationVisible && radar.tracks[index].visible;
     }
 
     const bool singleTargetTrack = input.radar.submode == RadarSubmode::Stt;
@@ -333,40 +282,35 @@ MfdFrame BuildMfdFrame(const MfdInputSample& input) noexcept
     radar.cursorMinimumAltitudeThousandsFt = SearchAltitudeThousandsFt(
         input.ownship, cursorRangeNm, elevationCenterDeg - elevationHalfCoverageDeg);
 
-    const int bugged = input.radar.buggedTrack;
-    if (radar.radarPresentationVisible && bugged >= 0 && bugged < static_cast<int>(kMaxRadarTracks))
+    for (std::size_t index = 0; index < kMaxRadarTracks; ++index)
     {
-        const RadarTrackView view =
-            ProjectBuggedTrack(input.tracks[static_cast<std::size_t>(bugged)], input.radar, input.ownship);
-        if (view.visible)
+        const RadarTrackView& view = radar.tracks[index];
+        const bool designated = view.state == RadarTrackState::SystemTarget ||
+            view.state == RadarTrackState::SingleTargetTrack;
+        if (!view.visible || !designated)
         {
-            radar.buggedVisible = true;
-            radar.buggedTrack = view;
-            radar.buggedTrack.rotationDegrees =
-                WrapDegrees(Finite(input.tracks[static_cast<std::size_t>(bugged)].aspectDeg, 0.0f));
-            radar.datablockVisible = true;
-            radar.tracks[static_cast<std::size_t>(bugged)].visible = false;
-
-            float steeringAngleDeg = 0.0f;
-            const RadarTrack& buggedTrack = input.tracks[static_cast<std::size_t>(bugged)];
-            if (singleTargetTrack &&
-                ComputeInterceptSteeringAngleDeg(buggedTrack, input.ownship, steeringAngleDeg) &&
-                std::fabs(steeringAngleDeg) <= kMaxScanHalfAngleDeg)
-            {
-                radar.sttInterceptVisible = true;
-                radar.sttInterceptPosition = MfdVec2 {
-                    Clamp(steeringAngleDeg / kMaxScanHalfAngleDeg, -1.0f, 1.0f) * kScopeHalfWidth,
-                    radar.buggedTrack.position.y};
-            }
+            continue;
         }
-    }
 
-    if (singleTargetTrack)
-    {
-        for (RadarTrackView& track : radar.tracks)
+        radar.buggedVisible = true;
+        radar.designatedTrackIndex = static_cast<int>(index);
+        radar.buggedTrack = view;
+        radar.buggedTrack.rotationDegrees =
+            WrapDegrees(Finite(input.tracks[index].aspectDeg, 0.0f));
+        radar.datablockVisible = true;
+
+        float steeringAngleDeg = 0.0f;
+        const RadarTrack& buggedTrack = input.tracks[index];
+        if (view.state == RadarTrackState::SingleTargetTrack &&
+            ComputeInterceptSteeringAngleDeg(buggedTrack, input.ownship, steeringAngleDeg) &&
+            std::fabs(steeringAngleDeg) <= kMaxScanHalfAngleDeg)
         {
-            track.visible = false;
+            radar.sttInterceptVisible = true;
+            radar.sttInterceptPosition = MfdVec2 {
+                Clamp(steeringAngleDeg / kMaxScanHalfAngleDeg, -1.0f, 1.0f) * kScopeHalfWidth,
+                radar.buggedTrack.position.y};
         }
+        break;
     }
 
     // HSD (NAV) page.

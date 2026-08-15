@@ -22,6 +22,11 @@ namespace lhld
  * controller only consume @ref MfdInputSample, so implementations should keep
  * raw cockpit commands, transport details and simulator-specific state behind
  * this boundary.
+ *
+ * @note A radar implementation is responsible for publishing authoritative
+ * @ref RadarTrack::active and @ref RadarTrack::state values. Detection volume,
+ * track loss, designation and STT lifecycle must be resolved before the sample
+ * reaches the projection/controller page code.
  */
 class MfdInputSource
 {
