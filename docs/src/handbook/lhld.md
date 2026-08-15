@@ -58,6 +58,8 @@ generated UI:
 - `MfdRadarGeometry.h/.cpp` - shared semantic radar geometry. The simulation
   uses it to decide track publication; the projection uses it to map already
   published measurements without owning track visibility.
+- `MfdRadarControls.h/.cpp` - documented FCR range detents and scan-pattern
+  resolution shared by the panel, simulation and controller.
 - `MfdRadarSimulation.h/.cpp` - deterministic fake airspace/radar producer. It
   owns track motion, closure/aspect derivation, visibility and the animated
   azimuth sweep. Operator intent is pushed in from the panel; the source
@@ -87,7 +89,7 @@ business logic beyond selecting the page or toggling a control.
 - **Radar/FCR:** Falcon-style B-scope with the scan volume between cyan azimuth
   limits and avionics data around the complete MFD perimeter. It includes the
   horizon line, antenna-elevation caret, acquisition cursor and altitude limits,
-  range/bars/scan/PRF/bullseye data, assignment/weapon cues and bottom FCR
+  range/AZ/BAR/IFF/bullseye data, assignment/weapon cues and bottom FCR
   legends. RWS search tracks use white bricks; TWS trackfiles and bugged/STT
   tracks use their distinct yellow symbols; extrapolated tracks turn red. A
   bugged track adds target data (altitude, aspect, closure, heading and speed),
@@ -121,9 +123,11 @@ business logic beyond selecting the page or toggling a control.
 - The top selector uses **RADAR / SMS / NAV / A-G** for clarity.
 - **OSB 12/13/14/15** select the FCR, SMS, HSD and A-G pages on any page.
 - Keyboard **1 / 2 / 3 / 4** selects RADAR, SMS, NAV and A-G respectively.
-- On **FCR**, OSB 2 toggles RWS/TWS, OSB 3 toggles NORM/EXP, OSB 6 cycles
-  range, OSB 17 toggles the azimuth scan width, OSB 18 cycles bars and OSB 19
-  toggles PRF. The panel **ANT ELEV** thumbwheel changes the search volume, so
+- On **FCR**, OSB 2 toggles RWS/TWS and OSB 3 toggles NORM/EXP. OSB 17 cycles
+  the bar scan, OSB 18 cycles antenna azimuth from wide to narrow, and OSB
+  19/20 decrease/increase the documented 5/10/20/40/80/160 NM range rotary
+  without wrapping. Entering TWS initializes A2/3B; its three coupled patterns
+  are A6/2B, A2/3B and A1/4B. The panel **ANT ELEV** thumbwheel changes the search volume, so
   targets can enter or leave the scope instead of only moving the elevation
   caret. The physical **FCR PWR**
   and **RF** switches compose the corresponding radar presentation states:
@@ -161,6 +165,13 @@ altitude and display placement from ownship state and current radar settings.
 The UI cursor remains a two-axis `[-1, 1]` input; conversion to azimuth, display
 range and cursor altitude limits remains inside the projection/controller
 boundary.
+
+`RadarSettings::selectedAzimuthScan` and `selectedScanBars` carry operator
+intent. The input source resolves them and publishes `azimuthScanWidthDeg`,
+`scanBars` and `scanCenterAzimuthDeg` as effective radar state. The controller
+only formats these published values. Narrow search volumes are centered on the
+ACQ cursor and affect track publication in the simulation; all tracks and the
+cursor remain projected against the fixed -60/+60-degree FCR video.
 
 `RadarSettings::fieldOfView` is the semantic NORM/EXP command and effective
 state. EXP is valid in RWS, a bugged RWS presentation, and TWS. The radar source

@@ -23,6 +23,7 @@
 #include "LhldUi.h"
 #include "MfdController.h"
 #include "MfdInputSource.h"
+#include "MfdRadarControls.h"
 #include "OffscreenMfdView.h"
 #include "mfd/client/ClientSdk.h"
 
@@ -101,6 +102,9 @@ private:
     void JettisonStores();
     void ApplyControlsToInputSource() noexcept;
     void SelectRadarSearchSubmode(RadarSubmode submode) noexcept;
+    void CycleRadarAzimuthScan() noexcept;
+    void CycleRadarBarScan() noexcept;
+    void StepRadarRange(RadarRangeStep direction) noexcept;
     void ToggleRadarFieldOfView();
     void BugCapturedRadarTrack();
     void EnterSingleTargetTrack();

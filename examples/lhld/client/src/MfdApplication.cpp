@@ -165,14 +165,14 @@ const char* OsbActionTooltip(const MfdPage page, const int osbOneBased) noexcept
             return "Toggle range-while-search and track-while-scan radar modes.";
         case 3:
             return "Toggle the Falcon 4:1 EXP display about the acquisition cursor.";
-        case 6:
-            return "Cycle radar range scale.";
         case 17:
-            return "Toggle radar azimuth scan width.";
+            return "Cycle the antenna bar scan; TWS selects a valid coupled scan pattern.";
         case 18:
-            return "Cycle radar bar scan count.";
+            return "Cycle the mode-supported antenna azimuth scan width.";
         case 19:
-            return "Toggle radar pulse-repetition frequency.";
+            return "Decrease the FCR range scale.";
+        case 20:
+            return "Increase the FCR range scale.";
         default:
             return "No action assigned to this radar OSB.";
         }
@@ -536,6 +536,26 @@ void MfdApplication::SelectRadarSearchSubmode(const RadarSubmode submode) noexce
     radarControls_.submode = submode;
 }
 
+void MfdApplication::CycleRadarAzimuthScan() noexcept
+{
+    radarControls_.selectedAzimuthScan = NextRadarAzimuthScan(radarControls_.selectedAzimuthScan);
+}
+
+void MfdApplication::CycleRadarBarScan() noexcept
+{
+    if (radarControls_.submode == RadarSubmode::Tws)
+    {
+        CycleRadarAzimuthScan();
+        return;
+    }
+    radarControls_.selectedScanBars = NextRadarBarCount(radarControls_.selectedScanBars);
+}
+
+void MfdApplication::StepRadarRange(const RadarRangeStep direction) noexcept
+{
+    radarControls_.rangeScaleNm = StepRadarRangeScale(radarControls_.rangeScaleNm, direction);
+}
+
 void MfdApplication::ToggleRadarFieldOfView()
 {
     if (radarControls_.submode == RadarSubmode::Stt)
@@ -643,6 +663,7 @@ void MfdApplication::DrawFrame(const float deltaSeconds)
         inputSource_->Step(deltaSeconds);
     }
     inputs_ = inputSource_->Inputs();
+    radarControls_ = inputs_.radar;
     inputs_.activePage = activePage_;
 
     HandleKeyboardShortcuts();
@@ -700,6 +721,7 @@ void MfdApplication::DrawFrame(const float deltaSeconds)
 
     ApplyControlsToInputSource();
     inputs_ = inputSource_->Inputs();
+    radarControls_ = inputs_.radar;
     inputs_.activePage = activePage_;
     PublishFrame();
 
@@ -865,18 +887,17 @@ void MfdApplication::HandleOsbPress(const int osbOneBased)
         case 3:
             ToggleRadarFieldOfView();
             break;
-        case 6:
-            radarControls_.rangeScaleNm =
-                radarControls_.rangeScaleNm >= 80.0f ? 10.0f : radarControls_.rangeScaleNm * 2.0f;
-            break;
         case 17:
-            radarControls_.azScanDeg = radarControls_.azScanDeg >= 60.0f ? 30.0f : 60.0f;
+            CycleRadarBarScan();
             break;
         case 18:
-            radarControls_.scanBars = radarControls_.scanBars >= 4 ? 1 : radarControls_.scanBars * 2;
+            CycleRadarAzimuthScan();
             break;
         case 19:
-            radarControls_.highPrf = !radarControls_.highPrf;
+            StepRadarRange(RadarRangeStep::Decrease);
+            break;
+        case 20:
+            StepRadarRange(RadarRangeStep::Increase);
             break;
         default:
             break;
@@ -1302,8 +1323,8 @@ void MfdApplication::DrawRadarControls()
         "antenna_elevation",
         "ANT ELEV",
         radarControls_.antennaElevationDeg,
-        -30.0f,
-        30.0f,
+        -60.0f,
+        60.0f,
         0.35f,
         "%+.0f DEG",
         "Drag the wheel vertically, or use the mouse wheel, to move the radar elevation volume.");
@@ -1314,11 +1335,11 @@ void MfdApplication::DrawRadarControls()
         radarControls_.cursorPosition.x,
         radarControls_.cursorPosition.y,
         "Drag to slew the acquisition cursor. Double-click to recenter it.");
-    ImGui::Text("RNG %.0f NM  |  %dB  |  A%.0f  |  %s",
+    ImGui::Text("RNG %.0f NM  |  A%s / %dB  |  IFF %s",
                 radarControls_.rangeScaleNm,
+                RadarAzimuthMnemonic(radarControls_.azimuthScanWidthDeg),
                 radarControls_.scanBars,
-                radarControls_.azScanDeg,
-                radarControls_.highPrf ? "HI" : "MED");
+                RadarIffMnemonic(radarControls_.iffMode));
 }
 
 void MfdApplication::DrawStoresControls()

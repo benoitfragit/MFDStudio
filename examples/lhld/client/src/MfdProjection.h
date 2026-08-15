@@ -30,7 +30,7 @@ MfdFrame BuildMfdFrame(const MfdInputSample& input) noexcept;
 /**
  * @brief Projects one radar track into B-scope MFD coordinates.
  * @param track Sensor-native radar track.
- * @param radar Operator radar controls (azimuth, bars, elevation and range).
+ * @param radar Radar-published effective scan state and range.
  * @param ownship Ownship state used for relative motion and derived altitude.
  * @return Projected track view. The position is defensively clamped to the
  * authored scope, while visibility and lifecycle state are copied from the

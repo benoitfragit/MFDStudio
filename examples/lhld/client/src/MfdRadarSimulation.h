@@ -13,8 +13,8 @@
  * between track geometry, closure and aspect rather than being a sensor
  * fidelity model. Its only integration output is @ref MfdInputSample, so a real
  * avionics producer can replace this class and keep the same projection,
- * controller and generated UI. Operator controls (radar scan, master mode,
- * stores, navigation) are pushed in from the panel and are never mutated here.
+ * controller and generated UI. Operator intent is pushed in from the panel;
+ * this source resolves mode constraints and publishes effective radar state.
  */
 
 #include "MfdInputSource.h"
@@ -36,8 +36,8 @@ public:
     void Reset() noexcept override;
 
     /**
-     * @brief Copies operator radar controls into the next published sample.
-     * @param controls Panel-owned radar controls; the animated sweep is preserved.
+     * @brief Applies operator intent and publishes normalized effective radar state.
+     * @param controls Panel-owned controls; the animated sweep is preserved.
      */
     void ApplyRadarControls(const RadarSettings& controls) noexcept override;
 

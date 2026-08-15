@@ -1,0 +1,8 @@
+{
+  "id": "radar_azimuth_limits",
+  "lineWidth": 0.0045,
+  "elements": [
+    { "id": "left_limit", "type": "line", "start": [-1.0, -0.70], "end": [-1.0, 0.70] },
+    { "id": "right_limit", "type": "line", "start": [1.0, -0.70], "end": [1.0, 0.70] }
+  ]
+}

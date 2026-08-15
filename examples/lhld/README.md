@@ -84,6 +84,14 @@ in `[-1, 1]`, which is natural for an independent UI device. `MfdProjection`
 maps that cursor to the authored B-scope and derives the displayed cursor
 altitude limits; callers never calculate page coordinates or normalized range.
 
+The FCR side controls follow the documented OSB layout: OSB 17 changes bars,
+OSB 18 selects azimuth width, and OSB 19/20 decrease/increase the
+5/10/20/40/80/160 NM range rotary without wrapping. TWS initializes to A2/3B
+and the radar source constrains its selections to A6/2B, A2/3B and A1/4B.
+The panel publishes only the requested azimuth/bar selection; the input source
+publishes the effective width, bars and cursor-centered scan-volume location
+consumed by the projection and controller.
+
 FCR symbols are dynamic reticles allocated only when needed. RWS search tracks
 are white, TWS trackfiles and bugged/STT tracks are yellow, and any extrapolated
 track is red. BUG designates only the dynamic track reported captured by the

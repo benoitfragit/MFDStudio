@@ -18,6 +18,8 @@
 
 #include "LhldUi.h"
 #include "MfdProjection.h"
+#include "MfdRadarControls.h"
+#include "MfdRadarGeometry.h"
 #include "mfd/model/Types.h"
 
 namespace lhld
@@ -461,6 +463,9 @@ void ApplyRadar(
     radar.radarAcquisitionCursorVisual.SetPosition(ToVec(frame.cursorPosition));
 
     radar.radarBscopeFrame.SetVisible(searchPresentation);
+    radar.radarAzimuthLimits.SetVisible(frame.azimuthLimitsVisible);
+    radar.radarAzimuthLimits.SetPosition(mfd::Vec2 {frame.azimuthLimitsCenterX, 0.0f});
+    radar.radarAzimuthLimits.SetScale(mfd::Vec2 {frame.azimuthLimitsHalfWidth, 1.0f});
     radar.radarHorizon.SetVisible(frame.radarPresentationVisible);
     radar.radarScale.SetVisible(input.radar.operatingState != RadarOperatingState::Off);
     radar.radarOwnship.SetVisible(searchPresentation);
@@ -560,7 +565,7 @@ void ApplyRadar(
     {
         radar.radarDatablock.TgtAspectValue().SetText(
             FormatInt(static_cast<float>(input.radar.scanBars)) + "B");
-        radar.radarDatablock.TgtHdgValue().SetText(FormatInt(input.radar.azScanDeg));
+        radar.radarDatablock.TgtHdgValue().SetText(FormatInt(RadarScanHalfAngleDeg(input.radar)));
         radar.radarDatablock.TgtIdentValue().SetText("WAIT");
         radar.radarDatablock.TgtGsValue().SetText(FormatInt(input.ownship.speedKts));
         radar.radarDatablock.TgtClosureValue().SetText("");
@@ -568,11 +573,10 @@ void ApplyRadar(
 
     radar.radarPerimeter.RangeTop().SetText(FormatInt(input.radar.rangeScaleNm));
     radar.radarScale.Scan().SetText("A");
-    radar.radarScale.Bars().SetText("2");
-    radar.radarScale.Iff().SetText("I");
-    radar.radarScale.BarCount().SetText("3");
+    radar.radarScale.Azimuth().SetText(RadarAzimuthMnemonic(input.radar.azimuthScanWidthDeg));
+    radar.radarScale.BarCount().SetText(FormatInt(static_cast<float>(input.radar.scanBars)));
     radar.radarScale.Band().SetText("B");
-    radar.radarScale.Prf().SetText(input.radar.highPrf ? "M+" : "M3");
+    radar.radarScale.IffMode().SetText(RadarIffMnemonic(input.radar.iffMode));
     {
         char buffer[24] {};
         std::snprintf(buffer, sizeof(buffer), "%02d", static_cast<int>(std::lround(input.nav.bullseyeRangeNm)) % 100);

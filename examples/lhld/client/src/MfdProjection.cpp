@@ -24,8 +24,8 @@ constexpr float kScopeHalfWidth = 0.46f;
 constexpr float kScopeTop = 0.75f;
 constexpr float kScopeBottom = -0.75f;
 constexpr float kScopeHeight = kScopeTop - kScopeBottom;
-constexpr float kMaxScanHalfAngleDeg = 60.0f;
-constexpr float kMaxElevationDeg = 30.0f;
+constexpr float kFcrDisplayHalfAngleDeg = 60.0f;
+constexpr float kMaxElevationDeg = 60.0f;
 constexpr float kFeetPerNauticalMile = 6076.12f;
 constexpr float kCompassRadius = 0.72f;
 constexpr float kDegToRad = 0.01745329252f;
@@ -203,12 +203,11 @@ RadarTrackView ProjectRadarTrack(const RadarTrack& track,
         return view;
     }
 
-    const float halfScanDeg = RadarScanHalfAngleDeg(radar);
     const RadarDisplayPoint displayPoint = RadarTrackDisplayPoint(track, radar);
     const float fraction = RangeFraction(displayPoint.rangeNm, radar.rangeScaleNm);
 
     view.position = MfdVec2 {
-        Clamp(displayPoint.azimuthDeg / halfScanDeg, -1.0f, 1.0f) * kScopeHalfWidth,
+        Clamp(displayPoint.azimuthDeg / kFcrDisplayHalfAngleDeg, -1.0f, 1.0f) * kScopeHalfWidth,
         kScopeBottom + Clamp(fraction, 0.0f, 1.0f) * kScopeHeight};
     view.rotationDegrees = WrapDegrees(track.aspectDeg);
     view.altitudeThousandsFt = DerivedAltitudeThousandsFt(track, ownship);
@@ -256,7 +255,17 @@ MfdFrame BuildMfdFrame(const MfdInputSample& input) noexcept
     radar.scanLineVisible = radar.radarPresentationVisible && !singleTargetTrack;
     const float halfScanDeg = RadarScanHalfAngleDeg(input.radar);
     radar.scanLineX =
-        Clamp(Finite(input.radar.antennaAzimuthDeg, 0.0f) / halfScanDeg, -1.0f, 1.0f) * kScopeHalfWidth;
+        Clamp(Finite(input.radar.antennaAzimuthDeg, 0.0f) / kFcrDisplayHalfAngleDeg, -1.0f, 1.0f) *
+        kScopeHalfWidth;
+    radar.azimuthLimitsVisible = radar.radarPresentationVisible && !singleTargetTrack &&
+        halfScanDeg < kFcrDisplayHalfAngleDeg &&
+        !(input.radar.submode == RadarSubmode::Tws &&
+          input.radar.fieldOfView == RadarFieldOfView::Expanded);
+    radar.azimuthLimitsCenterX =
+        Clamp(Finite(input.radar.scanCenterAzimuthDeg, 0.0f) / kFcrDisplayHalfAngleDeg, -1.0f, 1.0f) *
+        kScopeHalfWidth;
+    radar.azimuthLimitsHalfWidth =
+        Clamp(halfScanDeg / kFcrDisplayHalfAngleDeg, 0.0f, 1.0f) * kScopeHalfWidth;
     radar.elevationCaretY =
         Clamp(Finite(input.radar.antennaElevationDeg, 0.0f) / kMaxElevationDeg, -1.0f, 1.0f) * kScopeTop;
     radar.cursorPosition = MfdVec2 {
@@ -297,11 +306,11 @@ MfdFrame BuildMfdFrame(const MfdInputSample& input) noexcept
         const RadarTrack& buggedTrack = input.tracks[index];
         if (view.state == RadarTrackState::SingleTargetTrack &&
             ComputeInterceptSteeringAngleDeg(buggedTrack, input.ownship, steeringAngleDeg) &&
-            std::fabs(steeringAngleDeg) <= kMaxScanHalfAngleDeg)
+            std::fabs(steeringAngleDeg) <= kFcrDisplayHalfAngleDeg)
         {
             radar.sttInterceptVisible = true;
             radar.sttInterceptPosition = MfdVec2 {
-                Clamp(steeringAngleDeg / kMaxScanHalfAngleDeg, -1.0f, 1.0f) * kScopeHalfWidth,
+                Clamp(steeringAngleDeg / kFcrDisplayHalfAngleDeg, -1.0f, 1.0f) * kScopeHalfWidth,
                 radar.buggedTrack.position.y};
         }
         break;

@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 
 #include "MfdProjection.h"
+#include "MfdRadarControls.h"
 #include "MfdRadarGeometry.h"
 #include "MfdRadarSimulation.h"
 
@@ -123,21 +124,78 @@ TEST(LhldProjection, CursorUsesNormalizedUiCoordinatesOnBothAxes)
 TEST(LhldRadarGeometry, CursorMapsToSensorAzimuthAndRange)
 {
     lhld::RadarSettings radar;
-    radar.azScanDeg = 60.0f;
     radar.rangeScaleNm = 40.0f;
     radar.cursorPosition = {0.18f, 0.36f};
 
     const lhld::RadarDisplayPoint cursor = lhld::RadarCursorSensorPoint(radar);
 
-    EXPECT_NEAR(cursor.azimuthDeg, 5.4f, 1.0e-4f);
+    EXPECT_NEAR(cursor.azimuthDeg, 10.8f, 1.0e-4f);
     EXPECT_NEAR(cursor.rangeNm, 27.2f, 1.0e-4f);
+}
+
+TEST(LhldRadarControls, RangeRotaryUsesDocumentedDetentsWithoutWrapping)
+{
+    EXPECT_FLOAT_EQ(
+        lhld::StepRadarRangeScale(40.0f, lhld::RadarRangeStep::Decrease),
+        20.0f);
+    EXPECT_FLOAT_EQ(
+        lhld::StepRadarRangeScale(40.0f, lhld::RadarRangeStep::Increase),
+        80.0f);
+    EXPECT_FLOAT_EQ(
+        lhld::StepRadarRangeScale(5.0f, lhld::RadarRangeStep::Decrease),
+        5.0f);
+    EXPECT_FLOAT_EQ(
+        lhld::StepRadarRangeScale(160.0f, lhld::RadarRangeStep::Increase),
+        160.0f);
+    EXPECT_FLOAT_EQ(
+        lhld::NormalizeRadarRangeScale(std::numeric_limits<float>::quiet_NaN()),
+        40.0f);
+}
+
+TEST(LhldRadarControls, TwsAzimuthSelectionsResolveToDocumentedScanPatterns)
+{
+    const lhld::RadarScanVolume wide = lhld::ResolveRadarScanVolume(
+        lhld::RadarSubmode::Tws,
+        lhld::RadarAzimuthScan::Wide,
+        4);
+    const lhld::RadarScanVolume medium = lhld::ResolveRadarScanVolume(
+        lhld::RadarSubmode::Tws,
+        lhld::RadarAzimuthScan::Medium,
+        4);
+    const lhld::RadarScanVolume narrow = lhld::ResolveRadarScanVolume(
+        lhld::RadarSubmode::Tws,
+        lhld::RadarAzimuthScan::Narrow,
+        1);
+
+    EXPECT_FLOAT_EQ(wide.azimuthWidthDeg, 120.0f);
+    EXPECT_EQ(wide.bars, 2);
+    EXPECT_FLOAT_EQ(medium.azimuthWidthDeg, 50.0f);
+    EXPECT_EQ(medium.bars, 3);
+    EXPECT_FLOAT_EQ(narrow.azimuthWidthDeg, 20.0f);
+    EXPECT_EQ(narrow.bars, 4);
+}
+
+TEST(LhldProjection, NarrowScanLimitsUseFixedSixtyDegreeBscopeScale)
+{
+    lhld::MfdInputSample input;
+    input.radar.azimuthScanWidthDeg = 20.0f;
+    input.radar.scanCenterAzimuthDeg = 30.0f;
+
+    const lhld::RadarFrame frame = lhld::BuildMfdFrame(input).radar;
+
+    EXPECT_TRUE(frame.azimuthLimitsVisible);
+    EXPECT_NEAR(frame.azimuthLimitsCenterX, 0.23f, 1.0e-4f);
+    EXPECT_NEAR(frame.azimuthLimitsHalfWidth, 0.07667f, 1.0e-4f);
+
+    input.radar.submode = lhld::RadarSubmode::Tws;
+    input.radar.fieldOfView = lhld::RadarFieldOfView::Expanded;
+    EXPECT_FALSE(lhld::BuildMfdFrame(input).radar.azimuthLimitsVisible);
 }
 
 TEST(LhldRadarGeometry, ExpandedDisplayAppliesExactFourToOneMagnification)
 {
     const lhld::RadarTrack track = MakeTrack(8.0f, 27.0f);
     lhld::RadarSettings radar;
-    radar.azScanDeg = 60.0f;
     radar.rangeScaleNm = 40.0f;
     radar.cursorPosition = {0.20f, 0.25f};
 
@@ -410,21 +468,21 @@ TEST(LhldSimulation, StepIsDeterministicAndFinite)
         EXPECT_TRUE(std::isfinite(a.tracks[index].elevationDeg));
         EXPECT_TRUE(std::isfinite(a.tracks[index].closureKts));
     }
-    EXPECT_GE(a.radar.antennaAzimuthDeg, -30.0f);
-    EXPECT_LE(a.radar.antennaAzimuthDeg, 30.0f);
+    EXPECT_GE(a.radar.antennaAzimuthDeg, -60.0f);
+    EXPECT_LE(a.radar.antennaAzimuthDeg, 60.0f);
 }
 
 TEST(LhldSimulation, FourBarScanSweepsSlowerThanOneBar)
 {
     lhld::MfdRadarSimulation oneBar;
     lhld::RadarSettings oneBarControls;
-    oneBarControls.scanBars = 1;
+    oneBarControls.selectedScanBars = 1;
     oneBar.ApplyRadarControls(oneBarControls);
     oneBar.Step(0.05f);
 
     lhld::MfdRadarSimulation fourBar;
     lhld::RadarSettings fourBarControls;
-    fourBarControls.scanBars = 4;
+    fourBarControls.selectedScanBars = 4;
     fourBar.ApplyRadarControls(fourBarControls);
     fourBar.Step(0.05f);
 
@@ -432,24 +490,57 @@ TEST(LhldSimulation, FourBarScanSweepsSlowerThanOneBar)
     EXPECT_GT(fourBar.Inputs().radar.antennaAzimuthDeg, 0.0f);
 }
 
+TEST(LhldSimulation, EnteringTwsPublishesA2ThreeBarInitialPattern)
+{
+    lhld::MfdRadarSimulation simulation;
+    lhld::RadarSettings controls;
+    controls.submode = lhld::RadarSubmode::Tws;
+    simulation.ApplyRadarControls(controls);
+
+    const lhld::RadarSettings& effective = simulation.Inputs().radar;
+    EXPECT_EQ(effective.selectedAzimuthScan, lhld::RadarAzimuthScan::Medium);
+    EXPECT_FLOAT_EQ(effective.azimuthScanWidthDeg, 50.0f);
+    EXPECT_EQ(effective.scanBars, 3);
+    EXPECT_STREQ(lhld::RadarAzimuthMnemonic(effective.azimuthScanWidthDeg), "2");
+}
+
+TEST(LhldSimulation, TwsScanVolumeIsCenteredOnAcquisitionCursor)
+{
+    lhld::MfdRadarSimulation simulation;
+    lhld::RadarSettings controls;
+    controls.submode = lhld::RadarSubmode::Tws;
+    simulation.ApplyRadarControls(controls);
+
+    controls = simulation.Inputs().radar;
+    controls.selectedAzimuthScan = lhld::RadarAzimuthScan::Narrow;
+    controls.cursorPosition.x = 0.5f;
+    simulation.ApplyRadarControls(controls);
+    EXPECT_FLOAT_EQ(simulation.Inputs().radar.scanCenterAzimuthDeg, 30.0f);
+    EXPECT_TRUE(simulation.Inputs().tracks[6].active);
+
+    controls = simulation.Inputs().radar;
+    controls.cursorPosition.x = -0.5f;
+    simulation.ApplyRadarControls(controls);
+    EXPECT_FALSE(simulation.Inputs().tracks[6].active);
+}
+
 TEST(LhldSimulation, RadarSourceOwnsSearchVolumeFiltering)
 {
     lhld::MfdRadarSimulation simulation;
     lhld::RadarSettings controls;
     controls.rangeScaleNm = 40.0f;
-    controls.azScanDeg = 60.0f;
-    controls.scanBars = 1;
+    controls.selectedScanBars = 1;
     simulation.ApplyRadarControls(controls);
 
     // Seed 6 is inside azimuth/range but below the narrow one-bar elevation volume.
     EXPECT_FALSE(simulation.Inputs().tracks[6].active);
 
-    controls.scanBars = 4;
+    controls.selectedScanBars = 4;
     simulation.ApplyRadarControls(controls);
     EXPECT_TRUE(simulation.Inputs().tracks[6].active);
     EXPECT_EQ(simulation.Inputs().tracks[6].state, lhld::RadarTrackState::Search);
 
-    controls.azScanDeg = 30.0f;
+    controls.selectedAzimuthScan = lhld::RadarAzimuthScan::Narrow;
     simulation.ApplyRadarControls(controls);
     EXPECT_FALSE(simulation.Inputs().tracks[6].active);
 }

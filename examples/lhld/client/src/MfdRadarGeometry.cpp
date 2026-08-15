@@ -18,9 +18,10 @@ namespace lhld
 namespace
 {
 constexpr float kDefaultRangeScaleNm = 40.0f;
-constexpr float kDefaultAzimuthScanDeg = 60.0f;
-constexpr float kMinimumAzimuthScanDeg = 10.0f;
+constexpr float kDefaultAzimuthScanDeg = 120.0f;
+constexpr float kMinimumAzimuthScanDeg = 20.0f;
 constexpr float kMaximumAzimuthScanDeg = 120.0f;
+constexpr float kFcrDisplayHalfAngleDeg = 60.0f;
 constexpr float kRadarBarSpacingDeg = 2.2f;
 constexpr float kRadarBeamHalfHeightDeg = 1.4f;
 constexpr float kExpandedDisplayScale = 4.0f;
@@ -45,6 +46,10 @@ int ValidRadarBars(const int bars) noexcept
     {
         return 2;
     }
+    if (bars <= 3)
+    {
+        return 3;
+    }
     return 4;
 }
 } // namespace
@@ -52,7 +57,7 @@ int ValidRadarBars(const int bars) noexcept
 float RadarScanHalfAngleDeg(const RadarSettings& radar) noexcept
 {
     return std::clamp(
-               Finite(radar.azScanDeg, kDefaultAzimuthScanDeg),
+               Finite(radar.azimuthScanWidthDeg, kDefaultAzimuthScanDeg),
                kMinimumAzimuthScanDeg,
                kMaximumAzimuthScanDeg) *
         0.5f;
@@ -70,7 +75,7 @@ RadarDisplayPoint RadarCursorSensorPoint(const RadarSettings& radar) noexcept
     const float normalizedX = std::clamp(Finite(radar.cursorPosition.x, 0.0f), -1.0f, 1.0f);
     const float normalizedY = std::clamp(Finite(radar.cursorPosition.y, 0.0f), -1.0f, 1.0f);
     return RadarDisplayPoint {
-        normalizedX * RadarScanHalfAngleDeg(radar),
+        normalizedX * kFcrDisplayHalfAngleDeg,
         (normalizedY + 1.0f) * 0.5f * RangeScaleNm(radar)};
 }
 

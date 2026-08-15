@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "mappingHash": "9ac6baefc0aac93f3717932a6cdc2b3b3db0fee251c851669909d142a3876013",
+  "mappingHash": "03ee696af3d9ff06aeb64e2b123a94045e4bf7d8824cc59206f73191c5ebb6be",
   "window": {
     "name": "lhld_window",
     "title": "LHLD",
@@ -238,6 +238,13 @@
       "pageId": 9637022363458486384,
       "reticleId": "radar_acquisition_cursor_visual",
       "normalizedReticleId": "radar_acquisition_cursor_visual",
+      "source": "static"
+    },
+    {
+      "id": 1239720923113904572,
+      "pageId": 9637022363458486384,
+      "reticleId": "radar_azimuth_limits",
+      "normalizedReticleId": "radar_azimuth_limits",
       "source": "static"
     },
     {
@@ -1754,6 +1761,15 @@
       "exposed": true
     },
     {
+      "id": 10930644946136042454,
+      "ownerKind": "reticle",
+      "ownerId": 10873039906535990210,
+      "primitiveId": "azimuth",
+      "normalizedPrimitiveId": "azimuth",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
       "id": 9326330387569698706,
       "ownerKind": "reticle",
       "ownerId": 10873039906535990210,
@@ -1768,15 +1784,6 @@
       "ownerId": 10873039906535990210,
       "primitiveId": "bar_count",
       "normalizedPrimitiveId": "bar_count",
-      "primitiveType": "text",
-      "exposed": true
-    },
-    {
-      "id": 5415352705471202640,
-      "ownerKind": "reticle",
-      "ownerId": 10873039906535990210,
-      "primitiveId": "bars",
-      "normalizedPrimitiveId": "bars",
       "primitiveType": "text",
       "exposed": true
     },
@@ -1799,20 +1806,11 @@
       "exposed": true
     },
     {
-      "id": 3115844587682499782,
+      "id": 4838051141673050221,
       "ownerKind": "reticle",
       "ownerId": 10873039906535990210,
-      "primitiveId": "iff",
-      "normalizedPrimitiveId": "iff",
-      "primitiveType": "text",
-      "exposed": true
-    },
-    {
-      "id": 10638476267567207591,
-      "ownerKind": "reticle",
-      "ownerId": 10873039906535990210,
-      "primitiveId": "prf",
-      "normalizedPrimitiveId": "prf",
+      "primitiveId": "iff_mode",
+      "normalizedPrimitiveId": "iff_mode",
       "primitiveType": "text",
       "exposed": true
     },

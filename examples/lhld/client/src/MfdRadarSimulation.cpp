@@ -9,6 +9,7 @@
  */
 
 #include "MfdRadarSimulation.h"
+#include "MfdRadarControls.h"
 #include "MfdRadarGeometry.h"
 
 #include <algorithm>
@@ -28,8 +29,7 @@ constexpr float kMaxNavRangeNm = 160.0f;
 constexpr float kOwnshipTurnRateDegPerSecond = 0.18f;
 constexpr float kSecondsPerQualityCycle = 18.0f;
 constexpr float kExtrapolationStartSeconds = 14.0f;
-constexpr float kDefaultRadarRangeScaleNm = 40.0f;
-constexpr float kMaximumElevationDeg = 30.0f;
+constexpr float kMaximumElevationDeg = 60.0f;
 
 float Finite(const float value, const float fallback) noexcept
 {
@@ -46,22 +46,9 @@ float Wrap360(float degrees) noexcept
     return degrees;
 }
 
-int ValidRadarBars(const int bars) noexcept
-{
-    if (bars <= 1)
-    {
-        return 1;
-    }
-    if (bars <= 2)
-    {
-        return 2;
-    }
-    return 4;
-}
-
 float RadarRangeScaleNm(const RadarSettings& radar) noexcept
 {
-    return std::max(1.0f, Finite(radar.rangeScaleNm, kDefaultRadarRangeScaleNm));
+    return NormalizeRadarRangeScale(radar.rangeScaleNm);
 }
 
 bool IsInsideSearchVolume(const RadarTrack& track, const RadarSettings& radar) noexcept
@@ -74,7 +61,7 @@ bool IsInsideSearchVolume(const RadarTrack& track, const RadarSettings& radar) n
         -kMaximumElevationDeg,
         kMaximumElevationDeg);
     return rangeNm >= 0.0f && rangeNm <= RadarRangeScaleNm(radar) &&
-        std::fabs(azimuthDeg) <= RadarScanHalfAngleDeg(radar) &&
+        std::fabs(azimuthDeg - radar.scanCenterAzimuthDeg) <= RadarScanHalfAngleDeg(radar) &&
         std::fabs(elevationDeg - antennaCenterDeg) <= RadarVerticalHalfCoverageDeg(radar);
 }
 
@@ -87,7 +74,7 @@ bool IsInsideDisplayedFieldOfView(const RadarTrack& track, const RadarSettings& 
 
     const RadarDisplayPoint display = RadarTrackDisplayPoint(track, radar);
     return display.rangeNm >= 0.0f && display.rangeNm <= RadarRangeScaleNm(radar) &&
-        std::fabs(display.azimuthDeg) <= RadarScanHalfAngleDeg(radar);
+        std::fabs(display.azimuthDeg) <= 60.0f;
 }
 
 RadarTrackState PublishedTrackState(const RadarSettings& radar, const bool designated) noexcept
@@ -183,9 +170,32 @@ void MfdRadarSimulation::Reset() noexcept
 
 void MfdRadarSimulation::ApplyRadarControls(const RadarSettings& controls) noexcept
 {
+    const RadarSubmode previousSubmode = inputs_.radar.submode;
     const float preservedAntennaAzimuth = inputs_.radar.antennaAzimuthDeg;
     inputs_.radar = controls;
-    inputs_.radar.scanBars = ValidRadarBars(controls.scanBars);
+    if (previousSubmode != RadarSubmode::Tws && controls.submode == RadarSubmode::Tws)
+    {
+        inputs_.radar.selectedAzimuthScan = RadarAzimuthScan::Medium;
+        inputs_.radar.selectedScanBars = 3;
+    }
+
+    const RadarScanVolume scanVolume = ResolveRadarScanVolume(
+        inputs_.radar.submode,
+        inputs_.radar.selectedAzimuthScan,
+        inputs_.radar.selectedScanBars);
+    inputs_.radar.azimuthScanWidthDeg = scanVolume.azimuthWidthDeg;
+    inputs_.radar.scanBars = scanVolume.bars;
+    inputs_.radar.rangeScaleNm = NormalizeRadarRangeScale(controls.rangeScaleNm);
+    inputs_.radar.antennaElevationDeg = std::clamp(
+        Finite(controls.antennaElevationDeg, 0.0f),
+        -kMaximumElevationDeg,
+        kMaximumElevationDeg);
+
+    const float halfScanDeg = RadarScanHalfAngleDeg(inputs_.radar);
+    const float cursorAzimuthDeg = RadarCursorSensorPoint(inputs_.radar).azimuthDeg;
+    inputs_.radar.scanCenterAzimuthDeg = scanVolume.azimuthWidthDeg >= 120.0f
+        ? 0.0f
+        : std::clamp(cursorAzimuthDeg, -60.0f + halfScanDeg, 60.0f - halfScanDeg);
     if (inputs_.radar.submode == RadarSubmode::Stt)
     {
         inputs_.radar.fieldOfView = RadarFieldOfView::Normal;
@@ -256,7 +266,7 @@ void MfdRadarSimulation::Step(const float deltaSeconds) noexcept
         }
     }
 
-    const float barRateScale = 1.0f / static_cast<float>(ValidRadarBars(inputs_.radar.scanBars));
+    const float barRateScale = 1.0f / static_cast<float>(inputs_.radar.scanBars);
     sweepFraction_ += sweepDirection_ * kSweepRatePerSecond * barRateScale * dt;
     if (sweepFraction_ > 1.0f)
     {
@@ -269,7 +279,8 @@ void MfdRadarSimulation::Step(const float deltaSeconds) noexcept
         sweepDirection_ = 1.0f;
     }
     const float halfScanDeg = RadarScanHalfAngleDeg(inputs_.radar);
-    inputs_.radar.antennaAzimuthDeg = sweepFraction_ * halfScanDeg;
+    inputs_.radar.antennaAzimuthDeg =
+        inputs_.radar.scanCenterAzimuthDeg + sweepFraction_ * halfScanDeg;
 
     RefreshPublishedTracks();
 }

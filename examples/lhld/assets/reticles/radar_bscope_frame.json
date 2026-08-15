@@ -2,8 +2,6 @@
   "id": "radar_bscope_frame",
   "lineWidth": 0.0045,
   "elements": [
-    { "id": "left_azimuth_limit", "type": "line", "start": [-0.46, -0.70], "end": [-0.46, 0.70] },
-    { "id": "right_azimuth_limit", "type": "line", "start": [0.46, -0.70], "end": [0.46, 0.70] },
     { "id": "left_range_half", "type": "line", "start": [-0.46, 0.00], "end": [-0.40, 0.00] },
     { "id": "right_range_half", "type": "line", "start": [0.46, 0.00], "end": [0.40, 0.00] },
     { "id": "left_range_quarter", "type": "line", "start": [-0.46, -0.35], "end": [-0.425, -0.35] },

@@ -295,6 +295,34 @@ private:
     // No exposed primitive for this authored reticle.
 };
 
+class RadarRadarAzimuthLimitsReticle final : private mfd::client::Reticle
+{
+public:
+    RadarRadarAzimuthLimitsReticle();
+    using mfd::client::Reticle::AppendCommands;
+    using mfd::client::Reticle::Blink;
+    using mfd::client::Reticle::ClearDirty;
+    using mfd::client::Reticle::ResetToAuthored;
+    using mfd::client::Reticle::SetVisible;
+    using mfd::client::Reticle::SetBlinkEnabled;
+    using mfd::client::Reticle::SetBlink;
+    using mfd::client::Reticle::SetBlinkType;
+    using mfd::client::Reticle::ClearBlinkType;
+    using mfd::client::Reticle::SetPosition;
+    using mfd::client::Reticle::SetRotationDegrees;
+    using mfd::client::Reticle::SetScale;
+    using mfd::client::Reticle::SetColor;
+    using mfd::client::Reticle::SetThickness;
+    using mfd::client::Reticle::GetVisible;
+    using mfd::client::Reticle::GetPosition;
+    using mfd::client::Reticle::GetRotationDegrees;
+    using mfd::client::Reticle::GetScale;
+    using mfd::client::Reticle::GetText;
+
+private:
+    // No exposed primitive for this authored reticle.
+};
+
 class RadarRadarHorizonReticle final : private mfd::client::Reticle
 {
 public:
@@ -347,21 +375,19 @@ public:
     using mfd::client::Reticle::GetScale;
     using mfd::client::Reticle::GetText;
     TextHandle& Scan() noexcept;
-    TextHandle& Bars() noexcept;
-    TextHandle& Iff() noexcept;
+    TextHandle& Azimuth() noexcept;
     TextHandle& BarCount() noexcept;
     TextHandle& Band() noexcept;
-    TextHandle& Prf() noexcept;
+    TextHandle& IffMode() noexcept;
     TextHandle& BullRange() noexcept;
     TextHandle& BullBearing() noexcept;
 
 private:
     TextHandle scan_;
-    TextHandle bars_;
-    TextHandle iff_;
+    TextHandle azimuth_;
     TextHandle barCount_;
     TextHandle band_;
-    TextHandle prf_;
+    TextHandle iffMode_;
     TextHandle bullRange_;
     TextHandle bullBearing_;
 };
@@ -897,7 +923,7 @@ public:
 
     static constexpr std::string_view MappingHash() noexcept
     {
-        return "9ac6baefc0aac93f3717932a6cdc2b3b3db0fee251c851669909d142a3876013";
+        return "03ee696af3d9ff06aeb64e2b123a94045e4bf7d8824cc59206f73191c5ebb6be";
     }
 
     explicit RadarMockupPage(RuntimeFeedbackState* feedbackState = nullptr);
@@ -923,6 +949,7 @@ public:
     RadarAcquisitionStrobeReticle acquisitionReticle;
     RadarRadarOutlineReticle radarOutline;
     RadarRadarBscopeFrameReticle radarBscopeFrame;
+    RadarRadarAzimuthLimitsReticle radarAzimuthLimits;
     RadarRadarHorizonReticle radarHorizon;
     RadarRadarScaleReticle radarScale;
     RadarRadarPerimeterReticle radarPerimeter;
@@ -1231,7 +1258,7 @@ public:
 
     static constexpr std::string_view MappingHash() noexcept
     {
-        return "9ac6baefc0aac93f3717932a6cdc2b3b3db0fee251c851669909d142a3876013";
+        return "03ee696af3d9ff06aeb64e2b123a94045e4bf7d8824cc59206f73191c5ebb6be";
     }
 
     explicit SmsMockupPage(RuntimeFeedbackState* feedbackState = nullptr);
@@ -1999,7 +2026,7 @@ public:
 
     static constexpr std::string_view MappingHash() noexcept
     {
-        return "9ac6baefc0aac93f3717932a6cdc2b3b3db0fee251c851669909d142a3876013";
+        return "03ee696af3d9ff06aeb64e2b123a94045e4bf7d8824cc59206f73191c5ebb6be";
     }
 
     explicit NavMockupPage(RuntimeFeedbackState* feedbackState = nullptr);
@@ -2315,7 +2342,7 @@ public:
 
     static constexpr std::string_view MappingHash() noexcept
     {
-        return "9ac6baefc0aac93f3717932a6cdc2b3b3db0fee251c851669909d142a3876013";
+        return "03ee696af3d9ff06aeb64e2b123a94045e4bf7d8824cc59206f73191c5ebb6be";
     }
 
     explicit AgMockupPage(RuntimeFeedbackState* feedbackState = nullptr);
@@ -2350,7 +2377,7 @@ public:
 
     static constexpr std::string_view MappingHash() noexcept
     {
-        return "9ac6baefc0aac93f3717932a6cdc2b3b3db0fee251c851669909d142a3876013";
+        return "03ee696af3d9ff06aeb64e2b123a94045e4bf7d8824cc59206f73191c5ebb6be";
     }
 
     LhldUi();

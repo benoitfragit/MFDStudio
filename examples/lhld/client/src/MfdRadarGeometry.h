@@ -40,7 +40,7 @@ float RadarVerticalHalfCoverageDeg(const RadarSettings& radar) noexcept;
 /**
  * @brief Converts the normalized ACQ cursor into sensor-native coordinates.
  * @param radar Semantic radar controls and normalized cursor.
- * @return Cursor azimuth and range in degrees and nautical miles.
+ * @return Cursor azimuth on the fixed -60/+60 FCR video and range in NM.
  */
 RadarDisplayPoint RadarCursorSensorPoint(const RadarSettings& radar) noexcept;
 

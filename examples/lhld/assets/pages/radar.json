@@ -35,6 +35,7 @@
   "staticReticles": [
     { "id": "radar_outline", "layerId": "background", "template": "radar_outline", "stroke": "#D7E5E9FF" },
     { "id": "radar_bscope_frame", "layerId": "background", "template": "radar_bscope_frame", "stroke": "#00A8E8FF" },
+    { "id": "radar_azimuth_limits", "layerId": "scan", "template": "radar_azimuth_limits", "show": false, "stroke": "#00A8E8FF" },
     { "id": "radar_horizon", "layerId": "background", "template": "radar_horizon", "stroke": "#F000D8FF" },
     { "id": "radar_scale", "layerId": "background", "template": "radar_scale", "stroke": "#00A8E8FF" },
     { "id": "radar_perimeter", "layerId": "background", "template": "radar_perimeter", "stroke": "#D7E5E9FF" },

@@ -101,6 +101,34 @@ enum class RadarFieldOfView
     Expanded
 };
 
+/** @brief Pilot-selected antenna azimuth scan family. */
+enum class RadarAzimuthScan
+{
+    /** @brief Widest mode-supported search volume. */
+    Wide,
+    /** @brief Intermediate mode-supported search volume. */
+    Medium,
+    /** @brief Narrowest mode-supported search volume. */
+    Narrow
+};
+
+/** @brief IFF interrogation mnemonic published on the FCR format. */
+enum class RadarIffMode
+{
+    /** @brief Combined interrogation mode, displayed as M+. */
+    Combined,
+    /** @brief Mode 1 interrogation. */
+    Mode1,
+    /** @brief Mode 2 interrogation. */
+    Mode2,
+    /** @brief Mode 3 interrogation. */
+    Mode3,
+    /** @brief Mode 4 interrogation. */
+    Mode4,
+    /** @brief IFF interrogation disabled. */
+    Off
+};
+
 /** @brief Quality of the latest sensor update associated with one radar track. */
 enum class RadarTrackQuality
 {
@@ -200,17 +228,23 @@ struct RadarSettings
     RadarSubmode submode = RadarSubmode::Rws;
     /** @brief Effective air-to-air display field of view published by the radar. */
     RadarFieldOfView fieldOfView = RadarFieldOfView::Normal;
-    /** @brief Range scale in nautical miles (10/20/40/80). */
+    /** @brief Range scale in nautical miles (5/10/20/40/80/160). */
     float rangeScaleNm = 40.0f;
-    /** @brief Azimuth scan width in degrees (30/60). */
-    float azScanDeg = 60.0f;
-    /** @brief Elevation bars scanned (1/2/4). */
+    /** @brief Pilot-selected azimuth family; the radar resolves mode constraints. */
+    RadarAzimuthScan selectedAzimuthScan = RadarAzimuthScan::Wide;
+    /** @brief Pilot-selected RWS bar count; TWS couples bars to azimuth. */
+    int selectedScanBars = 4;
+    /** @brief Radar-published total azimuth scan width in degrees. */
+    float azimuthScanWidthDeg = 120.0f;
+    /** @brief Radar-published elevation bars scanned (1/2/3/4). */
     int scanBars = 4;
-    /** @brief High/medium PRF selection; true means high PRF. */
-    bool highPrf = true;
+    /** @brief Radar-published center of the azimuth scan volume in degrees. */
+    float scanCenterAzimuthDeg = 0.0f;
+    /** @brief IFF interrogation label presented on the FCR format. */
+    RadarIffMode iffMode = RadarIffMode::Combined;
     /** @brief Acquisition cursor position in UI space, each axis in [-1, 1]. */
     MfdVec2 cursorPosition {};
-    /** @brief Antenna elevation command in degrees, [-30, 30]. */
+    /** @brief Antenna elevation command in degrees, [-60, 60]. */
     float antennaElevationDeg = 0.0f;
     /** @brief Index of the bugged track, or -1 when no track is designated. */
     int buggedTrack = -1;
@@ -426,6 +460,12 @@ struct RadarFrame
     bool scanLineVisible = true;
     /** @brief Azimuth sweep line horizontal position in MFD space. */
     float scanLineX = 0.0f;
+    /** @brief True when the two current azimuth-limit lines are displayed. */
+    bool azimuthLimitsVisible = false;
+    /** @brief Horizontal center of the current azimuth-limit lines. */
+    float azimuthLimitsCenterX = 0.0f;
+    /** @brief Half-separation of the current azimuth-limit lines. */
+    float azimuthLimitsHalfWidth = 0.0f;
     /** @brief Antenna elevation caret vertical position in MFD space. */
     float elevationCaretY = 0.0f;
     /** @brief Acquisition cursor position in MFD space. */
