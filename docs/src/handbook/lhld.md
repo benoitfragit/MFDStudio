@@ -4,8 +4,10 @@ The LHLD example is a standalone asset/client pair under `examples/lhld`.
 It renders a tactical Multi-Function Display with four pages:
 **Radar/FCR** (fire-control radar B-scope), **SMS** (stores management),
 **NAV/HSD** (horizontal situation display) and **A-G** (air-to-ground bomb
-profile). The pages are shaped from the local Falcon BMS / Dash-34 datapackage
-references and driven by a deterministic fake radar/airspace simulation.
+profile). The page set is a self-contained demonstration driven by a
+deterministic fake radar/airspace simulation.
+
+![LHLD Radar/FCR page running in the integrated console](../images/lhld/lhld-radar.png)
 
 - Assets: `examples/lhld/assets`
 - Client: `examples/lhld/client`
@@ -86,7 +88,15 @@ business logic beyond selecting the page or toggling a control.
 
 ## Pages
 
-- **Radar/FCR:** Falcon-style B-scope with the scan volume between cyan azimuth
+| Radar/FCR | Stores management |
+| --- | --- |
+| ![Radar/FCR page](../images/lhld/lhld-radar.png) | ![SMS page](../images/lhld/lhld-sms.png) |
+
+| Navigation/HSD | Air-to-ground |
+| --- | --- |
+| ![NAV/HSD page](../images/lhld/lhld-nav.png) | ![A-G page](../images/lhld/lhld-air-to-ground.png) |
+
+- **Radar/FCR:** tactical B-scope with the scan volume between cyan azimuth
   limits and avionics data around the complete MFD perimeter. It includes the
   horizon line, antenna-elevation caret, acquisition cursor and altitude limits,
   range/AZ/BAR/IFF/bullseye data, assignment/weapon cues and bottom FCR
@@ -188,7 +198,6 @@ handles, OSB reticles and runtime transport details do not need to leak into the
 external integration.
 
 Visual reference captures used for the MFD page work are kept in
-`examples/lhld/visual_ref`. The local Falcon BMS datapackage is the preferred
-source for page crops and notes. The reference folder intentionally preserves the
-SMS A-G, SMS S-J, HSD and planform crops used for this pass. Reference files are
-documentation-only and must not be added to the runtime asset graph.
+`examples/lhld/visual_ref`. The folder preserves the SMS A-G, SMS S-J, HSD and
+planform crops used to audit proportions and visual density. Reference files
+are documentation-only and must not be added to the runtime asset graph.

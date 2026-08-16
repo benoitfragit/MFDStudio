@@ -11,6 +11,8 @@ under `examples/hud`.
 - Tests: `hud_client_tests` (white-box) and `hud_runtime_client_tests`
   (linked against the hud_runtime shared library)
 
+![Live HUD window driven by the sample client](../images/hud/hud-display.png)
+
 `hud_runtime` contains everything an external aeronautical simulation needs to
 publish HUD frames from a `hud::HudInputSample`: the semantic input contract,
 the projection and symbology geometry (including the EEGS funnel), the
@@ -83,6 +85,8 @@ any consumer executable, and the `_Exec` staging also receives
 `hud_runtime.dll` through the runtime-DLL copy step.
 
 ## Replacing the ImGui sample panel
+
+![Connected HUD sample control panel](../images/hud/hud-controls.png)
 
 The Dear ImGui window is not part of the HUD integration contract. It is only a
 local control panel used by `hud_client` to drive the bundled
@@ -367,16 +371,15 @@ The default field of view is:
   `kHudConformalHorizontalFovDeg = 30.0f`;
 - `kHudConformalHalfWidthUnits = 1.0f` and `kHudConformalHalfHeightUnits = 1.0f`.
 
-This is a deliberate product choice to reduce visual saturation. The BMS ACM
-mode is 30 degrees horizontal by 20 degrees vertical and covers slightly more
-than the HUD field of view; the HUD implementation instead uses a 30 degree total vertical
-HUD so the pitch ladder is legible at a glance.
+This is a deliberate product choice to reduce visual saturation. The
+implementation uses a 30 degree total vertical field of view so the pitch
+ladder remains legible at a glance while conformal cues retain useful travel.
 
 The authored HUD page spans `[-1, +1]`, and half the field of view maps to the
 `1.0` unit half-extent. The scale is therefore:
 
 - `2.0 / 30.0 = 0.0666667` HUD units per degree, identical horizontally and
-  vertically, so conformal symbols keep the BMS 1:1 attitude-bar ratio;
+  vertically, so conformal symbols keep the same scale on both axes;
 - pitch ladder bars every 5 degrees at `y = degrees * 0.0666667`
   (`5 -> 0.333333`, `10 -> 0.666667`, `15 -> 1.0`).
 
@@ -436,8 +439,8 @@ Conformal symbols are not hidden just because they leave the field of view.
 `ProjectBoresightAngularOffsetToHud()` returns a `ProjectedHudPoint` with an
 explicit `insideFov` flag; the owning symbology clamps the cue to the field-of-
 view edge, keeps it visible, and reports the clamp through a `limited` flag.
-This follows BMS/F-16 behavior rather than blanking the cue where the angle is
-lost.
+This keeps the cue visible at the aperture edge rather than blanking it when
+the angle leaves the field of view.
 
 The reference behaviors implemented here are:
 

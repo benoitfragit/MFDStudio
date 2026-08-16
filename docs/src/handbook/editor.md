@@ -21,9 +21,11 @@ surfaces visible at the same time:
 cmake --build --preset debug-win32 --target mfd_editor
 ```
 
-The editor starts empty by design. Open a source window JSON or create a new
-window from scratch: it never auto-loads staged `_Exec` copies, so you do not
-accidentally edit runtime artifacts instead of the repository assets.
+The editor starts with a branded but intentionally empty resume hub. The
+monochrome MFDStudio mark is drawn from compiled geometry and does not depend
+on the optional `branding/` directory. Open a source window JSON or create a
+new window from scratch: it never auto-loads staged `_Exec` copies, so you do
+not accidentally edit runtime artifacts instead of the repository assets.
 
 ![Editor start page](../images/editor/editor-startpage.png)
 

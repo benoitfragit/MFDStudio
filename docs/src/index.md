@@ -6,7 +6,12 @@ multi-function display (MFD) windows from JSON.
 The historical technical prefix `mfd` remains in namespaces, targets, folders,
 and APIs.
 
-![Runtime screenshot](./images/mfd_window_runtime_capture.png)
+![LHLD tactical radar running in MFDStudio](./images/lhld/lhld-radar.png)
+
+The gallery now includes the complete LHLD page set and the live HUD display,
+captured from the shipped Win32 Debug applications.
+
+-> [Open the visual gallery](./gallery.md) | [Explore LHLD](./handbook/lhld.md) | [Explore the HUD](./handbook/hud.md)
 
 ## Pick Your Path
 
@@ -22,6 +27,8 @@ You do not need to read this book linearly. Most users only need one path first.
 | Embed the runtime offscreen in your app | [Offscreen Embedding](./handbook/offscreen.md) |
 | Capture raw runtime pixels | [Framebuffer Capture](./handbook/framebuffer.md) |
 | Author assets visually | [Editor](./handbook/editor.md) |
+| Explore the four-page avionics console | [LHLD](./handbook/lhld.md) |
+| Integrate the reusable HUD runtime | [HUD](./handbook/hud.md) |
 | Look up exact JSON fields | [JSON Syntax](./reference/json.md) |
 | Know what is stable to depend on | [Public API Contract](./reference/public_contract.md) |
 | Build, test, or contribute | [Build](./dev/build.md) |

@@ -59,6 +59,7 @@ extern "C" __declspec(dllimport) void* APIENTRY wglGetProcAddress(const char* na
 #include "mfd/render/MfdRenderer.h"
 #include "mfd/render/OpenGlFramebufferReader.h"
 #include "mfd/render/WindowBranding.h"
+#include "MfdStudioBrandMark.h"
 #include "mfd/runtime/SceneRegistry.h"
 #include "mfd/runtime_api/RuntimeSession.h"
 
@@ -1546,25 +1547,52 @@ private:
             return;
         }
 
-        DrawRectangleGradientV(0, 0, renderWidth, renderHeight, Color {7, 15, 21, 255}, Color {2, 7, 11, 255});
+        constexpr Color kGraphiteBackgroundTop {15, 17, 19, 255};
+        constexpr Color kGraphiteBackgroundBottom {7, 8, 10, 255};
+        constexpr Color kCardSurface {28, 31, 34, 244};
+        constexpr Color kCardBorder {76, 80, 84, 255};
+        constexpr Color kWarmWhite {247, 245, 240, 255};
+        constexpr Color kMutedText {165, 168, 171, 255};
+        constexpr Color kDarkMonogram {32, 35, 39, 255};
+
+        DrawRectangleGradientV(0, 0, renderWidth, renderHeight, kGraphiteBackgroundTop, kGraphiteBackgroundBottom);
 
         const float screenMin = static_cast<float>(std::min(renderWidth, renderHeight));
+        const float cardWidth = std::clamp(screenMin * 0.82f, 360.0f, 760.0f);
+        const float cardHeight = std::clamp(screenMin * 0.48f, 280.0f, 380.0f);
         const Rectangle cardBounds {
-            std::max(36.0f, (static_cast<float>(renderWidth) - std::clamp(screenMin * 0.78f, 360.0f, 760.0f)) * 0.5f),
-            std::max(30.0f, static_cast<float>(renderHeight) * 0.5f - std::clamp(screenMin * 0.18f, 108.0f, 160.0f)),
-            std::clamp(screenMin * 0.78f, 360.0f, 760.0f),
-            std::clamp(screenMin * 0.36f, 216.0f, 320.0f)};
+            (static_cast<float>(renderWidth) - cardWidth) * 0.5f,
+            (static_cast<float>(renderHeight) - cardHeight) * 0.5f,
+            cardWidth,
+            cardHeight};
 
-        DrawRectangleRounded(cardBounds, 0.08f, 18, Color {9, 19, 26, 232});
-        DrawRectangleRoundedLinesEx(cardBounds, 0.08f, 18, 2.0f, Color {42, 86, 78, 255});
+        DrawRectangleRounded(cardBounds, 0.08f, 18, kCardSurface);
+        DrawRectangleRoundedLinesEx(cardBounds, 0.08f, 18, 1.0f, kCardBorder);
 
         const std::string title = windowDefinition_.title.empty() ? applicationName_ : windowDefinition_.title;
-        const int titleFontSize = std::clamp(static_cast<int>(screenMin * 0.048f), 26, 42);
-        const int subtitleFontSize = std::clamp(static_cast<int>(screenMin * 0.022f), 16, 22);
-        const int statusFontSize = 16;
+        const float brandSide = std::clamp(screenMin * 0.12f, 64.0f, 90.0f);
+        const float brandY = cardBounds.y + 22.0f;
+        const Rectangle brandBounds {
+            cardBounds.x + (cardBounds.width - brandSide) * 0.5f,
+            brandY,
+            brandSide,
+            brandSide};
+        mfd::internal::DrawMfdStudioBrandMark(brandBounds, kWarmWhite, kDarkMonogram);
+
+        const Font defaultFont = GetFontDefault();
+        const char* wordmark = "MFDSTUDIO";
+        const float wordmarkFontSize = std::clamp(screenMin * 0.026f, 16.0f, 20.0f);
+        const float wordmarkSpacing = std::clamp(screenMin * 0.006f, 3.0f, 5.0f);
+        const Vector2 wordmarkSize = MeasureTextEx(defaultFont, wordmark, wordmarkFontSize, wordmarkSpacing);
+        const Vector2 wordmarkPosition {
+            cardBounds.x + (cardBounds.width - wordmarkSize.x) * 0.5f,
+            brandBounds.y + brandBounds.height + 6.0f};
+        DrawTextEx(defaultFont, wordmark, wordmarkPosition, wordmarkFontSize, wordmarkSpacing, kWarmWhite);
+
+        const int titleFontSize = std::clamp(static_cast<int>(screenMin * 0.042f), 24, 38);
+        const int subtitleFontSize = std::clamp(static_cast<int>(screenMin * 0.021f), 15, 20);
+        const int statusFontSize = 15;
         const char* subtitle = "Waiting for the first client command...";
-        const float accentHeight = 4.0f;
-        const float contentTop = cardBounds.y + 34.0f;
 
         const int titleWidth = MeasureText(title.c_str(), titleFontSize);
         const int subtitleWidth = MeasureText(subtitle, subtitleFontSize);
@@ -1572,18 +1600,12 @@ private:
         const int titleX = (renderWidth - titleWidth) / 2;
         const int subtitleX = (renderWidth - subtitleWidth) / 2;
         const int statusX = (renderWidth - statusWidth) / 2;
-        const int titleY = static_cast<int>(contentTop + 42.0f);
-        const int subtitleY = titleY + titleFontSize + 12;
-        const int statusY = subtitleY + subtitleFontSize + 18;
+        const int titleY = static_cast<int>(wordmarkPosition.y + wordmarkSize.y + 18.0f);
+        const int subtitleY = titleY + titleFontSize + 10;
+        const int statusY = subtitleY + subtitleFontSize + 14;
 
-        DrawRectangleRounded(
-            Rectangle {cardBounds.x + 28.0f, cardBounds.y + 18.0f, cardBounds.width - 56.0f, accentHeight},
-            1.0f,
-            8,
-            Color {78, 168, 142, 255});
-
-        DrawText(title.c_str(), titleX, titleY, titleFontSize, Color {227, 242, 236, 255});
-        DrawText(subtitle, subtitleX, subtitleY, subtitleFontSize, Color {117, 198, 176, 255});
+        DrawText(title.c_str(), titleX, titleY, titleFontSize, kWarmWhite);
+        DrawText(subtitle, subtitleX, subtitleY, subtitleFontSize, kMutedText);
 
         if (!brandingStatus_.empty())
         {

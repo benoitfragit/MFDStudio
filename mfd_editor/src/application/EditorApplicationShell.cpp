@@ -11,7 +11,9 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstddef>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -25,6 +27,7 @@
 #include "EditorIcons.h"
 #include "EditorUiTheme.h"
 #include "EditorWorkspaceLayout.h"
+#include "MfdStudioBrandMark.h"
 
 namespace
 {
@@ -45,6 +48,41 @@ constexpr float kMinWorkspaceWidth = 360.0f;
 constexpr float kLayerInspectorDockWidth = 248.0f;
 constexpr float kPreviewProblemsDockHeight = 176.0f;
 constexpr float kSidebarSectionMinVisibleRows = 3.0f;
+constexpr ImU32 kBrandSurfaceColor = IM_COL32(247, 245, 240, 255);
+constexpr ImU32 kBrandMonogramColor = IM_COL32(32, 35, 39, 255);
+
+void DrawEditorBrandMark(const ImVec2 topLeft, const float side)
+{
+    const mfd::internal::MfdStudioBrandMarkGeometry geometry =
+        mfd::internal::BuildMfdStudioBrandMarkGeometry(Rectangle {topLeft.x, topLeft.y, side, side});
+    if (geometry.frame.width <= 0.0f || geometry.frame.height <= 0.0f)
+    {
+        return;
+    }
+
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    const float cornerRadius = geometry.frame.width * geometry.frameRoundness * 0.5f;
+    drawList->AddRectFilled(
+        ImVec2(geometry.frame.x, geometry.frame.y),
+        ImVec2(geometry.frame.x + geometry.frame.width, geometry.frame.y + geometry.frame.height),
+        kBrandSurfaceColor,
+        cornerRadius);
+
+    std::array<ImVec2, 5> monogramPoints {};
+    for (std::size_t index = 0; index < monogramPoints.size(); ++index)
+    {
+        monogramPoints[index] = ImVec2(
+            geometry.monogramPoints[index].x,
+            geometry.monogramPoints[index].y);
+    }
+
+    drawList->AddPolyline(
+        monogramPoints.data(),
+        static_cast<int>(monogramPoints.size()),
+        kBrandMonogramColor,
+        ImDrawFlags_None,
+        geometry.monogramStrokeWidth);
+}
 
 void DrawRuntimeErrorBanner(const std::string& runtimeError)
 {
@@ -1013,19 +1051,33 @@ void EditorApplication::DrawEmptyWorkspacePlaceholder()
         "Start with a new authored window or browse to an existing window JSON.\n"
         "Nothing is loaded automatically when the editor starts, but you can launch the guided tutorial.";
 
+    const char* wordmark = "M F D S T U D I O";
+    const ImVec2 wordmarkSize = ImGui::CalcTextSize(wordmark);
     const ImVec2 headlineSize = ImGui::CalcTextSize(headline);
     const ImVec2 descriptionSize = ImGui::CalcTextSize(description);
+    const float brandSide = 88.0f;
     const float bigIconSize = 72.0f;
     const float cellSpacing = 40.0f;
     const float iconRowWidth =
         static_cast<float>(actionCount) * bigIconSize + static_cast<float>(actionCount - 1) * cellSpacing;
     const float captionLineHeight = ImGui::GetTextLineHeightWithSpacing();
-    const float totalHeight = headlineSize.y + descriptionSize.y + 48.0f + bigIconSize + captionLineHeight;
+    const float totalHeight =
+        brandSide + wordmarkSize.y + headlineSize.y + descriptionSize.y + 78.0f + bigIconSize + captionLineHeight;
     const ImVec2 start(
         std::max(0.0f, (available.x - std::max(std::max(headlineSize.x, descriptionSize.x), iconRowWidth)) * 0.5f),
         std::max(0.0f, (available.y - totalHeight) * 0.5f));
 
-    ImGui::SetCursorPos(start);
+    const float brandX = std::max(0.0f, (available.x - brandSide) * 0.5f);
+    ImGui::SetCursorPos(ImVec2(brandX, start.y));
+    const ImVec2 brandTopLeft = ImGui::GetCursorScreenPos();
+    DrawEditorBrandMark(brandTopLeft, brandSide);
+    ImGui::Dummy(ImVec2(brandSide, brandSide));
+
+    ImGui::SetCursorPosX(std::max(0.0f, (available.x - wordmarkSize.x) * 0.5f));
+    ImGui::TextColored(ImVec4(0.78f, 0.81f, 0.84f, 1.0f), "%s", wordmark);
+    ImGui::Dummy(ImVec2(0.0f, 16.0f));
+
+    ImGui::SetCursorPosX(start.x);
     ImGui::TextColored(ImVec4(0.72f, 0.86f, 0.95f, 1.0f), "%s", headline);
     ImGui::SetCursorPosX(start.x);
     ImGui::TextDisabled("%s", description);

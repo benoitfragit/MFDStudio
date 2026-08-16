@@ -29,6 +29,18 @@ It can also pass a framebuffer plugin:
 is configured, the original `argc` / `argv` command line is forwarded to the
 plugin through the plugin host ABI.
 
+Before the first client command arrives, the runtime shows a restrained
+MFDStudio launch card with the application mark, the authored window title and
+the connection state. The mark is drawn from compiled geometry, so the launch
+screen remains available without external branding assets.
+
+The optional `branding/mfdstudio_app_icon.png` overrides the native title-bar
+and taskbar icon at runtime. Failure to find or decode that PNG is non-fatal:
+the window continues normally and the Windows executable keeps its embedded
+multi-resolution ICO.
+
+![MFDStudio runtime launch card](../images/branding/runtime-startup.png)
+
 For heavy live-debug sessions, `mfd_window` also accepts `--no-snapshot`:
 
 ```powershell

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">MFDStudio inverse mark</title>
+  <desc id="description">The inverse MFDStudio monogram for dark surfaces.</desc>
+  <rect x="48" y="48" width="416" height="416" rx="96" fill="#F7F5F0"/>
+  <polyline
+    points="150,365 150,150 256,235 362,150 362,365"
+    fill="none"
+    stroke="#202327"
+    stroke-width="72"
+    stroke-linecap="square"
+    stroke-linejoin="miter"/>
+</svg>

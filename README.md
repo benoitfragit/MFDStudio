@@ -13,7 +13,12 @@ and APIs.
 [![License](https://img.shields.io/github/license/benoitfragit/MFDStudio?style=for-the-badge)](https://github.com/benoitfragit/MFDStudio/blob/master/LICENSE)
 [![Docs Online](https://img.shields.io/badge/Docs-Online-8250df?style=for-the-badge)](https://benoitfragit.github.io/MFDStudio)
 
-![Runtime screenshot](./docs/src/images/mfd_window_runtime_capture.png)
+![LHLD tactical radar running in MFDStudio](./docs/src/images/lhld/lhld-radar.png)
+
+The shipped examples range from a complete four-page avionics console to a
+reusable, live-driven HUD. Browse the [visual gallery](https://benoitfragit.github.io/MFDStudio/gallery.html),
+or jump directly to the [LHLD](https://benoitfragit.github.io/MFDStudio/handbook/lhld.html)
+and [HUD](https://benoitfragit.github.io/MFDStudio/handbook/hud.html) guides.
 
 ## Documentation
 
@@ -31,9 +36,10 @@ release, while `Release Workflow` reflects the most recent `release.yml` run:
 | 4. Drive from typed C++ | [Generated Client API](https://benoitfragit.github.io/MFDStudio/handbook/generated_api.html) |
 | 5. Run the runtime | [Runtime](https://benoitfragit.github.io/MFDStudio/handbook/runtime.html) |
 | 6. Explore the HUD | [HUD](https://benoitfragit.github.io/MFDStudio/handbook/hud.html) |
-| 7. Embed offscreen | [Offscreen Embedding](https://benoitfragit.github.io/MFDStudio/handbook/offscreen.html) |
-| 8. Build and contribute | [Development](https://benoitfragit.github.io/MFDStudio/dev/build.html) |
-| 9. Browse the public headers | [C++ API Reference (Doxygen)](https://benoitfragit.github.io/MFDStudio/api/index.html) |
+| 7. Explore the LHLD console | [LHLD](https://benoitfragit.github.io/MFDStudio/handbook/lhld.html) |
+| 8. Embed offscreen | [Offscreen Embedding](https://benoitfragit.github.io/MFDStudio/handbook/offscreen.html) |
+| 9. Build and contribute | [Development](https://benoitfragit.github.io/MFDStudio/dev/build.html) |
+| 10. Browse the public headers | [C++ API Reference (Doxygen)](https://benoitfragit.github.io/MFDStudio/api/index.html) |
 
 Task-focused recipes live in the
 [Cookbook](https://benoitfragit.github.io/MFDStudio/cookbook.html), and what you
@@ -82,6 +88,12 @@ to the HUD client together with `hud_runtime.dll`.
 For LHLD, launch `.\Scripts\Start-LHLD.bat`. The LHLD client hosts the runtime
 offscreen inside its own DX11/ImGui window, so it does not require a separate
 `mfd_window` process.
+
+The runtime and editor share the monochrome MFDStudio identity under
+[`branding/`](./branding/README.md). Windows executables embed a
+multi-resolution ICO, while the optional PNG supplies the late runtime icon
+override. Missing external branding files never prevent either application
+from starting.
 
 For heavy live-UDP debug sessions, `mfd_window` and `offscreen_viewer` also
 accept `--no-snapshot` to keep earlier commands of one runtime batch applied

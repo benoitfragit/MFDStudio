@@ -26,7 +26,8 @@ target_include_directories(mfd_window_launcher
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
     PRIVATE
-        ${MFD_ROOT_DIR}/mfd_runtime_api/src)
+        ${MFD_ROOT_DIR}/mfd_runtime_api/src
+        ${MFD_ROOT_DIR}/mfd_api/src/render)
 
 target_link_libraries(mfd_window_launcher
     PUBLIC

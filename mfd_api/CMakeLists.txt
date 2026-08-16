@@ -162,6 +162,7 @@ set(MFD_RENDER_PRIVATE_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/CanvasDrawWork.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/Canvas2D.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ImageTextureCache.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/MfdStudioBrandMark.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlCompat.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/PolygonTriangulation.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderWorkBudget.h
@@ -173,6 +174,7 @@ set(MFD_RENDER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/CanvasDrawWork.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/Canvas2D.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ImageTextureCache.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/MfdStudioBrandMark.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/MfdRenderer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlCompat.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlFramebufferReader.cpp

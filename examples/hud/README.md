@@ -286,8 +286,8 @@ physical 600/3000-foot geometry of supported targets.
 
 The projected rail uses the authored Gun Bore Cross at HUD position
 `{0.0, 0.82}` as its local origin. This places the wide 600-foot end close to
-the gun reference while retaining the upper margin visible in Falcon BMS and
-DCS F-16 Level-II examples. The FPM is calculated and published independently;
+the gun reference while retaining the upper margin visible in the retained
+Level-II examples. The FPM is calculated and published independently;
 changing aircraft flight-path velocity does not translate the funnel. The
 runtime owns no ballistic history, clock, temporal filter or previous-frame
 state.
@@ -308,5 +308,4 @@ elevation converts the quadratic to the authored five-control-point quartic
 Bezier without changing its shape; the primitive tessellates each rail into 36
 smooth segments without allocation or projection-layer history.
 
-Reference figures: Falcon BMS Dash-34 4.36.3, section 2.4.5.1, figure 41; DCS
-F-16C Early Access Guide, EEGS Level-II pages 530-532.
+Reference figures: DCS F-16C Early Access Guide, EEGS Level-II pages 530-532.

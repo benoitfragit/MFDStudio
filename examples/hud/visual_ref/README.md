@@ -8,10 +8,6 @@ this folder into `hud_window.json`, generated UI code or packaging scripts.
 
 ## Source Documents
 
-- Falcon BMS Dash-34:
-  <https://cdn.falcon-bms.com/docs/4.37/TO%201F-16CMAM-34-1-1%20BMS.pdf>
-- Falcon BMS Training Manual:
-  <https://cdn.falcon-bms.com/docs/4.37/BMS-Training-Manual.pdf>
 - NO-FunnelGunSight algorithm notes used as an external EEGS implementation
   cross-check:
   <https://github.com/mosdef31/NO-FunnelGunSight>
@@ -19,19 +15,11 @@ this folder into `hud_window.json`, generated UI code or packaging scripts.
   funnel corridor:
   <https://www.reddit.com/r/WarplanePorn/comments/ikcmps/turkish_f16_hud_during_interception_of_greek_f16/>
 
-The copied PNG files were taken from the local public reference set at:
-
-```text
-C:\Users\33761\Documents\Projets\F16-BMS\datapackage\public_references\views
-```
-
 ## Files
 
 | File | Used For |
 |---|---|
 | `hud_aa_reference.png` | Air-to-air EEGS / pipper / TD-circle proportions |
-| `bms_public_page_398_sms_gun.png` | SMS gun context and gunnery mode reference |
-| `bms_public_page_399_sms_aam_cntl.png` | SMS AIM-9/CNTL reference for Fox 2 control state |
 | `page224_hud_ir_missile.png` | HUD IR missile diamond, caged/uncaged size, AIM-9 DLZ and seeker FOV/range marks |
 | `page225_hud_ir_tll.png` | HUD target-locator line arrowhead behavior for caged/uncaged correlated AIM-9 |
 | `page301_aim9_bore_slave.png` | AIM-9 BORE/SLAVE behavior and HUD/HMCS display rule |
