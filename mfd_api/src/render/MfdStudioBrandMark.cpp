@@ -29,6 +29,61 @@ constexpr std::array<Vector2, 5> kNormalizedMonogramPoints {{
     {0.7070f, 0.2930f},
     {0.7070f, 0.7129f}}};
 
+/**
+ * @brief Builds half-stroke offsets with the editor's miter joins and flat end caps.
+ * @return Offsets for the fixed, non-degenerate normalized monogram path.
+ */
+std::array<Vector2, 5> BuildMonogramJoinOffsets() noexcept
+{
+    std::array<Vector2, 4> segmentNormals {};
+    for (std::size_t index = 0; index < segmentNormals.size(); ++index)
+    {
+        const Vector2 start = kNormalizedMonogramPoints[index];
+        const Vector2 end = kNormalizedMonogramPoints[index + 1];
+        const float deltaX = end.x - start.x;
+        const float deltaY = end.y - start.y;
+        const float length = std::hypot(deltaX, deltaY);
+        segmentNormals[index] = {-deltaY / length, deltaX / length};
+    }
+
+    std::array<Vector2, 5> offsets {};
+    offsets.front() = segmentNormals.front();
+    offsets.back() = segmentNormals.back();
+    for (std::size_t index = 1; index + 1 < offsets.size(); ++index)
+    {
+        const Vector2 incoming = segmentNormals[index - 1];
+        const Vector2 outgoing = segmentNormals[index];
+        // The fixed brand path has no reversed segments, so the denominator is positive.
+        const float denominator = 1.0f + incoming.x * outgoing.x + incoming.y * outgoing.y;
+        offsets[index] = {
+            (incoming.x + outgoing.x) / denominator,
+            (incoming.y + outgoing.y) / denominator};
+    }
+
+    return offsets;
+}
+
+/**
+ * @brief Draws a continuous monogram strip whose adjacent segments share their join vertices.
+ * @param geometry Resolved brand-mark geometry with a positive stroke width.
+ * @param color Monogram fill color.
+ */
+void DrawMonogramStroke(const MfdStudioBrandMarkGeometry& geometry, const Color color) noexcept
+{
+    static const std::array<Vector2, 5> joinOffsets = BuildMonogramJoinOffsets();
+    const float halfStroke = geometry.monogramStrokeWidth * 0.5f;
+    std::array<Vector2, 10> vertices {};
+    for (std::size_t index = 0; index < geometry.monogramPoints.size(); ++index)
+    {
+        const Vector2 point = geometry.monogramPoints[index];
+        const Vector2 offset {joinOffsets[index].x * halfStroke, joinOffsets[index].y * halfStroke};
+        vertices[index * 2] = {point.x - offset.x, point.y - offset.y};
+        vertices[index * 2 + 1] = {point.x + offset.x, point.y + offset.y};
+    }
+
+    DrawTriangleStrip(vertices.data(), static_cast<int>(vertices.size()), color);
+}
+
 bool IsFiniteRectangle(const Rectangle bounds) noexcept
 {
     return std::isfinite(bounds.x) && std::isfinite(bounds.y) &&
@@ -76,13 +131,6 @@ void DrawMfdStudioBrandMark(const Rectangle bounds, const Color surfaceColor, co
     }
 
     DrawRectangleRounded(geometry.frame, geometry.frameRoundness, 16, surfaceColor);
-    for (std::size_t index = 1; index < geometry.monogramPoints.size(); ++index)
-    {
-        DrawLineEx(
-            geometry.monogramPoints[index - 1],
-            geometry.monogramPoints[index],
-            geometry.monogramStrokeWidth,
-            monogramColor);
-    }
+    DrawMonogramStroke(geometry, monogramColor);
 }
 } // namespace mfd::internal
