@@ -91,6 +91,19 @@ public:
     LoadedWindowConfiguration LoadWindowConfiguration(const std::filesystem::path& windowFile) const;
 
     /**
+     * @brief Loads authored window assets without inspecting the companion generated transport map.
+     * @param windowFile Path to the root window JSON file.
+     * @return Loaded authored window configuration and resolved document.
+     *
+     * @note This authoring-specific entry point keeps derived `*.generated.map`
+     * files independent from editor loading. Runtime code should use
+     * `LoadWindowConfiguration()` so a present generated map remains strictly
+     * validated against the authored document.
+     */
+    LoadedWindowConfiguration LoadWindowConfigurationForAuthoring(
+        const std::filesystem::path& windowFile) const;
+
+    /**
      * @brief Loads a legacy pages JSON or a window JSON and returns only the document.
      * @param pagesFile Path to the JSON file to load.
      * @return Loaded document containing pages and reticle templates.

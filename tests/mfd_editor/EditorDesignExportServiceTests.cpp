@@ -183,6 +183,64 @@ DesignExportFixture MakeFixture(const std::filesystem::path& root, const std::st
     return fixture;
 }
 
+void WriteGeneratedMapPage(const std::filesystem::path& pageFile, const std::string_view pageName)
+{
+    WriteTextFile(pageFile,
+                  "{\n"
+                  "  \"name\": \"" + std::string(pageName) + "\",\n"
+                  "  \"layers\": [\n"
+                  "    { \"id\": \"default\" }\n"
+                  "  ]\n"
+                  "}\n");
+}
+
+DesignExportFixture MakeCompanionMapFixture(const std::filesystem::path& root)
+{
+    const std::filesystem::path windowFile = root / "window.json";
+    const std::filesystem::path pageFile = root / "pages" / "main.json";
+    std::filesystem::create_directories(root / "reticles");
+    WriteGeneratedMapPage(pageFile, "Main");
+    WriteTextFile(windowFile,
+                  R"json({
+  "title": "Main Window",
+  "reticleLibraryFolder": "reticles",
+  "defaultPage": "Main",
+  "pages": [
+    "pages/main.json"
+  ]
+})json");
+    WriteTextFile(root / "window.generated.map",
+                  R"json({
+  "schemaVersion": 1,
+  "mappingHash": "a53384902a992d489dd3074e2adf3e64f1627ce48f4dd9def6e0f809bfc8202f",
+  "window": {
+    "name": "window",
+    "title": "Main Window",
+    "source": "window.json"
+  },
+  "pages": [
+    {
+      "id": 1,
+      "name": "Main",
+      "normalizedName": "main",
+      "hasStrobe": false,
+      "defaultPage": true
+    }
+  ],
+  "reticles": [],
+  "primitives": [],
+  "templates": [],
+  "blinkTypes": [],
+  "strobes": []
+})json");
+
+    DesignExportFixture fixture;
+    mfd::JsonLoader loader;
+    fixture.loaded = loader.LoadWindowConfigurationForAuthoring(windowFile);
+    fixture.files.pageFiles = fixture.loaded.window.pageFiles;
+    return fixture;
+}
+
 editor::DesignExportRequest MakeRequest(const std::filesystem::path& outputFolder,
                                         const DesignExportFixture& fixture)
 {
@@ -266,6 +324,66 @@ TEST(EditorDesignExportServiceTests, ExecuteCreatesMarkdownFilesWithReticleCoord
     {
         EXPECT_TRUE(IsPathWithinRoot(result.outputFolder, writtenFile)) << writtenFile.string();
     }
+}
+
+TEST(EditorDesignExportServiceTests, ExecuteLoadsValidCompanionMapOnlyForDesignExport)
+{
+    ScopedTempDir tempDir;
+    const DesignExportFixture fixture = MakeCompanionMapFixture(tempDir.Path());
+    ASSERT_FALSE(fixture.loaded.generatedTransportMap.has_value());
+
+    editor::EditorDesignExportService service;
+    editor::DesignExportRequest request = MakeRequest(tempDir.Path() / "export", fixture);
+    request.exportExplodedViews = false;
+    const editor::DesignExportPlan plan = service.BuildPlan(request);
+    ASSERT_TRUE(plan.canExecute) << plan.error;
+
+    const editor::DesignExportResult result = service.Execute(plan);
+
+    EXPECT_TRUE(result.warnings.empty());
+    const std::string windowMarkdown = ReadTextFile(plan.windowIcdFile);
+    EXPECT_NE(windowMarkdown.find("a53384902a992d489dd3074e2adf3e64f1627ce48f4dd9def6e0f809bfc8202f"),
+              std::string::npos);
+    const std::string manifest = ReadTextFile(plan.manifestFile);
+    EXPECT_NE(manifest.find("a53384902a992d489dd3074e2adf3e64f1627ce48f4dd9def6e0f809bfc8202f"),
+              std::string::npos);
+}
+
+TEST(EditorDesignExportServiceTests, ExecuteIgnoresDriftedCompanionMapAndKeepsExporting)
+{
+    ScopedTempDir tempDir;
+    DesignExportFixture fixture = MakeCompanionMapFixture(tempDir.Path());
+    WriteGeneratedMapPage(fixture.files.pageFiles.front(), "Renamed");
+    WriteTextFile(fixture.loaded.window.sourceFile,
+                  R"json({
+  "title": "Main Window",
+  "reticleLibraryFolder": "reticles",
+  "defaultPage": "Renamed",
+  "pages": [
+    "pages/main.json"
+  ]
+})json");
+
+    mfd::JsonLoader loader;
+    fixture.loaded = loader.LoadWindowConfigurationForAuthoring(fixture.loaded.window.sourceFile);
+    fixture.files.pageFiles = fixture.loaded.window.pageFiles;
+    ASSERT_EQ(fixture.loaded.document.pages.front().name, "Renamed");
+    ASSERT_FALSE(fixture.loaded.generatedTransportMap.has_value());
+
+    editor::EditorDesignExportService service;
+    editor::DesignExportRequest request = MakeRequest(tempDir.Path() / "export", fixture);
+    request.exportExplodedViews = false;
+    const editor::DesignExportPlan plan = service.BuildPlan(request);
+    ASSERT_TRUE(plan.canExecute) << plan.error;
+
+    const editor::DesignExportResult result = service.Execute(plan);
+
+    EXPECT_TRUE(std::filesystem::exists(plan.windowIcdFile));
+    EXPECT_TRUE(std::filesystem::exists(plan.pages.front().markdownFile));
+    ASSERT_FALSE(result.warnings.empty());
+    EXPECT_NE(result.warnings.front().find("ignored during design export"), std::string::npos);
+    EXPECT_NE(ReadTextFile(plan.windowIcdFile).find("not available"), std::string::npos);
+    EXPECT_NE(ReadTextFile(plan.manifestFile).find("\"mappingHash\": null"), std::string::npos);
 }
 
 TEST(EditorDesignExportServiceTests, ExecuteUsesRelativeImageLinksWhenExplodedViewsSucceed)

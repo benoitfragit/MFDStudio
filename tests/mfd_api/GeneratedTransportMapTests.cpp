@@ -274,7 +274,7 @@ TEST(GeneratedTransportMapTests, JsonLoaderLoadsValidatedCompanionMapAndSceneKee
     EXPECT_EQ(scene.TransportMap()->window.source, "window.json");
 }
 
-TEST(GeneratedTransportMapTests, JsonLoaderRejectsCompanionMapThatDriftsFromWindowDocument)
+TEST(GeneratedTransportMapTests, StrictLoadRejectsDriftedMapWhileAuthoringLoadIgnoresIt)
 {
     TemporaryFolder workspace;
     WriteBasicWindowAssets(workspace);
@@ -346,6 +346,12 @@ TEST(GeneratedTransportMapTests, JsonLoaderRejectsCompanionMapThatDriftsFromWind
 
     mfd::JsonLoader loader;
     EXPECT_THROW(loader.LoadWindowConfiguration(workspace.Path() / "window.json"), std::runtime_error);
+
+    const mfd::LoadedWindowConfiguration authored =
+        loader.LoadWindowConfigurationForAuthoring(workspace.Path() / "window.json");
+    EXPECT_FALSE(authored.generatedTransportMap.has_value());
+    ASSERT_EQ(authored.document.pages.size(), 1U);
+    EXPECT_EQ(authored.document.pages.front().name, "Main");
 }
 
 TEST(GeneratedTransportMapTests, JsonLoaderRejectsCompanionMapWithUnknownReticleSource)

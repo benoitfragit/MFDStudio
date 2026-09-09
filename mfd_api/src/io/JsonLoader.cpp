@@ -3242,9 +3242,8 @@ void ValidateGeneratedTransportMapAgainstDocument(const GeneratedTransportMap& m
         throw std::runtime_error("Generated transport map templates table does not match dynamic template bindings");
     }
 }
-} // namespace
-
-LoadedWindowConfiguration JsonLoader::LoadWindowConfiguration(const std::filesystem::path& windowFile) const
+LoadedWindowConfiguration LoadWindowConfigurationImpl(const std::filesystem::path& windowFile,
+                                                      const bool loadGeneratedTransportMap)
 {
     const std::filesystem::path resolvedWindowFile = NormalizePath(windowFile);
     const json root = LoadJsonFile(resolvedWindowFile);
@@ -3281,23 +3280,38 @@ LoadedWindowConfiguration JsonLoader::LoadWindowConfiguration(const std::filesys
 
     ApplyDefaultPageName(loaded.document, ParseDefaultPageName(root, "Window JSON"), "window JSON");
 
-    std::string generatedMapError;
-    loaded.generatedTransportMap = TryLoadGeneratedTransportMap(resolvedWindowFile, &generatedMapError);
-    if (!generatedMapError.empty())
+    if (loadGeneratedTransportMap)
     {
-        throw std::runtime_error(generatedMapError);
-    }
+        std::string generatedMapError;
+        loaded.generatedTransportMap = TryLoadGeneratedTransportMap(resolvedWindowFile, &generatedMapError);
+        if (!generatedMapError.empty())
+        {
+            throw std::runtime_error(generatedMapError);
+        }
 
-    if (loaded.generatedTransportMap.has_value())
-    {
-        ValidateGeneratedTransportMapAgainstDocument(*loaded.generatedTransportMap,
-                                                    resolvedWindowFile,
-                                                    loaded.window,
-                                                    loaded.document);
+        if (loaded.generatedTransportMap.has_value())
+        {
+            ValidateGeneratedTransportMapAgainstDocument(*loaded.generatedTransportMap,
+                                                         resolvedWindowFile,
+                                                         loaded.window,
+                                                         loaded.document);
+        }
     }
 
     ThrowIfDocumentSemanticsInvalid(loaded.document);
     return loaded;
+}
+} // namespace
+
+LoadedWindowConfiguration JsonLoader::LoadWindowConfiguration(const std::filesystem::path& windowFile) const
+{
+    return LoadWindowConfigurationImpl(windowFile, true);
+}
+
+LoadedWindowConfiguration JsonLoader::LoadWindowConfigurationForAuthoring(
+    const std::filesystem::path& windowFile) const
+{
+    return LoadWindowConfigurationImpl(windowFile, false);
 }
 
 MfdDocument JsonLoader::LoadDocument(const std::filesystem::path& pagesFile) const

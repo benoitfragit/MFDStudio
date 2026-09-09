@@ -96,6 +96,12 @@ tell an authoring issue from a client or transport issue.
 - **Fix.** Re-run CMake configure so the generator rewrites the map from the
   current JSON; ship the map beside the window.
 
+The authoring editor does not require or validate this derived file when it
+opens a window. Design export uses a valid companion map when available, but
+ignores a missing, invalid, or stale map with a warning and omits generated
+mapping fields. Runtime loading remains strict because generated client
+commands depend on the matching map.
+
 ### No runtime feedback arrives
 
 - **Cause.** The window JSON has no enabled `feedback` transport, or the client

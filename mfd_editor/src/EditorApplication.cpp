@@ -1633,7 +1633,7 @@ bool EditorApplication::LoadWindowConfiguration(const std::filesystem::path& pat
 {
     try
     {
-        documentState_.loaded = documentState_.loader.LoadWindowConfiguration(path);
+        documentState_.loaded = documentState_.loader.LoadWindowConfigurationForAuthoring(path);
         for (auto& page : documentState_.loaded.document.pages)
         {
             BootstrapEditorLayersForPage(page);

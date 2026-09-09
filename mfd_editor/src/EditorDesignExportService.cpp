@@ -307,9 +307,45 @@ std::filesystem::path ResolveOutputFolder(const std::filesystem::path& requested
     return candidate;
 }
 
-const mfd::GeneratedTransportMap* ResolveGeneratedMap(const DesignExportPlan& plan) noexcept
+std::optional<mfd::GeneratedTransportMap> LoadGeneratedTransportMapForExport(
+    const DesignExportPlan& plan,
+    std::vector<std::string>& warnings)
 {
-    return plan.loaded.generatedTransportMap.has_value() ? &(*plan.loaded.generatedTransportMap) : nullptr;
+    if (plan.windowFile.empty())
+    {
+        warnings.push_back(
+            "No source window file is available. Generated mapping hash and transport ids were omitted.");
+        return std::nullopt;
+    }
+
+    const std::filesystem::path mapFile = mfd::CompanionGeneratedTransportMapPath(plan.windowFile);
+    if (!PathExists(mapFile))
+    {
+        warnings.push_back(
+            "No companion generated transport map is available. Generated mapping hash and transport ids were omitted.");
+        return std::nullopt;
+    }
+
+    try
+    {
+        mfd::JsonLoader loader;
+        mfd::LoadedWindowConfiguration loaded = loader.LoadWindowConfiguration(plan.windowFile);
+        if (!loaded.generatedTransportMap.has_value())
+        {
+            warnings.push_back(
+                "The companion generated transport map became unavailable during export. Generated mapping hash and "
+                "transport ids were omitted.");
+            return std::nullopt;
+        }
+
+        return std::move(loaded.generatedTransportMap);
+    }
+    catch (const std::exception& exception)
+    {
+        warnings.push_back(
+            "The companion generated transport map was ignored during design export: " + std::string(exception.what()));
+        return std::nullopt;
+    }
 }
 
 const mfd::TransportMapPageEntry* FindPageEntry(const mfd::GeneratedTransportMap* map,
@@ -1613,10 +1649,10 @@ std::string BuildReadmeMarkdown(const DesignExportPlan& plan,
     return stream.str();
 }
 
-std::string BuildWindowIcdMarkdown(const DesignExportPlan& plan)
+std::string BuildWindowIcdMarkdown(const DesignExportPlan& plan,
+                                   const mfd::GeneratedTransportMap* map)
 {
     std::ostringstream stream;
-    const mfd::GeneratedTransportMap* map = ResolveGeneratedMap(plan);
 
     stream << "# Window ICD\n\n";
     stream << "## Window\n\n";
@@ -1664,11 +1700,11 @@ std::string BuildWindowIcdMarkdown(const DesignExportPlan& plan)
 
 std::string BuildPageMarkdown(const DesignExportPlan& plan,
                               const DesignExportPageArtifact& artifact,
+                              const mfd::GeneratedTransportMap* map,
                               const bool imageAvailable,
                               const bool cleanImageAvailable)
 {
     const mfd::PageDefinition& page = plan.loaded.document.pages[artifact.pageIndex];
-    const mfd::GeneratedTransportMap* map = ResolveGeneratedMap(plan);
     const mfd::TransportMapPageEntry* pageEntry = FindPageEntry(map, page.name);
 
     std::ostringstream stream;
@@ -1867,6 +1903,7 @@ std::string BuildPageMarkdown(const DesignExportPlan& plan,
 }
 
 json BuildManifestJson(const DesignExportPlan& plan,
+                       const mfd::GeneratedTransportMap* map,
                        const std::string& generatedAt,
                        const std::vector<bool>& imageWritten,
                        const std::vector<bool>& cleanImageWritten,
@@ -1903,9 +1940,7 @@ json BuildManifestJson(const DesignExportPlan& plan,
              {"title", plan.loaded.window.title},
              {"sourceFile", plan.windowFile.empty() ? json(nullptr) : json(MarkdownPath(plan.windowFile))},
              {"mappingHash",
-              plan.includeMappingHash && plan.loaded.generatedTransportMap.has_value()
-                  ? json(plan.loaded.generatedTransportMap->mappingHash)
-                  : json(nullptr)},
+              plan.includeMappingHash && map != nullptr ? json(map->mappingHash) : json(nullptr)},
          }},
         {"options",
          {
@@ -2109,11 +2144,6 @@ DesignExportPlan EditorDesignExportService::BuildPlan(const DesignExportRequest&
         }
     }
 
-    if (ResolveGeneratedMap(plan) == nullptr && plan.includeMappingHash)
-    {
-        plan.warnings.push_back("No companion generated transport map is loaded. Generated mapping hash and transport ids may be unavailable.");
-    }
-
     plan.canExecute = true;
     return plan;
 }
@@ -2144,6 +2174,10 @@ DesignExportResult EditorDesignExportService::Execute(const DesignExportPlan& pl
     }
 
     result.warnings = plan.warnings;
+    const std::optional<mfd::GeneratedTransportMap> generatedTransportMap =
+        LoadGeneratedTransportMapForExport(plan, result.warnings);
+    const mfd::GeneratedTransportMap* map =
+        generatedTransportMap.has_value() ? &(*generatedTransportMap) : nullptr;
     const std::string generatedAt = FormatDisplayTimestamp(std::chrono::system_clock::now());
     std::vector<bool> imageWritten(plan.pages.size(), false);
     std::vector<bool> cleanImageWritten(plan.pages.size(), false);
@@ -2218,20 +2252,20 @@ DesignExportResult EditorDesignExportService::Execute(const DesignExportPlan& pl
             WriteTextFile(plan.readmeFile, BuildReadmeMarkdown(plan, generatedAt, imageWritten, cleanImageWritten));
             result.writtenFiles.push_back(plan.readmeFile);
 
-            WriteTextFile(plan.windowIcdFile, BuildWindowIcdMarkdown(plan));
+            WriteTextFile(plan.windowIcdFile, BuildWindowIcdMarkdown(plan, map));
             result.writtenFiles.push_back(plan.windowIcdFile);
 
             for (std::size_t index = 0; index < plan.pages.size(); ++index)
             {
                 const DesignExportPageArtifact& artifact = plan.pages[index];
                 WriteTextFile(artifact.markdownFile,
-                              BuildPageMarkdown(plan, artifact, imageWritten[index], cleanImageWritten[index]));
+                              BuildPageMarkdown(plan, artifact, map, imageWritten[index], cleanImageWritten[index]));
                 result.writtenFiles.push_back(artifact.markdownFile);
             }
         }
 
         WriteTextFile(plan.manifestFile,
-                      BuildManifestJson(plan, generatedAt, imageWritten, cleanImageWritten, result.warnings).dump(2));
+                      BuildManifestJson(plan, map, generatedAt, imageWritten, cleanImageWritten, result.warnings).dump(2));
         result.writtenFiles.push_back(plan.manifestFile);
     }
     catch (const std::exception& exception)

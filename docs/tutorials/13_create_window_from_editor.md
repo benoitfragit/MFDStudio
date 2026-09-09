@@ -536,6 +536,14 @@ The Markdown output keeps relative links between pages and images so the export
 can be opened directly in GitHub, VS Code preview, or any other Markdown
 viewer.
 
+The editor opens and saves authored JSON assets independently from the optional
+`<window>.generated.map` build artifact. Design export attempts to load and
+validate that companion map only when the export runs, so a valid map can add
+the mapping hash and transport ids to the generated documentation. A missing,
+invalid, or stale map is reported as a non-blocking export warning and those
+generated fields are omitted; the authored Markdown, manifest, and requested
+images still export normally.
+
 ## Step 17 - Use the integrated tutorial as the project overview
 
 Once the base editor workflow feels clear, launch **Help > Tutorial** and let
