@@ -957,6 +957,8 @@ TEST(LatestBatchPublisherTests, MergesPendingStaticReticlePatchFieldsWithoutOver
     mfd::ReticlePatch pendingPatch;
     pendingPatch.visible = false;
     pendingPatch.position = mfd::Vec2 {0.1f, 0.2f};
+    pendingPatch.primitivePatchesById[31].streamPlayback = mfd::StreamPlayback::Stop;
+    pendingPatch.primitivePatchesById[32].streamPlayback = mfd::StreamPlayback::Pause;
     mfd::CommandBatch secondBatch;
     secondBatch.sequence = 2U;
     secondBatch.mappingHash = "hash-alpha";
@@ -966,6 +968,8 @@ TEST(LatestBatchPublisherTests, MergesPendingStaticReticlePatchFieldsWithoutOver
 
     mfd::ReticlePatch newestPatch;
     newestPatch.position = mfd::Vec2 {0.3f, 0.4f};
+    newestPatch.primitivePatchesById[31].streamPlayback = mfd::StreamPlayback::Play;
+    newestPatch.primitivePatchesById[32].visible = false;
     mfd::CommandBatch thirdBatch;
     thirdBatch.sequence = 3U;
     thirdBatch.mappingHash = "hash-alpha";
@@ -992,6 +996,10 @@ TEST(LatestBatchPublisherTests, MergesPendingStaticReticlePatchFieldsWithoutOver
     ASSERT_TRUE(update->patch.position.has_value());
     EXPECT_FLOAT_EQ(update->patch.position->x, 0.3f);
     EXPECT_FLOAT_EQ(update->patch.position->y, 0.4f);
+    const auto& resumed = update->patch.primitivePatchesById.at(31);
+    EXPECT_EQ(resumed.streamPlayback, mfd::StreamPlayback::Play);
+    EXPECT_TRUE(resumed.streamStopToken.has_value());
+    EXPECT_EQ(update->patch.primitivePatchesById.at(32).streamPlayback, mfd::StreamPlayback::Pause);
 }
 
 TEST(LatestBatchPublisherTests, DoesNotCarryPendingStaticReticleUpdatesAcrossDifferentMappingHashes)
@@ -1537,6 +1545,124 @@ TEST(LatestBatchPublisherTests, DoesNotInvokeBatchBuilderAfterStop)
 
     EXPECT_FALSE(builderInvoked);
     EXPECT_EQ(publisher.LastError(), "Latest batch publisher has been stopped");
+}
+
+TEST(LatestBatchPublisherTests, DynamicStreamControlsSurviveBulkDeltasAndRepeatedRetries)
+{
+    mfd::CommandBatch attempted;
+    mfd::client::LatestBatchPublisher publisher([&attempted](const mfd::CommandBatch& batch)
+    {
+        attempted = batch;
+        return false;
+    });
+    mfd::UpsertDynamicReticlesCommand bulk;
+    bulk.page = "HUD";
+    bulk.templateId = "camera";
+    mfd::DynamicReticleState state;
+    state.runtimeReticleId = 123;
+    state.patch.position = mfd::Vec2 {0.1f, 0.2f};
+    state.patch.primitivePatchesById[31].streamPlayback = mfd::StreamPlayback::Stop;
+    state.patch.primitivePatchesById[32].streamPlayback = mfd::StreamPlayback::Pause;
+    bulk.reticles.push_back(state);
+    auto batch = MakeBatch(1);
+    batch.commands.push_back(bulk);
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(batch)));
+    publisher.Flush();
+
+    bulk.reticles[0].patch = {};
+    bulk.reticles[0].patch.primitivePatchesById[31].streamPlayback = mfd::StreamPlayback::Play;
+    batch = MakeBatch(2);
+    batch.commands.push_back(bulk);
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(batch)));
+    publisher.Flush();
+
+    bulk.reticles[0].patch = {};
+    bulk.reticles[0].patch.position = mfd::Vec2 {0.8f, 0.9f};
+    for (std::uint32_t sequence = 3; sequence < 10; ++sequence)
+    {
+        batch = MakeBatch(sequence);
+        batch.commands.push_back(bulk);
+        ASSERT_TRUE(publisher.SubmitLatest(std::move(batch)));
+        publisher.Flush();
+    }
+    ASSERT_EQ(attempted.commands.size(), 2U);
+    const auto* controls = std::get_if<mfd::UpsertDynamicReticleCommand>(&attempted.commands.front());
+    ASSERT_NE(controls, nullptr);
+    EXPECT_FALSE(controls->patch.position.has_value());
+    EXPECT_EQ(controls->patch.primitivePatchesById.at(31).streamPlayback, mfd::StreamPlayback::Play);
+    EXPECT_TRUE(controls->patch.primitivePatchesById.at(31).streamStopToken.has_value());
+    EXPECT_EQ(controls->patch.primitivePatchesById.at(32).streamPlayback, mfd::StreamPlayback::Pause);
+    const auto* delta = std::get_if<mfd::UpsertDynamicReticlesCommand>(&attempted.commands.back());
+    ASSERT_NE(delta, nullptr);
+    ASSERT_TRUE(delta->reticles[0].patch.position.has_value());
+    EXPECT_FLOAT_EQ(delta->reticles[0].patch.position->x, 0.8f);
+}
+
+TEST(LatestBatchPublisherTests, DynamicStreamNameAndIdControlsKeepChronologicalOrder)
+{
+    mfd::CommandBatch attempted;
+    mfd::client::LatestBatchPublisher publisher([&attempted](const mfd::CommandBatch& batch)
+    {
+        attempted = batch;
+        return false;
+    });
+    mfd::UpsertDynamicReticleCommand update;
+    update.target = {"HUD", "camera1"};
+    update.templateId = "camera";
+    update.patch.primitivePatches["screen"].streamPlayback = mfd::StreamPlayback::Stop;
+    auto batch = MakeBatch(1);
+    batch.commands.push_back(update);
+    update.patch = {};
+    update.patch.primitivePatchesById[31].streamPlayback = mfd::StreamPlayback::Play;
+    batch.commands.push_back(update);
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(batch)));
+    publisher.Flush();
+    update.patch = {};
+    update.patch.visible = false;
+    batch = MakeBatch(2);
+    batch.commands.push_back(update);
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(batch)));
+    publisher.Flush();
+    ASSERT_EQ(attempted.commands.size(), 3U);
+    const auto& stopped = std::get<mfd::UpsertDynamicReticleCommand>(attempted.commands[0]);
+    const auto& resumed = std::get<mfd::UpsertDynamicReticleCommand>(attempted.commands[1]);
+    EXPECT_EQ(stopped.patch.primitivePatches.at("screen").streamPlayback, mfd::StreamPlayback::Stop);
+    EXPECT_EQ(resumed.patch.primitivePatchesById.at(31).streamPlayback, mfd::StreamPlayback::Play);
+    EXPECT_EQ(std::get<mfd::UpsertDynamicReticleCommand>(attempted.commands[2]).patch.visible, false);
+}
+
+TEST(LatestBatchPublisherTests, DynamicStreamControlsDoNotCrossRemoveRecreateOrTemplateChange)
+{
+    for (const bool removeBeforeRecreate : {false, true})
+    {
+        mfd::CommandBatch attempted;
+        mfd::client::LatestBatchPublisher publisher([&attempted](const mfd::CommandBatch& batch)
+        {
+            attempted = batch;
+            return false;
+        });
+        mfd::UpsertDynamicReticleCommand update;
+        update.target = {"HUD", "camera1"};
+        update.templateId = "camera";
+        update.patch.primitivePatchesById[31].streamPlayback = mfd::StreamPlayback::Stop;
+        auto batch = MakeBatch(1);
+        batch.commands.push_back(update);
+        ASSERT_TRUE(publisher.SubmitLatest(std::move(batch)));
+        publisher.Flush();
+        batch = MakeBatch(2);
+        if (removeBeforeRecreate)
+            batch.commands.push_back(mfd::RemoveDynamicReticleCommand {update.target});
+        else
+            update.templateId = "otherCamera";
+        update.patch = {};
+        update.patch.visible = true;
+        batch.commands.push_back(update);
+        ASSERT_TRUE(publisher.SubmitLatest(std::move(batch)));
+        publisher.Flush();
+        ASSERT_EQ(attempted.commands.size(), removeBeforeRecreate ? 2U : 1U);
+        const auto& recreated = std::get<mfd::UpsertDynamicReticleCommand>(attempted.commands.back());
+        EXPECT_TRUE(recreated.patch.primitivePatchesById.empty());
+    }
 }
 
 /**

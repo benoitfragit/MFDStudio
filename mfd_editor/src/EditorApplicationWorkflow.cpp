@@ -16,6 +16,7 @@
 #include <limits>
 
 #include "internal/application/EditorApplicationInternal.h"
+#include "internal/application/EditorApplicationAuthoringSupport.h"
 #include "EditorFileDialogs.h"
 #include "EditorIcons.h"
 #include "EditorTutorialController.h"
@@ -2430,6 +2431,10 @@ mfd::ReticleGroup EditorApplication::MakePrimitiveReticle(std::string id, const 
         break;
     case mfd::PrimitiveType::Arc:
         primitive.geometry = mfd::ArcGeometry {0.12f, -45.0f, 135.0f, 48};
+        break;
+    case mfd::PrimitiveType::ExternalStream:
+        primitive.geometry = mfd::ExternalStreamGeometry {};
+        editor::app::InitializeExternalStreamIdentifier(primitive, reticle.id);
         break;
     case mfd::PrimitiveType::Image:
         primitive.geometry = mfd::ImageGeometry {};

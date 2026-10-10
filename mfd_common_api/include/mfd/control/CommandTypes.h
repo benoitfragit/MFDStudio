@@ -82,6 +82,12 @@ struct DynamicReticleHandle
  */
 struct PrimitivePatch
 {
+    /** @brief Optional external-stream consumption mode. */
+    std::optional<StreamPlayback> streamPlayback;
+    /** @brief Stop request counter; presence invalidates pending frames even if final mode is Play.
+     * @note Client delta generation compares this counter; runtime applies each received request.
+     */
+    std::optional<std::uint64_t> streamStopToken;
     /** @brief Optional primitive visibility override. */
     std::optional<bool> visible;
     /** @brief Optional primitive position override in local reticle space. */

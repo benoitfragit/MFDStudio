@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "mfd/control/CommandClient.h"
+#include "mfd/control/internal/ExternalStreamPatch.h"
 #include "mfd/core/internal/CompositeKey.h"
 
 namespace mfd::client
@@ -52,6 +53,8 @@ struct DynamicLifecycleOperation
 {
     std::string key;
     mfd::UserCommand command;
+    bool startsNewInstance = false;
+    bool hasPriorStreamControls = false;
 };
 
 using DynamicOperationMap = std::unordered_map<std::string, std::size_t>;
@@ -168,6 +171,42 @@ void PutExpandedDynamicLifecycleValues(const mfd::UpsertDynamicReticlesCommand& 
     }
 }
 
+mfd::ReticlePatch ExtractExternalStreamControls(const mfd::ReticlePatch& patch)
+{
+    mfd::ReticlePatch controls;
+    for (const auto& entry : patch.primitivePatches)
+    {
+        if (entry.second.streamPlayback || entry.second.streamStopToken)
+        {
+            mfd::detail::MergeExternalStreamControl(controls.primitivePatches[entry.first], {}, entry.second);
+        }
+    }
+    for (const auto& entry : patch.primitivePatchesById)
+    {
+        if (entry.second.streamPlayback || entry.second.streamStopToken)
+        {
+            mfd::detail::MergeExternalStreamControl(controls.primitivePatchesById[entry.first], {}, entry.second);
+        }
+    }
+    return controls;
+}
+
+bool RetainOnlyExternalStreamControls(mfd::ReticlePatch& patch)
+{
+    patch = ExtractExternalStreamControls(patch);
+    return !patch.primitivePatches.empty() || !patch.primitivePatchesById.empty();
+}
+
+bool SameDynamicTemplate(const mfd::UpsertDynamicReticleCommand& first,
+                         const mfd::UpsertDynamicReticleCommand& second)
+{
+    return first.templateId == second.templateId &&
+           first.templateTransportId == second.templateTransportId;
+}
+
+bool StaticReticlePatchesHaveNameIdConflict(const mfd::ReticlePatch& newest, const mfd::ReticlePatch& pending);
+void MergeStaticReticleMapsWithinSameIdentificationSpace(mfd::ReticlePatch& newest, const mfd::ReticlePatch& pending);
+
 void PutDynamicLifecycleCommand(std::vector<DynamicLifecycleOperation>& operations,
                                 DynamicOperationMap& operationIndexes,
                                 std::string key,
@@ -185,7 +224,38 @@ void PutDynamicLifecycleCommand(std::vector<DynamicLifecycleOperation>& operatio
         return;
     }
 
-    operations[indexIt->second].command = std::move(command);
+    const std::size_t storedIndex = indexIt->second;
+    auto* pendingUpsert = std::get_if<mfd::UpsertDynamicReticleCommand>(&operations[storedIndex].command);
+    auto* newestUpsert = std::get_if<mfd::UpsertDynamicReticleCommand>(&command);
+    if (pendingUpsert != nullptr && newestUpsert != nullptr && SameDynamicTemplate(*pendingUpsert, *newestUpsert))
+    {
+        mfd::ReticlePatch controls = ExtractExternalStreamControls(pendingUpsert->patch);
+        if (!controls.primitivePatches.empty() || !controls.primitivePatchesById.empty())
+        {
+            if (StaticReticlePatchesHaveNameIdConflict(newestUpsert->patch, controls))
+            {
+                // Keep name/id writes ordered until transport resolves their identities.
+                pendingUpsert->patch = std::move(controls);
+                const bool startsNewInstance = operations[storedIndex].startsNewInstance;
+                indexIt->second = operations.size();
+                operations.push_back({std::move(key), std::move(command), startsNewInstance, true});
+                return;
+            }
+            MergeStaticReticleMapsWithinSameIdentificationSpace(newestUpsert->patch, controls);
+        }
+        operations[storedIndex].command = std::move(command);
+        return;
+    }
+
+    // Remove/recreate or a different template ends all previously queued controls.
+    if (operations[storedIndex].hasPriorStreamControls)
+    {
+        for (DynamicLifecycleOperation& operation : operations)
+        {
+            if (operation.key == key) operation.key.clear();
+        }
+    }
+    operations[storedIndex] = {std::move(key), std::move(command), true};
 }
 
 void CollectDynamicLifecycleCommands(const std::vector<mfd::UserCommand>& source,
@@ -265,6 +335,7 @@ void CarryMapEntriesIfNewestAbsent(ScalarMap& newestMap, const ScalarMap& pendin
 
 void MergePrimitivePatchFillingNewestAbsentFields(mfd::PrimitivePatch& newest, const mfd::PrimitivePatch& pending)
 {
+    mfd::detail::MergeExternalStreamControl(newest, pending, newest);
     FillOptionalIfNewestAbsent(newest.visible, pending.visible);
     FillOptionalIfNewestAbsent(newest.position, pending.position);
     FillOptionalIfNewestAbsent(newest.rotationDegrees, pending.rotationDegrees);
@@ -530,8 +601,21 @@ void MergePendingBatchPreservingUndeliveredDeltas(std::optional<mfd::CommandBatc
 
     for (DynamicLifecycleOperation& operation : pendingDynamicOperations)
     {
-        if (newestDynamicIndexes.find(operation.key) == newestDynamicIndexes.end())
+        if (operation.key.empty()) continue;
+        const auto newestIt = newestDynamicIndexes.find(operation.key);
+        if (newestIt == newestDynamicIndexes.end())
         {
+            carriedOperations.push_back(std::move(operation.command));
+            continue;
+        }
+        const DynamicLifecycleOperation& newestOperation = newestDynamicOperations[newestIt->second];
+        auto* pendingUpsert = std::get_if<mfd::UpsertDynamicReticleCommand>(&operation.command);
+        const auto* newestUpsert = std::get_if<mfd::UpsertDynamicReticleCommand>(&newestOperation.command);
+        if (!newestOperation.startsNewInstance && pendingUpsert != nullptr && newestUpsert != nullptr &&
+            SameDynamicTemplate(*pendingUpsert, *newestUpsert) &&
+            RetainOnlyExternalStreamControls(pendingUpsert->patch))
+        {
+            // Apply pending stream intent before the new delta, including bulk upserts.
             carriedOperations.push_back(std::move(operation.command));
         }
     }

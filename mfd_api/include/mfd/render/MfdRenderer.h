@@ -12,6 +12,7 @@
 
 #include <filesystem>
 #include <memory>
+#include "mfd/control/WindowFeedback.h"
 
 #include "mfd/runtime/SceneRegistry.h"
 
@@ -59,6 +60,8 @@ public:
      * UI area.
      */
     void DrawActivePage(const SceneRegistry& scene, int viewportWidth, int viewportHeight);
+    /** @brief Returns cached stream observations from the last render; never polls GPU or IPC. */
+    const std::vector<ExternalStreamFeedback>& ExternalStreams() const noexcept;
 
 private:
     struct Impl;

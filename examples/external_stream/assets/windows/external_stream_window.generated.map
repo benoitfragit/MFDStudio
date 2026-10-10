@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "mappingHash": "a2d1e7431441a6eb3abf822ee8ff07fa66cf499124b3b3bcf2e37899e6c7c93b",
+  "window": {
+    "name": "external_stream_window",
+    "title": "MFDStudio - External streams",
+    "source": "external_stream_window.json"
+  },
+  "pages": [
+    {
+      "id": 17229754785410564640,
+      "name": "Streams",
+      "normalizedName": "streams",
+      "hasStrobe": false,
+      "defaultPage": true
+    }
+  ],
+  "reticles": [
+    {
+      "id": 7124123313459621708,
+      "pageId": 17229754785410564640,
+      "reticleId": "help",
+      "normalizedReticleId": "help",
+      "source": "static"
+    },
+    {
+      "id": 12841730783380719423,
+      "pageId": 17229754785410564640,
+      "reticleId": "left",
+      "normalizedReticleId": "left",
+      "source": "static"
+    },
+    {
+      "id": 4318389227168012196,
+      "pageId": 17229754785410564640,
+      "reticleId": "right",
+      "normalizedReticleId": "right",
+      "source": "static"
+    }
+  ],
+  "primitives": [
+    {
+      "id": 16018912842062595319,
+      "ownerKind": "reticle",
+      "ownerId": 7124123313459621708,
+      "primitiveId": "keys",
+      "normalizedPrimitiveId": "keys",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 8165176717166753435,
+      "ownerKind": "reticle",
+      "ownerId": 7124123313459621708,
+      "primitiveId": "note",
+      "normalizedPrimitiveId": "note",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 4902981223527472046,
+      "ownerKind": "reticle",
+      "ownerId": 7124123313459621708,
+      "primitiveId": "title",
+      "normalizedPrimitiveId": "title",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 5225432108978020850,
+      "ownerKind": "reticle",
+      "ownerId": 12841730783380719423,
+      "primitiveId": "label",
+      "normalizedPrimitiveId": "label",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 12327706574103457989,
+      "ownerKind": "reticle",
+      "ownerId": 12841730783380719423,
+      "primitiveId": "surface",
+      "normalizedPrimitiveId": "surface",
+      "primitiveType": "externalstream",
+      "exposed": true
+    },
+    {
+      "id": 14098978918466692796,
+      "ownerKind": "reticle",
+      "ownerId": 4318389227168012196,
+      "primitiveId": "label",
+      "normalizedPrimitiveId": "label",
+      "primitiveType": "text",
+      "exposed": true
+    },
+    {
+      "id": 10701679207473609011,
+      "ownerKind": "reticle",
+      "ownerId": 4318389227168012196,
+      "primitiveId": "surface",
+      "normalizedPrimitiveId": "surface",
+      "primitiveType": "externalstream",
+      "exposed": true
+    }
+  ],
+  "templates": [],
+  "blinkTypes": [],
+  "strobes": []
+}

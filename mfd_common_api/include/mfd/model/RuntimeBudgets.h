@@ -283,7 +283,8 @@ inline bool IsValidPrimitiveForRuntime(const Primitive& primitive) noexcept
         (primitive.type == PrimitiveType::Polyline && std::holds_alternative<PolylineGeometry>(primitive.geometry)) ||
         (primitive.type == PrimitiveType::Bezier && std::holds_alternative<BezierGeometry>(primitive.geometry)) ||
         (primitive.type == PrimitiveType::Arc && std::holds_alternative<ArcGeometry>(primitive.geometry)) ||
-        (primitive.type == PrimitiveType::Image && std::holds_alternative<ImageGeometry>(primitive.geometry));
+        (primitive.type == PrimitiveType::Image && std::holds_alternative<ImageGeometry>(primitive.geometry)) ||
+        (primitive.type == PrimitiveType::ExternalStream && std::holds_alternative<ExternalStreamGeometry>(primitive.geometry));
     if (!geometryMatchesType)
     {
         return false;
@@ -371,6 +372,15 @@ inline bool IsValidPrimitiveForRuntime(const Primitive& primitive) noexcept
         return IsFiniteAbsWithin(geometry->width, kMaxLogicalSize) &&
                IsFiniteAbsWithin(geometry->height, kMaxLogicalSize) &&
                IsValidPathPayload(geometry->file);
+    }
+    if (const auto* geometry = std::get_if<ExternalStreamGeometry>(&primitive.geometry))
+    {
+        return IsValidStreamId(geometry->streamId) &&
+               IsPositiveFiniteWithin(geometry->width, kMaxLogicalSize) &&
+               IsPositiveFiniteWithin(geometry->height, kMaxLogicalSize) &&
+               (geometry->fit == StreamFit::Contain || geometry->fit == StreamFit::Stretch) &&
+               (geometry->defaultPlayback == StreamPlayback::Play || geometry->defaultPlayback == StreamPlayback::Stop) &&
+               static_cast<std::uint32_t>(geometry->playback) <= static_cast<std::uint32_t>(StreamPlayback::Stop);
     }
 
     return false;

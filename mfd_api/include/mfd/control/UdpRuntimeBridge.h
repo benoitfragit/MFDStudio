@@ -232,6 +232,10 @@ public:
      * termination and reset their transports.
      */
     void EnqueueWindowLifecycleFeedback(WindowLifecycleFeedback feedback);
+    /** @brief Queues a bounded external stream snapshot on the existing feedback worker.
+     * @param feedback Cached renderer observation, containing no native handles.
+     */
+    void EnqueueExternalStreamFeedback(ExternalStreamFeedback feedback);
 
     /**
      * @brief Returns the last command-side status or error string.

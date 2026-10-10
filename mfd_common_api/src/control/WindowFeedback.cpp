@@ -11,6 +11,7 @@
 #include "mfd/control/WindowFeedback.h"
 
 #include <stdexcept>
+#include <limits>
 #include <type_traits>
 #include <utility>
 
@@ -77,6 +78,22 @@ std::string SerializeFeedbackPayload(const FeedbackPayload& feedback)
                 message->set_sequence(value.sequence);
                 message->set_state(ToProtoLifecycleState(value.state));
             }
+            else if constexpr (std::is_same_v<FeedbackType, ExternalStreamFeedback>)
+            {
+                if (!IsValidStreamId(value.streamId) || !IsValidStreamId(value.instance) ||
+                    value.status.diagnostic.size() > 512 || static_cast<std::uint32_t>(value.status.playback) > 2 ||
+                    static_cast<std::uint32_t>(value.status.result) > static_cast<std::uint32_t>(StreamResult::Error))
+                    throw std::runtime_error("Invalid external stream feedback");
+                auto* message = envelope.mutable_external_stream();
+                message->set_sequence(value.sequence);
+                message->set_stream_id(value.streamId); message->set_instance(value.instance);
+                message->set_producer_connected(value.status.producerConnected);
+                message->set_has_image(value.status.hasImage); message->set_fresh(value.status.fresh);
+                message->set_playback(static_cast<std::uint32_t>(value.status.playback));
+                message->set_result(static_cast<std::uint32_t>(value.status.result));
+                message->set_consumed_frame(value.status.consumedFrame);
+                message->set_generation(value.status.generation); message->set_diagnostic(value.status.diagnostic);
+            }
         },
         feedback);
 
@@ -94,6 +111,8 @@ std::optional<FeedbackPayload> DeserializeFeedbackPayload(const std::string_view
     try
     {
         pb::FeedbackEnvelope envelope;
+        if (payload.size() > static_cast<std::size_t>(std::numeric_limits<int>::max()))
+            throw std::runtime_error("Feedback payload exceeds Protobuf parser size range");
         if (!envelope.ParseFromArray(payload.data(), static_cast<int>(payload.size())))
         {
             throw std::runtime_error("Unable to parse Protocol Buffers runtime feedback payload");
@@ -128,6 +147,22 @@ std::optional<FeedbackPayload> DeserializeFeedbackPayload(const std::string_view
             return FeedbackPayload {std::move(feedback)};
         }
 
+        if (envelope.payload_case() == pb::FeedbackEnvelope::kExternalStream)
+        {
+            const auto& message = envelope.external_stream();
+            if (!IsValidStreamId(message.stream_id()) || !IsValidStreamId(message.instance()) ||
+                message.diagnostic().size() > 512 || message.playback() > 2 ||
+                message.result() > static_cast<std::uint32_t>(StreamResult::Error))
+                throw std::runtime_error("Invalid external stream feedback");
+            ExternalStreamFeedback feedback;
+            feedback.sequence = message.sequence(); feedback.streamId = message.stream_id(); feedback.instance = message.instance();
+            feedback.status.producerConnected = message.producer_connected(); feedback.status.hasImage = message.has_image();
+            feedback.status.fresh = message.fresh(); feedback.status.playback = static_cast<StreamPlayback>(message.playback());
+            feedback.status.result = static_cast<StreamResult>(message.result());
+            feedback.status.consumedFrame = message.consumed_frame(); feedback.status.generation = message.generation();
+            feedback.status.diagnostic = message.diagnostic();
+            return FeedbackPayload {std::move(feedback)};
+        }
         throw std::runtime_error("Unsupported feedback payload");
     }
     catch (const std::exception& exception)

@@ -589,6 +589,16 @@ void WritePrimitiveGeometry(json& node, const mfd::Primitive& primitive, const s
         return;
     }
 
+    if (const auto* stream = std::get_if<mfd::ExternalStreamGeometry>(&primitive.geometry))
+    {
+        node["streamId"] = stream->streamId;
+        node["width"] = stream->width;
+        node["height"] = stream->height;
+        node["fallback"] = {stream->fallback.r, stream->fallback.g, stream->fallback.b, stream->fallback.a};
+        node["fit"] = stream->fit == mfd::StreamFit::Contain ? "contain" : "stretch";
+        node["defaultPlayback"] = stream->defaultPlayback == mfd::StreamPlayback::Play ? "play" : "stop";
+        return;
+    }
     if (const auto* image = std::get_if<mfd::ImageGeometry>(&primitive.geometry))
     {
         node["file"] = SerializePathRelativeTo(image->file, baseFolder);
@@ -636,6 +646,8 @@ std::string PrimitiveTypeName(const mfd::PrimitiveType type)
         return "arc";
     case mfd::PrimitiveType::Image:
         return "image";
+    case mfd::PrimitiveType::ExternalStream:
+        return "externalStream";
     }
 
     return "line";

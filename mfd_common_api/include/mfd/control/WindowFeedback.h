@@ -20,6 +20,7 @@
 
 #include "mfd/MfdExport.h"
 #include "mfd/control/StrobeFeedback.h"
+#include "mfd/model/ExternalStreamTypes.h"
 
 namespace mfd
 {
@@ -61,10 +62,17 @@ struct WindowLifecycleFeedback
     WindowLifecycleState state = WindowLifecycleState::Alive;
 };
 
-/**
- * @brief Variant carrying one supported runtime feedback payload.
- */
-using FeedbackPayload = std::variant<StrobeStatusFeedback, ActivePageFeedback, WindowLifecycleFeedback>;
+/** @brief Bounded snapshot of one uniquely named external stream in a runtime instance. */
+struct ExternalStreamFeedback
+{
+    std::uint32_t sequence = 0;
+    std::string streamId;
+    std::string instance;
+    ExternalStreamStatus status;
+};
+/** @brief Variant carrying one supported runtime feedback payload. */
+using FeedbackPayload = std::variant<StrobeStatusFeedback, ActivePageFeedback, WindowLifecycleFeedback,
+                                     ExternalStreamFeedback>;
 
 /**
  * @brief Serializes any supported runtime feedback payload to Protocol Buffers.

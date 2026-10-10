@@ -170,6 +170,7 @@ set(MFD_RENDER_PRIVATE_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/TextLayoutCache.h)
 
 set(MFD_RENDER_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ExternalStreamRegistry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/BezierPolylineCache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/CanvasDrawWork.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/Canvas2D.cpp
@@ -199,6 +200,7 @@ mfd_configure_component(
 target_include_directories(mfd_render_raylib_objects PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/render)
 target_link_libraries(mfd_render_raylib_objects
     PRIVATE
+        mfd::external_stream
         mfd::model
         mfd::runtime
         raylib)
@@ -221,6 +223,7 @@ mfd_configure_component(
 target_include_directories(mfd_render_raylib PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/render)
 target_link_libraries(mfd_render_raylib
     PUBLIC
+        mfd::external_stream
         raylib)
 
 if(WIN32)

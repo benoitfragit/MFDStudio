@@ -4,6 +4,7 @@
 include(GoogleTest)
 
 set(MFD_API_TEST_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/ExternalStreamTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ArrayViewTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BezierPolylineCacheTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/CanvasDrawWorkTests.cpp

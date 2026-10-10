@@ -113,6 +113,7 @@ install(FILES
 install(FILES
     ${MFD_ROOT_DIR}/mfd_common_api/include/mfd/model/PageDefinition.h
     ${MFD_ROOT_DIR}/mfd_common_api/include/mfd/model/PageName.h
+    ${MFD_ROOT_DIR}/mfd_common_api/include/mfd/model/ExternalStreamTypes.h
     ${MFD_ROOT_DIR}/mfd_common_api/include/mfd/model/Reticle.h
     ${MFD_ROOT_DIR}/mfd_common_api/include/mfd/model/Types.h
     DESTINATION include/mfd/model

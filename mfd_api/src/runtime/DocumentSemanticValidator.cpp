@@ -92,6 +92,10 @@ void CountPrimitive(DocumentResourceUsage& usage, const Primitive& primitive, co
     {
         CountPath(usage, image->file);
     }
+    else if (const auto* stream = std::get_if<ExternalStreamGeometry>(&primitive.geometry))
+    {
+        CountString(usage, stream->streamId);
+    }
 }
 
 void CountReticle(DocumentResourceUsage& usage, const ReticleGroup& reticle)

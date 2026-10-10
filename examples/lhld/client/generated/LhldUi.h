@@ -26,6 +26,7 @@ using CircleHandle = mfd::client::CircleHandle;
 using DiamondHandle = mfd::client::DiamondHandle;
 using EllipseHandle = mfd::client::EllipseHandle;
 using ImageHandle = mfd::client::ImageHandle;
+using ExternalStreamHandle = mfd::client::ExternalStreamHandle;
 using LineHandle = mfd::client::LineHandle;
 using PrimitiveHandle = mfd::client::PrimitiveHandle;
 using TriangleHandle = mfd::client::TriangleHandle;
@@ -2385,6 +2386,7 @@ public:
     bool SendStartup(mfd::CommandClient& client, const mfd::PageViewState& view, std::string statusText);
     bool ApplyFeedback(const mfd::StrobeStatusFeedback& feedback);
     bool ApplyFeedback(const mfd::ActivePageFeedback& feedback);
+    bool ApplyFeedback(const mfd::ExternalStreamFeedback& feedback);
     bool ApplyFeedbackPayload(std::string_view payload, std::string* error = nullptr);
     std::size_t PollFeedback(mfd::IExchangeChannel& channel, std::size_t maxMessages = 64, std::string* error = nullptr);
     std::uint64_t TotalDecodedFeedbackPackets() const noexcept;

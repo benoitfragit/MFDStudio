@@ -32,6 +32,7 @@
 
 #include "mfd/control/CommandTransport.h"
 #include "mfd/control/CommandTypes.h"
+#include "mfd/control/internal/ExternalStreamPatch.h"
 #include "mfd/control/FeedbackTransport.h"
 #include "mfd/control/StrobeFeedback.h"
 #include "mfd/control/WindowFeedback.h"
@@ -175,6 +176,7 @@ void IncrementCounter(std::atomic<std::uint64_t>& counter) noexcept
 
 void MergePrimitivePatch(PrimitivePatch& target, const PrimitivePatch& source)
 {
+    detail::MergeExternalStreamControl(target, target, source);
     if (source.visible.has_value())
     {
         target.visible = source.visible;
@@ -598,7 +600,7 @@ std::string DescribeFeedbackTarget(const FeedbackPayload& feedback)
     // Explicit named overloads keep the description per alternative. The static_assert turns any future
     // extension of FeedbackPayload into a compile error here, forcing a matching overload to be added
     // instead of silently falling through.
-    static_assert(std::variant_size_v<FeedbackPayload> == 3,
+    static_assert(std::variant_size_v<FeedbackPayload> == 4,
                   "DescribeFeedbackTarget must cover every FeedbackPayload alternative");
 
     if (const auto* strobe = std::get_if<StrobeStatusFeedback>(&feedback))
@@ -611,6 +613,7 @@ std::string DescribeFeedbackTarget(const FeedbackPayload& feedback)
         return DescribeFeedbackTargetImpl(*activePage);
     }
 
+    if (const auto* stream = std::get_if<ExternalStreamFeedback>(&feedback)) return "stream:" + stream->streamId;
     return DescribeFeedbackTargetImpl(std::get<WindowLifecycleFeedback>(feedback));
 }
 
@@ -1309,6 +1312,11 @@ void UdpRuntimeBridge::EnqueueWindowLifecycleFeedback(WindowLifecycleFeedback fe
     }
 
     impl_->PushQueuedFeedback(FeedbackPayload {std::move(feedback)});
+}
+
+void UdpRuntimeBridge::EnqueueExternalStreamFeedback(ExternalStreamFeedback feedback)
+{
+    if (impl_ != nullptr && HasFeedbackSender()) impl_->PushQueuedFeedback(FeedbackPayload {std::move(feedback)});
 }
 
 std::string UdpRuntimeBridge::LastCommandStatus() const

@@ -28,6 +28,7 @@ client_api_generate_ui(
     HEADER_INCLUDE "GeneratedUiFixture.h")
 
 set(CLIENT_API_TEST_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/ExternalStreamHandleTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/AnimationTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/GeneratedUiCompiledApiTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/GeneratedUiRuntimeTests.cpp

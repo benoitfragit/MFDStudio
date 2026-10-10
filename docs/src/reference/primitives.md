@@ -51,6 +51,7 @@ primitives can always be patched directly through the generated client API.
 | `bezier` | — |
 | `arc` | — |
 | `image` | `picture`, `sprite` |
+| `externalStream` | `external_stream` |
 
 ## Per-type fields
 
@@ -78,6 +79,10 @@ primitives can always be patched directly through the generated client API.
   `filled` renders a sector from the center.
 - **`image`** — `file` (aliases `image`, `source`, `path`), `size`, `width`,
   `height`. Paths resolve relative to the referencing page/reticle JSON.
+- **`externalStream`** — `streamId`, positive logical `width`/`height`, `fallback`
+  color, `fit` (`contain`/`stretch`), `defaultPlayback` (`play`/`stop`). Pixel
+  resolution is negotiated with the external producer. See
+  [External GPU Streams](../handbook/external_stream.md).
 
 ## Examples
 

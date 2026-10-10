@@ -71,3 +71,4 @@
 
 /Tasks/*
 /examples/hud/client/generated/*
+**/__pycache__/**

@@ -23,6 +23,7 @@
 #include "Canvas2D.h"
 #include "BezierPolylineCache.h"
 #include "ImageTextureCache.h"
+#include "ExternalStreamRegistry.h"
 #include "RenderWorkBudget.h"
 #include "RenderTextureUtils.h"
 #include "TextLayoutCache.h"
@@ -219,7 +220,8 @@ void DrawActivePageContent(const SceneRegistry& scene,
                            const bool clippingEnabled,
                            BezierPolylineCache* bezierCache,
                            ImageTextureCache* imageCache,
-                           TextLayoutCache* textLayoutCache)
+                           TextLayoutCache* textLayoutCache,
+                           ExternalStreamRegistry* externalStreams)
 {
     LayerLocalRestoreContext restoreContext;
     restoreContext.reticles = &activeReticles;
@@ -246,7 +248,7 @@ void DrawActivePageContent(const SceneRegistry& scene,
         bezierCache,
         imageCache,
         textLayoutCache,
-        std::move(restore));
+        std::move(restore), detail::kMaxCanvasDrawWorkUnits, externalStreams);
     restoreContext.canvas = &canvas;
 
     for (const ReticleRenderView& reticle : activeReticles)
@@ -292,6 +294,7 @@ struct MfdRenderer::Impl
     std::vector<ReticleRenderView> activeReticlesScratch {};
     BezierPolylineCache bezierCache {};
     ImageTextureCache imageCache {};
+    ExternalStreamRegistry externalStreams {};
     TextLayoutCache textLayoutCache {};
     TitleReticleCache titleReticleCache {};
 
@@ -321,6 +324,7 @@ struct MfdRenderer::Impl
     {
         bezierCache.Clear();
         imageCache.Clear();
+        externalStreams.Clear();
         ResetTextFont();
         const bool windowReady = IsWindowReady();
 
@@ -530,6 +534,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene)
 
 void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportWidth, const int viewportHeight)
 {
+    if (!impl_) return;
     if (viewportWidth <= 0 || viewportHeight <= 0)
     {
         return;
@@ -543,15 +548,12 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
     }
 
     const WindowDisplayState display = scene.WindowDisplay();
-    if (display.disabled)
-    {
-        DrawRectangle(0, 0, viewportWidth, viewportHeight, BLACK);
-        return;
-    }
 
     const auto activePage = scene.ActivePageSummary();
     if (!activePage.has_value())
     {
+        impl_->externalStreams.Clear();
+        if (display.disabled) DrawRectangle(0, 0, viewportWidth, viewportHeight, BLACK);
         return;
     }
 
@@ -597,6 +599,13 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
         activeReticles = &fallbackActiveReticles;
     }
 
+    ExternalStreamFrame streamFrame(impl_->externalStreams, *activeReticles, !display.disabled);
+    if (display.disabled)
+    {
+        DrawRectangle(0, 0, viewportWidth, viewportHeight, BLACK);
+        return;
+    }
+
     const bool usesFullScreenViewport = viewportWidth == screenWidth && viewportHeight == screenHeight;
     const bool needsRenderTarget =
         !usesFullScreenViewport ||
@@ -614,7 +623,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
             false,
             impl_ == nullptr ? nullptr : &impl_->bezierCache,
             impl_ == nullptr ? nullptr : &impl_->imageCache,
-            impl_ == nullptr ? nullptr : &impl_->textLayoutCache);
+            impl_ == nullptr ? nullptr : &impl_->textLayoutCache, &impl_->externalStreams);
         return;
     }
 
@@ -634,7 +643,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
             false,
             impl_ == nullptr ? nullptr : &impl_->bezierCache,
             impl_ == nullptr ? nullptr : &impl_->imageCache,
-            impl_ == nullptr ? nullptr : &impl_->textLayoutCache);
+            impl_ == nullptr ? nullptr : &impl_->textLayoutCache, &impl_->externalStreams);
 
         if (display.brightness < 0.9995f)
         {
@@ -663,7 +672,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
             impl_->renderTargetStencilReady,
             &impl_->bezierCache,
             &impl_->imageCache,
-            &impl_->textLayoutCache);
+            &impl_->textLayoutCache, &impl_->externalStreams);
     }
 
     const Rectangle source {
@@ -688,5 +697,10 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
         ShaderModeScope shaderMode(impl_->shader);
         DrawTexturePro(impl_->renderTarget.texture, source, destination, Vector2 {0.0f, 0.0f}, 0.0f, WHITE);
     }
+}
+const std::vector<ExternalStreamFeedback>& MfdRenderer::ExternalStreams() const noexcept
+{
+    static const std::vector<ExternalStreamFeedback> empty;
+    return impl_ ? impl_->externalStreams.Feedback() : empty;
 }
 } // namespace mfd

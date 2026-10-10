@@ -184,7 +184,9 @@ bool Equal(const mfd::PrimitivePatch& lhs, const mfd::PrimitivePatch& rhs)
            EqualOptional(lhs.timeValue, rhs.timeValue) &&
            lhs.clearTimeValue == rhs.clearTimeValue &&
            EqualOptional(lhs.timeUtc, rhs.timeUtc) &&
-           EqualOptional(lhs.timeFields, rhs.timeFields);
+           EqualOptional(lhs.timeFields, rhs.timeFields) &&
+           EqualOptional(lhs.streamPlayback, rhs.streamPlayback) &&
+           EqualOptional(lhs.streamStopToken, rhs.streamStopToken);
 }
 
 bool Equal(const mfd::ReticlePatch& lhs, const mfd::ReticlePatch& rhs)
@@ -299,6 +301,8 @@ mfd::PrimitivePatch BuildDeltaPrimitivePatch(const mfd::PrimitivePatch& desired,
     }
     CopyChangedOptionalField(desired.timeUtc, previous.timeUtc, delta.timeUtc);
     CopyChangedOptionalField(desired.timeFields, previous.timeFields, delta.timeFields);
+    CopyChangedOptionalField(desired.streamPlayback, previous.streamPlayback, delta.streamPlayback);
+    CopyChangedOptionalField(desired.streamStopToken, previous.streamStopToken, delta.streamStopToken);
     return delta;
 }
 
@@ -541,6 +545,43 @@ bool StrobeType::IsDefaultActive() const noexcept
     return defaultActive_;
 }
 
+bool RuntimeFeedbackState::Apply(const mfd::ExternalStreamFeedback& feedback)
+{
+    if (!mfd::IsValidStreamId(feedback.streamId) || !mfd::IsValidStreamId(feedback.instance)) return false;
+    auto position = streams_.find(feedback.streamId);
+    if (position != streams_.end() && position->second.feedback.instance == feedback.instance &&
+        !SequenceIsNewer(feedback.sequence, position->second.feedback.sequence)) return false;
+    if (position == streams_.end() && streams_.size() >= 4)
+    {
+        const auto oldest = std::min_element(streams_.begin(), streams_.end(), [](const auto& first, const auto& second)
+                                             { return first.second.received < second.second.received; });
+        streams_.erase(oldest);
+    }
+    streams_[feedback.streamId] = StreamObservation {feedback, std::chrono::steady_clock::now()};
+    return true;
+}
+mfd::ExternalStreamStatus RuntimeFeedbackState::StreamStatus(const std::string_view streamId) const
+{
+    const auto position = streams_.find(std::string(streamId));
+    if (position == streams_.end()) return {};
+    auto status = position->second.feedback.status;
+    if (std::chrono::steady_clock::now() - position->second.received > std::chrono::seconds(2)) status.fresh = false;
+    return status;
+}
+void ExternalStreamHandle::Play() { Patch().streamPlayback = mfd::StreamPlayback::Play; MarkDirty(); }
+void ExternalStreamHandle::Pause() { Patch().streamPlayback = mfd::StreamPlayback::Pause; MarkDirty(); }
+void ExternalStreamHandle::Stop()
+{
+    Patch().streamPlayback = mfd::StreamPlayback::Stop;
+    Patch().streamStopToken = ++stopToken_;
+    MarkDirty();
+}
+void ExternalStreamHandle::SetSize(const mfd::Vec2 size) { Patch().size = size; MarkDirty(); }
+void ExternalStreamHandle::BindFeedback(RuntimeFeedbackState* feedback) noexcept { feedback_ = feedback; }
+mfd::ExternalStreamStatus ExternalStreamHandle::GetStatus() const
+{ return feedback_ ? feedback_->StreamStatus(Baseline().streamId) : mfd::ExternalStreamStatus {}; }
+std::uint64_t ExternalStreamHandle::GetLastConsumedFrame() const { return GetStatus().consumedFrame; }
+
 bool RuntimeFeedbackState::Apply(const mfd::StrobeStatusFeedback& feedback)
 {
     if (feedback.pageId == 0U || feedback.strobeId == 0U)
@@ -734,6 +775,7 @@ std::size_t RuntimeFeedbackState::Poll(mfd::IExchangeChannel& channel,
 
 void RuntimeFeedbackState::Reset() noexcept
 {
+    streams_.clear();
     pageCaptureById_.clear();
     pageCaptureAccessOrdinal_ = 0;
     activePageId_ = 0;

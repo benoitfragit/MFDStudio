@@ -525,6 +525,7 @@ public:
             const ScopedTextureMode textureMode(target_);
             ClearBackground(ToRayColor(scene.ActiveBackgroundColor()));
             renderer_.DrawActivePage(scene, width_, height_, targetStencilReady_);
+            internal::RuntimeSessionInternalAccess::SetExternalStreams(session, renderer_.ExternalStreams());
         }
 
         if (!ReadRgba8Framebuffer(target_, framePixels_, frameWidth_, frameHeight_))

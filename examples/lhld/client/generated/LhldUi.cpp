@@ -2387,6 +2387,11 @@ bool LhldUi::ApplyFeedback(const mfd::ActivePageFeedback& feedback)
     return feedbackState_.Apply(feedback);
 }
 
+bool LhldUi::ApplyFeedback(const mfd::ExternalStreamFeedback& feedback)
+{
+    return feedbackState_.Apply(feedback);
+}
+
 bool LhldUi::ApplyFeedbackPayload(std::string_view payload, std::string* error)
 {
     return feedbackState_.ApplyPayload(payload, error);

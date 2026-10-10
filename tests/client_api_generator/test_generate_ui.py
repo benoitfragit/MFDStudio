@@ -41,6 +41,7 @@ class GenerateUiTests(unittest.TestCase):
                         "elements": [
                             {"id": "status_value", "type": "text"},
                             {"id": "decor", "type": "line"},
+                            {"id": "camera", "type": "externalStream", "streamId": "camera_dynamic", "exposed": True},
                         ],
                     }
                 ),
@@ -52,6 +53,7 @@ class GenerateUiTests(unittest.TestCase):
                         "id": "cursor_template",
                         "elements": [
                             {"id": "cursor_line", "type": "line", "exposed": True},
+                            {"id": "camera", "type": "externalStream", "streamId": "camera_cursor", "exposed": True},
                         ],
                     }
                 ),
@@ -165,6 +167,10 @@ class GenerateUiTests(unittest.TestCase):
             header_content = output_header.read_text(encoding="utf-8")
             source_content = output_source.read_text(encoding="utf-8")
             map_content = json.loads(output_map.read_text(encoding="utf-8"))
+            self.assertIn("ExternalStreamHandle& Camera() noexcept;", header_content)
+            self.assertIn("reticle->Camera().BindFeedback(streamFeedback_);", source_content)
+            self.assertIn(".Camera().BindFeedback(feedbackState);", source_content)
+            self.assertIn('"camera_dynamic"', source_content)
 
             for expected in [
                 "AUTO-GENERATED FILE.",
@@ -311,7 +317,7 @@ class GenerateUiTests(unittest.TestCase):
             self.assertEqual(len(map_content["templates"]), 1)
             self.assertEqual(len(map_content["blinkTypes"]), 1)
             self.assertEqual(len(map_content["strobes"]), 2)
-            self.assertEqual(len(map_content["primitives"]), 6)
+            self.assertEqual(len(map_content["primitives"]), 9)
             self.assertTrue(all("strobe" not in row for row in map_content["pages"]))
             self.assertTrue(any(row["strobeName"] == "Default" and row["defaultActive"] for row in map_content["strobes"]))
             self.assertTrue(any(row["strobeName"] == "Strobe1" and not row["defaultActive"] for row in map_content["strobes"]))

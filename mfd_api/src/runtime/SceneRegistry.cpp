@@ -118,6 +118,7 @@ std::string NormalizeReticleId(const std::string_view value)
 
 bool IsValidPrimitivePatch(const PrimitivePatch& patch) noexcept
 {
+    if (patch.streamPlayback && static_cast<std::uint32_t>(*patch.streamPlayback) > 2) return false;
     if (patch.position.has_value() && !IsValidVec2(*patch.position))
     {
         return false;
@@ -532,6 +533,15 @@ bool ApplyArcPrimitivePatch(ArcGeometry& geometry, const PrimitivePatch& patch)
 bool ApplyPatchToPrimitive(Primitive& primitive, const PrimitivePatch& patch)
 {
     bool applied = false;
+    if (auto* stream = std::get_if<ExternalStreamGeometry>(&primitive.geometry))
+    {
+        if (patch.streamPlayback) { stream->playback = *patch.streamPlayback; applied = true; }
+        if (patch.streamStopToken || patch.streamPlayback == StreamPlayback::Stop)
+        { ++stream->stopRevision; applied = true; }
+        if (patch.width) { stream->width = *patch.width; applied = true; }
+        if (patch.height) { stream->height = *patch.height; applied = true; }
+        if (patch.size) { stream->width = patch.size->x; stream->height = patch.size->y; applied = true; }
+    }
 
     if (patch.visible.has_value())
     {

@@ -24,6 +24,7 @@
 #include "render/BezierPolylineCache.h"
 #include "render/Canvas2D.h"
 #include "render/ImageTextureCache.h"
+#include "render/ExternalStreamRegistry.h"
 #include "render/TextLayoutCache.h"
 
 namespace mfd::runtime_api::internal
@@ -83,7 +84,8 @@ void DrawActivePageContent(const SceneRegistry& scene,
                            const bool clippingEnabled,
                            BezierPolylineCache* bezierCache,
                            ImageTextureCache* imageCache,
-                           TextLayoutCache* textLayoutCache)
+                           TextLayoutCache* textLayoutCache,
+                           ExternalStreamRegistry* streams)
 {
     const Canvas2D canvas(
         width,
@@ -94,7 +96,7 @@ void DrawActivePageContent(const SceneRegistry& scene,
         clippingEnabled,
         bezierCache,
         imageCache,
-        textLayoutCache);
+        textLayoutCache, {}, detail::kMaxCanvasDrawWorkUnits, streams);
 
     for (const ReticleRenderView& reticle : activeReticles)
     {
@@ -136,6 +138,7 @@ public:
     {
         bezierCache_.Clear();
         imageCache_.Clear();
+        externalStreams_.Clear();
         ResetTextFont();
     }
 
@@ -261,6 +264,8 @@ public:
         }
 
         scene.CollectActiveReticleViews(activeReticlesScratch_);
+        ExternalStreamFrame streamFrame(externalStreams_, activeReticlesScratch_, !scene.WindowDisplay().disabled);
+        if (scene.WindowDisplay().disabled) return;
         const bool clippingEnabled =
             clippingAvailable && ActiveReticleViewsUseClipping(activeReticlesScratch_);
         DrawActivePageContent(
@@ -273,10 +278,12 @@ public:
             clippingEnabled,
             &bezierCache_,
             &imageCache_,
-            &textLayoutCache_);
+            &textLayoutCache_, &externalStreams_);
     }
 
+    const std::vector<ExternalStreamFeedback>& ExternalStreams() const noexcept { return externalStreams_.Feedback(); }
 private:
+    ExternalStreamRegistry externalStreams_;
     std::filesystem::path fontFile_ {};
     Font textFont_ {};
     bool textFontReady_ = false;
@@ -325,5 +332,10 @@ void OffscreenPageRenderer::Release() noexcept
     {
         impl_->Release();
     }
+}
+const std::vector<ExternalStreamFeedback>& OffscreenPageRenderer::ExternalStreams() const noexcept
+{
+    static const std::vector<ExternalStreamFeedback> empty;
+    return impl_ ? impl_->ExternalStreams() : empty;
 }
 } // namespace mfd::runtime_api::internal

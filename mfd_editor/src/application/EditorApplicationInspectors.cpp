@@ -1,3 +1,4 @@
+#include "internal/application/EditorExternalStreamInspector.h"
 /*
  * This file is part of MFDStudio.
  * Project author: Benoit Fra
@@ -3514,6 +3515,7 @@ void EditorApplication::DrawLibraryReticleInspector()
         mfd::ReticleGroup seed = MakePrimitiveReticle("seed", primitiveType);
         mfd::Primitive primitive = seed.primitives.front();
         primitive.id = "primitive_" + std::to_string(reticle->primitives.size() + 1);
+        editor::app::InitializeExternalStreamIdentifier(primitive, reticle->id);
         if (tutorialAppendMatched)
         {
             tutorial_->ConfigureAppendedPrimitive(primitive);
@@ -4236,6 +4238,16 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         }
         ShowItemTooltip("Number of line segments used to approximate the arc.");
         return;
+    }
+
+    if (const auto* stream = std::get_if<mfd::ExternalStreamGeometry>(&primitive->geometry))
+    {
+        const auto edit = editor::app::DrawExternalStreamInspector(*stream, previewState_.externalStreams);
+        if (edit)
+        {
+            PushUndoSnapshot();
+            editor::app::ApplyExternalStreamEdit(*primitive, *edit);
+        }
     }
 
     if (auto* image = std::get_if<mfd::ImageGeometry>(&primitive->geometry))

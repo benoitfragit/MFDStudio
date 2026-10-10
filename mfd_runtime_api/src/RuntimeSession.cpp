@@ -11,6 +11,7 @@
 #include "mfd/runtime_api/RuntimeSession.h"
 
 #include <cmath>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -525,6 +526,12 @@ public:
         return commandTransactionMode_;
     }
 
+    void SetExternalStreams(const std::vector<ExternalStreamFeedback>& feedback)
+    {
+        externalStreams_.assign(feedback.begin(), feedback.begin() + std::min<std::size_t>(feedback.size(), 4));
+        externalStreamsObserved_ = std::chrono::steady_clock::now();
+    }
+
     void PublishRuntimeFeedback(const float deltaSeconds)
     {
         if (runtimeBridge_ == nullptr || !runtimeBridge_->FeedbackTransportReady())
@@ -565,6 +572,17 @@ public:
         // BuildStrobeFeedback() scans the scene's dynamic reticles; skip it entirely when
         // neither a changed nor a heartbeat feedback could be sent this frame anyway.
         const bool feedbackDue = changedDue || heartbeatDue;
+        if (feedbackDue)
+        {
+            for (ExternalStreamFeedback feedback : externalStreams_)
+            {
+                if (std::chrono::steady_clock::now() - externalStreamsObserved_ >= std::chrono::seconds(2))
+                    feedback.status.fresh = false;
+                feedback.sequence = nextFeedbackSequence_++;
+                runtimeBridge_->EnqueueExternalStreamFeedback(std::move(feedback));
+                sentChanged = true;
+            }
+        }
         if (scene_.ActivePageHasStrobe() && feedbackDue)
         {
             std::optional<StrobeStatusFeedback> feedback = BuildStrobeFeedback(activePageName);
@@ -707,6 +725,7 @@ private:
         pendingCommandBatches_.clear();
         appliedCommandBatches_.clear();
         lastPublishedStrobeFeedbacks_.clear();
+        externalStreams_.clear();
         lastPublishedActivePage_.reset();
         nextFeedbackSequence_ = 1U;
         lifecycleHeartbeatPending_ = true;
@@ -732,6 +751,8 @@ private:
     std::vector<CommandBatch> pendingCommandBatches_ {};
     std::vector<CommandBatch> appliedCommandBatches_ {};
     std::unordered_map<std::string, StrobeStatusFeedback> lastPublishedStrobeFeedbacks_ {};
+    std::vector<ExternalStreamFeedback> externalStreams_;
+    std::chrono::steady_clock::time_point externalStreamsObserved_ {};
     std::optional<std::string> lastPublishedActivePage_ {};
     RuntimeCommandTransactionMode commandTransactionMode_ = RuntimeCommandTransactionMode::Transactional;
     bool debugTelemetryEnabled_ = false;
@@ -873,5 +894,10 @@ void RuntimeSessionInternalAccess::SetDebugTelemetryEnabled(RuntimeSession& sess
     {
         session.impl_->SetDebugTelemetryEnabled(enabled);
     }
+}
+void RuntimeSessionInternalAccess::SetExternalStreams(const RuntimeSession& session,
+                                                       const std::vector<ExternalStreamFeedback>& feedback)
+{
+    if (session.impl_) session.impl_->SetExternalStreams(feedback);
 }
 } // namespace mfd::runtime_api::internal

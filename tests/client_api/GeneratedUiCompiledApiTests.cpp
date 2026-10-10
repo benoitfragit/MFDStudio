@@ -25,6 +25,23 @@
 
 namespace
 {
+TEST(GeneratedUiCompiledApiTests, DynamicExternalStreamReceivesTypedFeedback)
+{
+    generated_ui_fixture::GeneratedUiFixture ui;
+    auto& reticle = ui.Radar().DynamicGeometryTemplate().Create();
+    reticle.Camera().Stop();
+    reticle.Camera().Play();
+    mfd::ExternalStreamFeedback feedback;
+    feedback.streamId = "camera_dynamic";
+    feedback.instance = "test-1";
+    feedback.sequence = 1;
+    feedback.status.hasImage = true;
+    feedback.status.consumedFrame = 99;
+    EXPECT_TRUE(ui.ApplyFeedback(feedback));
+    EXPECT_EQ(reticle.Camera().GetLastConsumedFrame(), 99U);
+    EXPECT_TRUE(reticle.Camera().GetStatus().hasImage);
+}
+
 template <typename Command>
 const Command* FindCommand(const std::vector<mfd::UserCommand>& commands)
 {

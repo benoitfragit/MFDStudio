@@ -12,6 +12,8 @@
 
 #include <filesystem>
 #include <memory>
+#include <vector>
+#include "mfd/control/WindowFeedback.h"
 
 namespace mfd
 {
@@ -60,6 +62,8 @@ public:
                         int viewportWidth,
                         int viewportHeight,
                         bool clippingAvailable);
+
+    const std::vector<ExternalStreamFeedback>& ExternalStreams() const noexcept;
 
 private:
     class Impl;

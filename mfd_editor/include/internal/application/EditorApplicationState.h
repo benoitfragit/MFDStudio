@@ -11,6 +11,7 @@
  */
 
 #include <array>
+#include "ExternalStreamRegistry.h"
 #include <cstdint>
 #include <filesystem>
 #include <limits>
@@ -378,6 +379,7 @@ struct PreviewState
     std::vector<int> orderedStaticReticleIndices {};
     mfd::BezierPolylineCache previewBezierCache {};
     mfd::ImageTextureCache previewImageCache {};
+    mfd::ExternalStreamRegistry externalStreams {};
     mfd::TextLayoutCache previewTextLayoutCache {};
     RenderTexture2D tooltipPreviewTexture {};
     bool tooltipPreviewTextureReady = false;

@@ -24,6 +24,7 @@
 
 #include "BezierPolylineCache.h"
 #include "ImageTextureCache.h"
+#include "ExternalStreamRegistry.h"
 #include "OpenGlCompat.h"
 #include "PolygonTriangulation.h"
 #include "TextAnchorSnap.h"
@@ -592,8 +593,10 @@ Canvas2D::Canvas2D(const int width,
                    ImageTextureCache* imageCache,
                    TextLayoutCache* textLayoutCache,
                    BackgroundRestoreCallback backgroundRestore,
-                   const std::size_t maximumDrawWorkUnits)
-    : width_(width)
+                   const std::size_t maximumDrawWorkUnits,
+                   ExternalStreamRegistry* externalStreams)
+    : externalStreams_(externalStreams)
+    , width_(width)
     , height_(height)
     , view_(view)
     , textFont_(textFont)
@@ -1401,6 +1404,33 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
         {
             DrawPolylineStroke(screenScratchA_, false, strokeThickness, strokeColor, style.lineStyle, drawBudget_);
         }
+        break;
+    }
+    case PrimitiveType::ExternalStream:
+    {
+        const auto* stream = std::get_if<ExternalStreamGeometry>(&primitive.geometry);
+        if (!stream) break;
+        const Vector2 center = ToScreen(TransformPoint({}, primitive, group));
+        float width = ToViewPixels(stream->width * std::abs(combinedTransform.scale.x));
+        float height = ToViewPixels(stream->height * std::abs(combinedTransform.scale.y));
+        if (!IsFiniteVector(center) || !std::isfinite(width) || !std::isfinite(height) || width <= 0 || height <= 0)
+            break;
+        if (!drawBudget_.TryConsume(detail::EstimateDirectDrawWorkUnits())) break;
+        const float rotation = -combinedTransform.rotationDegrees;
+        DrawRectanglePro(Rectangle {center.x, center.y, width, height}, Vector2 {width * 0.5f, height * 0.5f},
+                         rotation, Color {stream->fallback.r, stream->fallback.g, stream->fallback.b, stream->fallback.a});
+        const Texture2D texture = externalStreams_ ? externalStreams_->Resolve(*stream) : Texture2D {};
+        if (!texture.id || texture.width <= 0 || texture.height <= 0) break;
+        if (stream->fit == StreamFit::Contain)
+        {
+            const float factor = std::min(width / static_cast<float>(texture.width), height / static_cast<float>(texture.height));
+            width = static_cast<float>(texture.width) * factor;
+            height = static_cast<float>(texture.height) * factor;
+        }
+        const Rectangle source {0, 0, static_cast<float>(texture.width) * (combinedTransform.scale.x < 0 ? -1.0f : 1.0f),
+                                static_cast<float>(texture.height) * (combinedTransform.scale.y < 0 ? -1.0f : 1.0f)};
+        DrawTexturePro(texture, source, Rectangle {center.x, center.y, width, height},
+                       Vector2 {width * 0.5f, height * 0.5f}, rotation, WHITE);
         break;
     }
     case PrimitiveType::Image:

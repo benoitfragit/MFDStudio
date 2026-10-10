@@ -84,5 +84,21 @@ message FeedbackEnvelope
     StrobeStatusFeedback strobe_status = 1;
     ActivePageFeedback active_page = 2;
     WindowLifecycleFeedback window_lifecycle = 3;
+    ExternalStreamFeedback external_stream = 4;
   }
+}
+
+message ExternalStreamFeedback
+{
+  uint32 sequence = 1;
+  string stream_id = 2;
+  string instance = 3;
+  bool producer_connected = 4;
+  bool has_image = 5;
+  bool fresh = 6;
+  uint32 playback = 7;
+  uint32 result = 8;
+  uint64 consumed_frame = 9;
+  uint64 generation = 10;
+  string diagnostic = 11;
 }

@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <string>
 #include <string_view>
@@ -22,6 +23,20 @@
 
 namespace editor::app
 {
+/** @brief Assigns a valid default source ID when creating an external-stream primitive.
+ * @param primitive Newly authored primitive; other primitive types are left intact.
+ * @param ownerId Reticle identifier used to distinguish independent authored sources.
+ * @note The resulting identifier is persisted; users may rename it in the inspector.
+ */
+inline void InitializeExternalStreamIdentifier(mfd::Primitive& primitive, const std::string& ownerId)
+{
+    if (auto* stream = std::get_if<mfd::ExternalStreamGeometry>(&primitive.geometry))
+    {
+        const std::string identity = ownerId + '\n' + primitive.id;
+        stream->streamId = "stream_" + std::to_string(std::hash<std::string> {}(identity));
+    }
+}
+
 /**
  * @brief One selectable clipping primitive exposed in combo boxes and context menus.
  */
@@ -68,6 +83,8 @@ inline std::string PrimitiveTypeLabel(const mfd::PrimitiveType type)
         return "Arc";
     case mfd::PrimitiveType::Image:
         return "Image";
+    case mfd::PrimitiveType::ExternalStream:
+        return "External stream";
     }
 
     return "Primitive";
@@ -123,6 +140,7 @@ inline bool SupportsPrimitiveLineStyle(const mfd::PrimitiveType type) noexcept
     case mfd::PrimitiveType::Text:
     case mfd::PrimitiveType::Time:
     case mfd::PrimitiveType::Image:
+    case mfd::PrimitiveType::ExternalStream:
         return false;
     default:
         return true;

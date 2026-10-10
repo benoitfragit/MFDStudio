@@ -904,6 +904,13 @@ LogicalBounds ComputePrimitiveLocalBounds(const mfd::Primitive& primitive)
         IncludePrimitiveTransformedPoint(bounds, primitive, {image->width * 0.5f, image->height * 0.5f});
         IncludePrimitiveTransformedPoint(bounds, primitive, {-image->width * 0.5f, image->height * 0.5f});
     }
+    else if (const auto* stream = std::get_if<mfd::ExternalStreamGeometry>(&primitive.geometry))
+    {
+        IncludePrimitiveTransformedPoint(bounds, primitive, {-stream->width * 0.5f, -stream->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {stream->width * 0.5f, -stream->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {stream->width * 0.5f, stream->height * 0.5f});
+        IncludePrimitiveTransformedPoint(bounds, primitive, {-stream->width * 0.5f, stream->height * 0.5f});
+    }
 
     FinalizeLogicalBounds(bounds);
     return bounds;
@@ -1047,6 +1054,13 @@ LogicalBounds ComputeReticleWorldBounds(const mfd::ReticleGroup& reticle)
             IncludePrimitiveWorldPoint(worldBounds, reticle, primitive, {image->width * 0.5f, -image->height * 0.5f});
             IncludePrimitiveWorldPoint(worldBounds, reticle, primitive, {image->width * 0.5f, image->height * 0.5f});
             IncludePrimitiveWorldPoint(worldBounds, reticle, primitive, {-image->width * 0.5f, image->height * 0.5f});
+        }
+        else if (const auto* stream = std::get_if<mfd::ExternalStreamGeometry>(&primitive.geometry))
+        {
+            IncludePrimitiveWorldPoint(worldBounds, reticle, primitive, {-stream->width * 0.5f, -stream->height * 0.5f});
+            IncludePrimitiveWorldPoint(worldBounds, reticle, primitive, {stream->width * 0.5f, -stream->height * 0.5f});
+            IncludePrimitiveWorldPoint(worldBounds, reticle, primitive, {stream->width * 0.5f, stream->height * 0.5f});
+            IncludePrimitiveWorldPoint(worldBounds, reticle, primitive, {-stream->width * 0.5f, stream->height * 0.5f});
         }
     }
 
@@ -1317,6 +1331,20 @@ void AppendPrimitiveScreenSegments(const ExportViewport& viewport,
     {
         const float halfWidth = image->width * 0.5f;
         const float halfHeight = image->height * 0.5f;
+        AppendScreenPolylineSegments(viewport,
+                                     reticle,
+                                     primitive,
+                                     {{-halfWidth, -halfHeight},
+                                      {halfWidth, -halfHeight},
+                                      {halfWidth, halfHeight},
+                                      {-halfWidth, halfHeight}},
+                                     true,
+                                     segments);
+    }
+    else if (const auto* stream = std::get_if<mfd::ExternalStreamGeometry>(&primitive.geometry))
+    {
+        const float halfWidth = stream->width * 0.5f;
+        const float halfHeight = stream->height * 0.5f;
         AppendScreenPolylineSegments(viewport,
                                      reticle,
                                      primitive,

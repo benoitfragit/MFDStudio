@@ -596,6 +596,13 @@ inline void ForEachPrimitiveBoundsLocalPoint(const mfd::Primitive& primitive, TC
         callback(mfd::Vec2 {image->width * 0.5f, image->height * 0.5f});
         callback(mfd::Vec2 {-image->width * 0.5f, image->height * 0.5f});
     }
+    else if (const auto* stream = std::get_if<mfd::ExternalStreamGeometry>(&primitive.geometry))
+    {
+        callback(mfd::Vec2 {-stream->width * 0.5f, -stream->height * 0.5f});
+        callback(mfd::Vec2 {stream->width * 0.5f, -stream->height * 0.5f});
+        callback(mfd::Vec2 {stream->width * 0.5f, stream->height * 0.5f});
+        callback(mfd::Vec2 {-stream->width * 0.5f, stream->height * 0.5f});
+    }
 }
 
 /**
@@ -639,7 +646,7 @@ inline int DefaultPageIndex(const std::vector<mfd::PageDefinition>& pages) noexc
 /**
  * @brief List of primitive kinds offered by the reticle-creation workflows.
  */
-inline constexpr std::array<mfd::PrimitiveType, 14> kPrimitiveTypes {
+inline constexpr std::array<mfd::PrimitiveType, 15> kPrimitiveTypes {
     mfd::PrimitiveType::Text,
     mfd::PrimitiveType::Time,
     mfd::PrimitiveType::Line,
@@ -653,7 +660,8 @@ inline constexpr std::array<mfd::PrimitiveType, 14> kPrimitiveTypes {
     mfd::PrimitiveType::Polyline,
     mfd::PrimitiveType::Bezier,
     mfd::PrimitiveType::Arc,
-    mfd::PrimitiveType::Image};
+    mfd::PrimitiveType::Image,
+    mfd::PrimitiveType::ExternalStream};
 
 /**
  * @brief Tutorial template id reserved for the integrated aircraft-reference walkthrough.

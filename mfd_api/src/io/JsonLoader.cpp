@@ -1230,6 +1230,10 @@ PrimitiveType ParsePrimitiveType(const std::string_view value)
         return PrimitiveType::Arc;
     }
 
+    if (lowered == "externalstream" || lowered == "external_stream")
+    {
+        return PrimitiveType::ExternalStream;
+    }
     if (lowered == "image" || lowered == "picture" || lowered == "sprite")
     {
         return PrimitiveType::Image;
@@ -1444,6 +1448,24 @@ Primitive ParsePrimitive(const json& node, const std::filesystem::path& baseFold
             geometry.endAngleDegrees = ParseFiniteFloat(*endAngle, "Arc end angle");
         }
 
+        primitive.geometry = std::move(geometry);
+        break;
+    }
+    case PrimitiveType::ExternalStream:
+    {
+        ExternalStreamGeometry geometry;
+        geometry.streamId = node.at("streamId").get<std::string>();
+        if (!IsValidStreamId(geometry.streamId)) throw std::runtime_error("Invalid external streamId");
+        if (const json* width = FindField(node, {"width"})) geometry.width = ParseFiniteFloat(*width, "Stream width");
+        if (const json* height = FindField(node, {"height"})) geometry.height = ParseFiniteFloat(*height, "Stream height");
+        if (const json* fallback = FindField(node, {"fallback"})) geometry.fallback = ParseColor(*fallback);
+        const std::string fit = node.value("fit", "contain");
+        if (fit != "contain" && fit != "stretch") throw std::runtime_error("Stream fit must be contain or stretch");
+        geometry.fit = fit == "contain" ? StreamFit::Contain : StreamFit::Stretch;
+        const std::string playback = node.value("defaultPlayback", "play");
+        if (playback != "play" && playback != "stop") throw std::runtime_error("Stream defaultPlayback must be play or stop");
+        geometry.defaultPlayback = playback == "play" ? StreamPlayback::Play : StreamPlayback::Stop;
+        geometry.playback = geometry.defaultPlayback;
         primitive.geometry = std::move(geometry);
         break;
     }
@@ -2864,6 +2886,8 @@ std::string PrimitiveTypeToGeneratedName(const PrimitiveType type)
         return "arc";
     case PrimitiveType::Image:
         return "image";
+    case PrimitiveType::ExternalStream:
+        return "externalstream";
     }
 
     return {};

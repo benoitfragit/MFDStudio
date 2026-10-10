@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 project(MFD
-    VERSION 2.9.4
+    VERSION 2.10.0
     DESCRIPTION "2D Multi-Function Display framework with JSON pages and reusable reticles"
     LANGUAGES C CXX)
 
@@ -160,6 +160,7 @@ if(MFD_BUILD_TESTS)
 endif()
 
 add_subdirectory(mfd_common_api)
+add_subdirectory(mfd_external_stream)
 add_subdirectory(mfd_api)
 add_subdirectory(mfd_runtime_api)
 add_subdirectory(mfd_client_api/generator)

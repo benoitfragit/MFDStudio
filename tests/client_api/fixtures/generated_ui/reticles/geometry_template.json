@@ -2,6 +2,12 @@
   "id": "geometry_template",
   "elements": [
     {
+      "id": "camera",
+      "type": "external_stream",
+      "streamId": "camera_dynamic",
+      "exposed": true
+    },
+    {
       "id": "track_label",
       "type": "text"
     },

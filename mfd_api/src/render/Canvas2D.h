@@ -24,6 +24,7 @@ namespace mfd
 class BezierPolylineCache;
 class ImageTextureCache;
 class TextLayoutCache;
+class ExternalStreamRegistry;
 
 /**
  * @brief Lightweight 2D renderer turning reticle data into raylib draw calls.
@@ -53,6 +54,7 @@ public:
      * @param backgroundRestore Optional callback repainting the clipped background; when empty the
      *        runtime behaviour of filling the erased region with @p backgroundColor is kept.
      * @param maximumDrawWorkUnits Logical render-work limit owned by this internal canvas instance.
+     * @param externalStreams Optional renderer-owned registry providing borrowed GPU textures.
      */
     Canvas2D(int width,
              int height,
@@ -64,7 +66,8 @@ public:
              ImageTextureCache* imageCache = nullptr,
              TextLayoutCache* textLayoutCache = nullptr,
              BackgroundRestoreCallback backgroundRestore = {},
-             std::size_t maximumDrawWorkUnits = detail::kMaxCanvasDrawWorkUnits);
+             std::size_t maximumDrawWorkUnits = detail::kMaxCanvasDrawWorkUnits,
+             ExternalStreamRegistry* externalStreams = nullptr);
 
     /**
      * @brief Draws one full reticle group.
@@ -90,6 +93,7 @@ public:
     void DrawReticleWithoutClipping(const ReticleGroup& reticle, bool visible) const;
 
 private:
+    ExternalStreamRegistry* externalStreams_ = nullptr;
     /** @brief Identifies the already validated representation used to draw one clipping mask. */
     enum class PreparedClipMaskType
     {

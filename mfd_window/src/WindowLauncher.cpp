@@ -1438,6 +1438,8 @@ public:
                 {
                     ClearBackground(ToRayColor(renderScene.ActiveBackgroundColor()));
                     renderer_.DrawActivePage(renderScene, RenderViewportWidth(), GetScreenHeight());
+                    mfd::runtime_api::internal::RuntimeSessionInternalAccess::SetExternalStreams(
+                        runtimeSession_, renderer_.ExternalStreams());
                 }
                 debugOverlay_.Draw(RuntimeScene(), windowDefinition_, applicationName_, lastRuntimeError_);
                 if (debugWasActiveDuringDraw != debugOverlay_.Active())

@@ -1,0 +1,25 @@
+{
+  "name": "Streams",
+  "title": "External streams",
+  "bg": "#0B121CFF",
+  "layers": [{"id": "default"}],
+  "staticReticles": [
+    {"id": "left", "layerId": "default", "position": [-0.8, 0.1], "elements": [
+      {"id": "surface", "type": "externalStream", "streamId": "camera_a", "width": 1.5, "height": 0.84375, "exposed": true, "fallback": "#182438FF", "fit": "contain", "defaultPlayback": "play"},
+      {"id": "frame", "type": "rectangle", "width": 1.5, "height": 0.84375, "stroke": "#58E0CAFF", "thickness": 0.006},
+      {"id": "cross_h", "type": "line", "start": [-0.06, 0], "end": [0.06, 0], "stroke": "#FFFFFFFF"},
+      {"id": "cross_v", "type": "line", "start": [0, -0.06], "end": [0, 0.06], "stroke": "#FFFFFFFF"},
+      {"id": "label", "type": "text", "text": "CAMERA A / MFD OVERLAY", "position": [0, 0.5], "fontSize": 0.045, "stroke": "#58E0CAFF"}
+    ]},
+    {"id": "right", "layerId": "default", "position": [0.8, 0.1], "elements": [
+      {"id": "surface", "type": "externalStream", "streamId": "camera_b", "width": 1.5, "height": 0.84375, "exposed": true, "fallback": "#281A35FF", "fit": "contain", "defaultPlayback": "play"},
+      {"id": "frame", "type": "rectangle", "width": 1.5, "height": 0.84375, "stroke": "#FFBD70FF", "thickness": 0.006},
+      {"id": "label", "type": "text", "text": "CAMERA B / MFD OVERLAY", "position": [0, 0.5], "fontSize": 0.045, "stroke": "#FFBD70FF"}
+    ]},
+    {"id": "help", "layerId": "default", "elements": [
+      {"id": "title", "type": "text", "text": "SHARED GPU TEXTURES + NATIVE MFD OVERLAYS", "position": [0, 0.8], "fontSize": 0.045, "stroke": "#FFFFFFFF"},
+      {"id": "keys", "type": "text", "text": "Python console: SPACE producer pause | P play | A pause | S stop | V visibility | Q quit", "position": [0, -0.62], "fontSize": 0.03, "stroke": "#B8CBDFFF"},
+      {"id": "note", "type": "text", "text": "Two independent streams - frame number encoded in the moving pattern", "position": [0, -0.74], "fontSize": 0.032, "stroke": "#B8CBDFFF"}
+    ]}
+  ]
+}

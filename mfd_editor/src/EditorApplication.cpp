@@ -2925,6 +2925,7 @@ void EditorApplication::ReleasePreviewGpuResources() noexcept
 {
     previewState_.previewBezierCache.Clear();
     previewState_.previewImageCache.Clear();
+    previewState_.externalStreams.Clear();
     previewState_.previewTextLayoutCache.Clear();
     ReleaseLayerPreviewTextures();
     ReleaseTooltipPreviewTexture();
@@ -3528,6 +3529,13 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         return;
     }
 
+    previewState_.externalStreams.BeginFrame();
+    for (const auto& reticle : page->staticReticles)
+        previewState_.externalStreams.Observe(reticle, IsReticleVisibleInEditor(*page, reticle));
+    for (const auto& strobe : page->strobes)
+        previewState_.externalStreams.Observe(strobe.reticle, IsPageStrobeVisibleInEditor(*page, strobe));
+    previewState_.externalStreams.Update();
+
     BeginTextureMode(previewState_.previewTexture);
     ClearBackground(ToRayColor(page->backgroundColor));
 
@@ -3563,7 +3571,7 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
             &previewState_.previewBezierCache,
             &previewState_.previewImageCache,
             &previewState_.previewTextLayoutCache,
-            restoreClippedPreviewBackground);
+            restoreClippedPreviewBackground, mfd::detail::kMaxCanvasDrawWorkUnits, &previewState_.externalStreams);
         canvasForRestore = &canvas;
         services_.pagePreviewDrawOrder.CollectStaticReticleDrawOrder(*page, previewState_.orderedStaticReticleIndices);
         for (const int reticleIndex : previewState_.orderedStaticReticleIndices)
@@ -3603,6 +3611,7 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         canvas.DrawReticle(titleReticle);
     }
     EndTextureMode();
+    previewState_.externalStreams.EndFrame();
 
     ImGui::Image(
         (ImTextureID)(uintptr_t)previewState_.previewTexture.texture.id,
@@ -3712,6 +3721,10 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
 
     const Color libraryPreviewBackground {10, 18, 24, 255};
 
+    previewState_.externalStreams.BeginFrame();
+    previewState_.externalStreams.Observe(*reticle, reticle->visible);
+    previewState_.externalStreams.Update();
+
     BeginTextureMode(previewState_.previewTexture);
     ClearBackground(libraryPreviewBackground);
 
@@ -3758,10 +3771,11 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
             &previewState_.previewBezierCache,
             &previewState_.previewImageCache,
             &previewState_.previewTextLayoutCache,
-            drawLibraryPreviewBackground);
+            drawLibraryPreviewBackground, mfd::detail::kMaxCanvasDrawWorkUnits, &previewState_.externalStreams);
         canvas.DrawReticle(*reticle);
     }
     EndTextureMode();
+    previewState_.externalStreams.EndFrame();
 
     ImGui::Image(
         (ImTextureID)(uintptr_t)previewState_.previewTexture.texture.id,
@@ -7557,6 +7571,27 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
 
         return bestDistance;
     }
+    else if (const auto* stream = std::get_if<mfd::ExternalStreamGeometry>(&primitive.geometry))
+    {
+        const std::array<ImVec2, 4> streamCorners {
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {-stream->width * 0.5f, -stream->height * 0.5f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {stream->width * 0.5f, -stream->height * 0.5f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {stream->width * 0.5f, stream->height * 0.5f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {-stream->width * 0.5f, stream->height * 0.5f})};
+        std::vector<ImVec2> polygon(streamCorners.begin(), streamCorners.end());
+        if (IsPointInsidePolygon(polygon, mousePosition))
+        {
+            return 1.0f;
+        }
+
+        for (std::size_t index = 0; index < streamCorners.size(); ++index)
+        {
+            const std::size_t nextIndex = (index + 1U) % streamCorners.size();
+            bestDistance = std::min(bestDistance, distanceToSegment(streamCorners[index], streamCorners[nextIndex]));
+        }
+
+        return bestDistance;
+    }
 
     if (const auto* circle = std::get_if<mfd::CircleGeometry>(&primitive.geometry))
     {
@@ -7716,6 +7751,14 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
             PrimitiveHandleScreenPoint(viewport, reticle, primitive, {image->width * 0.5f, -image->height * 0.5f}),
             PrimitiveHandleScreenPoint(viewport, reticle, primitive, {image->width * 0.5f, image->height * 0.5f}),
             PrimitiveHandleScreenPoint(viewport, reticle, primitive, {-image->width * 0.5f, image->height * 0.5f})};
+    }
+    else if (const auto* stream = std::get_if<mfd::ExternalStreamGeometry>(&primitive.geometry))
+    {
+        points = {
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {-stream->width * 0.5f, -stream->height * 0.5f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {stream->width * 0.5f, -stream->height * 0.5f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {stream->width * 0.5f, stream->height * 0.5f}),
+            PrimitiveHandleScreenPoint(viewport, reticle, primitive, {-stream->width * 0.5f, stream->height * 0.5f})};
     }
 
     for (std::size_t index = 0; index < points.size(); ++index)

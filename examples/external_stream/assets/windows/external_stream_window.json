@@ -1,0 +1,10 @@
+{
+  "title": "MFDStudio - External streams",
+  "size": [1100, 680],
+  "targetFps": 50,
+  "commands": {"udp": {"enabled": true, "address": "127.0.0.1", "port": 47230}},
+  "feedback": {"udp": {"enabled": true, "address": "127.0.0.1", "port": 47231}, "fastIntervalMs": 50, "heartbeatIntervalMs": 350},
+  "defaultPage": "Streams",
+  "reticleLibraryFolder": "../reticles",
+  "pages": ["../pages/external_stream_page.json"]
+}

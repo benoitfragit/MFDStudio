@@ -1,0 +1,7 @@
+EXPORTS
+    mfd_stream_create
+    mfd_stream_submit
+    mfd_stream_poll
+    mfd_stream_error
+    mfd_stream_close
+    mfd_demo_control

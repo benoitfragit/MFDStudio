@@ -181,6 +181,8 @@ void ValidatePointList(const std::vector<Vec2>& points, const char* fieldName)
 
 void ValidatePrimitivePatch(const PrimitivePatch& patch)
 {
+    if (patch.streamPlayback && static_cast<std::uint32_t>(*patch.streamPlayback) > 2)
+        throw std::runtime_error("Invalid external stream playback mode");
     if (patch.position.has_value())
     {
         ValidateVec2(*patch.position, "PrimitivePatch.position");
@@ -648,6 +650,8 @@ LineStyle FromProtoLineStyle(const pb::PrimitiveLineStyle value)
 
 void FillProtoPrimitivePatch(const PrimitivePatch& patch, pb::PrimitivePatch* target)
 {
+    if (patch.streamPlayback) target->set_stream_playback(static_cast<std::uint32_t>(*patch.streamPlayback));
+    if (patch.streamStopToken) target->set_stream_stop_token(*patch.streamStopToken);
     if (patch.visible.has_value())
     {
         target->set_visible(*patch.visible);
@@ -794,6 +798,12 @@ void FillProtoPrimitivePatch(const PrimitivePatch& patch, pb::PrimitivePatch* ta
 
 void FillPrimitivePatchFromProto(const pb::PrimitivePatch& value, PrimitivePatch& patch)
 {
+    if (value.has_stream_playback())
+    {
+        if (value.stream_playback() > 2) throw std::runtime_error("Invalid wire stream playback mode");
+        patch.streamPlayback = static_cast<StreamPlayback>(value.stream_playback());
+    }
+    if (value.has_stream_stop_token()) patch.streamStopToken = value.stream_stop_token();
     if (value.has_visible())
     {
         patch.visible = value.visible();

@@ -11,10 +11,30 @@
 
 #include "internal/application/EditorApplicationInternal.h"
 #include "internal/application/EditorApplicationState.h"
+#include "internal/application/EditorApplicationAuthoringSupport.h"
 
 #include <gtest/gtest.h>
 
 #include <vector>
+
+TEST(EditorApplicationInternalTests, NewStreamsHaveDistinctValidIdentifiersAcrossOwnersAndPrimitives)
+{
+    mfd::Primitive first;
+    first.id = "primitive_01";
+    first.type = mfd::PrimitiveType::ExternalStream;
+    first.geometry = mfd::ExternalStreamGeometry {};
+    auto second = first;
+    editor::app::InitializeExternalStreamIdentifier(first, "Camera one / A");
+    editor::app::InitializeExternalStreamIdentifier(second, "Camera two / B");
+    const auto firstId = std::get<mfd::ExternalStreamGeometry>(first.geometry).streamId;
+    const auto secondId = std::get<mfd::ExternalStreamGeometry>(second.geometry).streamId;
+    EXPECT_TRUE(mfd::IsValidStreamId(firstId));
+    EXPECT_TRUE(mfd::IsValidStreamId(secondId));
+    EXPECT_NE(firstId, secondId);
+    second.id = "primitive_02";
+    editor::app::InitializeExternalStreamIdentifier(second, "Camera one / A");
+    EXPECT_NE(firstId, std::get<mfd::ExternalStreamGeometry>(second.geometry).streamId);
+}
 
 TEST(EditorApplicationInternalTests, FooterStatusSeverityLabelMarksErrorsWithoutRelyingOnColor)
 {
@@ -383,6 +403,29 @@ TEST(EditorApplicationInternalTests, ForEachPrimitiveBoundsLocalPointEnumeratesI
     EXPECT_FLOAT_EQ(points[2].y, 0.10f);
     EXPECT_FLOAT_EQ(points[3].x, -0.20f);
     EXPECT_FLOAT_EQ(points[3].y, 0.10f);
+}
+
+TEST(EditorApplicationInternalTests, ExternalStreamBoundsMatchImageAndRespectVisibility)
+{
+    mfd::Primitive primitive;
+    primitive.type = mfd::PrimitiveType::ExternalStream;
+    mfd::ExternalStreamGeometry stream;
+    stream.width = 0.40f;
+    stream.height = 0.20f;
+    primitive.geometry = stream;
+    std::vector<mfd::Vec2> points;
+    editor::detail::ForEachPrimitiveBoundsLocalPoint(primitive, [&points](mfd::Vec2 point) { points.push_back(point); });
+    ASSERT_EQ(points.size(), 4U);
+    EXPECT_FLOAT_EQ(points[0].x, -0.20f);
+    EXPECT_FLOAT_EQ(points[0].y, -0.10f);
+    EXPECT_FLOAT_EQ(points[2].x, 0.20f);
+    EXPECT_FLOAT_EQ(points[2].y, 0.10f);
+    primitive.style.visible = false;
+    points.clear();
+    editor::detail::ForEachPrimitiveBoundsLocalPoint(primitive, [&points](mfd::Vec2 point) { points.push_back(point); });
+    EXPECT_TRUE(points.empty());
+    EXPECT_FALSE(mfd::SupportsReticleClipPrimitive(primitive));
+    EXPECT_FALSE(mfd::SupportsFilledPrimitive(primitive));
 }
 
 TEST(EditorApplicationInternalTests, ForEachPrimitiveBoundsLocalPointSkipsInvisibleImage)

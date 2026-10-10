@@ -32,6 +32,8 @@ PRIMITIVE_HANDLE_TYPES = {
     "bezier": "BezierHandle",
     "arc": "ArcHandle",
     "image": "ImageHandle",
+    "externalstream": "ExternalStreamHandle",
+    "external_stream": "ExternalStreamHandle",
 }
 
 STATIC_RETICLE_EXPOSED_BASE_MEMBERS = (
@@ -467,6 +469,12 @@ def parse_primitive_geometry_baseline(element: dict, primitive_type: str) -> dic
         result["width"] = width if width is not None else default_width
         result["height"] = height if height is not None else default_height
 
+    elif primitive_type in {"externalstream", "external_stream"}:
+        width = parse_finite_float(element.get("width"))
+        height = parse_finite_float(element.get("height"))
+        result["width"] = width if width is not None else 1.6
+        result["height"] = height if height is not None else 0.9
+
     elif primitive_type == "square":
         # SquareGeometry's own model default is 0.0208 for both sides, distinct
         # from PRIMITIVE_BASELINE_DEFAULTS["width"] (0.0417), which matches
@@ -554,6 +562,8 @@ def build_primitive_baseline_initializer(element: dict, primitive_type: str) -> 
         values["text"] = text
 
     values.update(parse_primitive_geometry_baseline(element, primitive_type))
+    stream_baseline = (f', "{cpp_string(element.get("streamId", ""))}"'
+                       if primitive_type in {"externalstream", "external_stream"} else "")
 
     return (
         "mfd::client::PrimitiveBaseline {"
@@ -573,7 +583,7 @@ def build_primitive_baseline_initializer(element: dict, primitive_type: str) -> 
         f"{'true' if values['closed'] else 'false'}, "
         f"{values['segments']}, "
         f"{float_literal(values['startAngleDegrees'])}, "
-        f"{float_literal(values['endAngleDegrees'])}"
+        f"{float_literal(values['endAngleDegrees'])}{stream_baseline}"
         "}"
     )
 
@@ -910,6 +920,8 @@ def build_primitive_specs(owner_kind: str,
     for element in elements:
         primitive_id = element.get("id")
         primitive_type = str(element.get("type", "")).lower()
+        if primitive_type == "external_stream":
+            primitive_type = "externalstream"
         if not should_expose_primitive(element, elements):
             continue
         if not isinstance(primitive_id, str) or not primitive_id:
@@ -1399,6 +1411,7 @@ def emit_header(namespace_name: str,
         "using DiamondHandle = mfd::client::DiamondHandle;",
         "using EllipseHandle = mfd::client::EllipseHandle;",
         "using ImageHandle = mfd::client::ImageHandle;",
+        "using ExternalStreamHandle = mfd::client::ExternalStreamHandle;",
         "using LineHandle = mfd::client::LineHandle;",
         "using PrimitiveHandle = mfd::client::PrimitiveHandle;",
         "using TriangleHandle = mfd::client::TriangleHandle;",
@@ -1466,9 +1479,10 @@ def emit_header(namespace_name: str,
             "",
             "protected:",
             "    std::unique_ptr<mfd::client::DynamicReticle> CreateReticle(std::string_view reticleId) override;",
-            "};",
-            "",
         ])
+        if any(primitive.cpp_type == "ExternalStreamHandle" for primitive in template.primitives):
+            lines.extend(["private:", "    RuntimeFeedbackState* streamFeedback_ = nullptr;"])
+        lines.extend(["};", ""])
 
     for page in page_specs:
         page_templates = [template_specs_by_id[template_id] for template_id in page.dynamic_template_ids]
@@ -1638,6 +1652,7 @@ def emit_header(namespace_name: str,
         "    bool SendStartup(mfd::CommandClient& client, const mfd::PageViewState& view, std::string statusText);",
         "    bool ApplyFeedback(const mfd::StrobeStatusFeedback& feedback);",
         "    bool ApplyFeedback(const mfd::ActivePageFeedback& feedback);",
+        "    bool ApplyFeedback(const mfd::ExternalStreamFeedback& feedback);",
         "    bool ApplyFeedbackPayload(std::string_view payload, std::string* error = nullptr);",
         "    std::size_t PollFeedback(mfd::IExchangeChannel& channel, std::size_t maxMessages = 64, std::string* error = nullptr);",
         "    std::uint64_t TotalDecodedFeedbackPackets() const noexcept;",
@@ -1743,11 +1758,14 @@ def emit_source(namespace_name: str,
                 "",
             ])
 
+        stream_primitives = [primitive for primitive in template.primitives
+                             if primitive.cpp_type == "ExternalStreamHandle"]
+        feedback_initializer = ",\n    streamFeedback_(feedbackState)" if stream_primitives else ""
         lines.extend([
             (f"{template.dynamic_set_class_name}::{template.dynamic_set_class_name}("
              "std::string_view pageName, const mfd::TransportId pageTransportId, RuntimeFeedbackState* feedbackState) :"),
             (f'    mfd::client::GeneratedDynamicReticleSet(pageName, "{cpp_string(template.template_id)}", '
-             f"pageTransportId, {template.transport_id}U, feedbackState)"),
+             f"pageTransportId, {template.transport_id}U, feedbackState){feedback_initializer}"),
             "{",
             "}",
             "",
@@ -1766,6 +1784,10 @@ def emit_source(namespace_name: str,
              f"{template.dynamic_set_class_name}::CreateReticle(std::string_view reticleId)"),
             "{",
             f"    auto reticle = std::make_unique<{template.dynamic_reticle_class_name}>(reticleId);",
+        ])
+        for primitive in stream_primitives:
+            lines.append(f"    reticle->{primitive.accessor_name}().BindFeedback(streamFeedback_);")
+        lines.extend([
             "    return std::unique_ptr<mfd::client::DynamicReticle>(reticle.release());",
             "}",
             "",
@@ -1871,6 +1893,14 @@ def emit_source(namespace_name: str,
             f"{page.page_class_name}::{page.page_class_name}(RuntimeFeedbackState* feedbackState) :")
         lines.append(",\n".join(page_ctor_initializers))
         lines.append("{")
+        for reticle in page.reticles:
+            for primitive in reticle.primitives:
+                if primitive.cpp_type == "ExternalStreamHandle":
+                    lines.append(f"    {reticle.member_name}.{primitive.accessor_name}().BindFeedback(feedbackState);")
+        for strobe in page.strobes:
+            for primitive in strobe.primitives:
+                if primitive.cpp_type == "ExternalStreamHandle":
+                    lines.append(f"    {strobe.reticle_member_name}.{primitive.accessor_name}().BindFeedback(feedbackState);")
         lines.append("}")
         lines.append("")
 
@@ -2016,6 +2046,11 @@ def emit_source(namespace_name: str,
         "}",
         "",
         f"bool {ui_class_name}::ApplyFeedback(const mfd::ActivePageFeedback& feedback)",
+        "{",
+        "    return feedbackState_.Apply(feedback);",
+        "}",
+        "",
+        f"bool {ui_class_name}::ApplyFeedback(const mfd::ExternalStreamFeedback& feedback)",
         "{",
         "    return feedbackState_.Apply(feedback);",
         "}",

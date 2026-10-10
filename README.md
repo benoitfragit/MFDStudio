@@ -89,6 +89,15 @@ For LHLD, launch `.\Scripts\Start-LHLD.bat`. The LHLD client hosts the runtime
 offscreen inside its own DX11/ImGui window, so it does not require a separate
 `mfd_window` process.
 
+For shared GPU input, build `mfd_stream_demo` and run
+`py -3.7-32 examples/external_stream/producer.py --launch` with matching 32-bit
+Python, or use a matching x64 build/Python. The new example displays two animated
+external streams with MFD overlays and Play/Pause/Stop controls. No Python
+packages are required. See the [external stream guide](./docs/src/handbook/external_stream.md)
+for Windows/GPU requirements, separate launch and local validation.
+For an existing GPU source or direct rendering without the Python demo DLL,
+see [native GPU integration](./docs/src/handbook/external_stream.md#native-gpu-integration).
+
 The runtime and editor share the monochrome MFDStudio identity under
 [`branding/`](./branding/README.md). Windows executables embed a
 multi-resolution ICO, while the optional PNG supplies the late runtime icon

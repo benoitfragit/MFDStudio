@@ -73,6 +73,7 @@ function(mfd_configure_component target_name)
 endfunction()
 
 set(MFD_MODEL_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/ExternalStreamTypes.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/MfdExport.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/core/ArrayView.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/model/PageDefinition.h
@@ -125,6 +126,7 @@ set(MFD_TRANSPORT_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/runtime/GeneratedTransportMap.h)
 
 set(MFD_TRANSPORT_PRIVATE_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/internal/ExternalStreamPatch.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/internal/CommandWorkBudget.h)
 
 set(MFD_TRANSPORT_SOURCES

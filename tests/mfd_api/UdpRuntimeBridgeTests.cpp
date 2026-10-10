@@ -896,6 +896,24 @@ TEST(UdpRuntimeBridgeTests, CoalescingMergesStatePatchFields)
     bridge.Stop();
 }
 
+TEST(UdpRuntimeBridgeTests, CoalescingPreservesExternalStreamStopThenPlayBarrier)
+{
+    mfd::UpdateReticleCommand stop;
+    stop.target.pageId = 1;
+    stop.target.reticleId = 2;
+    stop.patch.primitivePatchesById[3].streamPlayback = mfd::StreamPlayback::Stop;
+    auto play = stop;
+    play.patch.primitivePatchesById[3].streamPlayback = mfd::StreamPlayback::Play;
+    mfd::CommandBatch batch;
+    batch.commands.emplace_back(stop);
+    batch.commands.emplace_back(play);
+    EXPECT_EQ(mfd::detail::CoalesceCommandBatch(batch), 1U);
+    ASSERT_EQ(batch.commands.size(), 1U);
+    const auto& patch = std::get<mfd::UpdateReticleCommand>(batch.commands.front()).patch.primitivePatchesById.at(3);
+    EXPECT_EQ(patch.streamPlayback, mfd::StreamPlayback::Play);
+    EXPECT_TRUE(patch.streamStopToken.has_value());
+}
+
 TEST(UdpRuntimeBridgeTests, CoalescingMergesPrimitiveTimePatchFields)
 {
     auto receiverState = std::make_shared<FakeChannelState>();

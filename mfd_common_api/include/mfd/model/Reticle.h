@@ -23,6 +23,7 @@
 
 #include "mfd/MfdExport.h"
 #include "mfd/model/Types.h"
+#include "mfd/model/ExternalStreamTypes.h"
 
 namespace mfd
 {
@@ -54,7 +55,8 @@ enum class PrimitiveType
     Polyline,
     Bezier,
     Arc,
-    Image
+    Image,
+    ExternalStream
 };
 
 /**
@@ -360,7 +362,8 @@ using PrimitiveGeometry = std::variant<TextGeometry,
                                        PolylineGeometry,
                                        BezierGeometry,
                                        ArcGeometry,
-                                       ImageGeometry>;
+                                       ImageGeometry,
+                                       ExternalStreamGeometry>;
 
 /**
  * @brief Arbitrary key/value metadata attached to a reticle.

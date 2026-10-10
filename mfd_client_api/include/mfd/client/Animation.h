@@ -11,6 +11,7 @@
  */
 
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
@@ -146,6 +147,13 @@ private:
 class MFD_CLIENT_API RuntimeFeedbackState
 {
 public:
+    /** @brief Applies a bounded stream observation, rejecting older sequence numbers. */
+    bool Apply(const mfd::ExternalStreamFeedback& feedback);
+    /** @brief Returns a cached stream observation, with freshness evaluated locally.
+     * @param streamId Authored stream identifier.
+     * @return Last observation, or an unavailable default before receiving feedback.
+     */
+    mfd::ExternalStreamStatus StreamStatus(std::string_view streamId) const;
     /**
      * @brief Applies one decoded strobe feedback payload.
      * @param feedback Runtime feedback emitted by the window.
@@ -251,6 +259,12 @@ public:
     bool WindowReportedClosing() const noexcept;
 
 private:
+    struct StreamObservation
+    {
+        mfd::ExternalStreamFeedback feedback;
+        std::chrono::steady_clock::time_point received;
+    };
+    std::unordered_map<std::string, StreamObservation> streams_;
     struct PageCaptureState
     {
         std::uint32_t lastStrobeSequence = 0;
@@ -300,6 +314,8 @@ struct PrimitiveBaseline
     int segments = 32;
     float startAngleDegrees = 0.0f;
     float endAngleDegrees = 180.0f;
+    /** @brief Authored stream identity used only by ExternalStreamHandle. */
+    std::string streamId;
 };
 
 /**
@@ -841,6 +857,34 @@ public:
                 mfd::TransportId transportId = 0,
                 std::unordered_map<std::string, mfd::TransportId>* primitiveTransportIds = nullptr,
                 PrimitiveBaseline baseline = {});
+};
+
+/** @brief Generated external stream control; common transforms are inherited. */
+class MFD_CLIENT_API ExternalStreamHandle : public PrimitiveHandle
+{
+public:
+    using PrimitiveHandle::PrimitiveHandle;
+    /** @brief Consumes subsequent completed frames. */
+    void Play();
+    /** @brief Retains the current image without consuming new frames. */
+    void Pause();
+    /** @brief Clears the image and invalidates pending publications. */
+    void Stop();
+    /** @brief Sets logical display size, independent of producer pixel resolution.
+     * @param size Positive logical width and height.
+     */
+    void SetSize(mfd::Vec2 size);
+    /** @brief Binds the generated UI's cached feedback owner.
+     * @param feedback Owner that outlives this generated handle.
+     */
+    void BindFeedback(RuntimeFeedbackState* feedback) noexcept;
+    /** @brief Reads cached status, without network or GPU calls. */
+    mfd::ExternalStreamStatus GetStatus() const;
+    /** @brief Returns the last consumed frame number; not a presentation counter. */
+    std::uint64_t GetLastConsumedFrame() const;
+private:
+    RuntimeFeedbackState* feedback_ = nullptr;
+    std::uint64_t stopToken_ = 0;
 };
 
 class MFD_CLIENT_API Reticle

@@ -893,6 +893,21 @@ TEST(EditorDocumentSerializerTests, SerializePageReticleIncludesTemplateOverride
     EXPECT_FLOAT_EQ(jsonNode.at("letterSpacings").at("track_label").get<float>(), 0.01f);
 }
 
+TEST(EditorDocumentSerializerTests, ExternalStreamPersistsConfigurationWithoutLivePlaybackState)
+{
+    mfd::ReticleGroup reticle; reticle.id = "video";
+    mfd::Primitive primitive; primitive.id = "surface"; primitive.type = mfd::PrimitiveType::ExternalStream;
+    mfd::ExternalStreamGeometry geometry;
+    geometry.streamId = "camera_a"; geometry.defaultPlayback = mfd::StreamPlayback::Stop;
+    geometry.playback = mfd::StreamPlayback::Pause; geometry.stopRevision = 42;
+    primitive.geometry = geometry; reticle.primitives.push_back(primitive);
+    const auto node = nlohmann::json::parse(editor::SerializeReticleTemplateToJsonString(reticle));
+    const auto& stream = node.at("elements").at(0);
+    EXPECT_EQ(stream.at("type"), "externalStream"); EXPECT_EQ(stream.at("streamId"), "camera_a");
+    EXPECT_EQ(stream.at("defaultPlayback"), "stop");
+    EXPECT_FALSE(stream.contains("playback")); EXPECT_FALSE(stream.contains("stopRevision"));
+}
+
 TEST(EditorDocumentSerializerTests, TemplateInstanceTransformDoesNotDriftAcrossTenLoadSaveCycles)
 {
     ScopedTempDir tempDir;
