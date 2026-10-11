@@ -6,6 +6,8 @@ corrected issues and remaining hardware validation limits.
 An `externalStream` primitive displays pixels supplied by a cooperating local
 application. MFDStudio owns three D3D11 textures per stream. The producer opens
 these textures and writes to an available surface through `StreamProducer`.
+MFDStudio automatically selects direct GPU interop or a CPU readback/upload path;
+the producer API and version-one publication contract are identical in both modes.
 Text, symbols, clipping and other primitives compose normally over that surface.
 This is the input counterpart of [framebuffer capture](./framebuffer.md).
 
@@ -18,9 +20,13 @@ is already in use. The launcher checks availability before starting the window;
 the runtime still performs the final bind, so concurrent launches can still race.
 
 - Windows desktop processes on the same machine, user session and GPU adapter.
-- D3D11, DXGI, OpenGL sync objects and `WGL_NV_DX_interop2` on the active context.
-  Extension presence alone is insufficient: texture creation, registration and
-  actual pixel sharing must work. Unsupported configurations report a diagnostic.
+- D3D11 and compatible legacy DXGI shared textures on the selected adapter, plus
+  a current desktop OpenGL context with sync objects. The CPU path also requires
+  pixel buffer binding support (available in the renderer's OpenGL 3.3 context).
+  `WGL_NV_DX_interop2` is optional when CPU fallback works. Its presence alone does
+  not establish direct interop: device opening, texture registration and ownership
+  acquisition must succeed. Adapter/driver sharing restrictions still apply;
+  fallback cannot repair a failed D3D11 device or unsupported DXGI sharing.
 - One producer and one consuming primitive per logical stream. Use distinct IDs
   when instantiating multiple reticles. Four active endpoints per renderer.
   A template's stream ID is persistent configuration: creating two simultaneous
@@ -30,14 +36,57 @@ the runtime still performs the final bind, so concurrent launches can still race
   a new session. Hiding a primitive keeps its endpoint and last image.
 - Pixel dimensions: 1–1920 by 1–1080. The CPU protocol uses checked, bounded
   dimensions. Shared textures have one mip level and no multisampling.
-- Shared texture budget: 128 MiB per native adapter library instance, including
-  retained generations. GPU driver overhead and the host framebuffer are extra.
-  At 640 × 360, two streams use approximately 5.27 MiB for their six surfaces.
+- Resource payload budget: 128 MiB per native adapter library instance, including
+  retained generations. Direct mode accounts for three shared surfaces; CPU mode
+  also reserves one staging surface, one OpenGL texture and one packed CPU image
+  per generation. Driver allocation alignment/overhead and the host framebuffer
+  are extra. At 640 x 360, two streams reserve approximately 5.27 MiB in direct
+  mode or 10.55 MiB in CPU mode. At 1920 x 1080, each CPU generation reserves
+  about 47.46 MiB: four maximum-resolution CPU streams do not fit simultaneously.
 - No new third-party production dependency: native libraries are `d3d11`,
   `dxgi`, `opengl32` and Windows kernel/user APIs.
 
 This does not add network video transport, decoding, camera acquisition or a
 source-specific abstraction. Producers own content acquisition and decoding.
+
+## Display paths and performance
+
+| Mode | Consumer operation | Requirements | Transfers and cost |
+|---|---|---|---|
+| Direct GPU interop | GL samples the shared D3D11 surface | Working `WGL_NV_DX_interop2`, including real registration and ownership operations | No consumer image transfer through RAM; preferred path |
+| CPU fallback | Copy to D3D11 staging, read CPU rows, upload an ordinary GL texture | Compatible D3D11/DXGI sharing and the GL context described above | GPU to CPU to GPU transfers, plus row packing; higher bandwidth, CPU work and memory usage |
+
+Each generation first tries direct interop. Failed WGL opening, registration or
+lock acquisition selects CPU fallback on the same shared textures. A later WGL
+acquisition failure can also switch that generation to CPU mode without restarting
+the producer. An unlock/unregistration failure is fatal because safe D3D ownership
+cannot be established. Device loss is fatal and never triggers a fallback loop.
+
+`Generation` owns the three shared surfaces and their registrations.
+`CpuReadback` owns reusable staging, a completion query, packed rows and a GL
+texture; there are no per-frame texture allocations. `StreamReceiver` coordinates
+publication, display ownership, Stop epochs and retirement. `MemoryReservation`
+accounts for allocations before construction and releases them through RAII.
+These are private implementation components, not additions to the producer API.
+
+One readback may be in flight per stream. Its source stays `Reading` until a
+D3D11 event query completes. The query is polled once per update with
+`D3D11_ASYNC_GETDATA_DONOTFLUSH`; submission explicitly flushes without waiting.
+Mapping uses [`D3D11_MAP_FLAG_DO_NOT_WAIT`](https://learn.microsoft.com/en-us/windows/win32/api/d3d11/ne-d3d11-d3d11_map_flag).
+If the driver still reports a busy resource, a later update retries the map.
+The previous GL draw fence must complete before uploading into the display texture.
+No busy-wait, blocking GPU wait, PBO ring or CPU shared-memory pixel transport is used.
+
+Row packing respects D3D11 `RowPitch`, RGBA/BGRA byte order, straight alpha and
+top-left row zero. Uploads restore the caller's texture binding, unpack PBO binding
+and unpack alignment/row/skip settings. Hidden or paused streams retire completed
+copies without mapping/uploading them. Copies from a previous Stop epoch are
+also discarded. Reconfiguration waits for an in-flight copy to retire; a paused
+image remains owned by its old generation until replaced or stopped.
+
+CPU fallback trades compatibility for copies and resource usage. No frame rate or
+latency is promised without measurement on the deployment adapter. Both paths
+keep the newest complete publication and may deliberately drop frames.
 
 ## Authoring
 
@@ -79,7 +128,9 @@ travel over that transport.
 - Stop removes the displayed image, draws the replacement color, and invalidates
   pending/in-progress writes through a consumption epoch. Stop followed by Play
   in the same command batch retains that invalidation. Restarting after Stop
-  requires a publication acquired in the new epoch.
+  requires a publication acquired in the new epoch. Stop hides the image
+  immediately even when the control mutex is busy; its epoch invalidation is
+  latched until metadata can be updated, including a subsequent Play.
 - Hidden primitives do not consume frames, draw or process pixels. Bounded
   metadata, liveness and resource housekeeping continue.
 - Disconnect retains the last valid image. Before the first frame, only the
@@ -134,9 +185,11 @@ The adapter's single-threaded lifecycle is:
 
 `Ok` from Publish means accepted submission. A D3D11 event query must complete
 before the slot becomes Ready. A discarded write is also fenced before reuse.
-The renderer retains GL ownership while displaying a surface and polls a GL
-fence before releasing it. Role changes exchange ownership metadata and do not
-copy pixels. A producer may replace the oldest Ready frame, but never Writing,
+In direct mode the renderer retains GL ownership while displaying a surface
+and polls a GL fence before releasing it. These role changes do not copy pixels.
+In CPU mode the renderer holds the source during readback, then releases it;
+the ordinary GL texture independently retains the displayed pixels. A producer
+may replace the oldest Ready frame, but never Writing,
 Pending or Reading. All scans visit exactly three slots; unavailable control
 locks and surfaces return immediately without a retry loop.
 
@@ -149,6 +202,28 @@ diagnostic; recreate the endpoint/runtime after such a failure.
 Native allocation, command submission and WGL ownership operations are driver
 calls: no hard real-time bound is promised. Finite buffering deliberately allows
 dropped frames. A 50 Hz publishing target is not an end-to-end latency guarantee.
+
+## Diagnostics and recovery
+
+The existing feedback diagnostic identifies `Direct GPU interop`, `CPU fallback`
+(with the WGL failure reason), or `Unsupported` when no display path is usable.
+Connection/stale/disconnected information follows the mode, when configured.
+No new status field, command, JSON format or generated client API is required.
+
+| Diagnostic | Behavior and action |
+|---|---|
+| WGL unavailable / opening, registration or acquisition failed | CPU fallback is selected automatically if available. Existing producers need no changes. |
+| Temporary resource budget shortage (128 MiB) | `Unavailable`, not a permanent failure. The effective generation, handles and last valid image remain intact. Release other streams or reduce their resolution; the request retries at most once per 250 ms. Pause and Stop still work. |
+| Shared D3D11 texture creation/opening failed | Check the selected adapter, driver and legacy DXGI sharing support. CPU fallback still needs those shared surfaces. |
+| `Unsupported` / CPU fallback initialization failed | The current GL context or readback resources cannot support display; inspect the accompanying reason. Recreate the endpoint after correcting the configuration. |
+| Fatal D3D11 device loss, GL fence/upload error, WGL ownership release failure or invalid control metadata | The endpoint stops with an error. Fix the cause and recreate the endpoint/runtime; it does not retry indefinitely. |
+
+A rejected resource reservation is rolled back before any configuration is
+published. Only a fully constructed replacement updates the generation and share
+handles. A retained image still consumes budget, so freeing enough space for both
+the old and new generation may be necessary. Repeated ticks or new request serials
+do not bypass the retry delay. Native out-of-memory/device/driver errors are not
+misclassified as the recoverable application budget limit.
 
 ## Python demonstration
 
@@ -228,7 +303,11 @@ Omitting the demo DLL does not omit acquisition, publication or synchronization.
 |---|---|---|
 | Python demo / CPU image | Upload through `UpdateSubresource` | RAM to GPU upload |
 | Existing compatible GPU texture | GPU copy into the acquired surface | GPU to GPU copy; no CPU readback |
-| Native rendering into the acquired surface | Render on the supplied D3D11 immediate context | No extra image copy between producer and MFDStudio |
+| Native rendering into the acquired surface | Render on the supplied D3D11 immediate context | No extra producer image copy |
+
+These costs describe production into the shared surfaces; CPU display fallback
+adds the consumer transfers described above. Existing producer applications need
+no adaptation to benefit from automatic display selection.
 
 The current API always uses the three surfaces owned by MFDStudio. It does not
 accept a caller-owned texture as a replacement for those surfaces. Having a GPU
@@ -277,12 +356,33 @@ ctest --preset test-debug-win32 -R ExternalStream --output-on-failure
 ctest --preset test-debug-win32 -R client_api_generator_tests --output-on-failure
 ```
 
-Protocol and model tests do not require a GPU. `ExternalStreamGpuInterop` launches
-a real producer process and tests pixel integrity, playback, hiding, crash,
-reconnection, format and dimension changes, with a 25-second CTest deadline.
-Missing GPU interoperability returns skip code 77, not success. This one test is
-explicitly excluded by `test-debug-win32-ci`, using the existing name exclusion
-mechanism; it is still compiled in CI.
+Protocol, budget and model tests do not require a GPU and remain enabled in CI.
+Budget tests cover refusal without altering existing reservations, rollback,
+release/retry and a bounded retry cadence.
+
+Hardware integration cases are compiled in CI but explicitly excluded from
+`test-debug-win32-ci` by their `gpu;local` labels. Both the pull-request and release
+workflows use that preset. The local preset keeps all of them enabled:
+
+- `ExternalStreamGpuInterop`: real direct interop (skips when unavailable).
+- `ExternalStreamCpuFallback`: forced CPU mode, even on interop-capable hardware.
+- `ExternalStreamInteropOpenFailure`, `ExternalStreamInteropRegistrationFailure`
+  and `ExternalStreamInteropLockFailure`: injected WGL initialization failures,
+  including cleanup after a partially registered generation.
+- `ExternalStreamInteropRuntimeFailure`: switches an already running direct
+  generation to CPU mode without reconnecting the producer.
+- `ExternalStreamUnsupportedDisplay`: both paths fail; initialization is terminal
+  and partial resources are released without repeated attempts.
+
+The hardware binary alone links a private test build of the stream library with
+fault injection; the production library has no environment switch or test API.
+Every hardware case has a 30-second CTest deadline and launches a real producer
+process. Cases verify RGBA/BGRA pixels, alpha/row order, Play/Pause/Stop, Stop then
+Play in one batch, hiding, crash/reconnect, generation replacement, initial and
+resize budget pressure, unchanged published handles after rejection, recovery,
+resource retirement, GL unpack-state preservation and Stop while another thread
+holds the control mutex. Missing hardware returns skip code 77, never success; an unexpected
+fallback failure after prerequisite checks is a test failure.
 
 The same GPU test can use a separately built producer executable of the other
 architecture. Set `MFD_STREAM_TEST_PRODUCER` to the absolute path of that
@@ -296,6 +396,17 @@ Pause/Stop/hiding, producer crash/restart and resolution changes. The same
 checks passed with a 64-bit producer and a 32-bit consumer. The Python 3.7
 32-bit demonstration also exercised two 640 x 360 streams and verified their
 runtime UDP feedback through Pause, Stop, hiding, resumption and disconnection.
+
+Validation on 2026-10-11 used the same adapter and driver: the full Debug Win32
+build and all 932 tests selected by the CI preset passed locally. The seven
+hardware scenarios passed in Win32 and x64, including injected interop failures
+and recoverable budget pressure. Direct and CPU display also passed with a
+producer of the other architecture in both directions. Budget assertions wait
+for the observed refusal with a bounded startup deadline instead of assuming
+that a new producer initializes within 400 ms. The additional local render
+suite passed 32 tests; three existing tutorial offscreen tests were skipped
+because their tutorial assets were missing. Other adapters and physical device
+removal remain outside this validation.
 
 For local load validation, run two/four streams, vary `--fps` above and below the
 reader cadence, pause/hide/stop the reader, kill/restart the producer and change

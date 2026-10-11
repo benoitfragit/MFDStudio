@@ -94,7 +94,8 @@ For shared GPU input, build `mfd_stream_demo` and run
 Python, or use a matching x64 build/Python. The new example displays two animated
 external streams with MFD overlays and Play/Pause/Stop controls. No Python
 packages are required. See the [external stream guide](./docs/src/handbook/external_stream.md)
-for Windows/GPU requirements, separate launch and local validation.
+for Windows/GPU requirements, automatic CPU display fallback, separate launch
+and local validation (hardware tests are excluded from hosted CI).
 For an existing GPU source or direct rendering without the Python demo DLL,
 see [native GPU integration](./docs/src/handbook/external_stream.md#native-gpu-integration).
 

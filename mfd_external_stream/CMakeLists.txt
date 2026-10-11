@@ -2,7 +2,11 @@ add_library(mfd_external_stream STATIC
     src/StreamProtocol.cpp
     src/NativeStream.cpp
     src/StreamProducer.cpp
-    src/StreamReceiver.cpp)
+    src/StreamReceiver.cpp
+    src/StreamBudget.cpp
+    src/StreamGl.cpp
+    src/StreamReadback.cpp
+    src/StreamGeneration.cpp)
 add_library(mfd::external_stream ALIAS mfd_external_stream)
 target_compile_features(mfd_external_stream PUBLIC cxx_std_17)
 target_include_directories(mfd_external_stream PUBLIC

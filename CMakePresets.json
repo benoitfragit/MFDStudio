@@ -164,6 +164,7 @@
       "inherits": "test-debug-win32",
       "filter": {
         "exclude": {
+          "label": "gpu|local",
           "name": "ExternalStreamGpuInterop|CanvasCircleStrokeRenderTests\\.DegenerateSolidCircleDrawsNothing|CanvasCircleStrokeRenderTests\\.DashedCircleRendersLessStrokeCoverageThanSolidCircle|CanvasCircleStrokeRenderTests\\.AnisotropicFilledCircleUsesTheSameTransformAsItsOutline|CanvasRingRenderTests\\..*|CanvasClippingCallbackRenderTests\\..*|CanvasClippingRenderTests\\..*|CanvasTextRenderTests\\..*|CanvasDrawWorkRenderTests\\..*|RenderResourceLifetimeTests\\..*|OffscreenSurfaceTests\\..*"
         }
       }
