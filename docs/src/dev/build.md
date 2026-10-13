@@ -94,7 +94,11 @@ and the `*.Install` runtime payloads.
   lane: `debug-win32` with the CI preset `test-debug-win32-ci`, plus
   `release-win32` as a build-only check. That CI preset excludes the
   render/offscreen suite subset that currently fails only on the hosted
-  `windows-2022` runner.
+  `windows-2022` runner. It also excludes tests requiring locally authored
+  `examples/tutorial/assets/`: `tutorial_client_runtime_layout_smoke` and the
+  three `OffscreenSurfaceTests.Tutorial*` tests (covered by the offscreen filter).
+  Editor tutorial unit tests remain enabled. The local `test-debug-win32` and
+  `test-debug-x64` presets retain the asset-dependent tests when registered.
 - Tagged releases rerun that validation scope before publishing the GitHub
   release, then prepend the release page with a validation summary and links to
   the documentation assets.

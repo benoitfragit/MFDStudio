@@ -65,10 +65,12 @@ The same fields may be placed directly on the object instead of inside
 
 ## Color
 
+The eight [built-in color presets](colors.md) use the same RGBA values in JSON, the editor and runtime commands. JSON keeps its existing color representation.
+
 Several formats are accepted:
 
 - **Named**: `"hud"`, `"radar"`, `"amber"`, `"friendly"`, … (also `transparent`,
-  `black`, `white`, `green`, `lime`, `cyan`, `yellow`, `orange`, `red`,
+  `black`, `white`, `blue`, `green`, `lime`, `cyan`, `yellow`, `orange`, `red`,
   `warning`, `danger`, `hostile`, `ghost`)
 - **Hex**: `"#33FF88"`, `"#33FF88FF"`, `"#3F8"`, `"#3F8F"`
 - **Array**: `[51, 255, 136]` or `[51, 255, 136, 255]`

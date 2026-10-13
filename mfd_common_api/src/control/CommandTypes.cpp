@@ -8,6 +8,8 @@
  * @brief Implementation for CommandTypes.
  */
 
+#include "mfd/control/internal/ColorUpdate.h"
+
 #include "mfd/control/CommandTypes.h"
 
 #include <algorithm>
@@ -184,6 +186,11 @@ void ValidatePointList(const std::vector<Vec2>& points, const char* fieldName)
 
 void ValidatePrimitivePatch(const PrimitivePatch& patch)
 {
+    if (!detail::IsValidColorUpdate(patch.color, patch.colorPreset) ||
+        !detail::IsValidColorUpdate(patch.fillColor, patch.fillColorPreset))
+    {
+        throw std::runtime_error("Invalid PrimitivePatch color choice");
+    }
     if (patch.streamPlayback && static_cast<std::uint32_t>(*patch.streamPlayback) > 2)
         throw std::runtime_error("Invalid external stream playback mode");
     if (patch.position.has_value())
@@ -298,6 +305,10 @@ void ValidatePrimitivePatch(const PrimitivePatch& patch)
 
 void ValidateReticlePatch(const ReticlePatch& patch)
 {
+    if (!detail::IsValidColorUpdate(patch.color, patch.colorPreset))
+    {
+        throw std::runtime_error("Invalid ReticlePatch color choice");
+    }
     if (patch.position.has_value())
     {
         ValidateVec2(*patch.position, "ReticlePatch.position");
@@ -675,9 +686,19 @@ void FillProtoPrimitivePatch(const PrimitivePatch& patch, pb::PrimitivePatch* ta
         FillProtoVec2(*patch.scale, target->mutable_scale());
     }
 
+    if (patch.colorPreset.has_value())
+    {
+        target->set_color_preset(static_cast<pb::ColorPreset>(*patch.colorPreset));
+    }
+
     if (patch.color.has_value())
     {
         target->set_packed_rgba(PackColor(*patch.color));
+    }
+
+    if (patch.fillColorPreset.has_value())
+    {
+        target->set_fill_color_preset(static_cast<pb::ColorPreset>(*patch.fillColorPreset));
     }
 
     if (patch.fillColor.has_value())
@@ -827,9 +848,19 @@ void FillPrimitivePatchFromProto(const pb::PrimitivePatch& value, PrimitivePatch
         patch.scale = FromProtoVec2(value.scale());
     }
 
+    if (value.has_color_preset())
+    {
+        patch.colorPreset = static_cast<ColorPreset>(value.color_preset());
+    }
+
     if (value.has_packed_rgba())
     {
         patch.color = UnpackColor(value.packed_rgba());
+    }
+
+    if (value.has_fill_color_preset())
+    {
+        patch.fillColorPreset = static_cast<ColorPreset>(value.fill_color_preset());
     }
 
     if (value.has_fill_packed_rgba())
@@ -1030,6 +1061,11 @@ void FillProtoReticlePatch(const ReticlePatch& patch, pb::ReticlePatch* target)
         FillProtoVec2(*patch.scale, target->mutable_scale());
     }
 
+    if (patch.colorPreset.has_value())
+    {
+        target->set_color_preset(static_cast<pb::ColorPreset>(*patch.colorPreset));
+    }
+
     if (patch.color.has_value())
     {
         target->set_packed_rgba(PackColor(*patch.color));
@@ -1113,6 +1149,11 @@ void FillReticlePatchFromProto(const pb::ReticlePatch& value, ReticlePatch& patc
     if (value.has_scale())
     {
         patch.scale = FromProtoVec2(value.scale());
+    }
+
+    if (value.has_color_preset())
+    {
+        patch.colorPreset = static_cast<ColorPreset>(value.color_preset());
     }
 
     if (value.has_packed_rgba())

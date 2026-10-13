@@ -3,6 +3,8 @@
  * Project author: Benoit Fra
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
+#include "internal/application/EditorColorPicker.h"
+
 #include "EditorApplication.h"
 
 /**
@@ -8698,7 +8700,7 @@ void EditorApplication::DrawPopups()
             {
                 BrowseNewWindowFirstPageFile();
             }
-            ImGui::ColorEdit4("First page background", &workflowState_.newWindowDraft.firstPageBackground.x);
+            editor::ui::DrawColorPicker("First page background", &workflowState_.newWindowDraft.firstPageBackground.x);
         }
 
         DisabledTextWrapped("Use the repo source assets folders, not the staged runtime copy under _Exec.");
@@ -8745,7 +8747,7 @@ void EditorApplication::DrawPopups()
         {
             BrowseNewPageFile();
         }
-        ImGui::ColorEdit4("Background", &workflowState_.newPageDraft.background.x);
+        editor::ui::DrawColorPicker("Background", &workflowState_.newPageDraft.background.x);
         ShowItemTooltip("Initial page background color.");
         DisabledTextWrapped("Use the repo source assets folders, not the staged runtime copy under _Exec.");
 

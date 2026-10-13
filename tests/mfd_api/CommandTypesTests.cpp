@@ -847,3 +847,102 @@ TEST(CommandTypesTests, ConcurrentEncodersKeepReturnedBuffersIndependentAfterFai
     }
     for (auto& worker : workers) worker.get();
 }
+
+TEST(ColorPresetTests, StableValuesAndExactPalette)
+{
+    constexpr mfd::ColorRgba expected[] = {
+        {0, 0, 0, 255}, {255, 255, 255, 255}, {255, 96, 96, 255}, {0, 255, 102, 255},
+        {0, 120, 255, 255}, {249, 214, 111, 255}, {77, 224, 255, 255}, {255, 203, 107, 255}};
+    constexpr mfd::ColorPreset presets[] = {
+        mfd::ColorPreset::Black, mfd::ColorPreset::White, mfd::ColorPreset::Red, mfd::ColorPreset::Green,
+        mfd::ColorPreset::Blue, mfd::ColorPreset::Yellow, mfd::ColorPreset::Cyan, mfd::ColorPreset::Amber};
+    static_assert(mfd::TryColorPreset(mfd::ColorPreset::Blue)->b == 255);
+    EXPECT_EQ(static_cast<int>(mfd::ColorPreset::Custom), 0);
+    for (int index = 0; index < 8; ++index)
+    {
+        EXPECT_EQ(static_cast<int>(presets[index]), index + 1);
+        const auto color = mfd::TryColorPreset(presets[index]);
+        ASSERT_TRUE(color);
+        EXPECT_EQ(color->r, expected[index].r);
+        EXPECT_EQ(color->g, expected[index].g);
+        EXPECT_EQ(color->b, expected[index].b);
+        EXPECT_EQ(color->a, expected[index].a);
+    }
+    EXPECT_FALSE(mfd::TryColorPreset(mfd::ColorPreset::Custom));
+    EXPECT_FALSE(mfd::TryColorPreset(static_cast<mfd::ColorPreset>(-1)));
+    EXPECT_FALSE(mfd::TryColorPreset(static_cast<mfd::ColorPreset>(256)));
+}
+
+TEST(ColorPresetTests, WirePresenceAndInvalidCombinationsForEveryColorProperty)
+{
+    // Include explicit zero, unknown negative/positive values, and absent enum/RGBA.
+    for (const int preset : {-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 256})
+    {
+        for (const bool hasPreset : {false, true})
+        {
+            for (const bool hasRgba : {false, true})
+            {
+                for (int property = 0; property < 3; ++property)
+                {
+                    SCOPED_TRACE(::testing::Message() << preset << '/' << hasPreset << '/' << hasRgba << '/' << property);
+                    mfd::transport::CommandEnvelope envelope;
+                    auto* update = envelope.add_commands()->mutable_update_reticle();
+                    update->mutable_target()->set_page_id(1);
+                    update->mutable_target()->set_reticle_id(2);
+                    auto* reticle = update->mutable_patch();
+                    auto& primitive = (*reticle->mutable_primitive_patches_by_id())[3];
+                    const auto wirePreset = static_cast<mfd::transport::ColorPreset>(preset);
+                    if (property == 0)
+                    {
+                        if (hasPreset) reticle->set_color_preset(wirePreset);
+                        if (hasRgba) reticle->set_packed_rgba(0xB4FFA050U);
+                    }
+                    else if (property == 1)
+                    {
+                        if (hasPreset) primitive.set_color_preset(wirePreset);
+                        if (hasRgba) primitive.set_packed_rgba(0xB4FFA050U);
+                    }
+                    else
+                    {
+                        if (hasPreset) primitive.set_fill_color_preset(wirePreset);
+                        if (hasRgba) primitive.set_fill_packed_rgba(0xB4FFA050U);
+                    }
+                    const bool valid = !hasPreset || (preset == 0 ? hasRgba : preset >= 1 && preset <= 8 && !hasRgba);
+                    const auto decoded = DeserializeEnvelope(envelope);
+                    ASSERT_EQ(decoded.has_value(), valid);
+                    if (!valid) continue;
+                    mfd::transport::CommandEnvelope roundTrip;
+                    ASSERT_TRUE(roundTrip.ParseFromString(mfd::SerializeCommandBatch(*decoded)));
+                    EXPECT_TRUE(google::protobuf::util::MessageDifferencer::Equals(envelope, roundTrip));
+                    const auto& patch = std::get<mfd::UpdateReticleCommand>(decoded->commands.front()).patch;
+                    const auto& rgba = property == 0 ? patch.color :
+                                       property == 1 ? patch.primitivePatchesById.at(3).color :
+                                                       patch.primitivePatchesById.at(3).fillColor;
+                    if (hasRgba)
+                    {
+                        ASSERT_TRUE(rgba);
+                        EXPECT_EQ(rgba->r, 80);
+                        EXPECT_EQ(rgba->g, 160);
+                        EXPECT_EQ(rgba->b, 255);
+                        EXPECT_EQ(rgba->a, 180);
+                    }
+                }
+            }
+        }
+    }
+}
+
+TEST(ColorPresetTests, InvalidClientPatchCannotSerialize)
+{
+    mfd::UpdateReticleCommand update;
+    update.target.pageId = 1;
+    update.target.reticleId = 2;
+    update.patch.colorPreset = mfd::ColorPreset::Custom;
+    mfd::CommandBatch batch;
+    batch.commands.push_back(update);
+    EXPECT_THROW(mfd::SerializeCommandBatch(batch), std::runtime_error);
+    update.patch.colorPreset = mfd::ColorPreset::Blue;
+    update.patch.color = mfd::ColorRgba {1, 2, 3, 4};
+    batch.commands.front() = update;
+    EXPECT_THROW(mfd::SerializeCommandBatch(batch), std::runtime_error);
+}

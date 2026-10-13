@@ -335,8 +335,14 @@ void UpdateTrackVisualFromStrobeFeedback(TutorialTrackState& track)
     }
 
     const bool captured = track.reticle->IsStrobeCaptured();
-    track.reticle->SetColor(
-        captured ? mfd::ColorRgba {255, 112, 96, 255} : mfd::ColorRgba {80, 255, 185, 255});
+    if (captured)
+    {
+        track.reticle->SetColor(mfd::ColorPreset::Amber);
+    }
+    else
+    {
+        track.reticle->SetColor(mfd::ColorRgba {80, 255, 185, 255});
+    }
     track.reticle->SetThickness(captured ? kCapturedTrackThickness : kNominalTrackThickness);
 }
 
@@ -371,8 +377,14 @@ void UpdateTransientCircleReticle(tutorial_ui::Page1MfdTutorialCircleReticle& ci
                                   const bool declutterVisible)
 {
     circle.SetVisible(true);
-    circle.SetColor(
-        declutterVisible ? mfd::ColorRgba {0, 255, 128, 255} : mfd::ColorRgba {0, 96, 48, 255});
+    if (declutterVisible)
+    {
+        circle.SetColor(mfd::ColorPreset::Green);
+    }
+    else
+    {
+        circle.SetColor(mfd::ColorRgba {0, 96, 48, 255});
+    }
     circle.Primitive01().SetRadius(0.42f + 0.015f * static_cast<float>(transientTrackCount));
     circle.Primitive01().SetThickness(0.0045f);
     circle.Primitive01().SetLineStyle(declutterVisible ? mfd::LineStyle::Solid : mfd::LineStyle::Dotted);
@@ -718,6 +730,7 @@ int mainImpl()
 
     page2ProgressBar.SetVisible(true);
     progressFill.SetVisible(true);
+    progressFill.SetFillColor(mfd::ColorPreset::Yellow);
 
     Require(client.ActivatePage(page1), client, "Unable to activate tutorial Page1");
     bool page1Active = true;

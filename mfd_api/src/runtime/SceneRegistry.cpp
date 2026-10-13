@@ -8,6 +8,8 @@
  * @brief Implementation for SceneRegistry.
  */
 
+#include "mfd/control/internal/ColorUpdate.h"
+
 #include "mfd/runtime/SceneRegistry.h"
 
 #include "mfd/control/CommandTypes.h"
@@ -118,6 +120,11 @@ std::string NormalizeReticleId(const std::string_view value)
 
 bool IsValidPrimitivePatch(const PrimitivePatch& patch) noexcept
 {
+    if (!detail::IsValidColorUpdate(patch.color, patch.colorPreset) ||
+        !detail::IsValidColorUpdate(patch.fillColor, patch.fillColorPreset))
+    {
+        return false;
+    }
     if (patch.streamPlayback && static_cast<std::uint32_t>(*patch.streamPlayback) > 2) return false;
     if (patch.position.has_value() && !IsValidVec2(*patch.position))
     {
@@ -219,6 +226,10 @@ bool IsValidPrimitivePatch(const PrimitivePatch& patch) noexcept
 
 bool IsValidReticlePatch(const ReticlePatch& patch) noexcept
 {
+    if (!detail::IsValidColorUpdate(patch.color, patch.colorPreset))
+    {
+        return false;
+    }
     if (patch.position.has_value() && !IsValidVec2(*patch.position))
     {
         return false;
@@ -408,6 +419,7 @@ bool IsEmptyPatch(const ReticlePatch& patch) noexcept
            !patch.rotationDegrees.has_value() &&
            !patch.scale.has_value() &&
            !patch.color.has_value() &&
+           !patch.colorPreset.has_value() &&
            !patch.thickness.has_value() &&
            !patch.text.has_value() &&
            patch.texts.empty() &&
@@ -567,15 +579,15 @@ bool ApplyPatchToPrimitive(Primitive& primitive, const PrimitivePatch& patch)
         applied = true;
     }
 
-    if (patch.color.has_value())
+    if (const auto color = detail::ResolveColorUpdate(patch.color, patch.colorPreset))
     {
-        primitive.style.color = *patch.color;
+        primitive.style.color = *color;
         applied = true;
     }
 
-    if (patch.fillColor.has_value())
+    if (const auto fillColor = detail::ResolveColorUpdate(patch.fillColor, patch.fillColorPreset))
     {
-        primitive.style.fillColor = *patch.fillColor;
+        primitive.style.fillColor = *fillColor;
         applied = true;
     }
 
@@ -792,9 +804,9 @@ bool ApplyPatchToReticleGroup(ReticleGroup& reticle, const ReticlePatch& patch)
         applied = true;
     }
 
-    if (patch.color.has_value())
+    if (const auto color = detail::ResolveColorUpdate(patch.color, patch.colorPreset))
     {
-        reticle.overrides.color = *patch.color;
+        reticle.overrides.color = *color;
         applied = true;
     }
 

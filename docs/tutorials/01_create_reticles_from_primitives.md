@@ -252,3 +252,7 @@ If one part is missing, check:
 ## Result
 
 You now have a reusable reticle template that can be used by many pages.
+
+## Choose stroke and fill colors
+
+In the primitive Stroke & fill inspector, use the 3 x 3 swatch grid. Custom (+) opens RGBA editing with Apply/Cancel; a reticle default can disable local fill editing. See the [color reference](../src/reference/colors.md#editor).

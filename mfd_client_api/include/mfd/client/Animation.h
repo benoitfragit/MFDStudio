@@ -403,6 +403,10 @@ public:
     /** @brief Stages one primitive-local non-uniform scale override. */
     void SetScale(mfd::Vec2 scale);
     void SetColor(mfd::ColorRgba color);
+    /** @brief Stages a built-in color.
+     * @param preset Built-in preset; Custom and unknown values throw std::invalid_argument without mutation.
+     */
+    void SetColor(mfd::ColorPreset preset);
     void SetThickness(float thickness);
     void SetLineStyle(LineStyle lineStyle);
 
@@ -438,6 +442,10 @@ protected:
     void MarkDirty() noexcept;
     /** @brief Stages one fill color override for fill-capable primitive handles. */
     void SetFillColorInternal(mfd::ColorRgba color);
+    /** @brief Stages a built-in color.
+     * @param preset Built-in preset; Custom and unknown values throw std::invalid_argument without mutation.
+     */
+    void SetFillColorInternal(mfd::ColorPreset preset);
     /** @brief Stages one fill toggle override for fill-capable primitive handles. */
     void SetFilledInternal(bool filled);
 
@@ -560,6 +568,10 @@ public:
                  PrimitiveBaseline baseline = {});
     /** @brief Stages one fill color override for this circle. */
     void SetFillColor(mfd::ColorRgba color);
+    /** @brief Stages a built-in color.
+     * @param preset Built-in preset; Custom and unknown values throw std::invalid_argument without mutation.
+     */
+    void SetFillColor(mfd::ColorPreset preset);
     /** @brief Stages whether this circle is rendered filled. */
     void SetFilled(bool filled);
     void SetRadius(float radius);
@@ -581,6 +593,10 @@ public:
                PrimitiveBaseline baseline = MakeRingPrimitiveBaseline());
     /** @brief Stages one fill color override for this ring. */
     void SetFillColor(mfd::ColorRgba color);
+    /** @brief Stages a built-in color.
+     * @param preset Built-in preset; Custom and unknown values throw std::invalid_argument without mutation.
+     */
+    void SetFillColor(mfd::ColorPreset preset);
     /** @brief Stages whether this ring is rendered filled. */
     void SetFilled(bool filled);
     void SetInnerRadius(float radius);
@@ -608,6 +624,10 @@ public:
                     PrimitiveBaseline baseline = {});
     /** @brief Stages one fill color override for this rectangle. */
     void SetFillColor(mfd::ColorRgba color);
+    /** @brief Stages a built-in color.
+     * @param preset Built-in preset; Custom and unknown values throw std::invalid_argument without mutation.
+     */
+    void SetFillColor(mfd::ColorPreset preset);
     /** @brief Stages whether this rectangle is rendered filled. */
     void SetFilled(bool filled);
     void SetWidth(float width);
@@ -645,6 +665,10 @@ public:
                   PrimitiveBaseline baseline = {});
     /** @brief Stages one fill color override for this ellipse. */
     void SetFillColor(mfd::ColorRgba color);
+    /** @brief Stages a built-in color.
+     * @param preset Built-in preset; Custom and unknown values throw std::invalid_argument without mutation.
+     */
+    void SetFillColor(mfd::ColorPreset preset);
     /** @brief Stages whether this ellipse is rendered filled. */
     void SetFilled(bool filled);
     void SetWidth(float width);
@@ -682,6 +706,10 @@ public:
                  PrimitiveBaseline baseline = MakeSquareDiamondPrimitiveBaseline());
     /** @brief Stages one fill color override for this square. */
     void SetFillColor(mfd::ColorRgba color);
+    /** @brief Stages a built-in color.
+     * @param preset Built-in preset; Custom and unknown values throw std::invalid_argument without mutation.
+     */
+    void SetFillColor(mfd::ColorPreset preset);
     /** @brief Stages whether this square is rendered filled. */
     void SetFilled(bool filled);
     /**
@@ -713,6 +741,10 @@ public:
                   PrimitiveBaseline baseline = MakeSquareDiamondPrimitiveBaseline());
     /** @brief Stages one fill color override for this diamond. */
     void SetFillColor(mfd::ColorRgba color);
+    /** @brief Stages a built-in color.
+     * @param preset Built-in preset; Custom and unknown values throw std::invalid_argument without mutation.
+     */
+    void SetFillColor(mfd::ColorPreset preset);
     /** @brief Stages whether this diamond is rendered filled. */
     void SetFilled(bool filled);
     void SetWidth(float width);
@@ -750,6 +782,10 @@ public:
                    PrimitiveBaseline baseline = {});
     /** @brief Stages one fill color override for this triangle. */
     void SetFillColor(mfd::ColorRgba color);
+    /** @brief Stages a built-in color.
+     * @param preset Built-in preset; Custom and unknown values throw std::invalid_argument without mutation.
+     */
+    void SetFillColor(mfd::ColorPreset preset);
     /** @brief Stages whether this triangle is rendered filled. */
     void SetFilled(bool filled);
     void SetPoints(const std::array<mfd::Vec2, 3>& points);
@@ -771,6 +807,10 @@ public:
                    PrimitiveBaseline baseline = {});
     /** @brief Stages one fill color override for this polyline when it is closed. */
     void SetFillColor(mfd::ColorRgba color);
+    /** @brief Stages a built-in color.
+     * @param preset Built-in preset; Custom and unknown values throw std::invalid_argument without mutation.
+     */
+    void SetFillColor(mfd::ColorPreset preset);
     /** @brief Stages whether this polyline is rendered filled when it is closed. */
     void SetFilled(bool filled);
     void SetPoints(std::vector<mfd::Vec2> points);
@@ -829,6 +869,10 @@ public:
               PrimitiveBaseline baseline = MakeArcPrimitiveBaseline());
     /** @brief Stages one fill color override for this arc sector. */
     void SetFillColor(mfd::ColorRgba color);
+    /** @brief Stages a built-in color.
+     * @param preset Built-in preset; Custom and unknown values throw std::invalid_argument without mutation.
+     */
+    void SetFillColor(mfd::ColorPreset preset);
     /** @brief Stages whether this arc is rendered as a filled sector. */
     void SetFilled(bool filled);
     void SetRadius(float radius);
@@ -927,6 +971,10 @@ public:
     /** @brief Stages one reticle-level non-uniform scale override. */
     void SetScale(mfd::Vec2 scale);
     void SetColor(mfd::ColorRgba color);
+    /** @brief Stages a built-in color.
+     * @param preset Built-in preset; Custom and unknown values throw std::invalid_argument without mutation.
+     */
+    void SetColor(mfd::ColorPreset preset);
     void SetThickness(float thickness);
     void SetText(std::string value);
     void SetText(std::string_view primitiveId, std::string value);
@@ -1159,6 +1207,10 @@ public:
     /** @brief Stages one dynamic-reticle non-uniform scale override. */
     void SetScale(mfd::Vec2 scale);
     void SetColor(mfd::ColorRgba color);
+    /** @brief Stages a built-in color.
+     * @param preset Built-in preset; Custom and unknown values throw std::invalid_argument without mutation.
+     */
+    void SetColor(mfd::ColorPreset preset);
     void SetThickness(float thickness);
     void SetText(std::string value);
     void SetText(std::string_view primitiveId, std::string value);

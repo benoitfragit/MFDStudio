@@ -181,7 +181,7 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      nullptr},
     {TutorialStepKind::UiAction,
      "Expose the progress fill primitive",
-     "Select the filling rectangle and mark it as exposed so the generated client API can resize and move it at runtime.",
+     "Select fill_bar and enable Exposed so the generated client can animate it. Open Stroke & fill, click the Yellow fill swatch in the 3 x 3 grid and observe the preview. Then click Custom (+) to explore the full RGBA picker including alpha. Apply commits a custom color; Cancel preserves Yellow.",
      "primitive_exposed_checkbox",
      nullptr,
      nullptr,
@@ -297,6 +297,24 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
 mfd::ArrayView<const TutorialStepDefinition> Steps() noexcept
 {
     return kTutorialSteps;
+}
+
+int NextColorTutorialPhase(const int phase, const bool exposed,
+                           const mfd::ColorPreset selected, const bool customOpened) noexcept
+{
+    if (!exposed)
+    {
+        return 0;
+    }
+    if (phase == 0)
+    {
+        return 1;
+    }
+    if (phase == 1 && selected == mfd::ColorPreset::Yellow)
+    {
+        return 2;
+    }
+    return phase == 2 && customOpened ? 3 : phase;
 }
 
 int StepCount() noexcept

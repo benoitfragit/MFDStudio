@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 #include "mfd/MfdExport.h"
 
@@ -57,6 +58,42 @@ struct ColorRgba
     /** @brief Alpha channel. */
     std::uint8_t a = 255;
 };
+
+/** @brief Stable built-in color identifiers shared with the command protocol. */
+enum class ColorPreset
+{
+    Custom = 0,
+    Black = 1,
+    White = 2,
+    Red = 3,
+    Green = 4,
+    Blue = 5,
+    Yellow = 6,
+    Cyan = 7,
+    Amber = 8
+};
+
+/**
+ * @brief Resolves a built-in preset without allocation.
+ * @param preset Preset to resolve.
+ * @return Exact RGBA value, or no value for Custom and unknown identifiers.
+ * @note Custom requires an explicit ColorRgba supplied by the caller.
+ */
+constexpr std::optional<ColorRgba> TryColorPreset(const ColorPreset preset) noexcept
+{
+    switch (preset)
+    {
+    case ColorPreset::Black: return ColorRgba {0, 0, 0, 255};
+    case ColorPreset::White: return ColorRgba {255, 255, 255, 255};
+    case ColorPreset::Red: return ColorRgba {255, 96, 96, 255};
+    case ColorPreset::Green: return ColorRgba {0, 255, 102, 255};
+    case ColorPreset::Blue: return ColorRgba {0, 120, 255, 255};
+    case ColorPreset::Yellow: return ColorRgba {249, 214, 111, 255};
+    case ColorPreset::Cyan: return ColorRgba {77, 224, 255, 255};
+    case ColorPreset::Amber: return ColorRgba {255, 203, 107, 255};
+    default: return std::nullopt;
+    }
+}
 
 /**
  * @brief Stroke pattern used by outline-capable primitives.

@@ -162,10 +162,11 @@
     {
       "name": "test-debug-win32-ci",
       "inherits": "test-debug-win32",
+      "description": "CI tests excluding hosted-runner GPU limitations and tests requiring locally authored tutorial assets.",
       "filter": {
         "exclude": {
           "label": "gpu|local",
-          "name": "ExternalStreamGpuInterop|CanvasCircleStrokeRenderTests\\.DegenerateSolidCircleDrawsNothing|CanvasCircleStrokeRenderTests\\.DashedCircleRendersLessStrokeCoverageThanSolidCircle|CanvasCircleStrokeRenderTests\\.AnisotropicFilledCircleUsesTheSameTransformAsItsOutline|CanvasRingRenderTests\\..*|CanvasClippingCallbackRenderTests\\..*|CanvasClippingRenderTests\\..*|CanvasTextRenderTests\\..*|CanvasDrawWorkRenderTests\\..*|RenderResourceLifetimeTests\\..*|OffscreenSurfaceTests\\..*"
+          "name": "^tutorial_client_runtime_layout_smoke$|ExternalStreamGpuInterop|CanvasCircleStrokeRenderTests\\.DegenerateSolidCircleDrawsNothing|CanvasCircleStrokeRenderTests\\.DashedCircleRendersLessStrokeCoverageThanSolidCircle|CanvasCircleStrokeRenderTests\\.AnisotropicFilledCircleUsesTheSameTransformAsItsOutline|CanvasRingRenderTests\\..*|CanvasClippingCallbackRenderTests\\..*|CanvasClippingRenderTests\\..*|CanvasTextRenderTests\\..*|CanvasDrawWorkRenderTests\\..*|RenderResourceLifetimeTests\\..*|OffscreenSurfaceTests\\..*"
         }
       }
     }

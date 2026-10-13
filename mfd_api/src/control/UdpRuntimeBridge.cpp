@@ -8,6 +8,8 @@
  * @brief Implementation for UdpRuntimeBridge.
  */
 
+#include "mfd/control/internal/ColorUpdate.h"
+
 #include "mfd/control/UdpRuntimeBridge.h"
 
 #include "UdpRuntimeBridgeInternal.hpp"
@@ -193,14 +195,10 @@ void MergePrimitivePatch(PrimitivePatch& target, const PrimitivePatch& source)
     {
         target.scale = source.scale;
     }
-    if (source.color.has_value())
-    {
-        target.color = source.color;
-    }
-    if (source.fillColor.has_value())
-    {
-        target.fillColor = source.fillColor;
-    }
+    detail::MergeColorUpdate(target.color, target.colorPreset, target.color, target.colorPreset,
+                              source.color, source.colorPreset);
+    detail::MergeColorUpdate(target.fillColor, target.fillColorPreset, target.fillColor, target.fillColorPreset,
+                              source.fillColor, source.fillColorPreset);
     if (source.filled.has_value())
     {
         target.filled = source.filled;
@@ -323,10 +321,8 @@ void MergeReticlePatch(ReticlePatch& target, const ReticlePatch& source)
     {
         target.scale = source.scale;
     }
-    if (source.color.has_value())
-    {
-        target.color = source.color;
-    }
+    detail::MergeColorUpdate(target.color, target.colorPreset, target.color, target.colorPreset,
+                              source.color, source.colorPreset);
     if (source.thickness.has_value())
     {
         target.thickness = source.thickness;

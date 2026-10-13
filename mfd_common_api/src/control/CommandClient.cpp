@@ -1334,6 +1334,7 @@ bool CommandClient::SetReticleColor(const std::string_view page,
 {
     ReticlePatch patch;
     patch.color = color;
+    patch.colorPreset = ColorPreset::Custom;
     return UpdateReticle(page, reticle, patch);
 }
 

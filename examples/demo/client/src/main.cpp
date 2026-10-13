@@ -114,7 +114,16 @@ mfd::ReticlePatch BuildTrackPatch(const float elapsedSeconds)
     mfd::ReticlePatch patch;
     patch.position = mfd::Vec2 {std::cos(angle) * radius, std::sin(angle) * radius};
     patch.rotationDegrees = angle * kRadiansToDegrees + 90.0f;
-    patch.color = PulseColor(elapsedSeconds);
+    // Alternate a named color with the existing animated custom color.
+    if (std::sin(elapsedSeconds * 0.5f) >= 0.0f)
+    {
+        patch.colorPreset = mfd::ColorPreset::Cyan;
+    }
+    else
+    {
+        patch.colorPreset = mfd::ColorPreset::Custom;
+        patch.color = PulseColor(elapsedSeconds);
+    }
     patch.texts.emplace("track_label", "AUTO");
     return patch;
 }

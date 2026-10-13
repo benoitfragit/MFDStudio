@@ -8,6 +8,8 @@
  * @brief Implementation for LatestBatchPublisher.
  */
 
+#include "mfd/control/internal/ColorUpdate.h"
+
 #include "mfd/client/LatestBatchPublisher.h"
 
 #include <algorithm>
@@ -340,8 +342,10 @@ void MergePrimitivePatchFillingNewestAbsentFields(mfd::PrimitivePatch& newest, c
     FillOptionalIfNewestAbsent(newest.position, pending.position);
     FillOptionalIfNewestAbsent(newest.rotationDegrees, pending.rotationDegrees);
     FillOptionalIfNewestAbsent(newest.scale, pending.scale);
-    FillOptionalIfNewestAbsent(newest.color, pending.color);
-    FillOptionalIfNewestAbsent(newest.fillColor, pending.fillColor);
+    mfd::detail::MergeColorUpdate(newest.color, newest.colorPreset, pending.color, pending.colorPreset,
+                                  newest.color, newest.colorPreset);
+    mfd::detail::MergeColorUpdate(newest.fillColor, newest.fillColorPreset, pending.fillColor, pending.fillColorPreset,
+                                  newest.fillColor, newest.fillColorPreset);
     FillOptionalIfNewestAbsent(newest.filled, pending.filled);
     FillOptionalIfNewestAbsent(newest.thickness, pending.thickness);
     FillOptionalIfNewestAbsent(newest.lineStyle, pending.lineStyle);
@@ -404,7 +408,8 @@ void FillStaticReticleScalarFields(mfd::ReticlePatch& newest, const mfd::Reticle
     FillOptionalIfNewestAbsent(newest.position, pending.position);
     FillOptionalIfNewestAbsent(newest.rotationDegrees, pending.rotationDegrees);
     FillOptionalIfNewestAbsent(newest.scale, pending.scale);
-    FillOptionalIfNewestAbsent(newest.color, pending.color);
+    mfd::detail::MergeColorUpdate(newest.color, newest.colorPreset, pending.color, pending.colorPreset,
+                                  newest.color, newest.colorPreset);
     FillOptionalIfNewestAbsent(newest.thickness, pending.thickness);
     FillOptionalIfNewestAbsent(newest.text, pending.text);
     FillOptionalIfNewestAbsent(newest.letterSpacing, pending.letterSpacing);

@@ -660,3 +660,7 @@ With the integrated guided tour on top of that workflow, the editor now also
 serves as a clean project overview: authored assets, editor workflows,
 generated API, runtime client behavior, and the next documentation layers all
 stay connected in one logical path.
+
+## Use the shared color selector
+
+Background, title, reticle and primitive colors share the [3 x 3 color grid](../src/reference/colors.md#editor). Custom (+) preserves alpha and commits only on Apply. In the integrated tutorial, select fill_bar, enable Exposed, open Stroke & fill, click Yellow under Fill and observe the preview. Open Custom to discover RGBA and alpha, then Apply or Cancel to continue. Existing tutorial stages and saved step indices are retained.

@@ -11,6 +11,7 @@
  */
 
 #include "mfd/core/ArrayView.h"
+#include "mfd/model/Types.h"
 
 namespace editor::tutorial
 {
@@ -93,6 +94,9 @@ mfd::ArrayView<const TutorialStepDefinition> Steps() noexcept;
  * @brief Returns the number of tutorial steps.
  */
 int StepCount() noexcept;
+
+/** @brief Advances exposure, Yellow selection, then Custom discovery in that order. */
+int NextColorTutorialPhase(int phase, bool exposed, mfd::ColorPreset selected, bool customOpened) noexcept;
 
 /**
  * @brief Returns `true` when the provided step is a UI-driven action.

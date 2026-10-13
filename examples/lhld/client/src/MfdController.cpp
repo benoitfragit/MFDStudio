@@ -199,7 +199,14 @@ void ApplyTrackView(lhld_ui::RadarRwsTrackDynamicReticle& reticle,
     }
     reticle.SetPosition(ToVec(view.position));
     reticle.SetRotationDegrees(view.rotationDegrees);
-    reticle.SetColor(TrackColor(view, false));
+    if (view.extrapolated)
+    {
+        reticle.SetColor(kRadarExtrapolated);
+    }
+    else
+    {
+        reticle.SetColor(mfd::ColorPreset::White);
+    }
     reticle.TrackAltitude().SetText(FormatTrackAltitude(view));
 }
 

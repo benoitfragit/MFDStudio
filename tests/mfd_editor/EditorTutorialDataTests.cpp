@@ -187,3 +187,18 @@ TEST(EditorTutorialDataTests, TutorialMetadataPointsToFollowUpDocuments)
     EXPECT_NE(std::string_view(documentationStep.explanation).find("demo client"), std::string_view::npos);
     EXPECT_NE(std::string_view(documentationStep.explanation).find("generated client API"), std::string_view::npos);
 }
+
+TEST(EditorTutorialDataTests, ColorGuidanceRequiresExposureThenYellowThenCustom)
+{
+    using editor::tutorial::NextColorTutorialPhase;
+    EXPECT_EQ(NextColorTutorialPhase(0, false, mfd::ColorPreset::Yellow, true), 0);
+    EXPECT_EQ(NextColorTutorialPhase(0, true, mfd::ColorPreset::Custom, false), 1);
+    EXPECT_EQ(NextColorTutorialPhase(1, true, mfd::ColorPreset::Blue, true), 1);
+    EXPECT_EQ(NextColorTutorialPhase(1, true, mfd::ColorPreset::Yellow, false), 2);
+    EXPECT_EQ(NextColorTutorialPhase(2, true, mfd::ColorPreset::Custom, false), 2);
+    EXPECT_EQ(NextColorTutorialPhase(2, true, mfd::ColorPreset::Custom, true), 3);
+    EXPECT_EQ(NextColorTutorialPhase(2, false, mfd::ColorPreset::Custom, true), 0);
+    const auto& step = Step(editor::tutorial::TutorialStepId::ExposeProgressBarFillPrimitive);
+    EXPECT_NE(std::string_view(step.instruction).find("Yellow"), std::string_view::npos);
+    EXPECT_NE(std::string_view(step.instruction).find("Custom"), std::string_view::npos);
+}

@@ -481,7 +481,7 @@ void ApplyAirData(hud_ui::HUDMockupPage& hud,
 
     hud.energyChevronDown.SetVisible(airData.energyChevronDownVisible);
     hud.energyChevronDown.SetPosition(ToMfdVec2(airData.energyChevronDownPosition));
-    hud.energyChevronDown.SetColor(kHudAmber);
+    hud.energyChevronDown.SetColor(mfd::ColorPreset::Yellow); // Same RGBA as the authored HUD amber.
 }
 
 void ApplyAirToAirMissile(hud_ui::HUDMockupPage& hud, const HudFrame& frame)

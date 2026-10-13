@@ -476,6 +476,34 @@ void EditorTutorialController::CompleteStep()
     AdvanceStep();
 }
 
+void EditorTutorialController::OnPrimitiveExposed()
+{
+    if (IsStep(static_cast<int>(editor::tutorial::TutorialStepId::ExposeProgressBarFillPrimitive)))
+    {
+        AdvancePhase();
+    }
+    else
+    {
+        CompleteStep();
+    }
+}
+
+void EditorTutorialController::OnFillColorInteraction(const bool exposed,
+                                                       const mfd::ColorPreset selected,
+                                                       const bool customOpened,
+                                                       const bool customVisible)
+{
+    if (!IsStep(static_cast<int>(editor::tutorial::TutorialStepId::ExposeProgressBarFillPrimitive)))
+    {
+        return;
+    }
+    stepPhase_ = editor::tutorial::NextColorTutorialPhase(stepPhase_, exposed, selected, customOpened);
+    if (stepPhase_ == 3 && !customVisible)
+    {
+        CompleteStep();
+    }
+}
+
 void EditorTutorialController::Finish()
 {
     active_ = false;
@@ -1112,7 +1140,7 @@ std::string_view EditorTutorialController::CurrentTargetId() const noexcept
                                  (stepPhase_ == 1 ? "menu_reticle_new" :
                                                     (stepPhase_ == 2 ? "popup_reticle_create" : "library_append_primitive"));
     case static_cast<int>(TutorialStepId::ExposeProgressBarFillPrimitive):
-        return "primitive_exposed_checkbox";
+        return stepPhase_ == 0 ? "primitive_exposed_checkbox" : "primitive_fill_color";
     case static_cast<int>(TutorialStepId::AddProgressBarToPage2):
         return "library_add_to_page";
     case static_cast<int>(TutorialStepId::AddPage1DefaultStrobe):
@@ -1210,7 +1238,9 @@ std::string_view EditorTutorialController::CurrentActionLabel() const noexcept
                                  (stepPhase_ == 1 ? "Click New library reticle from primitive." :
                                                     (stepPhase_ == 2 ? "Click Create reticle." : "Click Append primitive."));
     case static_cast<int>(TutorialStepId::ExposeProgressBarFillPrimitive):
-        return "Enable Exposed on the fill_bar primitive.";
+        return stepPhase_ == 0 ? "Enable Exposed on the fill_bar primitive." :
+               (stepPhase_ == 1 ? "In Stroke & fill, click the Yellow fill swatch and observe the preview." :
+                                  "Click Custom (+) in the fill grid to explore RGBA and alpha. Apply commits; Cancel preserves Yellow.");
     case static_cast<int>(TutorialStepId::AddProgressBarToPage2):
         return "Click Add to active page.";
     case static_cast<int>(TutorialStepId::AddPage1DefaultStrobe):

@@ -424,3 +424,7 @@ You now have a simple live client model:
 If your external application works in a physical frame such as nautical miles
 and radians, continue with
 [08 Project User Space To Page Space](./08_project_user_space_to_page_space.md).
+
+## Runtime colors
+
+Generated static and dynamic reticles support `SetColor(mfd::ColorPreset::Green)` and `SetColor(mfd::ColorRgba{80, 160, 255, 180})`. Fill-capable primitive handles support the corresponding `SetFillColor` overloads. See the [palette and transport rules](../src/reference/colors.md).

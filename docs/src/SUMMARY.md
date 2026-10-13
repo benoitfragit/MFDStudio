@@ -23,6 +23,7 @@
 # Reference
 
 - [JSON Syntax](./reference/json.md)
+- [Color Presets](./reference/colors.md)
 - [Primitives](./reference/primitives.md)
 - [Pages And Windows](./reference/pages_and_windows.md)
 - [Public API Contract](./reference/public_contract.md)

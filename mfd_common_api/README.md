@@ -15,3 +15,5 @@ It is intentionally not packaged as a user-facing SDK. The staged client SDK
 republishes only the header subset needed by `MFDStudioClientApi`, including
 the standalone client examples and generated helpers, while the rest of the
 module stays internal to the build graph.
+
+The shared `mfd::ColorPreset` palette and optional command fields are described in the [color and interoperability reference](../docs/src/reference/colors.md). Existing `ColorRgba` and RGBA-only transport remain supported.

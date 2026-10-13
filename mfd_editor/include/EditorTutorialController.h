@@ -19,6 +19,7 @@ class EditorApplication;
 namespace mfd
 {
 enum class PrimitiveType;
+enum class ColorPreset;
 struct PageDefinition;
 struct Primitive;
 struct ReticleGroup;
@@ -51,6 +52,10 @@ public:
     void RestartFromScratch();
     /** @brief Marks the current tutorial step as completed and advances the flow. */
     void CompleteStep();
+    /** @brief Advances exposure guidance, including the progress-bar color micro-steps. */
+    void OnPrimitiveExposed();
+    /** @brief Validates the selected progress fill before advancing color guidance. */
+    void OnFillColorInteraction(bool exposed, mfd::ColorPreset selected, bool customOpened, bool customVisible);
     /** @brief Ends the tutorial and clears persisted progress. */
     void Finish();
     /** @brief Draws the guided tutorial coach panel. */

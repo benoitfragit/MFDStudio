@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "mfd/client/GeneratedUiSupport.h"
+#include "mfd/model/Types.h"
 
 namespace lhld_ui
 {

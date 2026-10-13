@@ -8,6 +8,8 @@
  * @brief Implementation for Animation.
  */
 
+#include "mfd/control/internal/ColorUpdate.h"
+
 #include "mfd/client/Animation.h"
 
 #include <algorithm>
@@ -161,8 +163,8 @@ bool Equal(const mfd::PrimitivePatch& lhs, const mfd::PrimitivePatch& rhs)
            EqualOptional(lhs.position, rhs.position) &&
            EqualOptional(lhs.rotationDegrees, rhs.rotationDegrees) &&
            EqualOptional(lhs.scale, rhs.scale) &&
-           EqualOptional(lhs.color, rhs.color) &&
-           EqualOptional(lhs.fillColor, rhs.fillColor) &&
+           mfd::detail::EqualColorUpdate(lhs.color, lhs.colorPreset, rhs.color, rhs.colorPreset) &&
+           mfd::detail::EqualColorUpdate(lhs.fillColor, lhs.fillColorPreset, rhs.fillColor, rhs.fillColorPreset) &&
            EqualOptional(lhs.filled, rhs.filled) &&
            EqualOptional(lhs.thickness, rhs.thickness) &&
            EqualOptional(lhs.lineStyle, rhs.lineStyle) &&
@@ -198,7 +200,7 @@ bool Equal(const mfd::ReticlePatch& lhs, const mfd::ReticlePatch& rhs)
            EqualOptional(lhs.position, rhs.position) &&
            EqualOptional(lhs.rotationDegrees, rhs.rotationDegrees) &&
            EqualOptional(lhs.scale, rhs.scale) &&
-           EqualOptional(lhs.color, rhs.color) &&
+           mfd::detail::EqualColorUpdate(lhs.color, lhs.colorPreset, rhs.color, rhs.colorPreset) &&
            EqualOptional(lhs.thickness, rhs.thickness) &&
            EqualOptional(lhs.text, rhs.text) &&
            lhs.texts == rhs.texts &&
@@ -274,8 +276,10 @@ mfd::PrimitivePatch BuildDeltaPrimitivePatch(const mfd::PrimitivePatch& desired,
     CopyChangedOptionalField(desired.position, previous.position, delta.position);
     CopyChangedOptionalField(desired.rotationDegrees, previous.rotationDegrees, delta.rotationDegrees);
     CopyChangedOptionalField(desired.scale, previous.scale, delta.scale);
-    CopyChangedOptionalField(desired.color, previous.color, delta.color);
-    CopyChangedOptionalField(desired.fillColor, previous.fillColor, delta.fillColor);
+    mfd::detail::CopyChangedColorUpdate(desired.color, desired.colorPreset,
+                                        previous.color, previous.colorPreset, delta.color, delta.colorPreset);
+    mfd::detail::CopyChangedColorUpdate(desired.fillColor, desired.fillColorPreset,
+                                        previous.fillColor, previous.fillColorPreset, delta.fillColor, delta.fillColorPreset);
     CopyChangedOptionalField(desired.filled, previous.filled, delta.filled);
     CopyChangedOptionalField(desired.thickness, previous.thickness, delta.thickness);
     CopyChangedOptionalField(desired.lineStyle, previous.lineStyle, delta.lineStyle);
@@ -338,7 +342,8 @@ mfd::ReticlePatch BuildDeltaPatch(const mfd::ReticlePatch& desired, const mfd::R
     CopyChangedOptionalField(desired.position, previous.position, delta.position);
     CopyChangedOptionalField(desired.rotationDegrees, previous.rotationDegrees, delta.rotationDegrees);
     CopyChangedOptionalField(desired.scale, previous.scale, delta.scale);
-    CopyChangedOptionalField(desired.color, previous.color, delta.color);
+    mfd::detail::CopyChangedColorUpdate(desired.color, desired.colorPreset,
+                                        previous.color, previous.colorPreset, delta.color, delta.colorPreset);
     CopyChangedOptionalField(desired.thickness, previous.thickness, delta.thickness);
     CopyChangedOptionalField(desired.text, previous.text, delta.text);
     CopyChangedMapFields(desired.texts, previous.texts, delta.texts);
@@ -402,7 +407,12 @@ void PatchSetScale(mfd::ReticlePatch& patch, const mfd::Vec2 scale)
 
 void PatchSetColor(mfd::ReticlePatch& patch, const mfd::ColorRgba color)
 {
-    patch.color = color;
+    mfd::detail::SetColorUpdate(patch.color, patch.colorPreset, color);
+}
+
+void PatchSetColor(mfd::ReticlePatch& patch, const mfd::ColorPreset preset)
+{
+    mfd::detail::SetColorUpdate(patch.color, patch.colorPreset, preset);
 }
 
 void PatchSetThickness(mfd::ReticlePatch& patch, const float thickness)
@@ -974,13 +984,31 @@ void PrimitiveHandle::SetScale(const mfd::Vec2 scale)
 
 void PrimitiveHandle::SetColor(const mfd::ColorRgba color)
 {
-    Patch().color = color;
+    mfd::PrimitivePatch& patch = Patch();
+    mfd::detail::SetColorUpdate(patch.color, patch.colorPreset, color);
+    MarkDirty();
+}
+
+void PrimitiveHandle::SetColor(const mfd::ColorPreset preset)
+{
+    mfd::detail::RequireBuiltInColor(preset);
+    mfd::PrimitivePatch& patch = Patch();
+    mfd::detail::SetColorUpdate(patch.color, patch.colorPreset, preset);
     MarkDirty();
 }
 
 void PrimitiveHandle::SetFillColorInternal(const mfd::ColorRgba color)
 {
-    Patch().fillColor = color;
+    mfd::PrimitivePatch& patch = Patch();
+    mfd::detail::SetColorUpdate(patch.fillColor, patch.fillColorPreset, color);
+    MarkDirty();
+}
+
+void PrimitiveHandle::SetFillColorInternal(const mfd::ColorPreset preset)
+{
+    mfd::detail::RequireBuiltInColor(preset);
+    mfd::PrimitivePatch& patch = Patch();
+    mfd::detail::SetColorUpdate(patch.fillColor, patch.fillColorPreset, preset);
     MarkDirty();
 }
 
@@ -1178,6 +1206,11 @@ void CircleHandle::SetFillColor(const mfd::ColorRgba color)
     SetFillColorInternal(color);
 }
 
+void CircleHandle::SetFillColor(const mfd::ColorPreset preset)
+{
+    SetFillColorInternal(preset);
+}
+
 void CircleHandle::SetFilled(const bool filled)
 {
     SetFilledInternal(filled);
@@ -1208,6 +1241,11 @@ RingHandle::RingHandle(mfd::ReticlePatch& patch,
 void RingHandle::SetFillColor(const mfd::ColorRgba color)
 {
     SetFillColorInternal(color);
+}
+
+void RingHandle::SetFillColor(const mfd::ColorPreset preset)
+{
+    SetFillColorInternal(preset);
 }
 
 void RingHandle::SetFilled(const bool filled)
@@ -1266,6 +1304,11 @@ void RectangleHandle::SetFillColor(const mfd::ColorRgba color)
     SetFillColorInternal(color);
 }
 
+void RectangleHandle::SetFillColor(const mfd::ColorPreset preset)
+{
+    SetFillColorInternal(preset);
+}
+
 void RectangleHandle::SetFilled(const bool filled)
 {
     SetFilledInternal(filled);
@@ -1317,6 +1360,11 @@ EllipseHandle::EllipseHandle(mfd::ReticlePatch& patch,
 void EllipseHandle::SetFillColor(const mfd::ColorRgba color)
 {
     SetFillColorInternal(color);
+}
+
+void EllipseHandle::SetFillColor(const mfd::ColorPreset preset)
+{
+    SetFillColorInternal(preset);
 }
 
 void EllipseHandle::SetFilled(const bool filled)
@@ -1372,6 +1420,11 @@ void SquareHandle::SetFillColor(const mfd::ColorRgba color)
     SetFillColorInternal(color);
 }
 
+void SquareHandle::SetFillColor(const mfd::ColorPreset preset)
+{
+    SetFillColorInternal(preset);
+}
+
 void SquareHandle::SetFilled(const bool filled)
 {
     SetFilledInternal(filled);
@@ -1402,6 +1455,11 @@ DiamondHandle::DiamondHandle(mfd::ReticlePatch& patch,
 void DiamondHandle::SetFillColor(const mfd::ColorRgba color)
 {
     SetFillColorInternal(color);
+}
+
+void DiamondHandle::SetFillColor(const mfd::ColorPreset preset)
+{
+    SetFillColorInternal(preset);
 }
 
 void DiamondHandle::SetFilled(const bool filled)
@@ -1457,6 +1515,11 @@ void TriangleHandle::SetFillColor(const mfd::ColorRgba color)
     SetFillColorInternal(color);
 }
 
+void TriangleHandle::SetFillColor(const mfd::ColorPreset preset)
+{
+    SetFillColorInternal(preset);
+}
+
 void TriangleHandle::SetFilled(const bool filled)
 {
     SetFilledInternal(filled);
@@ -1493,6 +1556,11 @@ PolylineHandle::PolylineHandle(mfd::ReticlePatch& patch,
 void PolylineHandle::SetFillColor(const mfd::ColorRgba color)
 {
     SetFillColorInternal(color);
+}
+
+void PolylineHandle::SetFillColor(const mfd::ColorPreset preset)
+{
+    SetFillColorInternal(preset);
 }
 
 void PolylineHandle::SetFilled(const bool filled)
@@ -1571,6 +1639,11 @@ ArcHandle::ArcHandle(mfd::ReticlePatch& patch,
 void ArcHandle::SetFillColor(const mfd::ColorRgba color)
 {
     SetFillColorInternal(color);
+}
+
+void ArcHandle::SetFillColor(const mfd::ColorPreset preset)
+{
+    SetFillColorInternal(preset);
 }
 
 void ArcHandle::SetFilled(const bool filled)
@@ -1714,6 +1787,12 @@ void Reticle::SetScale(const mfd::Vec2 scale)
 void Reticle::SetColor(const mfd::ColorRgba color)
 {
     PatchSetColor(desiredPatch_, color);
+    dirty_ = true;
+}
+
+void Reticle::SetColor(const mfd::ColorPreset preset)
+{
+    PatchSetColor(desiredPatch_, preset);
     dirty_ = true;
 }
 
@@ -2201,6 +2280,12 @@ void DynamicReticle::SetScale(const mfd::Vec2 scale)
 void DynamicReticle::SetColor(const mfd::ColorRgba color)
 {
     PatchSetColor(desiredPatch_, color);
+    dirty_ = true;
+}
+
+void DynamicReticle::SetColor(const mfd::ColorPreset preset)
+{
+    PatchSetColor(desiredPatch_, preset);
     dirty_ = true;
 }
 

@@ -51,6 +51,20 @@ message TimeFieldVisibility
   bool second = 6;
 }
 
+// Stable built-in palette. CUSTOM requires an explicit packed RGBA value.
+enum ColorPreset
+{
+  COLOR_PRESET_CUSTOM = 0;
+  COLOR_PRESET_BLACK = 1;
+  COLOR_PRESET_WHITE = 2;
+  COLOR_PRESET_RED = 3;
+  COLOR_PRESET_GREEN = 4;
+  COLOR_PRESET_BLUE = 5;
+  COLOR_PRESET_YELLOW = 6;
+  COLOR_PRESET_CYAN = 7;
+  COLOR_PRESET_AMBER = 8;
+}
+
 message PrimitivePatch
 {
   optional bool visible = 1;
@@ -83,6 +97,10 @@ message PrimitivePatch
   optional TimeFieldVisibility time_fields = 28;
   optional uint32 stream_playback = 29;
   optional uint64 stream_stop_token = 30;
+  // Each preset/RGBA pair is one property: built-in alone, CUSTOM + RGBA,
+  // legacy RGBA alone, or neither for no update. Unknown values are invalid.
+  optional ColorPreset color_preset = 31;
+  optional ColorPreset fill_color_preset = 32;
 }
 
 message ReticlePatch
@@ -100,6 +118,9 @@ message ReticlePatch
   optional uint64 blink_type_id = 11;
   map<uint64, PrimitivePatch> primitive_patches_by_id = 12;
   optional Vec2 scale = 13;
+  // Presence matters: explicit CUSTOM = 0 requires packed_rgba.
+  // Built-ins exclude packed_rgba; absent enum permits legacy RGBA updates.
+  optional ColorPreset color_preset = 14;
 }
 
 message ActivatePageCommand

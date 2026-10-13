@@ -1743,3 +1743,73 @@ TEST(LatestBatchPublisherTests, CapturesThrownExceptionsFromSendCallback)
 
     EXPECT_EQ(publisher.LastError(), "simulated send crash");
 }
+
+TEST(LatestBatchPublisherTests, CoalescesPresetCustomTransitionsWithoutStaleColorFields)
+{
+    for (const bool olderPreset : {false, true})
+    {
+        for (const bool newerPreset : {false, true})
+        {
+            std::mutex mutex;
+            std::condition_variable condition;
+            bool entered = false;
+            bool release = false;
+            std::vector<mfd::CommandBatch> delivered;
+            mfd::client::LatestBatchPublisher publisher(
+                [&mutex, &condition, &entered, &release, &delivered](const mfd::CommandBatch& batch)
+                {
+                    std::unique_lock lock(mutex);
+                    delivered.push_back(batch);
+                    if (batch.sequence == 1)
+                    {
+                        entered = true;
+                        condition.notify_all();
+                        return condition.wait_for(lock, std::chrono::seconds(5), [&release]() { return release; });
+                    }
+                    return true;
+                });
+            EXPECT_TRUE(publisher.SubmitLatest(MakeBatch(1)));
+            {
+                std::unique_lock lock(mutex);
+                EXPECT_TRUE(condition.wait_for(lock, std::chrono::seconds(2), [&entered]() { return entered; }));
+            }
+            mfd::UpdateReticleCommand older;
+            older.target = {"Radar", "track"};
+            if (olderPreset) older.patch.colorPreset = mfd::ColorPreset::Green;
+            else older.patch.color = mfd::ColorRgba {10, 20, 30, 200};
+            older.patch.primitivePatches["area"].color = mfd::ColorRgba {1, 2, 3, 4};
+            older.patch.primitivePatches["area"].fillColorPreset = mfd::ColorPreset::Yellow;
+            auto pending = MakeBatch(2);
+            pending.commands.push_back(older);
+            EXPECT_TRUE(publisher.SubmitLatest(std::move(pending)));
+            mfd::UpdateReticleCommand newer;
+            newer.target = older.target;
+            if (newerPreset) newer.patch.colorPreset = mfd::ColorPreset::Blue;
+            else
+            {
+                newer.patch.colorPreset = mfd::ColorPreset::Custom;
+                newer.patch.color = mfd::ColorRgba {120, 50, 180, 150};
+            }
+            newer.patch.primitivePatches["area"].colorPreset = mfd::ColorPreset::Red;
+            auto latest = MakeBatch(3);
+            latest.commands.push_back(newer);
+            EXPECT_TRUE(publisher.SubmitLatest(std::move(latest)));
+            {
+                std::lock_guard lock(mutex);
+                release = true;
+            }
+            condition.notify_all();
+            publisher.Flush();
+            ASSERT_EQ(delivered.size(), 2U);
+            const auto* command = FindStaticReticleUpdate(delivered.back(), "Radar", "track");
+            ASSERT_NE(command, nullptr);
+            EXPECT_EQ(command->patch.colorPreset, newer.patch.colorPreset);
+            EXPECT_EQ(command->patch.color.has_value(), !newerPreset);
+            if (command->patch.color) EXPECT_EQ(command->patch.color->a, 150);
+            const auto& area = command->patch.primitivePatches.at("area");
+            EXPECT_EQ(area.colorPreset, mfd::ColorPreset::Red);
+            EXPECT_FALSE(area.color);
+            EXPECT_EQ(area.fillColorPreset, mfd::ColorPreset::Yellow);
+        }
+    }
+}

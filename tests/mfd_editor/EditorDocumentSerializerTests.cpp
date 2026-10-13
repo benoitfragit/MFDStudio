@@ -1556,3 +1556,47 @@ TEST(EditorDocumentSerializerTests, SaveStagingFailurePreservesEveryOriginalFile
     EXPECT_FALSE(std::filesystem::exists(std::filesystem::path(windowFile).concat(".mfd_save_tmp_0")));
     EXPECT_FALSE(std::filesystem::exists(std::filesystem::path(windowFile).concat(".mfd_save_backup_0")));
 }
+
+TEST(EditorDocumentSerializerTests, PaletteAndCustomAlphaSurviveJsonRoundTrip)
+{
+    ScopedTempDir tempDir;
+    mfd::PageDefinition page;
+    page.name = "Palette";
+    page.title = "Palette";
+    page.layers.push_back(mfd::PageLayerDefinition {"default"});
+    mfd::ReticleGroup reticle;
+    reticle.id = "area";
+    reticle.layerId = "default";
+    mfd::Primitive primitive;
+    primitive.id = "box";
+    primitive.type = mfd::PrimitiveType::Rectangle;
+    primitive.geometry = mfd::RectangleGeometry {0.2f, 0.1f};
+    primitive.style.color = *mfd::TryColorPreset(mfd::ColorPreset::Blue);
+    primitive.style.fillColor = {80, 160, 255, 180};
+    primitive.style.filled = true;
+    reticle.primitives.push_back(primitive);
+    page.staticReticles.push_back(reticle);
+    page.backgroundColor = *mfd::TryColorPreset(mfd::ColorPreset::Black);
+    editor::EditorFileLayout layout;
+    const auto file = tempDir.Path() / "page.json";
+    std::filesystem::create_directory(tempDir.Path() / "reticles");
+    layout.pageFiles.push_back(file);
+    {
+        std::ofstream stream(file);
+        const auto pageNode = nlohmann::json::parse(editor::SerializePageToJsonString(page, {}, layout, 0));
+        stream << nlohmann::json {{"reticleLibraryFolder", "reticles"}, {"pages", nlohmann::json::array({pageNode})}};
+    }
+    const auto document = mfd::JsonLoader {}.LoadDocument(file);
+    ASSERT_EQ(document.pages.size(), 1U);
+    ASSERT_EQ(document.pages.front().staticReticles.size(), 1U);
+    const auto& restored = document.pages.front().staticReticles.front();
+    EXPECT_FALSE(restored.overrides.color);
+    ASSERT_EQ(restored.primitives.size(), 1U);
+    const auto& style = restored.primitives.front().style;
+    EXPECT_EQ(style.color.g, 120);
+    EXPECT_EQ(style.color.b, 255);
+    EXPECT_EQ(style.fillColor.r, 80);
+    EXPECT_EQ(style.fillColor.g, 160);
+    EXPECT_EQ(style.fillColor.b, 255);
+    EXPECT_EQ(style.fillColor.a, 180);
+}

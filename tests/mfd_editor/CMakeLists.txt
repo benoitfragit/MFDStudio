@@ -31,6 +31,7 @@ set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorReticleRenameServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorSnappingTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorTutorialDataTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorColorPickerTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorUiThemeTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorUiStatePersistenceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorUndoHistoryTests.cpp
@@ -69,6 +70,7 @@ target_sources(mfd_editor_tests
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorAssetPathService.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorLaunchOptions.h
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorLaunchOptions.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorColorPicker.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorTutorialData.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorDocumentSerializer.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorDesignExportService.h

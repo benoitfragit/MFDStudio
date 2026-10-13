@@ -1,3 +1,5 @@
+#include "internal/application/EditorColorPicker.h"
+
 #include "internal/application/EditorExternalStreamInspector.h"
 /*
  * This file is part of MFDStudio.
@@ -685,15 +687,11 @@ void EditorApplication::DrawPageInspector()
         "Select the Page1 title chrome",
         "Open the dedicated title inspector. It exposes move, scale, visibility, color, line style, and decoration controls for the generated page title.");
 
-    const bool bgChanged = ImGui::ColorEdit4("Background", &background.x);
+    const bool bgChanged = editor::ui::DrawColorPicker("Background", &background.x).changed;
     ShowItemTooltip("Preview and runtime background color for this page.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
     if (bgChanged)
     {
-        page->backgroundColor = ToColorRgba(background);
+        ApplyAuthoredColor(page->backgroundColor, background);
     }
 
     const bool centerChanged = ImGui::DragFloat2("View center", &page->view.center.x, 0.01f, -1.0f, 1.0f, "%.3f");
@@ -2423,13 +2421,9 @@ void EditorApplication::DrawPageReticleInspector()
     ShowItemTooltip("Per-axis scale applied to this page reticle instance.");
 
     ImVec4 stroke = ToImGuiColor(reticle->overrides.color.value_or(mfd::ColorRgba {0, 255, 102, 255}));
-    if (ImGui::ColorEdit4("Stroke", &stroke.x))
+    if (editor::ui::DrawColorPicker("Stroke", &stroke.x).changed)
     {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        reticle->overrides.color = ToColorRgba(stroke);
+        ApplyAuthoredColor(reticle->overrides.color, stroke);
     }
     ShowItemTooltip("Override the template stroke color for this page reticle instance.");
 
@@ -2672,13 +2666,9 @@ void EditorApplication::DrawSelectedPageTitleInspector()
     ShowItemTooltip("Choose whether the title is underlined, boxed, or rendered without decoration.");
 
     ImVec4 color = ToImGuiColor(titleDisplay->color);
-    if (ImGui::ColorEdit4("Color", &color.x))
+    if (editor::ui::DrawColorPicker("Color", &color.x).changed)
     {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        titleDisplay->color = ToColorRgba(color);
+        ApplyAuthoredColor(titleDisplay->color, color);
     }
     ShowItemTooltip("Shared color applied to the title text and its decoration.");
 
@@ -2986,13 +2976,9 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
     ShowItemTooltip("Per-axis scale applied to this page strobe instance.");
 
     ImVec4 stroke = ToImGuiColor(reticle->overrides.color.value_or(mfd::ColorRgba {0, 255, 102, 255}));
-    if (ImGui::ColorEdit4("Stroke", &stroke.x))
+    if (editor::ui::DrawColorPicker("Stroke", &stroke.x).changed)
     {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        reticle->overrides.color = ToColorRgba(stroke);
+        ApplyAuthoredColor(reticle->overrides.color, stroke);
     }
     ShowItemTooltip("Override the template stroke color for this page strobe instance.");
 
@@ -3382,13 +3368,9 @@ void EditorApplication::DrawLibraryReticleInspector()
     ShowItemTooltip("Default per-axis scale applied to this template.");
 
     ImVec4 stroke = ToImGuiColor(reticle->overrides.color.value_or(mfd::ColorRgba {0, 255, 102, 255}));
-    if (ImGui::ColorEdit4("Default stroke", &stroke.x))
+    if (editor::ui::DrawColorPicker("Default stroke", &stroke.x).changed)
     {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        reticle->overrides.color = ToColorRgba(stroke);
+        ApplyAuthoredColor(reticle->overrides.color, stroke);
     }
     ShowItemTooltip("Default stroke color inherited by page instances unless they override it.");
 
@@ -3408,13 +3390,9 @@ void EditorApplication::DrawLibraryReticleInspector()
         const mfd::ColorRgba fallbackFillColor =
             VisibleFillColorFromStroke(reticle->overrides.color.value_or(mfd::PrimitiveStyle {}.color));
         ImVec4 fill = ToImGuiColor(reticle->overrides.fillColor.value_or(fallbackFillColor));
-        if (ImGui::ColorEdit4("Default fill", &fill.x))
+        if (editor::ui::DrawColorPicker("Default fill", &fill.x).changed)
         {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            reticle->overrides.fillColor = ToColorRgba(fill);
+            ApplyAuthoredColor(reticle->overrides.fillColor, fill);
         }
         ShowItemTooltip("Default fill color inherited by fill-capable primitives unless they override it locally.");
 
@@ -3635,7 +3613,7 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
 
             if (exposed && tutorial_->MatchesTarget("primitive_exposed_checkbox") && tutorialExposedPrimitiveSelected)
             {
-                tutorial_->CompleteStep();
+                tutorial_->OnPrimitiveExposed();
             }
         }
         ShowItemTooltip("Expose this primitive through the generated client API so runtime code can drive it directly.");
@@ -3738,13 +3716,9 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
     if (BeginInspectorSection("section_primitive_appearance", "Stroke & fill", true, sectionForceOpen))
     {
     ImVec4 stroke = ToImGuiColor(primitive->style.color);
-    if (ImGui::ColorEdit4("Stroke", &stroke.x))
+    if (editor::ui::DrawColorPicker("Stroke", &stroke.x).changed)
     {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        primitive->style.color = ToColorRgba(stroke);
+        ApplyAuthoredColor(primitive->style.color, stroke);
     }
     ShowItemTooltip("Stroke color used to render this primitive.");
 
@@ -3819,13 +3793,17 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
 
         ImGui::BeginDisabled(fillColorOverridden);
         ImVec4 fill = ToImGuiColor(primitive->style.fillColor);
-        if (ImGui::ColorEdit4(fillColorOverridden ? "Local fill" : "Fill", &fill.x))
+        const auto fillInteraction = editor::ui::DrawColorPicker(fillColorOverridden ? "Local fill" : "Fill", &fill.x);
+        if (fillInteraction.changed)
         {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            primitive->style.fillColor = ToColorRgba(fill);
+            ApplyAuthoredColor(primitive->style.fillColor, fill);
+        }
+        if (tutorialExposedPrimitiveSelected && !fillColorOverridden)
+        {
+            tutorial_->OnFillColorInteraction(primitive->exposed, fillInteraction.selected,
+                                               fillInteraction.customOpened, fillInteraction.customVisible);
+            tutorial_->DrawHalo("primitive_fill_color", "Choose a fill color",
+                                "Click Yellow, observe the preview, then open Custom (+) to explore RGBA and alpha. Apply commits; Cancel preserves the color.");
         }
         ImGui::EndDisabled();
         ShowItemTooltip(fillColorOverridden
@@ -4282,4 +4260,16 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         ShowItemTooltip("Logical size of the image before the primitive scale is applied.");
     }
     }
+}
+
+void EditorApplication::ApplyAuthoredColor(mfd::ColorRgba& destination, const ImVec4& color)
+{
+    PushUndoSnapshot();
+    destination = ToColorRgba(color);
+}
+
+void EditorApplication::ApplyAuthoredColor(std::optional<mfd::ColorRgba>& destination, const ImVec4& color)
+{
+    PushUndoSnapshot();
+    destination = ToColorRgba(color);
 }

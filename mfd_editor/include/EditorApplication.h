@@ -296,6 +296,10 @@ private:
     void DrawLibraryReticleInspector();
     /** @brief Draws the inspector for one primitive inside a library reticle. */
     void DrawLibraryPrimitiveInspector();
+    /** @brief Commits one authored color edit with an atomic undo snapshot. */
+    void ApplyAuthoredColor(mfd::ColorRgba& destination, const ImVec4& color);
+    /** @brief Creates an override only after an explicit committed color edit. */
+    void ApplyAuthoredColor(std::optional<mfd::ColorRgba>& destination, const ImVec4& color);
     /** @brief Applies one clipping-mode change to the selected page strobe. */
     void ApplySelectedPageStrobeClipping(mfd::ReticleGroup& reticle,
                                          mfd::ReticleClipMode mode,

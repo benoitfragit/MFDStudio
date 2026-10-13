@@ -1699,3 +1699,100 @@ TEST(CommandProcessorTests, IdOnlyDynamicSetStrobeMagnetCommandEnablesMagnetizat
     EXPECT_FLOAT_EQ(strobe->position.x, 0.1f);
     EXPECT_FLOAT_EQ(strobe->position.y, -0.2f);
 }
+
+TEST(CommandProcessorTests, ColorPresetsResolveAtomicallyAndResetToAuthored)
+{
+    mfd::SceneRegistry registry = MakeRegistry();
+    mfd::CommandProcessor processor(registry);
+    mfd::ReticlePatch patch;
+    patch.colorPreset = mfd::ColorPreset::Green;
+    patch.primitivePatchesById[33].colorPreset = mfd::ColorPreset::Red;
+    patch.primitivePatchesById[33].fillColorPreset = mfd::ColorPreset::Yellow;
+    mfd::CommandBatch batch;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(mfd::UpdateReticleCommand {{"", "", 11, 22}, patch});
+    const auto decoded = mfd::DeserializeCommandBatch(mfd::SerializeCommandBatch(batch));
+    ASSERT_TRUE(decoded);
+    ASSERT_TRUE(processor.Submit(*decoded));
+    auto reticles = registry.CollectPageReticlePointers("Radar");
+    ASSERT_EQ(reticles.size(), 1U);
+    ASSERT_TRUE(reticles.front()->overrides.color);
+    EXPECT_EQ(reticles.front()->overrides.color->g, 255);
+    EXPECT_EQ(reticles.front()->overrides.color->b, 102);
+    EXPECT_EQ(reticles.front()->primitives.front().style.color.g, 96);
+    EXPECT_EQ(reticles.front()->primitives.front().style.fillColor.r, 249);
+    patch.primitivePatchesById.clear();
+    patch.colorPreset = mfd::ColorPreset::Custom;
+    patch.position = mfd::Vec2 {0.5f, 0.5f};
+    EXPECT_FALSE(processor.Submit(mfd::UserCommand {mfd::UpdateReticleCommand {{"Radar", "heading_box"}, patch}}));
+    reticles = registry.CollectPageReticlePointers("Radar");
+    EXPECT_FLOAT_EQ(reticles.front()->transform.position.x, 0.0f);
+    EXPECT_EQ(reticles.front()->overrides.color->b, 102);
+    // Direct scene API also rejects nested invalid choices before changing anything.
+    patch.colorPreset.reset();
+    patch.primitivePatches["heading_value"].fillColorPreset = static_cast<mfd::ColorPreset>(99);
+    EXPECT_FALSE(registry.ApplyReticlePatch("Radar", "heading_box", patch));
+    EXPECT_FLOAT_EQ(reticles.front()->transform.position.x, 0.0f);
+    patch.primitivePatches.clear();
+    patch.color = mfd::ColorRgba {80, 160, 255, 180};
+    ASSERT_TRUE(registry.ApplyReticlePatch("Radar", "heading_box", patch));
+    EXPECT_EQ(reticles.front()->overrides.color->a, 180);
+    patch.colorPreset = mfd::ColorPreset::Custom;
+    patch.color->a = 90;
+    ASSERT_TRUE(registry.ApplyReticlePatch("Radar", "heading_box", patch));
+    EXPECT_EQ(reticles.front()->overrides.color->a, 90);
+    ASSERT_TRUE(processor.Submit(mfd::UserCommand {mfd::ResetWindowCommand {}}));
+    reticles = registry.CollectPageReticlePointers("Radar");
+    EXPECT_FALSE(reticles.front()->overrides.color);
+    EXPECT_FLOAT_EQ(reticles.front()->transform.position.x, 0.0f);
+}
+
+TEST(CommandProcessorTests, DynamicColorPresetsSupportSingleAndBulkUpdates)
+{
+    mfd::SceneRegistry registry = MakeRuntimeRegistry();
+    mfd::CommandProcessor processor(registry);
+    mfd::UpsertDynamicReticleCommand create;
+    create.target.pageId = 11;
+    create.target.runtimeReticleId = 9001;
+    create.templateTransportId = 55;
+    create.patch.colorPreset = mfd::ColorPreset::Blue;
+    mfd::CommandBatch batch;
+    batch.mappingHash = "map_hash";
+    batch.commands.push_back(create);
+    ASSERT_TRUE(processor.Submit(mfd::SerializeCommandBatch(batch)));
+    auto reticles = registry.CollectPageReticlePointers("Radar");
+    bool foundBlue = false;
+    for (const auto* reticle : reticles)
+    {
+        if (reticle->overrides.color && reticle->overrides.color->b == 255 && reticle->overrides.color->g == 120)
+            foundBlue = true;
+    }
+    EXPECT_TRUE(foundBlue);
+    mfd::UpsertDynamicReticlesCommand bulk;
+    bulk.pageId = 11;
+    bulk.templateTransportId = 55;
+    mfd::DynamicReticleState state;
+    state.runtimeReticleId = 9001;
+    state.patch.colorPreset = mfd::ColorPreset::Custom;
+    state.patch.color = mfd::ColorRgba {80, 160, 255, 180};
+    bulk.reticles.push_back(state);
+    state.runtimeReticleId = 9002;
+    state.patch.color.reset();
+    state.patch.colorPreset = mfd::ColorPreset::Amber;
+    bulk.reticles.push_back(state);
+    batch.commands = {bulk};
+    ASSERT_TRUE(processor.Submit(mfd::SerializeCommandBatch(batch)));
+    reticles = registry.CollectPageReticlePointers("Radar");
+    bool foundCustom = false;
+    bool foundAmber = false;
+    for (const auto* reticle : reticles)
+    {
+        if (!reticle->overrides.color) continue;
+        foundCustom = foundCustom || reticle->overrides.color->a == 180;
+        foundAmber = foundAmber || (reticle->overrides.color->r == 255 && reticle->overrides.color->g == 203);
+    }
+    EXPECT_TRUE(foundCustom);
+    EXPECT_TRUE(foundAmber);
+    ASSERT_TRUE(processor.Submit(mfd::UserCommand {mfd::ResetWindowCommand {}}));
+    EXPECT_FALSE(registry.HasDynamicReticle("Radar", "__runtime_dynamic_9001"));
+}

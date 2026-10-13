@@ -149,3 +149,7 @@ Practical rules:
 See [`AGENTS.md`](https://github.com/benoitfragit/MFDStudio/blob/master/AGENTS.md)
 for the full contributor contract and the [Quality](../dev/quality.md) page for
 the review bar.
+
+## Color command compatibility
+
+The additive optional preset fields preserve all existing RGBA field numbers. Updated Windows accept legacy RGBA-only clients; preset-only commands require an updated Window. External implementations must preserve explicit Custom zero presence and reject invalid enum/RGBA combinations. See the [wire contract](colors.md#protobuf-and-external-clients).

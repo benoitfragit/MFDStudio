@@ -152,3 +152,7 @@ Fullscreen preview hides the surrounding editor chrome so the page canvas keeps
 priority. Use it when you want to inspect placement, labels, or the active page
 composition without the sidebar, inspector, minimap, or docked helper panels
 competing for space.
+
+## Color controls
+
+All authored colors use the same 3 x 3 swatch grid, including creation dialogs, page titles and external-stream replacement colors. Click a preset, or open Custom (+), edit RGBA and choose Apply or Cancel. See [Color presets](../reference/colors.md#editor). The guided progress-bar exposure step now teaches Yellow fill selection, preview observation and Custom discovery.

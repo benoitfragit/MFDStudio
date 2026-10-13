@@ -182,3 +182,7 @@ You now know how to:
 - declutter a whole dynamic template set
 - opt a dynamic template family into strobe magnetization explicitly
 - remove them cleanly through the generated handle
+
+## Dynamic color updates
+
+Use the same preset/RGBA overloads on dynamic reticles as on static ones. They also work in bulk dynamic batches. See [Color presets](../src/reference/colors.md) for atomic deltas and compatibility.

@@ -273,3 +273,7 @@ The GitHub Pages site is split in two parts:
 For the exact signatures of `CommandClient`, `LatestBatchPublisher`,
 `WindowLivenessMonitor`, and the client SDK helpers, see the
 [C++ API Reference](../api.md).
+
+## Preset and custom colors
+
+Static and dynamic reticles and their exposed primitives accept `SetColor(mfd::ColorPreset::Green)` alongside the existing RGBA overload. Fill-capable primitives also accept `SetFillColor(mfd::ColorPreset::Yellow)`. See the [color reference](../reference/colors.md) for the palette, working C++ example, batching and wire compatibility.

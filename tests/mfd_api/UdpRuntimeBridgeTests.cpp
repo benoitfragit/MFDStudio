@@ -1540,3 +1540,41 @@ TEST(UdpRuntimeBridgeTests, BoundsCumulativeInboundBulkDynamicReticleWork)
     EXPECT_LE(retainedReticleCount, 65536U);
     bridge.Stop();
 }
+
+TEST(UdpRuntimeBridgeTests, CoalescingKeepsColorChoicesAtomicAndFillIndependent)
+{
+    for (const bool olderPreset : {false, true})
+    {
+        for (const bool newerPreset : {false, true})
+        {
+            mfd::UpdateReticleCommand older;
+            older.target = {"Radar", "track"};
+            if (olderPreset) older.patch.colorPreset = mfd::ColorPreset::Green;
+            else older.patch.color = mfd::ColorRgba {10, 20, 30, 200};
+            older.patch.primitivePatches["area"].color = mfd::ColorRgba {1, 2, 3, 4};
+            older.patch.primitivePatches["area"].fillColorPreset = mfd::ColorPreset::Yellow;
+            mfd::UpdateReticleCommand newer;
+            newer.target = older.target;
+            if (newerPreset) newer.patch.colorPreset = mfd::ColorPreset::Blue;
+            else
+            {
+                newer.patch.colorPreset = mfd::ColorPreset::Custom;
+                newer.patch.color = mfd::ColorRgba {120, 50, 180, 150};
+            }
+            newer.patch.primitivePatches["area"].colorPreset = mfd::ColorPreset::Red;
+            mfd::CommandBatch batch;
+            batch.commands = {older, newer};
+            EXPECT_EQ(mfd::detail::CoalesceCommandBatch(batch), 1U);
+            ASSERT_EQ(batch.commands.size(), 1U);
+            const auto& result = std::get<mfd::UpdateReticleCommand>(batch.commands.front()).patch;
+            EXPECT_EQ(result.colorPreset, newer.patch.colorPreset);
+            EXPECT_EQ(result.color.has_value(), !newerPreset);
+            if (result.color) EXPECT_EQ(result.color->a, 150);
+            const auto& area = result.primitivePatches.at("area");
+            EXPECT_EQ(area.colorPreset, mfd::ColorPreset::Red);
+            EXPECT_FALSE(area.color);
+            EXPECT_EQ(area.fillColorPreset, mfd::ColorPreset::Yellow);
+            EXPECT_FALSE(area.fillColor);
+        }
+    }
+}

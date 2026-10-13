@@ -1,3 +1,5 @@
+#include "internal/application/EditorColorPicker.h"
+
 #include "internal/application/EditorExternalStreamInspector.h"
 #include "mfd/model/RuntimeBudgets.h"
 #include <algorithm>
@@ -29,7 +31,7 @@ std::optional<mfd::ExternalStreamGeometry> DrawExternalStreamInspector(
     }
     std::array<float, 4> color {draft.fallback.r / 255.0f, draft.fallback.g / 255.0f,
                                 draft.fallback.b / 255.0f, draft.fallback.a / 255.0f};
-    if (ImGui::ColorEdit4("Replacement color", color.data()))
+    if (editor::ui::DrawColorPicker("Replacement color", color.data()).changed)
     {
         for (float& channel : color) channel = std::isfinite(channel) ? std::clamp(channel, 0.0f, 1.0f) : 0.0f;
         draft.fallback = {static_cast<std::uint8_t>(color[0] * 255), static_cast<std::uint8_t>(color[1] * 255),

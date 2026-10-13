@@ -9,6 +9,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <stdexcept>
 
 #include <algorithm>
 #include <array>
@@ -753,4 +754,100 @@ TEST(GeneratedUiCompiledApiTests, GeneratedFixtureExposesRuntimeFeedbackQueries)
     strobe.captureResult = std::move(capture);
     EXPECT_TRUE(ui.ApplyFeedback(strobe));
     EXPECT_TRUE(track.IsStrobeCaptured());
+}
+
+TEST(GeneratedUiCompiledApiTests, ColorOverloadsSurviveGenerationAndBuildBatch)
+{
+    generated_ui_fixture::GeneratedUiFixture ui;
+    auto& radar = ui.Radar();
+    radar.geometryPanel.SetColor({80, 160, 255, 180});
+    radar.geometryPanel.SetColor(mfd::ColorPreset::Green);
+    radar.geometryPanel.LockBox().SetColor(mfd::ColorPreset::Blue);
+    radar.geometryPanel.LockBox().SetFillColor(mfd::ColorPreset::Yellow);
+    radar.geometryPanel.LockBox().SetFillColor({255, 80, 50, 120});
+    auto& track = radar.DynamicGeometryTemplate().Create();
+    track.SetColor({1, 2, 3, 4});
+    track.SetColor(mfd::ColorPreset::Amber);
+    track.LockBox().SetFillColor(mfd::ColorPreset::Cyan);
+    const auto batch = ui.BuildCommandBatch();
+    const auto* update = FindCommand<mfd::UpdateReticleCommand>(batch.commands);
+    ASSERT_NE(update, nullptr);
+    EXPECT_EQ(update->patch.colorPreset, mfd::ColorPreset::Green);
+    EXPECT_FALSE(update->patch.color);
+    ASSERT_FALSE(update->patch.primitivePatchesById.empty());
+    const auto& primitive = update->patch.primitivePatchesById.begin()->second;
+    EXPECT_EQ(primitive.colorPreset, mfd::ColorPreset::Blue);
+    EXPECT_EQ(primitive.fillColorPreset, mfd::ColorPreset::Custom);
+    ASSERT_TRUE(primitive.fillColor);
+    EXPECT_EQ(primitive.fillColor->a, 120);
+    const auto* dynamic = FindCommand<mfd::UpsertDynamicReticlesCommand>(batch.commands);
+    ASSERT_NE(dynamic, nullptr);
+    ASSERT_EQ(dynamic->reticles.size(), 1U);
+    EXPECT_EQ(dynamic->reticles.front().patch.colorPreset, mfd::ColorPreset::Amber);
+    EXPECT_FALSE(dynamic->reticles.front().patch.color);
+    EXPECT_TRUE(ui.BuildCommandBatch().commands.empty());
+    EXPECT_THROW(track.SetColor(mfd::ColorPreset::Custom), std::invalid_argument);
+    EXPECT_TRUE(ui.BuildCommandBatch().commands.empty());
+}
+
+namespace
+{
+/** @brief Captures the actual wire payload of a generated client SendBatch call. */
+class ColorCaptureChannel final : public mfd::IExchangeChannel
+{
+public:
+    bool IsReady() const noexcept override { return true; }
+    bool Send(const mfd::ByteView buffer) override
+    {
+        payload.clear();
+        payload.reserve(buffer.size());
+        for (const std::byte value : buffer)
+        {
+            payload.push_back(static_cast<char>(std::to_integer<unsigned char>(value)));
+        }
+        return true;
+    }
+    std::optional<std::vector<std::byte>> TryReceive() override { return std::nullopt; }
+    std::string LastError() const override { return {}; }
+    std::string payload;
+};
+} // namespace
+
+TEST(GeneratedUiCompiledApiTests, GeneratedColorTransitionsReachSendBatchWithExactChoice)
+{
+    generated_ui_fixture::GeneratedUiFixture ui;
+    auto channel = std::make_unique<ColorCaptureChannel>();
+    auto& capture = *channel;
+    mfd::CommandClient client(std::move(channel));
+    auto& area = ui.Radar().geometryPanel;
+    area.SetColor({1, 2, 3, 4});
+    area.SetColor(mfd::ColorPreset::Blue);
+    area.LockBox().SetFillColor({20, 40, 60, 100});
+    area.LockBox().SetFillColor(mfd::ColorPreset::Yellow);
+    ASSERT_TRUE(client.SendBatch(ui.BuildCommandBatch())) << client.LastError();
+    auto decoded = mfd::DeserializeCommandBatch(capture.payload);
+    ASSERT_TRUE(decoded);
+    const auto* preset = FindCommand<mfd::UpdateReticleCommand>(decoded->commands);
+    ASSERT_NE(preset, nullptr);
+    EXPECT_EQ(preset->patch.colorPreset, mfd::ColorPreset::Blue);
+    EXPECT_FALSE(preset->patch.color);
+    const auto& fill = preset->patch.primitivePatchesById.begin()->second;
+    EXPECT_EQ(fill.fillColorPreset, mfd::ColorPreset::Yellow);
+    EXPECT_FALSE(fill.fillColor);
+    area.SetColor(mfd::ColorPreset::Green);
+    area.SetColor({80, 160, 255, 180});
+    area.LockBox().SetFillColor(mfd::ColorPreset::Red);
+    area.LockBox().SetFillColor({255, 80, 50, 120});
+    ASSERT_TRUE(client.SendBatch(ui.BuildCommandBatch())) << client.LastError();
+    decoded = mfd::DeserializeCommandBatch(capture.payload);
+    ASSERT_TRUE(decoded);
+    const auto* custom = FindCommand<mfd::UpdateReticleCommand>(decoded->commands);
+    ASSERT_NE(custom, nullptr);
+    EXPECT_EQ(custom->patch.colorPreset, mfd::ColorPreset::Custom);
+    ASSERT_TRUE(custom->patch.color);
+    EXPECT_EQ(custom->patch.color->a, 180);
+    const auto& customFill = custom->patch.primitivePatchesById.begin()->second;
+    EXPECT_EQ(customFill.fillColorPreset, mfd::ColorPreset::Custom);
+    ASSERT_TRUE(customFill.fillColor);
+    EXPECT_EQ(customFill.fillColor->a, 120);
 }

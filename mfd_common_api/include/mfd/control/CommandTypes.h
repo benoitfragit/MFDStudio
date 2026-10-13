@@ -149,6 +149,10 @@ struct PrimitivePatch
     std::optional<bool> timeUtc;
     /** @brief Optional structured display selection for time primitives. */
     std::optional<TimeFieldVisibility> timeFields;
+    /** @brief Atomic color choice: built-in alone, Custom with RGBA, absent for legacy RGBA. */
+    std::optional<ColorPreset> colorPreset;
+    /** @brief Atomic fill choice, independent of the stroke choice. */
+    std::optional<ColorPreset> fillColorPreset;
 };
 
 /**
@@ -222,6 +226,8 @@ struct ReticlePatch
     std::unordered_map<std::string, PrimitivePatch> primitivePatches;
     /** @brief Rich primitive overrides indexed by generated primitive transport id. */
     std::unordered_map<TransportId, PrimitivePatch> primitivePatchesById;
+    /** @brief Atomic color choice: built-in alone, Custom with RGBA, absent for legacy RGBA. */
+    std::optional<ColorPreset> colorPreset;
 };
 
 /**

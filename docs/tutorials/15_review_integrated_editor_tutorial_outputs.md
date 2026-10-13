@@ -161,3 +161,7 @@ Continue with:
 3. [Use The Demo Client As A Client API Reference](./11_use_the_demo_client_as_a_client_api_reference.md)
 4. [Generated Client API](../src/handbook/generated_api.md)
 5. [Capture The Window As Raw Pixels](./07_framebuffer_rgba32_capture.md)
+
+## Review the color exercise
+
+The progress-bar exposure step includes selecting the Yellow Fill swatch, observing it in the preview and opening Custom (+). Close the RGBA picker with Apply or Cancel before continuing. The generated tutorial client also sets Yellow fill at runtime and demonstrates preset/custom reticle transitions. See the [shared color reference](../src/reference/colors.md).

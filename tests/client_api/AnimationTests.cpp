@@ -2104,3 +2104,55 @@ TEST(AnimationTests, NamedSetIdleRemovalAndRecreationPreservePendingSnapshot)
     EXPECT_EQ(std::get<mfd::UpsertDynamicReticlesCommand>(retained.front()).reticles.front().patch.text, "snapshot");
     EXPECT_EQ(std::get<mfd::UpsertDynamicReticlesCommand>(recreated.front()).reticles.front().patch.text, "recreated");
 }
+
+TEST(AnimationTests, ColorPresetsKeepAtomicDeltasAndRejectInvalidSelections)
+{
+    PrimitiveFixtureReticle reticle;
+    std::vector<mfd::UserCommand> commands;
+    reticle.SetColor({10, 20, 30, 200});
+    reticle.SetColor(mfd::ColorPreset::Blue);
+    reticle.lockBox.SetFillColor(mfd::ColorPreset::Yellow);
+    reticle.lockBox.SetColor(mfd::ColorPreset::Red);
+    ASSERT_TRUE(reticle.AppendCommands(commands));
+    auto patch = std::get<mfd::UpdateReticleCommand>(commands.back()).patch;
+    EXPECT_EQ(patch.colorPreset, mfd::ColorPreset::Blue);
+    EXPECT_FALSE(patch.color);
+    EXPECT_EQ(patch.primitivePatches.at("lock_box").colorPreset, mfd::ColorPreset::Red);
+    EXPECT_EQ(patch.primitivePatches.at("lock_box").fillColorPreset, mfd::ColorPreset::Yellow);
+    commands.clear();
+    reticle.SetColor(mfd::ColorPreset::Blue);
+    reticle.lockBox.SetFillColor(mfd::ColorPreset::Yellow);
+    EXPECT_FALSE(reticle.AppendCommands(commands));
+    EXPECT_THROW(reticle.SetColor(mfd::ColorPreset::Custom), std::invalid_argument);
+    EXPECT_THROW(reticle.lockBox.SetColor(static_cast<mfd::ColorPreset>(99)), std::invalid_argument);
+    EXPECT_THROW(reticle.lockBox.SetFillColor(mfd::ColorPreset::Custom), std::invalid_argument);
+    EXPECT_FALSE(reticle.AppendCommands(commands));
+    reticle.SetColor(mfd::ColorPreset::Green);
+    reticle.SetColor({120, 50, 180, 150});
+    reticle.lockBox.SetFillColor({1, 2, 3, 120});
+    ASSERT_TRUE(reticle.AppendCommands(commands));
+    patch = std::get<mfd::UpdateReticleCommand>(commands.back()).patch;
+    EXPECT_EQ(patch.colorPreset, mfd::ColorPreset::Custom);
+    ASSERT_TRUE(patch.color);
+    EXPECT_EQ(patch.color->a, 150);
+    const auto& primitive = patch.primitivePatches.at("lock_box");
+    EXPECT_FALSE(primitive.colorPreset);
+    EXPECT_FALSE(primitive.color);
+    EXPECT_EQ(primitive.fillColorPreset, mfd::ColorPreset::Custom);
+    ASSERT_TRUE(primitive.fillColor);
+    EXPECT_EQ(primitive.fillColor->a, 120);
+    commands.clear();
+    reticle.SetColor({120, 50, 180, 150});
+    EXPECT_FALSE(reticle.AppendCommands(commands));
+    reticle.SetColor({120, 50, 180, 100});
+    reticle.SetColor({120, 50, 180, 90});
+    ASSERT_TRUE(reticle.AppendCommands(commands));
+    EXPECT_EQ(std::get<mfd::UpdateReticleCommand>(commands.back()).patch.colorPreset, mfd::ColorPreset::Custom);
+    EXPECT_EQ(std::get<mfd::UpdateReticleCommand>(commands.back()).patch.color->a, 90);
+    commands.clear();
+    reticle.SetColor(mfd::ColorPreset::Amber);
+    reticle.SetColor(mfd::ColorPreset::Cyan);
+    ASSERT_TRUE(reticle.AppendCommands(commands));
+    EXPECT_FALSE(std::get<mfd::UpdateReticleCommand>(commands.back()).patch.color);
+    EXPECT_EQ(std::get<mfd::UpdateReticleCommand>(commands.back()).patch.colorPreset, mfd::ColorPreset::Cyan);
+}

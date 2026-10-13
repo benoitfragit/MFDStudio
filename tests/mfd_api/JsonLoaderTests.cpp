@@ -2302,3 +2302,24 @@ TEST(JsonLoaderTests, LoadDocumentRejectsEmptyActiveStrobeName)
     mfd::JsonLoader loader;
     EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
 }
+
+TEST(JsonLoaderTests, NamedBuiltInPaletteMatchesSharedApi)
+{
+    TemporaryFolder workspace;
+    const auto pagesFile = workspace.Path() / "palette.json";
+    std::filesystem::create_directory(workspace.Path() / "reticles");
+    constexpr const char* names[] = {"black", "white", "red", "green", "blue", "yellow", "cyan", "amber"};
+    for (int index = 0; index < 8; ++index)
+    {
+        WriteTextFile(pagesFile, std::string {"{\"reticleLibraryFolder\":\"reticles\",\"pages\":[{\"name\":\"Palette\",\"backgroundColor\":\""} +
+                                     names[index] + "\",\"layers\":[{\"id\":\"default\"}]}]}");
+        const auto document = mfd::JsonLoader {}.LoadDocument(pagesFile);
+        ASSERT_EQ(document.pages.size(), 1U);
+        const auto expected = *mfd::TryColorPreset(static_cast<mfd::ColorPreset>(index + 1));
+        const auto actual = document.pages.front().backgroundColor;
+        EXPECT_EQ(actual.r, expected.r);
+        EXPECT_EQ(actual.g, expected.g);
+        EXPECT_EQ(actual.b, expected.b);
+        EXPECT_EQ(actual.a, expected.a);
+    }
+}

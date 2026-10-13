@@ -82,3 +82,7 @@ out of the steady-state tick unless their values actually changed.
 cmake --build --preset debug-win32 --target demo_client radar_load_client hud_client
 ctest --preset test-debug-win32 -R "runtime_layout|hud" --output-on-failure
 ```
+
+## Preset and custom color transitions
+
+The demo track alternates Cyan preset commands with its existing animated custom RGBA color. The tutorial client demonstrates the generated setters, including Yellow primitive fill; captured tracks switch to Amber and return to custom RGBA after release. See the [color command reference](../src/reference/colors.md).

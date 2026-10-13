@@ -52,6 +52,8 @@ delivery lane and ships the published documentation as a downloadable ZIP
 archive. The GitHub Win32 automation lane excludes a narrow render/offscreen
 test subset that passes locally but fails on the hosted `windows-2022` runner.
 
+Editor color controls and generated C++ clients share eight [built-in color presets](./docs/src/reference/colors.md), with full Custom RGBA support.
+
 ## Build
 
 ```powershell
