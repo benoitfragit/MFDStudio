@@ -126,6 +126,7 @@ set(MFD_TRANSPORT_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/runtime/GeneratedTransportMap.h)
 
 set(MFD_TRANSPORT_PRIVATE_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/CommandSerialization.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/internal/ExternalStreamPatch.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/control/internal/CommandWorkBudget.h)
 

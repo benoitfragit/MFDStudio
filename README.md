@@ -124,6 +124,8 @@ pwsh -File docs/CheckDocs.ps1
 
 ## Where to go next
 
+- For realtime client allocation and packet-preparation changes, read the
+  [optimization measurements](./docs/client-performance.md).
 - New to MFDStudio? Start with the published
   [Quick Start](https://benoitfragit.github.io/MFDStudio/quickstart.html) and
   [Getting Started Tutorial](https://benoitfragit.github.io/MFDStudio/getting-started.html).

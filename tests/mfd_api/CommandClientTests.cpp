@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>
+#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -820,4 +821,152 @@ TEST(CommandClientTests, SplitReportsOversizedSingleDynamicReticleUpdate)
     EXPECT_FALSE(client.SendBatch(batch));
     EXPECT_NE(client.LastError().find("exceeds the configured UDP payload limit"), std::string::npos)
         << client.LastError();
+}
+
+
+TEST(CommandClientTests, ResolvedBulkKeepsCallerStorageAndAllCompositeValuesAcrossFragments)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+    auto& capture = *channel;
+    mfd::CommandClient client(std::move(channel), MakeTransportMap());
+    mfd::UpsertDynamicReticlesCommand update;
+    update.page = "RADAR";
+    update.pageId = 11U;
+    update.templateId = "RADAR_TRACK";
+    update.templateTransportId = 55U;
+    for (std::size_t index = 0; index < 100U; ++index)
+    {
+        mfd::DynamicReticleState state;
+        state.reticleId = "caller_alias_" + std::to_string(index);
+        state.runtimeReticleId = index + 1U;
+        state.patch.textsById.emplace(66U, std::string(128U, static_cast<char>('a' + index % 26U)));
+        state.patch.letterSpacingsById.emplace(66U, 0.5f);
+        state.patch.primitivePatchesById[66U].position = mfd::Vec2 {static_cast<float>(index), 2.0f};
+        update.reticles.push_back(std::move(state));
+    }
+    mfd::CommandBatch source;
+    source.sequence = 127U;
+    source.commands.emplace_back(std::move(update));
+    source.fragment = mfd::CommandBatchFragment {99U, 98U, 97U, 0U, 1U};
+    const auto& input = std::get<mfd::UpsertDynamicReticlesCommand>(source.commands.front());
+    const auto* states = input.reticles.data();
+    ASSERT_TRUE(client.SendBatch(source)) << client.LastError();
+    ASSERT_GT(capture.SentPayloads().size(), 1U);
+    std::size_t next = 0;
+    for (const auto& payload : capture.SentPayloads())
+    {
+        EXPECT_LE(payload.size(), client.MaxPayloadBytes());
+        const auto decoded = DecodeBatchPayload(payload);
+        ASSERT_TRUE(decoded.has_value());
+        EXPECT_EQ(decoded->sequence, source.sequence);
+        EXPECT_EQ(decoded->mappingHash, "map_hash");
+        for (const auto& command : decoded->commands)
+        {
+            const auto& bulk = std::get<mfd::UpsertDynamicReticlesCommand>(command);
+            for (const auto& state : bulk.reticles)
+            {
+                ASSERT_LT(next, input.reticles.size());
+                const auto& expected = input.reticles[next++];
+                EXPECT_EQ(state.runtimeReticleId, expected.runtimeReticleId);
+                EXPECT_EQ(state.patch.textsById, expected.patch.textsById);
+                EXPECT_EQ(state.patch.letterSpacingsById, expected.patch.letterSpacingsById);
+                EXPECT_EQ(state.patch.primitivePatchesById.at(66U).position->x,
+                          expected.patch.primitivePatchesById.at(66U).position->x);
+            }
+        }
+    }
+    EXPECT_EQ(next, input.reticles.size());
+    EXPECT_EQ(states, input.reticles.data());
+    EXPECT_EQ(input.page, "RADAR");
+    EXPECT_EQ(input.templateId, "RADAR_TRACK");
+    EXPECT_EQ(input.reticles.front().reticleId, "caller_alias_0");
+    EXPECT_TRUE(source.mappingHash.empty());
+    EXPECT_EQ(source.fragment->batchId, 97U);
+}
+
+TEST(CommandClientTests, ResolvedUpdatesRetainIdentityDiagnosticsAndSendNothingOnFailure)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+    auto& capture = *channel;
+    mfd::CommandClient client(std::move(channel), MakeTransportMap());
+    mfd::CommandBatch batch;
+    batch.mappingHash = "map_hash";
+    mfd::UpsertDynamicReticlesCommand bulk;
+    bulk.page = "wrong";
+    bulk.pageId = 11U;
+    bulk.templateTransportId = 55U;
+    bulk.reticles.push_back({"alias", 1U, {}});
+    batch.commands.emplace_back(std::move(bulk));
+    EXPECT_FALSE(client.SendBatch(batch));
+    EXPECT_EQ(client.LastError(), "Generated page id 11 does not match page 'wrong'");
+    auto& update = std::get<mfd::UpsertDynamicReticlesCommand>(batch.commands.front());
+    update.page.clear();
+    update.templateId = "wrong";
+    EXPECT_FALSE(client.SendBatch(batch));
+    EXPECT_EQ(client.LastError(), "Generated template id 55 does not match template 'wrong'");
+    update.templateId.clear();
+    update.templateTransportId = 99U;
+    EXPECT_FALSE(client.SendBatch(batch));
+    EXPECT_EQ(client.LastError(), "Unknown generated template id 99");
+    update.templateTransportId = 55U;
+    batch.mappingHash = "stale";
+    EXPECT_FALSE(client.SendBatch(batch));
+    EXPECT_EQ(client.LastError(), "Command batch mappingHash does not match the generated transport map configured on the client");
+    EXPECT_TRUE(capture.SentPayloads().empty());
+}
+
+TEST(CommandClientTests, ResolvedArrayViewBorrowsInputsAndStillRequiresMappingHash)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+    auto& capture = *channel;
+    mfd::CommandClient mapped(std::move(channel), MakeTransportMap());
+    mfd::UpdateReticleCommand update;
+    update.target = {"RADAR", "HEADING_BOX", 11U, 22U};
+    update.patch.textsById.emplace(33U, "retained caller text");
+    const std::vector<mfd::UserCommand> commands {update};
+    ASSERT_TRUE(mapped.SendBatch(mfd::ArrayView<const mfd::UserCommand>(commands), 42U));
+    const auto decoded = DecodeBatchPayload(capture.SentPayloads().front());
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(decoded->mappingHash, "map_hash");
+    EXPECT_EQ(decoded->sequence, 42U);
+    EXPECT_EQ(std::get<mfd::UpdateReticleCommand>(commands.front()).target.page, "RADAR");
+    mfd::CommandClient unmapped(std::make_unique<CapturingExchangeChannel>());
+    EXPECT_FALSE(unmapped.SendBatch(mfd::ArrayView<const mfd::UserCommand>(commands)));
+    EXPECT_EQ(unmapped.LastError(), "Command transport normalization requires a generated transport map: mapping hash");
+}
+
+TEST(CommandClientTests, InvalidTrailingUpdatePreventsAllFragmentSends)
+{
+    auto channel = std::make_unique<CapturingExchangeChannel>();
+    auto& capture = *channel;
+    mfd::CommandClient client(std::move(channel));
+    mfd::CommandBatch batch;
+    batch.mappingHash = "map_hash";
+    for (std::size_t index = 0; index < 400U; ++index)
+    {
+        mfd::UpsertDynamicReticleCommand update;
+        update.target.pageId = 11U;
+        update.target.runtimeReticleId = index + 1U;
+        update.templateTransportId = 55U;
+        update.patch.text = std::string(64U, 'x');
+        batch.commands.emplace_back(std::move(update));
+    }
+    auto& last = std::get<mfd::UpsertDynamicReticleCommand>(batch.commands.back());
+    last.patch.position = mfd::Vec2 {std::numeric_limits<float>::quiet_NaN(), 0.0f};
+    EXPECT_FALSE(client.SendBatch(batch));
+    EXPECT_TRUE(capture.SentPayloads().empty());
+    last.patch.position = mfd::Vec2 {1.0f, 0.0f};
+    ASSERT_TRUE(client.SendBatch(batch)) << client.LastError();
+    std::size_t next = 1U;
+    for (const auto& payload : capture.SentPayloads())
+    {
+        ASSERT_LE(payload.size(), client.MaxPayloadBytes());
+        const auto decoded = DecodeBatchPayload(payload);
+        ASSERT_TRUE(decoded.has_value());
+        for (const auto& command : decoded->commands)
+        {
+            EXPECT_EQ(std::get<mfd::UpsertDynamicReticleCommand>(command).target.runtimeReticleId, next++);
+        }
+    }
+    EXPECT_EQ(next, 401U);
 }

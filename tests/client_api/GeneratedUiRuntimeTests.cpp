@@ -664,3 +664,27 @@ TEST(GeneratedUiRuntimeTests, BuildCommandBatchCarriesRichGeneratedPrimitiveGeom
     EXPECT_FLOAT_EQ(*arcPatch.endAngleDegrees, 135.0f);
     EXPECT_EQ(*arcPatch.segments, 24);
 }
+
+
+TEST(GeneratedUiRuntimeTests, BuiltBatchesRemainIndependentAcrossIdleAndUpdatedCycles)
+{
+    GeneratedUiFixture ui;
+    auto& geometry = ui.Radar().geometryPanel;
+    geometry.routePolyline.SetPoints({{1.0f, 2.0f}, {3.0f, 4.0f}});
+    const mfd::CommandBatch retained = ui.BuildCommandBatch(127U);
+    ASSERT_EQ(retained.commands.size(), 1U);
+    for (std::size_t cycle = 0; cycle < 16U; ++cycle)
+    {
+        EXPECT_TRUE(ui.BuildBatch().empty());
+    }
+    geometry.routePolyline.SetPoints({{5.0f, 6.0f}, {7.0f, 8.0f}});
+    const mfd::CommandBatch changed = ui.BuildCommandBatch(128U);
+    ASSERT_EQ(changed.commands.size(), 1U);
+    const auto& oldPatch = std::get<mfd::UpdateReticleCommand>(retained.commands.front()).patch;
+    const auto& newPatch = std::get<mfd::UpdateReticleCommand>(changed.commands.front()).patch;
+    EXPECT_EQ(retained.sequence, 127U);
+    EXPECT_EQ(changed.sequence, 128U);
+    EXPECT_EQ(retained.mappingHash, changed.mappingHash);
+    EXPECT_FLOAT_EQ(oldPatch.primitivePatchesById.at(69U).points->front().x, 1.0f);
+    EXPECT_FLOAT_EQ(newPatch.primitivePatchesById.at(69U).points->front().x, 5.0f);
+}

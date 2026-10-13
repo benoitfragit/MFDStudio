@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 
 #include <limits>
+#include <future>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -18,6 +19,8 @@
 
 #include "mfd/control/CommandTypes.h"
 #include "mfd_commands.pb.h"
+#include "CommandSerialization.h"
+#include <google/protobuf/util/message_differencer.h>
 
 namespace
 {
@@ -729,4 +732,118 @@ TEST(CommandTypesTests, DeserializeCommandBatchRejectsInvalidCommandInsideBatch)
 
     EXPECT_FALSE(decoded.has_value());
     EXPECT_EQ(error, "ActivatePageCommand requires a pageId or page name");
+}
+
+
+TEST(CommandTypesTests, ExactWireContributionsMatchEncodingAtVarintBoundaries)
+{
+    for (const std::size_t textSize : {0U, 1U, 127U, 128U, 255U, 16383U, 16384U})
+    {
+        mfd::CommandBatch batch;
+        batch.sequence = 16384U;
+        batch.mappingHash = std::string(128U, 'h');
+        batch.fragment = mfd::CommandBatchFragment {
+            std::numeric_limits<std::uint64_t>::max(), 128U, 16384U, 127U, 128U};
+        mfd::UpdateReticleCommand update;
+        update.target.pageId = 128U;
+        update.target.reticleId = 16384U;
+        // Several bounded strings exercise a >16K nested protobuf length without
+        // exceeding the existing per-string safety budget.
+        for (std::size_t index = 0U; index < textSize / 1024U + 1U; ++index)
+        {
+            update.patch.textsById.emplace(index + 1U, std::string(std::min(textSize, std::size_t {1024U}), 'v'));
+        }
+        batch.commands.emplace_back(std::move(update));
+        batch.commands.emplace_back(mfd::ResetWindowCommand {});
+        const auto view = mfd::detail::ViewBatch(batch);
+        std::size_t predicted = mfd::detail::EnvelopeMetadataWireSize(view);
+        for (const auto& command : batch.commands) predicted += mfd::detail::CommandFieldWireSize(command);
+        const std::string payload = mfd::SerializeCommandBatch(batch);
+        EXPECT_EQ(predicted, payload.size());
+        EXPECT_EQ(mfd::detail::BatchWireSize(view), payload.size());
+        EXPECT_EQ(mfd::detail::SerializeBatch(view, payload.size()).size(), payload.size());
+        EXPECT_TRUE(mfd::detail::SerializeBatch(view, payload.size() - 1U).empty());
+    }
+}
+
+TEST(CommandTypesTests, ArenaEncodingMatchesIndependentProtobufCompositeMessage)
+{
+    mfd::CommandBatch batch;
+    batch.sequence = 42U;
+    batch.mappingHash = "mapping";
+    mfd::UpdateReticleCommand update;
+    update.target.pageId = 11U;
+    update.target.reticleId = 22U;
+    update.patch.visible = false;
+    update.patch.textsById.emplace(66U, "second");
+    update.patch.textsById.emplace(33U, "first");
+    update.patch.letterSpacingsById.emplace(33U, 0.25f);
+    update.patch.primitivePatchesById[33U].text = "primitive";
+    update.patch.primitivePatchesById[33U].position = mfd::Vec2 {1.0f, 2.0f};
+    batch.commands.emplace_back(std::move(update));
+
+    mfd::transport::CommandEnvelope expected;
+    expected.set_sequence(42U);
+    expected.set_mapping_hash("mapping");
+    auto& command = *expected.add_commands()->mutable_update_reticle();
+    command.mutable_target()->set_page_id(11U);
+    command.mutable_target()->set_reticle_id(22U);
+    auto& patch = *command.mutable_patch();
+    patch.set_visible(false);
+    (*patch.mutable_texts_by_id())[33U] = "first";
+    (*patch.mutable_texts_by_id())[66U] = "second";
+    (*patch.mutable_letter_spacings_by_id())[33U] = 0.25f;
+    auto& primitive = (*patch.mutable_primitive_patches_by_id())[33U];
+    primitive.set_text("primitive");
+    primitive.mutable_position()->set_x(1.0f);
+    primitive.mutable_position()->set_y(2.0f);
+    mfd::transport::CommandEnvelope actual;
+    ASSERT_TRUE(actual.ParseFromString(mfd::SerializeCommandBatch(batch)));
+    // Protobuf semantic comparison deliberately does not depend on map iteration order.
+    EXPECT_TRUE(google::protobuf::util::MessageDifferencer::Equals(expected, actual));
+}
+
+namespace
+{
+/** @brief Alternates large/small and failed encodings to detect retained or shared state. */
+void VerifyIndependentEncoding(const std::uint32_t sequence)
+{
+    for (std::size_t iteration = 0; iteration < 64U; ++iteration)
+    {
+        mfd::CommandBatch batch;
+        batch.sequence = sequence;
+        batch.mappingHash = std::to_string(sequence);
+        mfd::UpdateReticleCommand update;
+        update.target.pageId = 11U;
+        update.target.reticleId = 22U;
+        update.patch.textsById.emplace(33U, std::string(512U, static_cast<char>('a' + sequence)));
+        batch.commands.emplace_back(std::move(update));
+        const std::string retained = mfd::SerializeCommandBatch(batch);
+        std::get<mfd::UpdateReticleCommand>(batch.commands.front()).patch.thickness =
+            std::numeric_limits<float>::infinity();
+        EXPECT_THROW(mfd::SerializeCommandBatch(batch), std::runtime_error);
+        batch.commands.clear();
+        batch.commands.emplace_back(mfd::ResetWindowCommand {});
+        const auto reset = mfd::DeserializeCommandBatch(mfd::SerializeCommandBatch(batch));
+        ASSERT_TRUE(reset.has_value());
+        ASSERT_EQ(reset->commands.size(), 1U);
+        EXPECT_TRUE(std::holds_alternative<mfd::ResetWindowCommand>(reset->commands.front()));
+        const auto decoded = mfd::DeserializeCommandBatch(retained);
+        ASSERT_TRUE(decoded.has_value());
+        EXPECT_EQ(decoded->sequence, sequence);
+        EXPECT_EQ(decoded->mappingHash, std::to_string(sequence));
+        EXPECT_EQ(std::get<mfd::UpdateReticleCommand>(decoded->commands.front()).patch.textsById.at(33U),
+                  std::string(512U, static_cast<char>('a' + sequence)));
+    }
+}
+}
+
+TEST(CommandTypesTests, ConcurrentEncodersKeepReturnedBuffersIndependentAfterFailures)
+{
+    std::vector<std::future<void>> workers;
+    for (std::uint32_t index = 0; index < 4U; ++index)
+    {
+        workers.emplace_back(std::async(std::launch::async, VerifyIndependentEncoding, index));
+    }
+    for (auto& worker : workers) worker.get();
 }

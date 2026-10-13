@@ -11,6 +11,8 @@
 #include "mfd/control/CommandTypes.h"
 
 #include <algorithm>
+#include <array>
+#include <google/protobuf/arena.h>
 #include <cmath>
 #include <cstdint>
 #include <stdexcept>
@@ -20,6 +22,7 @@
 #include <vector>
 
 #include "mfd_commands.pb.h"
+#include "CommandSerialization.h"
 #include "mfd/model/PageName.h"
 #include "mfd/control/internal/CommandWireSizeHelpers.h"
 #include "mfd/model/RuntimeBudgets.h"
@@ -518,7 +521,7 @@ void ValidateUserCommand(const UserCommand& command)
     std::visit(UserCommandValidator {}, command);
 }
 
-void ValidateCommandBatch(const CommandBatch& batch)
+void ValidateCommandBatch(const detail::CommandBatchView& batch)
 {
     ValidateContainerSize(batch.commands.size(), kMaxCommandsPerEnvelope, "CommandEnvelope.commands");
     if (batch.commands.empty())
@@ -1320,6 +1323,7 @@ struct UserCommandProtoWriter
         message->set_page_id(command.pageId);
         message->set_template_transport_id(command.templateTransportId);
 
+        message->mutable_reticles()->Reserve(static_cast<int>(command.reticles.size()));
         for (const DynamicReticleState& reticle : command.reticles)
         {
             FillProtoDynamicReticleState(reticle, message->add_reticles());
@@ -1524,11 +1528,13 @@ void AppendUserCommandFromProto(const pb::UserCommand& value, std::vector<UserCo
     ValidateUserCommand(target.back());
 }
 
-pb::CommandEnvelope BuildEnvelope(const CommandBatch& batch)
+void FillEnvelopeMetadata(const detail::CommandBatchView& batch, pb::CommandEnvelope& envelope)
 {
-    pb::CommandEnvelope envelope;
     envelope.set_sequence(batch.sequence);
-    envelope.set_mapping_hash(batch.mappingHash);
+    if (!batch.mappingHash.empty())
+    {
+        envelope.set_mapping_hash(batch.mappingHash.data(), batch.mappingHash.size());
+    }
     if (batch.fragment.has_value())
     {
         const CommandBatchFragment& fragment = *batch.fragment;
@@ -1539,13 +1545,40 @@ pb::CommandEnvelope BuildEnvelope(const CommandBatch& batch)
         envelope.set_chunk_count(fragment.chunkCount);
     }
 
-    for (const UserCommand& command : batch.commands)
+}
+
+/** @brief Owns all temporary Protobuf messages for one encoding operation.
+ *  @note The initial block and arena are call-local; no retained state or thread sharing.
+ */
+class EnvelopeStorage
+{
+public:
+    EnvelopeStorage() : arena_(MakeOptions(initialBlock_)) {}
+
+    pb::CommandEnvelope& BuildEnvelope(const detail::CommandBatchView& batch)
     {
-        FillProtoUserCommand(command, envelope.add_commands());
+        auto& envelope = *google::protobuf::Arena::Create<pb::CommandEnvelope>(&arena_);
+        FillEnvelopeMetadata(batch, envelope);
+        envelope.mutable_commands()->Reserve(static_cast<int>(batch.commands.size()));
+        for (const UserCommand& command : batch.commands)
+        {
+            FillProtoUserCommand(command, envelope.add_commands());
+        }
+        return envelope;
     }
 
-    return envelope;
-}
+private:
+    static google::protobuf::ArenaOptions MakeOptions(std::array<char, 4096>& block)
+    {
+        google::protobuf::ArenaOptions options;
+        options.initial_block = block.data();
+        options.initial_block_size = block.size();
+        return options;
+    }
+
+    alignas(8) std::array<char, 4096> initialBlock_;
+    google::protobuf::Arena arena_;
+};
 } // namespace
 
 std::string SerializeUserCommand(const UserCommand& command)
@@ -1557,8 +1590,18 @@ std::string SerializeUserCommand(const UserCommand& command)
 
 std::string SerializeCommandBatch(const CommandBatch& batch)
 {
+    return detail::SerializeBatch(detail::ViewBatch(batch));
+}
+
+std::string detail::SerializeBatch(const CommandBatchView& batch, const std::size_t maxBytes)
+{
     ValidateCommandBatch(batch);
-    const pb::CommandEnvelope envelope = BuildEnvelope(batch);
+    EnvelopeStorage storage;
+    const pb::CommandEnvelope& envelope = storage.BuildEnvelope(batch);
+    if (maxBytes != std::numeric_limits<std::size_t>::max() && envelope.ByteSizeLong() > maxBytes)
+    {
+        return {};
+    }
     std::string payload;
     if (!envelope.SerializeToString(&payload))
     {
@@ -1649,7 +1692,7 @@ std::optional<CommandBatch> DeserializeCommandBatch(const std::string_view paylo
             AppendUserCommandFromProto(command, batch.commands);
         }
 
-        ValidateCommandBatch(batch);
+        ValidateCommandBatch(detail::ViewBatch(batch));
 
         return batch;
     }
@@ -1680,5 +1723,27 @@ std::size_t detail::DynamicReticleStateWireSize(const DynamicReticleState& state
     pb::DynamicReticleState message;
     FillProtoDynamicReticleState(state, &message);
     return message.ByteSizeLong();
+}
+
+std::size_t detail::BatchWireSize(const CommandBatchView& batch)
+{
+    ValidateCommandBatch(batch);
+    EnvelopeStorage storage;
+    return storage.BuildEnvelope(batch).ByteSizeLong();
+}
+
+std::size_t detail::EnvelopeMetadataWireSize(const CommandBatchView& batch)
+{
+    pb::CommandEnvelope envelope;
+    FillEnvelopeMetadata(batch, envelope);
+    return envelope.ByteSizeLong();
+}
+
+std::size_t detail::CommandFieldWireSize(const UserCommand& command)
+{
+    // Measuring an envelope containing only this command lets Protobuf account for
+    // both the repeated-field tag and every length-prefix varint exactly.
+    const CommandBatchView batch {ArrayView<const UserCommand>(&command, 1U), 0U, {}, std::nullopt};
+    return BatchWireSize(batch);
 }
 } // namespace mfd

@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <exception>
+#include <iterator>
 #include <limits>
 #include <optional>
 #include <random>
@@ -30,6 +31,7 @@
 #include "mfd/control/internal/CommandIdentifierHelpers.h"
 #include "mfd/control/internal/CommandWorkBudget.h"
 #include "mfd/control/internal/CommandWireSizeHelpers.h"
+#include "CommandSerialization.h"
 
 namespace mfd
 {
@@ -213,22 +215,38 @@ const TransportMapPrimitiveEntry* FindPrimitiveByOwner(const GeneratedTransportM
     return iterator == map.primitives.end() ? nullptr : &(*iterator);
 }
 
-CommandBatch MakeBatch(const std::uint32_t sequence,
-                       std::string mappingHash,
-                       std::vector<UserCommand> commands)
+detail::CommandBatchView SingleCommandView(const UserCommand& command,
+                                          const std::uint32_t sequence,
+                                          const std::string_view mappingHash)
 {
-    CommandBatch batch;
-    batch.sequence = sequence;
-    batch.mappingHash = std::move(mappingHash);
-    batch.commands = std::move(commands);
-    return batch;
+    return {ArrayView<const UserCommand>(&command, 1U), sequence, mappingHash, std::nullopt};
 }
 
-std::optional<std::string> TrySerializeBatch(const CommandBatch& batch, std::string& error)
+std::optional<std::string> TrySerializeBatch(
+    const detail::CommandBatchView& batch, std::string& error,
+    const std::size_t maxBytes = std::numeric_limits<std::size_t>::max())
 {
     try
     {
-        return SerializeCommandBatch(batch);
+        return detail::SerializeBatch(batch, maxBytes);
+    }
+    catch (const std::exception& exception)
+    {
+        error = exception.what();
+        return std::nullopt;
+    }
+    catch (...)
+    {
+        error = "Unknown exception while serializing a Protocol Buffers command batch";
+        return std::nullopt;
+    }
+}
+
+std::optional<std::size_t> TryMeasureBatch(const detail::CommandBatchView& batch, std::string& error)
+{
+    try
+    {
+        return detail::BatchWireSize(batch);
     }
     catch (const std::exception& exception)
     {
@@ -248,10 +266,8 @@ bool FitsAsSingleCommandPayload(const UserCommand& command,
                                 const std::size_t maxPayloadBytes,
                                 std::string& error)
 {
-    const auto payload = TrySerializeBatch(
-        MakeBatch(sequence, std::string(mappingHash), std::vector<UserCommand> {command}),
-        error);
-    return payload.has_value() && payload->size() <= maxPayloadBytes;
+    const auto size = TryMeasureBatch(SingleCommandView(command, sequence, mappingHash), error);
+    return size.has_value() && *size <= maxPayloadBytes;
 }
 
 const GeneratedTransportMap* RequireTransportMap(const std::optional<GeneratedTransportMap>& transportMap,
@@ -642,7 +658,7 @@ bool NormalizePatchForTransport(const std::optional<GeneratedTransportMap>& tran
 // Upper bound of the wire overhead wrapped around one serialized dynamic reticle state
 // inside the enclosing command message: the repeated-field tag (at most 2 bytes for
 // field numbers up to 2047) plus the length-prefix varint of the entry payload. Using an
-// upper bound keeps the greedy chunk estimate safe; the one serialization per final
+// upper bound keeps the greedy chunk estimate safe; the exact size measurement per
 // chunk below still validates the real size defensively.
 constexpr std::size_t kRepeatedFieldTagUpperBoundBytes = 2U;
 
@@ -727,7 +743,7 @@ struct OversizedCommandSplitter
         }
 
         // The envelope cost (batch framing plus the command without its entries) is
-        // measured with one serialization; every chunk then adds its entries' estimated
+        // measured once without encoding; every chunk then adds its entries' estimated
         // wire contributions on top instead of serializing a full candidate batch per
         // probe as the previous binary search did.
         UpsertDynamicReticlesCommand chunkPrototype;
@@ -736,20 +752,20 @@ struct OversizedCommandSplitter
         chunkPrototype.templateId = command.templateId;
         chunkPrototype.templateTransportId = command.templateTransportId;
 
-        const auto emptyChunkPayload = TrySerializeBatch(
-            MakeBatch(sequence, std::string(mappingHash), std::vector<UserCommand> {UserCommand {chunkPrototype}}),
-            error);
-        if (!emptyChunkPayload.has_value())
+        const UserCommand emptyChunkCommand = chunkPrototype;
+        const auto emptyChunkBytes = TryMeasureBatch(
+            SingleCommandView(emptyChunkCommand, sequence, mappingHash), error);
+        if (!emptyChunkBytes.has_value())
         {
             return std::nullopt;
         }
 
-        if (emptyChunkPayload->size() >= maxPayloadBytes)
+        if (*emptyChunkBytes >= maxPayloadBytes)
         {
             return RejectUnsplittableCommand();
         }
 
-        const std::size_t chunkEntryBudget = maxPayloadBytes - emptyChunkPayload->size();
+        const std::size_t chunkEntryBudget = maxPayloadBytes - *emptyChunkBytes;
 
         std::vector<std::size_t> entryBytes;
         entryBytes.reserve(command.reticles.size());
@@ -782,7 +798,8 @@ struct OversizedCommandSplitter
                 return std::nullopt;
             }
 
-            UpsertDynamicReticlesCommand chunk = chunkPrototype;
+            UserCommand chunkCommand = chunkPrototype;
+            auto& chunk = std::get<UpsertDynamicReticlesCommand>(chunkCommand);
             chunk.reticles.assign(command.reticles.begin() + static_cast<std::ptrdiff_t>(firstIndex),
                                   command.reticles.begin() + static_cast<std::ptrdiff_t>(firstIndex + entryCount));
 
@@ -791,15 +808,14 @@ struct OversizedCommandSplitter
             // even if the wire format ever grows past the estimated overhead.
             while (true)
             {
-                const auto chunkPayload = TrySerializeBatch(
-                    MakeBatch(sequence, std::string(mappingHash), std::vector<UserCommand> {UserCommand {chunk}}),
-                    error);
-                if (!chunkPayload.has_value())
+                const auto chunkBytes = TryMeasureBatch(
+                    SingleCommandView(chunkCommand, sequence, mappingHash), error);
+                if (!chunkBytes.has_value())
                 {
                     return std::nullopt;
                 }
 
-                if (chunkPayload->size() <= maxPayloadBytes)
+                if (*chunkBytes <= maxPayloadBytes)
                 {
                     break;
                 }
@@ -815,7 +831,7 @@ struct OversizedCommandSplitter
                 --entryCount;
             }
 
-            splitCommands.emplace_back(std::move(chunk));
+            splitCommands.emplace_back(std::move(chunkCommand));
             firstIndex += entryCount;
         }
 
@@ -857,6 +873,25 @@ std::optional<std::vector<UserCommand>> SplitOversizedCommand(const UserCommand&
     return std::visit(OversizedCommandSplitter {sequence, mappingHash, maxPayloadBytes, error}, command);
 }
 
+/** @brief Shared identity validation for owning and borrowed static updates. */
+bool NormalizeStaticUpdateIdentity(const std::optional<GeneratedTransportMap>& transportMap,
+                                   std::string& lastError, StaticReticleHandle& target)
+{
+    return ResolveGeneratedPage(transportMap, lastError, target.page, target.pageId, "UpdateReticleCommand") &&
+           ResolveGeneratedStaticReticle(transportMap, lastError, target, "UpdateReticleCommand");
+}
+
+/** @brief Shared identity validation for owning and borrowed dynamic updates. */
+bool NormalizeDynamicUpsertIdentity(const std::optional<GeneratedTransportMap>& transportMap,
+                                    std::string& lastError, DynamicReticleHandle& target,
+                                    std::string& templateId, TransportId& templateTransportId)
+{
+    return ResolveGeneratedPage(transportMap, lastError, target.page, target.pageId, "UpsertDynamicReticleCommand") &&
+           ResolveDynamicRuntimeId(lastError, target.page, target, "UpsertDynamicReticleCommand") &&
+           ResolveGeneratedTemplate(transportMap, lastError, templateId, templateTransportId,
+                                    "UpsertDynamicReticleCommand");
+}
+
 // Rewrites one typed command into its transport form (generated ids resolved, named fields
 // moved to id-keyed fields) with one explicit overload per command type. This visitor
 // intentionally has no generic fallback: adding a new UserCommand alternative must fail to
@@ -883,9 +918,7 @@ struct CommandTransportNormalizer
 
     bool operator()(UpdateReticleCommand& command) const
     {
-        return ResolveGeneratedPage(
-                   transportMap, lastError, command.target.page, command.target.pageId, "UpdateReticleCommand") &&
-               ResolveGeneratedStaticReticle(transportMap, lastError, command.target, "UpdateReticleCommand") &&
+        return NormalizeStaticUpdateIdentity(transportMap, lastError, command.target) &&
                NormalizePatchForTransport(
                    transportMap,
                    lastError,
@@ -910,20 +943,8 @@ struct CommandTransportNormalizer
 
     bool operator()(UpsertDynamicReticleCommand& command) const
     {
-        return ResolveGeneratedPage(
-                   transportMap,
-                   lastError,
-                   command.target.page,
-                   command.target.pageId,
-                   "UpsertDynamicReticleCommand") &&
-               ResolveDynamicRuntimeId(
-                   lastError, command.target.page, command.target, "UpsertDynamicReticleCommand") &&
-               ResolveGeneratedTemplate(
-                   transportMap,
-                   lastError,
-                   command.templateId,
-                   command.templateTransportId,
-                   "UpsertDynamicReticleCommand") &&
+        return NormalizeDynamicUpsertIdentity(transportMap, lastError, command.target,
+                                              command.templateId, command.templateTransportId) &&
                NormalizePatchForTransport(
                    transportMap,
                    lastError,
@@ -1021,6 +1042,108 @@ struct CommandTransportNormalizer
         return true;
     }
 };
+/** @brief Whether a patch already has the exact fields consumed by the wire writer. */
+bool PatchNeedsNoNormalization(const ReticlePatch& patch) noexcept
+{
+    return (!patch.blinkType.has_value() || patch.blinkTypeId.has_value()) &&
+           patch.texts.empty() && patch.letterSpacings.empty() && patch.primitivePatches.empty();
+}
+
+/** @brief Conservatively admits the costly update commands; other types use the full normalizer. */
+bool CanBorrowTransportCommand(const UserCommand& command)
+{
+    if (const auto* bulk = std::get_if<UpsertDynamicReticlesCommand>(&command))
+    {
+        return bulk->pageId != 0 && bulk->templateTransportId != 0 &&
+               std::all_of(bulk->reticles.begin(), bulk->reticles.end(), [](const DynamicReticleState& state)
+               {
+                   return state.runtimeReticleId != 0 && PatchNeedsNoNormalization(state.patch);
+               });
+    }
+    if (const auto* dynamic = std::get_if<UpsertDynamicReticleCommand>(&command))
+    {
+        return dynamic->target.pageId != 0 && dynamic->target.runtimeReticleId != 0 &&
+               dynamic->templateTransportId != 0 && PatchNeedsNoNormalization(dynamic->patch);
+    }
+    if (const auto* update = std::get_if<UpdateReticleCommand>(&command))
+    {
+        return update->target.pageId != 0 && update->target.reticleId != 0 &&
+               PatchNeedsNoNormalization(update->patch);
+    }
+    return false;
+}
+
+/**
+ * @brief Reuses the full normalizer on identities only, without copying patches or bulk states.
+ * @pre CanBorrowTransportCommand(command) is true.
+ * @note The remaining patch/runtime-id normalization is a proven no-op. Names are still
+ * checked against ids; canonical names assigned by the normalizer are not wire fields.
+ */
+bool ValidateBorrowedTransportCommand(const UserCommand& command, const CommandTransportNormalizer& normalizer)
+{
+    if (const auto* bulk = std::get_if<UpsertDynamicReticlesCommand>(&command))
+    {
+        UpsertDynamicReticlesCommand identity;
+        identity.page = bulk->page;
+        identity.pageId = bulk->pageId;
+        identity.templateId = bulk->templateId;
+        identity.templateTransportId = bulk->templateTransportId;
+        return normalizer(identity);
+    }
+    if (const auto* dynamic = std::get_if<UpsertDynamicReticleCommand>(&command))
+    {
+        DynamicReticleHandle target = dynamic->target;
+        std::string templateId = dynamic->templateId;
+        TransportId templateTransportId = dynamic->templateTransportId;
+        return NormalizeDynamicUpsertIdentity(normalizer.transportMap, normalizer.lastError,
+                                              target, templateId, templateTransportId);
+    }
+    StaticReticleHandle target = std::get<UpdateReticleCommand>(command).target;
+    return NormalizeStaticUpdateIdentity(normalizer.transportMap, normalizer.lastError, target);
+}
+
+/** @brief Borrows validated normalized commands, otherwise owns the complete normalized copy. */
+std::optional<detail::CommandBatchView> NormalizeBatchForTransport(
+    const detail::CommandBatchView& source, CommandBatch& owned,
+    const std::optional<GeneratedTransportMap>& transportMap, std::string& lastError)
+{
+    detail::CommandBatchView result = source;
+    const CommandTransportNormalizer normalizer {transportMap, lastError};
+    if (std::all_of(source.commands.begin(), source.commands.end(), CanBorrowTransportCommand))
+    {
+        for (const UserCommand& command : source.commands)
+        {
+            if (!ValidateBorrowedTransportCommand(command, normalizer)) return std::nullopt;
+        }
+    }
+    else
+    {
+        owned.commands.assign(source.commands.begin(), source.commands.end());
+        for (UserCommand& command : owned.commands)
+        {
+            if (!std::visit(normalizer, command)) return std::nullopt;
+        }
+        result.commands = ArrayView<const UserCommand>(owned.commands);
+    }
+
+    const bool usesGeneratedIdentifiers = std::any_of(
+        result.commands.begin(), result.commands.end(), detail::CommandUsesGeneratedIdentifiers);
+    if (usesGeneratedIdentifiers)
+    {
+        if (result.mappingHash.empty())
+        {
+            const GeneratedTransportMap* map = RequireTransportMap(transportMap, lastError, "mapping hash");
+            if (map == nullptr) return std::nullopt;
+            result.mappingHash = map->mappingHash;
+        }
+        else if (transportMap.has_value() && result.mappingHash != transportMap->mappingHash)
+        {
+            lastError = "Command batch mappingHash does not match the generated transport map configured on the client";
+            return std::nullopt;
+        }
+    }
+    return result;
+}
 } // namespace
 
 CommandClient::CommandClient(std::unique_ptr<IExchangeChannel> channel, std::optional<GeneratedTransportMap> transportMap)
@@ -1049,48 +1172,6 @@ CommandClient::CommandClient(const WindowUdpCommandTransport& config, std::optio
                                   kUdpMaxPayloadBytes);
 }
 
-bool CommandClient::NormalizeBatchForTransport(const CommandBatch& sourceBatch, CommandBatch& normalizedBatch)
-{
-    normalizedBatch = sourceBatch;
-
-    for (UserCommand& command : normalizedBatch.commands)
-    {
-        if (!std::visit(CommandTransportNormalizer {transportMap_, lastError_}, command))
-        {
-            return false;
-        }
-    }
-
-    const bool usesGeneratedIdentifiers = std::any_of(
-        normalizedBatch.commands.begin(),
-        normalizedBatch.commands.end(),
-        [](const UserCommand& command)
-        {
-            return detail::CommandUsesGeneratedIdentifiers(command);
-        });
-
-    if (usesGeneratedIdentifiers)
-    {
-        if (normalizedBatch.mappingHash.empty())
-        {
-            const GeneratedTransportMap* map = RequireTransportMap(transportMap_, lastError_, "mapping hash");
-            if (map == nullptr)
-            {
-                return false;
-            }
-
-            normalizedBatch.mappingHash = map->mappingHash;
-        }
-        else if (transportMap_.has_value() && normalizedBatch.mappingHash != transportMap_->mappingHash)
-        {
-            lastError_ = "Command batch mappingHash does not match the generated transport map configured on the client";
-            return false;
-        }
-    }
-
-    return true;
-}
-
 bool CommandClient::IsReady() const noexcept
 {
     return channel_ != nullptr && channel_->IsReady();
@@ -1108,17 +1189,12 @@ std::string CommandClient::LastError() const
 
 bool CommandClient::Send(const UserCommand& command)
 {
-    CommandBatch batch;
-    batch.commands.push_back(command);
-    return SendBatchedPayloads(batch);
+    return SendBatchedPayloads(ArrayView<const UserCommand>(&command, 1U), 0U, {});
 }
 
 bool CommandClient::SendBatch(const ArrayView<const UserCommand> commands, const std::uint32_t sequence)
 {
-    CommandBatch batch;
-    batch.sequence = sequence;
-    batch.commands.assign(commands.begin(), commands.end());
-    return SendBatchedPayloads(batch);
+    return SendBatchedPayloads(commands, sequence, {});
 }
 
 bool CommandClient::SendBatch(const CommandBatch& batch)
@@ -1449,36 +1525,45 @@ CommandBatchFragment CommandClient::AllocateBatchIdentity()
 
 bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
 {
+    return SendBatchedPayloads(ArrayView<const UserCommand>(batch.commands), batch.sequence, batch.mappingHash);
+}
+
+bool CommandClient::SendBatchedPayloads(const ArrayView<const UserCommand> commands,
+                                       const std::uint32_t sequence, const std::string_view mappingHash)
+{
+    const detail::CommandBatchView batch {commands, sequence, mappingHash, std::nullopt};
     if (batch.commands.empty())
     {
         lastError_.clear();
         return true;
     }
 
-    if (detail::EstimateCommandWorkUnits(batch) > detail::kMaxAtomicCommandWorkUnits)
+    if (detail::EstimateCommandWorkUnits(batch.commands) > detail::kMaxAtomicCommandWorkUnits)
     {
         lastError_ = detail::kAtomicCommandWorkLimitError;
         return false;
     }
 
-    CommandBatch normalizedBatch;
-    if (!NormalizeBatchForTransport(batch, normalizedBatch))
+    CommandBatch ownedNormalizedBatch;
+    auto normalized = NormalizeBatchForTransport(batch, ownedNormalizedBatch, transportMap_, lastError_);
+    if (!normalized.has_value())
     {
         return false;
     }
 
+    detail::CommandBatchView& normalizedBatch = *normalized;
     const CommandBatchFragment batchIdentity = AllocateBatchIdentity();
     normalizedBatch.fragment = batchIdentity;
 
     const std::size_t maxPayloadBytes = MaxPayloadBytes();
     std::string error;
-    const auto normalizedPayload = TrySerializeBatch(normalizedBatch, error);
+    const auto normalizedPayload = TrySerializeBatch(normalizedBatch, error, maxPayloadBytes);
     if (!normalizedPayload.has_value())
     {
         lastError_ = std::move(error);
         return false;
     }
-    if (normalizedPayload->size() <= maxPayloadBytes)
+    if (!normalizedPayload->empty())
     {
         return SendPayload(*normalizedPayload);
     }
@@ -1495,7 +1580,7 @@ bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
 
     for (const UserCommand& command : normalizedBatch.commands)
     {
-        const auto splitCommands = SplitOversizedCommand(
+        auto splitCommands = SplitOversizedCommand(
             command,
             normalizedBatch.sequence,
             normalizedBatch.mappingHash,
@@ -1507,7 +1592,9 @@ bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
             return false;
         }
 
-        expandedCommands.insert(expandedCommands.end(), splitCommands->begin(), splitCommands->end());
+        expandedCommands.insert(expandedCommands.end(),
+                                std::make_move_iterator(splitCommands->begin()),
+                                std::make_move_iterator(splitCommands->end()));
     }
 
     CommandBatch expandedBatch;
@@ -1515,8 +1602,8 @@ bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
     expandedBatch.mappingHash = normalizedBatch.mappingHash;
     expandedBatch.fragment = batchIdentity;
     expandedBatch.commands = std::move(expandedCommands);
-    const auto expandedPayload = TrySerializeBatch(expandedBatch, error);
-    if (expandedPayload.has_value() && expandedPayload->size() <= maxPayloadBytes)
+    const auto expandedPayload = TrySerializeBatch(detail::ViewBatch(expandedBatch), error, maxPayloadBytes);
+    if (expandedPayload.has_value() && !expandedPayload->empty())
     {
         return SendPayload(*expandedPayload);
     }
@@ -1534,63 +1621,44 @@ bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
     currentChunk.mappingHash = normalizedBatch.mappingHash;
     currentChunk.fragment = sizingFragment;
 
-    for (const UserCommand& command : expandedBatch.commands)
+    const std::size_t metadataBytes = detail::EnvelopeMetadataWireSize(detail::ViewBatch(currentChunk));
+    std::size_t currentBytes = metadataBytes;
+    for (UserCommand& command : expandedBatch.commands)
     {
-        currentChunk.commands.push_back(command);
-
-        const auto payload = TrySerializeBatch(currentChunk, error);
-        if (!payload.has_value())
+        // Exact per-command contribution; protobuf repeated fields have additive sizes.
+        // The full normalized batch was validated before any command was split.
+        std::size_t commandBytes = 0U;
+        try
         {
-            currentChunk.commands.pop_back();
-            if (currentChunk.commands.empty())
-            {
-                lastError_ = std::move(error);
-                return false;
-            }
+            commandBytes = detail::CommandFieldWireSize(command);
+        }
+        catch (const std::exception& exception)
+        {
+            lastError_ = exception.what();
+            return false;
+        }
+        catch (...)
+        {
+            lastError_ = "Unknown exception while serializing a Protocol Buffers command batch";
+            return false;
+        }
+        if (metadataBytes > maxPayloadBytes || commandBytes > maxPayloadBytes - metadataBytes)
+        {
+            lastError_ = "A single command exceeds the configured UDP payload limit of " +
+                         std::to_string(maxPayloadBytes) + " bytes";
+            return false;
+        }
+        if (commandBytes > maxPayloadBytes - currentBytes)
+        {
             chunks.push_back(std::move(currentChunk));
             currentChunk = CommandBatch {};
             currentChunk.sequence = normalizedBatch.sequence;
             currentChunk.mappingHash = normalizedBatch.mappingHash;
             currentChunk.fragment = sizingFragment;
-            currentChunk.commands.push_back(command);
-            continue;
+            currentBytes = metadataBytes;
         }
-
-        if (payload->size() <= maxPayloadBytes)
-        {
-            continue;
-        }
-
-        currentChunk.commands.pop_back();
-        if (currentChunk.commands.empty())
-        {
-            lastError_ = "A single command exceeds the configured UDP payload limit of " +
-                         std::to_string(maxPayloadBytes) + " bytes";
-            return false;
-        }
-        chunks.push_back(std::move(currentChunk));
-
-        CommandBatch singleCommandChunk;
-        singleCommandChunk.sequence = normalizedBatch.sequence;
-        singleCommandChunk.mappingHash = normalizedBatch.mappingHash;
-        singleCommandChunk.fragment = sizingFragment;
-        singleCommandChunk.commands.push_back(command);
-
-        const auto singlePayload = TrySerializeBatch(singleCommandChunk, error);
-        if (!singlePayload.has_value())
-        {
-            lastError_ = std::move(error);
-            return false;
-        }
-
-        if (singlePayload->size() > maxPayloadBytes)
-        {
-            lastError_ = "A single command exceeds the configured UDP payload limit of " +
-                         std::to_string(maxPayloadBytes) + " bytes";
-            return false;
-        }
-
-        currentChunk = std::move(singleCommandChunk);
+        currentChunk.commands.push_back(std::move(command));
+        currentBytes += commandBytes;
     }
 
     if (!currentChunk.commands.empty())
@@ -1614,7 +1682,7 @@ bool CommandClient::SendBatchedPayloads(const CommandBatch& batch)
             batchIdentity.batchId,
             static_cast<std::uint32_t>(chunkIndex),
             chunkCount};
-        const auto payload = TrySerializeBatch(chunks[chunkIndex], error);
+        auto payload = TrySerializeBatch(detail::ViewBatch(chunks[chunkIndex]), error);
         if (!payload.has_value() || payload->size() > maxPayloadBytes)
         {
             lastError_ = payload.has_value()

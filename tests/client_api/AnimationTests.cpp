@@ -2048,3 +2048,59 @@ TEST(AnimationTests, WindowDisplayResetToAuthoredRebasesFutureDeltasOnAuthoredDe
     EXPECT_FLOAT_EQ(*update->patch.brightness, 0.40f);
     EXPECT_FALSE(update->patch.disabled.has_value());
 }
+
+
+TEST(AnimationTests, GeneratedIdleAndRemovalCyclesKeepPreviouslyBuiltCommandsAlive)
+{
+    GeneratedDynamicFixtureSet set;
+    auto& first = set.CreateTrack();
+    auto& second = set.CreateTrack();
+    first.label.SetText("first snapshot");
+    second.label.SetText("second snapshot");
+    std::vector<mfd::UserCommand> retained;
+    ASSERT_EQ(set.AppendCommands(retained), 2U);
+    const auto& snapshot = std::get<mfd::UpsertDynamicReticlesCommand>(retained.back());
+    ASSERT_EQ(snapshot.reticles.size(), 2U);
+    const auto firstId = snapshot.reticles[0].runtimeReticleId;
+    for (std::size_t cycle = 0; cycle < 16U; ++cycle)
+    {
+        std::vector<mfd::UserCommand> idle;
+        first.label.SetText("first snapshot");
+        EXPECT_EQ(set.AppendCommands(idle), 0U);
+        EXPECT_TRUE(idle.empty());
+    }
+    set.Remove(first);
+    second.label.SetText("changed");
+    std::vector<mfd::UserCommand> changed;
+    EXPECT_EQ(set.AppendCommands(changed), 2U);
+    ASSERT_EQ(changed.size(), 2U);
+    EXPECT_EQ(std::get<mfd::RemoveDynamicReticleCommand>(changed.front()).target.runtimeReticleId, firstId);
+    EXPECT_EQ(snapshot.reticles[0].runtimeReticleId, firstId);
+    EXPECT_EQ(snapshot.reticles[0].patch.primitivePatchesById.at(33U).text, "first snapshot");
+    EXPECT_EQ(snapshot.reticles[1].patch.primitivePatchesById.at(33U).text, "second snapshot");
+    EXPECT_EQ(snapshot.reticles.size(), 2U);
+}
+
+TEST(AnimationTests, NamedSetIdleRemovalAndRecreationPreservePendingSnapshot)
+{
+    mfd::client::DynamicReticleSet set("Radar", "radar_track");
+    auto& track = set.Upsert("track");
+    track.SetText("snapshot");
+    std::vector<mfd::UserCommand> retained;
+    ASSERT_EQ(set.AppendCommands(retained), 1U);
+    for (std::size_t cycle = 0; cycle < 16U; ++cycle)
+    {
+        set.Reset();
+        set.Upsert("track").SetText("snapshot");
+        std::vector<mfd::UserCommand> idle;
+        EXPECT_EQ(set.AppendCommands(idle), 0U);
+    }
+    set.Reset();
+    std::vector<mfd::UserCommand> removed;
+    EXPECT_EQ(set.AppendCommands(removed), 1U);
+    set.Upsert("track").SetText("recreated");
+    std::vector<mfd::UserCommand> recreated;
+    EXPECT_EQ(set.AppendCommands(recreated), 1U);
+    EXPECT_EQ(std::get<mfd::UpsertDynamicReticlesCommand>(retained.front()).reticles.front().patch.text, "snapshot");
+    EXPECT_EQ(std::get<mfd::UpsertDynamicReticlesCommand>(recreated.front()).reticles.front().patch.text, "recreated");
+}

@@ -2417,7 +2417,6 @@ void GeneratedDynamicReticleSet::Remove(DynamicReticle& reticle)
 std::size_t GeneratedDynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& commands)
 {
     std::vector<mfd::DynamicReticleState> updates;
-    updates.reserve(reticles_.size());
     std::size_t count = 0;
 
     if (visibilityDirty_ && desiredVisible_ != lastSentVisible_)
@@ -2469,6 +2468,10 @@ std::size_t GeneratedDynamicReticleSet::AppendCommands(std::vector<mfd::UserComm
 
         if (!reticle.published_)
         {
+            if (updates.empty())
+            {
+                updates.reserve(reticles_.size());
+            }
             mfd::ReticlePatch patch = reticle.desiredPatch_;
             reticle.PopulateGeneratedIdentifiers(patch, pageTransportId_ != 0);
             updates.push_back(
@@ -2482,6 +2485,10 @@ std::size_t GeneratedDynamicReticleSet::AppendCommands(std::vector<mfd::UserComm
 
         if (reticle.dirty_ && !Equal(reticle.desiredPatch_, reticle.lastSentPatch_))
         {
+            if (updates.empty())
+            {
+                updates.reserve(reticles_.size());
+            }
             mfd::ReticlePatch patch = BuildDeltaPatch(reticle.desiredPatch_, reticle.lastSentPatch_);
             reticle.PopulateGeneratedIdentifiers(patch, pageTransportId_ != 0);
             updates.push_back(
@@ -2656,7 +2663,6 @@ DynamicReticle& DynamicReticleSet::Upsert(const std::string_view reticleId)
 std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& commands)
 {
     std::vector<mfd::DynamicReticleState> updates;
-    updates.reserve(reticles_.size());
     std::size_t count = 0;
 
     if (visibilityDirty_ && desiredVisible_ != lastSentVisible_)
@@ -2691,6 +2697,10 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
         {
             if (!reticle->published_)
             {
+                if (updates.empty())
+                {
+                    updates.reserve(reticles_.size());
+                }
                 mfd::ReticlePatch patch = reticle->desiredPatch_;
                 reticle->PopulateGeneratedIdentifiers(patch, pageTransportId_ != 0);
                 updates.push_back(
@@ -2700,6 +2710,10 @@ std::size_t DynamicReticleSet::AppendCommands(std::vector<mfd::UserCommand>& com
             }
             else if (reticle->dirty_ && !Equal(reticle->desiredPatch_, reticle->lastSentPatch_))
             {
+                if (updates.empty())
+                {
+                    updates.reserve(reticles_.size());
+                }
                 mfd::ReticlePatch patch = BuildDeltaPatch(reticle->desiredPatch_, reticle->lastSentPatch_);
                 reticle->PopulateGeneratedIdentifiers(patch, pageTransportId_ != 0);
                 updates.push_back(mfd::DynamicReticleState {

@@ -321,13 +321,14 @@ private:
      * @return `true` if the command payload was sent successfully.
      */
     bool SetGeneratedPageView(TransportId pageId, std::string_view mappingHash, Vec2 center, float zoom);
-    bool NormalizeBatchForTransport(const CommandBatch& sourceBatch, CommandBatch& normalizedBatch);
     /** @brief Initializes the stable identity of this client transport session. */
     void InitializeTransportIdentity();
     /** @brief Allocates the next non-zero batch identity in this client session. */
     CommandBatchFragment AllocateBatchIdentity();
     bool SendPayload(std::string_view payload);
     bool SendBatchedPayloads(const CommandBatch& batch);
+    bool SendBatchedPayloads(ArrayView<const UserCommand> commands, std::uint32_t sequence,
+                             std::string_view mappingHash);
 
     std::unique_ptr<IExchangeChannel> channel_ {};
     std::optional<GeneratedTransportMap> transportMap_ {};
