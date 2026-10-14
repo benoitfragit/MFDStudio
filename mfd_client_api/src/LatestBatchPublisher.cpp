@@ -698,7 +698,7 @@ void StartWorker(ImplType& impl)
                                    (impl.pendingBatch.has_value() && !impl.retryBlocked);
                         });
 
-                    if (impl.stopRequested && !impl.pendingBatch.has_value())
+                    if (impl.stopRequested)
                     {
                         break;
                     }
@@ -741,15 +741,18 @@ void StartWorker(ImplType& impl)
                     }
                     else
                     {
-                        std::optional<mfd::CommandBatch> retryBatch {std::move(batch)};
-                        if (impl.pendingBatch.has_value())
+                        if (!impl.stopRequested)
                         {
-                            MergePendingBatchPreservingUndeliveredDeltas(
-                                retryBatch,
-                                std::move(*impl.pendingBatch));
+                            std::optional<mfd::CommandBatch> retryBatch {std::move(batch)};
+                            if (impl.pendingBatch.has_value())
+                            {
+                                MergePendingBatchPreservingUndeliveredDeltas(
+                                    retryBatch,
+                                    std::move(*impl.pendingBatch));
+                            }
+                            impl.pendingBatch = std::move(retryBatch);
+                            impl.retryBlocked = true;
                         }
-                        impl.pendingBatch = std::move(retryBatch);
-                        impl.retryBlocked = true;
                         impl.lastError = std::move(error);
                     }
                 }
@@ -930,7 +933,7 @@ bool LatestBatchPublisher::SubmitLatest(std::vector<mfd::UserCommand> commands, 
 
 void LatestBatchPublisher::Flush()
 {
-    if (impl_ == nullptr || !impl_->worker.joinable())
+    if (impl_ == nullptr)
     {
         return;
     }
