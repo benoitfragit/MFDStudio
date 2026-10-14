@@ -13,16 +13,18 @@ namespace editor::ui
 struct ColorPickerInteraction
 {
     bool changed = false;
-    bool customOpened = false;
-    bool customVisible = false;
+    bool beganEdit = false;
+    bool popupOpened = false;
+    bool popupVisible = false;
     mfd::ColorPreset selected = mfd::ColorPreset::Custom;
 };
 
 /**
- * @brief Draws eight preset swatches and a transactional Custom RGBA popup.
+ * @brief Draws a current-color button opening RGBA editing with eight preset shortcuts.
  * @param label Unique control label within the current ImGui ID scope.
- * @param color Four normalized RGBA channels, modified only on a committed edit.
- * @return Selection intent; displaying or cancelling the popup never modifies color.
+ * @param color Four normalized RGBA channels, updated immediately when the user changes the effective color.
+ * @return Selection intent, including the first change of each gesture for undo capture.
+ * @note Opening or closing the popup alone never modifies color.
  */
 ColorPickerInteraction DrawColorPicker(const char* label, float* color);
 } // namespace editor::ui

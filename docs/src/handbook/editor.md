@@ -155,4 +155,4 @@ competing for space.
 
 ## Color controls
 
-All authored colors use the same 3 x 3 swatch grid, including creation dialogs, page titles and external-stream replacement colors. Click a preset, or open Custom (+), edit RGBA and choose Apply or Cancel. See [Color presets](../reference/colors.md#editor). The guided progress-bar exposure step now teaches Yellow fill selection, preview observation and Custom discovery.
+All authored colors use the same current-color button, including creation dialogs, page titles and external-stream replacement colors. Click it to open the standard RGBA selector with exactly eight preset shortcuts on the right. Both RGBA edits and presets apply immediately; click outside or press Escape to close. Each continuous edit can be undone in one step. See [Color presets](../reference/colors.md#editor). The guided progress-bar exposure step teaches opening the selector, choosing Yellow, observing the preview and closing the selector.

@@ -490,15 +490,15 @@ void EditorTutorialController::OnPrimitiveExposed()
 
 void EditorTutorialController::OnFillColorInteraction(const bool exposed,
                                                        const mfd::ColorPreset selected,
-                                                       const bool customOpened,
-                                                       const bool customVisible)
+                                                       const bool popupOpened,
+                                                       const bool popupVisible)
 {
     if (!IsStep(static_cast<int>(editor::tutorial::TutorialStepId::ExposeProgressBarFillPrimitive)))
     {
         return;
     }
-    stepPhase_ = editor::tutorial::NextColorTutorialPhase(stepPhase_, exposed, selected, customOpened);
-    if (stepPhase_ == 3 && !customVisible)
+    stepPhase_ = editor::tutorial::NextColorTutorialPhase(stepPhase_, exposed, selected, popupOpened);
+    if (stepPhase_ == 3 && !popupVisible)
     {
         CompleteStep();
     }
@@ -1239,8 +1239,8 @@ std::string_view EditorTutorialController::CurrentActionLabel() const noexcept
                                                     (stepPhase_ == 2 ? "Click Create reticle." : "Click Append primitive."));
     case static_cast<int>(TutorialStepId::ExposeProgressBarFillPrimitive):
         return stepPhase_ == 0 ? "Enable Exposed on the fill_bar primitive." :
-               (stepPhase_ == 1 ? "In Stroke & fill, click the Yellow fill swatch and observe the preview." :
-                                  "Click Custom (+) in the fill grid to explore RGBA and alpha. Apply commits; Cancel preserves Yellow.");
+               (stepPhase_ == 1 ? "In Stroke & fill, click the current Fill color button to open the selector." :
+                                  "Choose Yellow on the right, observe the preview and explore RGBA and alpha. Click outside to close; changes apply immediately.");
     case static_cast<int>(TutorialStepId::AddProgressBarToPage2):
         return "Click Add to active page.";
     case static_cast<int>(TutorialStepId::AddPage1DefaultStrobe):

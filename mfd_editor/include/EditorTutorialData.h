@@ -95,8 +95,8 @@ mfd::ArrayView<const TutorialStepDefinition> Steps() noexcept;
  */
 int StepCount() noexcept;
 
-/** @brief Advances exposure, Yellow selection, then Custom discovery in that order. */
-int NextColorTutorialPhase(int phase, bool exposed, mfd::ColorPreset selected, bool customOpened) noexcept;
+/** @brief Advances exposure, opening the color selector, then Yellow selection in that order. */
+int NextColorTutorialPhase(int phase, bool exposed, mfd::ColorPreset selected, bool popupOpened) noexcept;
 
 /**
  * @brief Returns `true` when the provided step is a UI-driven action.

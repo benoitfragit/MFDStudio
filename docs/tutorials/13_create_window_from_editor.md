@@ -663,4 +663,4 @@ stay connected in one logical path.
 
 ## Use the shared color selector
 
-Background, title, reticle and primitive colors share the [3 x 3 color grid](../src/reference/colors.md#editor). Custom (+) preserves alpha and commits only on Apply. In the integrated tutorial, select fill_bar, enable Exposed, open Stroke & fill, click Yellow under Fill and observe the preview. Open Custom to discover RGBA and alpha, then Apply or Cancel to continue. Existing tutorial stages and saved step indices are retained.
+Background, title, reticle and primitive colors share the [current-color button and RGBA selector](../src/reference/colors.md#editor), with eight shortcuts on the right. Changes apply immediately, and RGBA editing retains alpha unless you change it; built-in presets are opaque. In the integrated tutorial, select fill_bar, enable Exposed, open Stroke & fill, click the current Fill color button, then choose Yellow on the right and observe the preview. Explore RGBA and alpha, then click outside or press Escape to close and continue. Existing tutorial stages and saved step indices are retained.

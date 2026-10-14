@@ -10,7 +10,7 @@
 namespace editor::app
 {
 std::optional<mfd::ExternalStreamGeometry> DrawExternalStreamInspector(
-    const mfd::ExternalStreamGeometry& geometry, const mfd::ExternalStreamRegistry& registry)
+    const mfd::ExternalStreamGeometry& geometry, const mfd::ExternalStreamRegistry& registry, bool& beganEdit)
 {
     mfd::ExternalStreamGeometry draft = geometry;
     std::array<char, 65> id {};
@@ -31,7 +31,9 @@ std::optional<mfd::ExternalStreamGeometry> DrawExternalStreamInspector(
     }
     std::array<float, 4> color {draft.fallback.r / 255.0f, draft.fallback.g / 255.0f,
                                 draft.fallback.b / 255.0f, draft.fallback.a / 255.0f};
-    if (editor::ui::DrawColorPicker("Replacement color", color.data()).changed)
+    const auto colorInteraction = editor::ui::DrawColorPicker("Replacement color", color.data());
+    beganEdit = changed || colorInteraction.beganEdit;
+    if (colorInteraction.changed)
     {
         for (float& channel : color) channel = std::isfinite(channel) ? std::clamp(channel, 0.0f, 1.0f) : 0.0f;
         draft.fallback = {static_cast<std::uint8_t>(color[0] * 255), static_cast<std::uint8_t>(color[1] * 255),

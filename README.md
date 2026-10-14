@@ -52,7 +52,7 @@ delivery lane and ships the published documentation as a downloadable ZIP
 archive. The GitHub Win32 automation lane excludes a narrow render/offscreen
 test subset that passes locally but fails on the hosted `windows-2022` runner.
 
-Editor color controls and generated C++ clients share eight [built-in color presets](./docs/src/reference/colors.md), with full Custom RGBA support.
+Editor color controls and generated C++ clients share eight [built-in color presets](./docs/src/reference/colors.md). Click the current-color button to open the RGBA selector, with eight preset shortcuts on its right and immediate preview updates.
 
 ## Build
 

@@ -55,7 +55,7 @@ public:
     /** @brief Advances exposure guidance, including the progress-bar color micro-steps. */
     void OnPrimitiveExposed();
     /** @brief Validates the selected progress fill before advancing color guidance. */
-    void OnFillColorInteraction(bool exposed, mfd::ColorPreset selected, bool customOpened, bool customVisible);
+    void OnFillColorInteraction(bool exposed, mfd::ColorPreset selected, bool popupOpened, bool popupVisible);
     /** @brief Ends the tutorial and clears persisted progress. */
     void Finish();
     /** @brief Draws the guided tutorial coach panel. */

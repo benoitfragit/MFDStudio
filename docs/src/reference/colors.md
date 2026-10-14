@@ -21,21 +21,28 @@ The conversion returns no value for Custom or unknown identifiers.
 
 ## Editor
 
-Every authored color control uses the same compact grid:
+Every authored color control shows a button filled with the current color beside
+its label. Click the button to open the standard RGBA selector. Exactly eight
+preset shortcuts appear on its right, in two columns:
 
 ```text
-Black  White  Red
-Green  Blue   Yellow
-Cyan   Amber  Custom (+)
+RGBA selector    Black   White
+                Red     Green
+                Blue    Yellow
+                Cyan    Amber
 ```
 
-Click a swatch to apply its exact RGBA. A contrasting outline marks the matching
-color; Custom is selected when no built-in RGBA matches, including alpha.
-Hover for the English name, RGBA channels and hex value. Custom (+) opens the
-standard RGBA picker initialized with the existing alpha. Edit the channels and
-click **Apply** to commit one undoable change, or **Cancel** to keep the original.
-Opening a control never creates a color override. Inherited or disabled controls
-keep their existing rules; a primitive fill masked by a reticle default stays disabled.
+Click a shortcut to apply its exact RGBA immediately. A contrasting outline marks
+the matching preset, including alpha; a custom color has no matching outline.
+Hover for the English name, RGBA channels and hex value. There is no ninth Custom
+shortcut: edit RGB and alpha directly in the same selector. RGB edits preserve
+alpha, while built-in presets set alpha to 255.
+
+Changes update the preview immediately. Click outside or press Escape to close;
+closing retains changes. Undo restores the state before each continuous drag or
+preset selection. Opening and closing alone creates neither an undo snapshot nor
+a color override. Inherited or disabled controls keep their existing rules; a
+primitive fill masked by a reticle default stays disabled.
 
 The control covers primitive stroke/fill, reticle instance and template defaults,
 strobe appearance, page background/title, external-stream replacement color,

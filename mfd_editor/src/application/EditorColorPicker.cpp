@@ -14,8 +14,8 @@ namespace editor::ui
 {
 namespace
 {
-constexpr std::array<const char*, 9> kNames {{
-    "Black", "White", "Red", "Green", "Blue", "Yellow", "Cyan", "Amber", "Custom"}};
+constexpr std::array<const char*, 8> kNames {{
+    "Black", "White", "Red", "Green", "Blue", "Yellow", "Cyan", "Amber"}};
 
 int ColorChannel(const float channel) noexcept
 {
@@ -54,39 +54,87 @@ void DrawSelectionOutline()
     draw->AddRect(min, max, IM_COL32(255, 255, 255, 255), 2.0f, 0, 2.0f);
 }
 
-bool DrawCustomPopup(ImGuiStorage& storage, const ImGuiID draftId, float* color)
+/** @brief Copies effective byte colors only when the user changes their value. */
+bool CopyEditedColor(float* color, const float* edited) noexcept
 {
     bool changed = false;
-    if (ImGui::BeginPopup("Custom RGBA"))
+    for (std::size_t channel = 0; channel < 4; ++channel)
     {
-        std::array<float, 4> draft {};
-        for (unsigned int channel = 0; channel < draft.size(); ++channel)
+        changed = changed || ColorChannel(color[channel]) != ColorChannel(edited[channel]);
+    }
+    if (changed)
+    {
+        for (std::size_t channel = 0; channel < 4; ++channel)
         {
-            draft[channel] = storage.GetFloat(draftId + channel);
+            color[channel] = ColorChannel(edited[channel]) / 255.0f;
         }
-        ImGui::TextUnformatted("Custom RGBA");
-        ImGui::ColorPicker4("##rgba", draft.data(), ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_AlphaPreviewHalf);
-        for (unsigned int channel = 0; channel < draft.size(); ++channel)
-        {
-            storage.SetFloat(draftId + channel, draft[channel]);
-        }
-        if (ImGui::Button("Apply"))
-        {
-            for (std::size_t channel = 0; channel < draft.size(); ++channel)
-            {
-                changed = changed || ColorChannel(color[channel]) != ColorChannel(draft[channel]);
-                color[channel] = ColorChannel(draft[channel]) / 255.0f;
-            }
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Cancel"))
-        {
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::EndPopup();
     }
     return changed;
+}
+
+/** @brief Draws exactly eight built-in shortcuts beside the standard RGBA picker. */
+void DrawPresetShortcuts(float* color, ColorPickerInteraction& result)
+{
+    ImGui::BeginGroup();
+    ImGui::TextUnformatted("Presets");
+    const float size = ImGui::GetFrameHeight();
+    for (std::size_t index = 0; index < kNames.size(); ++index)
+    {
+        if (index % 2 != 0)
+        {
+            ImGui::SameLine();
+        }
+        const auto preset = static_cast<mfd::ColorPreset>(index + 1);
+        const mfd::ColorRgba value = *mfd::TryColorPreset(preset);
+        const ImVec4 swatch = ToSwatch(value);
+        if (ImGui::ColorButton(kNames[index], swatch, ImGuiColorEditFlags_NoTooltip,
+                               ImVec2(size, size)))
+        {
+            result.selected = preset;
+            result.changed = CopyEditedColor(color, &swatch.x);
+            result.beganEdit = result.changed;
+        }
+        ShowColorTooltip(kNames[index], swatch);
+        if (SameColor(color, value))
+        {
+            DrawSelectionOutline();
+        }
+    }
+    ImGui::EndGroup();
+}
+
+/** @brief Applies live RGBA edits and groups each continuous gesture for undo. */
+void DrawPickerPopup(float* color, ImGuiStorage& storage, const ImGuiID editingId,
+                     ColorPickerInteraction& result)
+{
+    if (!ImGui::BeginPopup("Color selector"))
+    {
+        storage.SetBool(editingId, false);
+        return;
+    }
+
+    std::array<float, 4> edited {{color[0], color[1], color[2], color[3]}};
+    ImGui::PushItemWidth(ImGui::GetFrameHeight() * 12.0f);
+    const bool pickerChanged = ImGui::ColorPicker4("##rgba", edited.data(),
+        ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_AlphaPreviewHalf |
+        ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_NoLabel);
+    const bool pickerActive = ImGui::IsItemActive();
+    ImGui::PopItemWidth();
+    if (pickerChanged)
+    {
+        result.changed = CopyEditedColor(color, edited.data());
+        result.beganEdit = result.changed && !storage.GetBool(editingId);
+    }
+    storage.SetBool(editingId, pickerActive && (result.changed || storage.GetBool(editingId)));
+
+    ImGui::SameLine();
+    DrawPresetShortcuts(color, result);
+    // The editor does not enable ImGui keyboard navigation, so close explicitly.
+    if (ImGui::IsWindowFocused() && ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+    {
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
 }
 } // namespace
 
@@ -95,65 +143,20 @@ ColorPickerInteraction DrawColorPicker(const char* label, float* color)
     ColorPickerInteraction result;
     ImGui::PushID(label);
     ImGui::BeginGroup();
-    ImGui::TextUnformatted(label);
     ImGuiStorage& storage = *ImGui::GetStateStorage();
-    const ImGuiID draftId = ImGui::GetID("customDraft");
-    int selected = 8;
-    for (int index = 0; index < 8; ++index)
+    const ImGuiID editingId = ImGui::GetID("colorEditing");
+    if (ImGui::ColorButton("##current", ImVec4(color[0], color[1], color[2], color[3]),
+                           ImGuiColorEditFlags_AlphaPreviewHalf | ImGuiColorEditFlags_NoTooltip))
     {
-        if (SameColor(color, *mfd::TryColorPreset(static_cast<mfd::ColorPreset>(index + 1))))
-        {
-            selected = index;
-            break;
-        }
+        storage.SetBool(editingId, false);
+        ImGui::OpenPopup("Color selector");
+        result.popupOpened = true;
     }
-    const float size = ImGui::GetFrameHeight();
-    for (int index = 0; index < 9; ++index)
-    {
-        if (index % 3 != 0)
-        {
-            ImGui::SameLine();
-        }
-        const auto preset = index == 8 ? mfd::ColorPreset::Custom : static_cast<mfd::ColorPreset>(index + 1);
-        const ImVec4 swatch = index == 8 ? ImVec4(color[0], color[1], color[2], color[3])
-                                        : ToSwatch(*mfd::TryColorPreset(preset));
-        if (ImGui::ColorButton(kNames[index], swatch, ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_AlphaPreviewHalf,
-                               ImVec2(size, size)))
-        {
-            if (index == 8)
-            {
-                for (unsigned int channel = 0; channel < 4; ++channel)
-                {
-                    storage.SetFloat(draftId + channel, color[channel]);
-                }
-                ImGui::OpenPopup("Custom RGBA");
-                result.customOpened = true;
-            }
-            else
-            {
-                result.selected = preset;
-                result.changed = selected != index;
-                color[0] = swatch.x;
-                color[1] = swatch.y;
-                color[2] = swatch.z;
-                color[3] = swatch.w;
-                selected = index;
-            }
-        }
-        ShowColorTooltip(kNames[index], swatch);
-        if (selected == index)
-        {
-            DrawSelectionOutline();
-        }
-        if (index == 8)
-        {
-            const ImVec2 min = ImGui::GetItemRectMin();
-            ImGui::GetWindowDrawList()->AddText(ImVec2(min.x + 5, min.y + 1), IM_COL32(0, 0, 0, 255), "+");
-            ImGui::GetWindowDrawList()->AddText(ImVec2(min.x + 4, min.y), IM_COL32(255, 255, 255, 255), "+");
-        }
-    }
-    result.changed = DrawCustomPopup(storage, draftId, color) || result.changed;
-    result.customVisible = ImGui::IsPopupOpen("Custom RGBA");
+    ShowColorTooltip(label, ImVec4(color[0], color[1], color[2], color[3]));
+    ImGui::SameLine();
+    ImGui::TextUnformatted(label);
+    DrawPickerPopup(color, storage, editingId, result);
+    result.popupVisible = ImGui::IsPopupOpen("Color selector");
     ImGui::EndGroup();
     ImGui::PopID();
     return result;

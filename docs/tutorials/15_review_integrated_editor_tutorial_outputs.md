@@ -164,4 +164,4 @@ Continue with:
 
 ## Review the color exercise
 
-The progress-bar exposure step includes selecting the Yellow Fill swatch, observing it in the preview and opening Custom (+). Close the RGBA picker with Apply or Cancel before continuing. The generated tutorial client also sets Yellow fill at runtime and demonstrates preset/custom reticle transitions. See the [shared color reference](../src/reference/colors.md).
+The progress-bar exposure step includes opening the current Fill color button, choosing Yellow from the eight shortcuts on the right and observing it in the preview. RGBA and alpha editing are available in the same selector; all changes apply immediately. Close it by clicking outside or pressing Escape before continuing. The generated tutorial client also sets Yellow fill at runtime and demonstrates preset/custom reticle transitions. See the [shared color reference](../src/reference/colors.md).

@@ -687,11 +687,12 @@ void EditorApplication::DrawPageInspector()
         "Select the Page1 title chrome",
         "Open the dedicated title inspector. It exposes move, scale, visibility, color, line style, and decoration controls for the generated page title.");
 
-    const bool bgChanged = editor::ui::DrawColorPicker("Background", &background.x).changed;
+    const auto backgroundInteraction = editor::ui::DrawColorPicker("Background", &background.x);
+    const bool bgChanged = backgroundInteraction.changed;
     ShowItemTooltip("Preview and runtime background color for this page.");
     if (bgChanged)
     {
-        ApplyAuthoredColor(page->backgroundColor, background);
+        ApplyAuthoredColor(page->backgroundColor, background, backgroundInteraction.beganEdit);
     }
 
     const bool centerChanged = ImGui::DragFloat2("View center", &page->view.center.x, 0.01f, -1.0f, 1.0f, "%.3f");
@@ -2421,9 +2422,10 @@ void EditorApplication::DrawPageReticleInspector()
     ShowItemTooltip("Per-axis scale applied to this page reticle instance.");
 
     ImVec4 stroke = ToImGuiColor(reticle->overrides.color.value_or(mfd::ColorRgba {0, 255, 102, 255}));
-    if (editor::ui::DrawColorPicker("Stroke", &stroke.x).changed)
+    const auto colorInteraction = editor::ui::DrawColorPicker("Stroke", &stroke.x);
+    if (colorInteraction.changed)
     {
-        ApplyAuthoredColor(reticle->overrides.color, stroke);
+        ApplyAuthoredColor(reticle->overrides.color, stroke, colorInteraction.beganEdit);
     }
     ShowItemTooltip("Override the template stroke color for this page reticle instance.");
 
@@ -2666,9 +2668,10 @@ void EditorApplication::DrawSelectedPageTitleInspector()
     ShowItemTooltip("Choose whether the title is underlined, boxed, or rendered without decoration.");
 
     ImVec4 color = ToImGuiColor(titleDisplay->color);
-    if (editor::ui::DrawColorPicker("Color", &color.x).changed)
+    const auto colorInteraction = editor::ui::DrawColorPicker("Color", &color.x);
+    if (colorInteraction.changed)
     {
-        ApplyAuthoredColor(titleDisplay->color, color);
+        ApplyAuthoredColor(titleDisplay->color, color, colorInteraction.beganEdit);
     }
     ShowItemTooltip("Shared color applied to the title text and its decoration.");
 
@@ -2976,9 +2979,10 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
     ShowItemTooltip("Per-axis scale applied to this page strobe instance.");
 
     ImVec4 stroke = ToImGuiColor(reticle->overrides.color.value_or(mfd::ColorRgba {0, 255, 102, 255}));
-    if (editor::ui::DrawColorPicker("Stroke", &stroke.x).changed)
+    const auto colorInteraction = editor::ui::DrawColorPicker("Stroke", &stroke.x);
+    if (colorInteraction.changed)
     {
-        ApplyAuthoredColor(reticle->overrides.color, stroke);
+        ApplyAuthoredColor(reticle->overrides.color, stroke, colorInteraction.beganEdit);
     }
     ShowItemTooltip("Override the template stroke color for this page strobe instance.");
 
@@ -3368,9 +3372,10 @@ void EditorApplication::DrawLibraryReticleInspector()
     ShowItemTooltip("Default per-axis scale applied to this template.");
 
     ImVec4 stroke = ToImGuiColor(reticle->overrides.color.value_or(mfd::ColorRgba {0, 255, 102, 255}));
-    if (editor::ui::DrawColorPicker("Default stroke", &stroke.x).changed)
+    const auto colorInteraction = editor::ui::DrawColorPicker("Default stroke", &stroke.x);
+    if (colorInteraction.changed)
     {
-        ApplyAuthoredColor(reticle->overrides.color, stroke);
+        ApplyAuthoredColor(reticle->overrides.color, stroke, colorInteraction.beganEdit);
     }
     ShowItemTooltip("Default stroke color inherited by page instances unless they override it.");
 
@@ -3390,9 +3395,10 @@ void EditorApplication::DrawLibraryReticleInspector()
         const mfd::ColorRgba fallbackFillColor =
             VisibleFillColorFromStroke(reticle->overrides.color.value_or(mfd::PrimitiveStyle {}.color));
         ImVec4 fill = ToImGuiColor(reticle->overrides.fillColor.value_or(fallbackFillColor));
-        if (editor::ui::DrawColorPicker("Default fill", &fill.x).changed)
+        const auto fillInteraction = editor::ui::DrawColorPicker("Default fill", &fill.x);
+        if (fillInteraction.changed)
         {
-            ApplyAuthoredColor(reticle->overrides.fillColor, fill);
+            ApplyAuthoredColor(reticle->overrides.fillColor, fill, fillInteraction.beganEdit);
         }
         ShowItemTooltip("Default fill color inherited by fill-capable primitives unless they override it locally.");
 
@@ -3716,9 +3722,10 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
     if (BeginInspectorSection("section_primitive_appearance", "Stroke & fill", true, sectionForceOpen))
     {
     ImVec4 stroke = ToImGuiColor(primitive->style.color);
-    if (editor::ui::DrawColorPicker("Stroke", &stroke.x).changed)
+    const auto colorInteraction = editor::ui::DrawColorPicker("Stroke", &stroke.x);
+    if (colorInteraction.changed)
     {
-        ApplyAuthoredColor(primitive->style.color, stroke);
+        ApplyAuthoredColor(primitive->style.color, stroke, colorInteraction.beganEdit);
     }
     ShowItemTooltip("Stroke color used to render this primitive.");
 
@@ -3796,14 +3803,14 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         const auto fillInteraction = editor::ui::DrawColorPicker(fillColorOverridden ? "Local fill" : "Fill", &fill.x);
         if (fillInteraction.changed)
         {
-            ApplyAuthoredColor(primitive->style.fillColor, fill);
+            ApplyAuthoredColor(primitive->style.fillColor, fill, fillInteraction.beganEdit);
         }
         if (tutorialExposedPrimitiveSelected && !fillColorOverridden)
         {
             tutorial_->OnFillColorInteraction(primitive->exposed, fillInteraction.selected,
-                                               fillInteraction.customOpened, fillInteraction.customVisible);
+                                               fillInteraction.popupOpened, fillInteraction.popupVisible);
             tutorial_->DrawHalo("primitive_fill_color", "Choose a fill color",
-                                "Click Yellow, observe the preview, then open Custom (+) to explore RGBA and alpha. Apply commits; Cancel preserves the color.");
+                                "Open the current fill color button, choose Yellow on the right, explore RGBA and alpha, then click outside to close. Changes apply immediately.");
         }
         ImGui::EndDisabled();
         ShowItemTooltip(fillColorOverridden
@@ -4220,10 +4227,14 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
 
     if (const auto* stream = std::get_if<mfd::ExternalStreamGeometry>(&primitive->geometry))
     {
-        const auto edit = editor::app::DrawExternalStreamInspector(*stream, previewState_.externalStreams);
+        bool beganEdit = false;
+        const auto edit = editor::app::DrawExternalStreamInspector(*stream, previewState_.externalStreams, beganEdit);
         if (edit)
         {
-            PushUndoSnapshot();
+            if (beganEdit)
+            {
+                PushUndoSnapshot();
+            }
             editor::app::ApplyExternalStreamEdit(*primitive, *edit);
         }
     }
@@ -4262,14 +4273,20 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
     }
 }
 
-void EditorApplication::ApplyAuthoredColor(mfd::ColorRgba& destination, const ImVec4& color)
+void EditorApplication::ApplyAuthoredColor(mfd::ColorRgba& destination, const ImVec4& color, const bool beganEdit)
 {
-    PushUndoSnapshot();
+    if (beganEdit)
+    {
+        PushUndoSnapshot();
+    }
     destination = ToColorRgba(color);
 }
 
-void EditorApplication::ApplyAuthoredColor(std::optional<mfd::ColorRgba>& destination, const ImVec4& color)
+void EditorApplication::ApplyAuthoredColor(std::optional<mfd::ColorRgba>& destination, const ImVec4& color, const bool beganEdit)
 {
-    PushUndoSnapshot();
+    if (beganEdit)
+    {
+        PushUndoSnapshot();
+    }
     destination = ToColorRgba(color);
 }

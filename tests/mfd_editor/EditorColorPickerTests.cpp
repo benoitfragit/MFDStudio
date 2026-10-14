@@ -47,41 +47,58 @@ protected:
         ImGui::Begin("Picker test", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
         origin_ = ImGui::GetCursorScreenPos();
         ImGui::BeginDisabled(disabled);
+        const auto before = color_;
         const auto result = editor::ui::DrawColorPicker("Stroke", color_.data());
+        if (result.changed && result.beganEdit)
+        {
+            history_.Record(before);
+        }
         ImGui::EndDisabled();
+        otherInteraction_ = editor::ui::DrawColorPicker("Fill", otherColor_.data());
         ImGui::End();
         ImGui::Render();
         return result;
+    }
+
+    editor::ui::ColorPickerInteraction Click(const ImVec2 center, const bool disabled = false)
+    {
+        Frame(center, false, disabled);
+        Frame(center, true, disabled);
+        return Frame(center, false, disabled);
+    }
+
+    editor::ui::ColorPickerInteraction OpenSelector(const bool disabled = false)
+    {
+        const float halfSize = ImGui::GetFrameHeight() / 2;
+        return Click(ImVec2(origin_.x + halfSize, origin_.y + halfSize), disabled);
+    }
+
+    ImGuiWindow* Popup() const
+    {
+        return ImGui::GetCurrentContext()->OpenPopupStack.back().Window;
     }
 
     editor::ui::ColorPickerInteraction ClickSwatch(const int index, const bool disabled = false)
     {
         const auto& style = ImGui::GetStyle();
         const float size = ImGui::GetFrameHeight();
-        const ImVec2 center(origin_.x + (index % 3) * (size + style.ItemSpacing.x) + size / 2,
-                            origin_.y + ImGui::GetTextLineHeightWithSpacing() +
-                                (index / 3) * (size + style.ItemSpacing.y) + size / 2);
-        Frame(center, false, disabled);
-        Frame(center, true, disabled);
-        return Frame(center, false, disabled);
+        // The final popup group is the two-column palette, to the right of the picker.
+        const float left = Popup()->DC.CursorMaxPos.x - (2 * size + style.ItemSpacing.x);
+        const float top = Popup()->DC.CursorStartPos.y + ImGui::GetTextLineHeightWithSpacing();
+        const ImVec2 center(left + (index % 2) * (size + style.ItemSpacing.x) + size / 2,
+                            top + (index / 2) * (size + style.ItemSpacing.y) + size / 2);
+        return Click(center, disabled);
     }
 
-    editor::ui::ColorPickerInteraction ClickPopupButton(const bool apply)
+    editor::ui::ColorPickerInteraction CloseSelector()
     {
-        // Inspect the actual rendered Cancel button row, avoiding hard-coded popup placement.
-        ImGuiWindow* popup = ImGui::GetCurrentContext()->OpenPopupStack.back().Window;
-        const auto& style = ImGui::GetStyle();
-        const float cancelWidth = ImGui::CalcTextSize("Cancel").x + 2 * style.FramePadding.x;
-        const float applyWidth = ImGui::CalcTextSize("Apply").x + 2 * style.FramePadding.x;
-        const ImVec2 row = popup->DC.CursorPosPrevLine;
-        const ImVec2 center(row.x - (apply ? cancelWidth + style.ItemSpacing.x + applyWidth / 2 : cancelWidth / 2),
-                            row.y + ImGui::GetFrameHeight() / 2);
-        Frame(center);
-        Frame(center, true);
-        return Frame(center);
+        return Click(ImVec2(650, 600));
     }
 
     std::array<float, 4> color_ {{80 / 255.0f, 160 / 255.0f, 1.0f, 180 / 255.0f}};
+    std::array<float, 4> otherColor_ {{0.2f, 0.4f, 0.6f, 0.8f}};
+    editor::ui::ColorPickerInteraction otherInteraction_;
+    editor::UndoHistory<std::array<float, 4>> history_;
 
 private:
     ImGuiContext* context_ = nullptr;
@@ -89,65 +106,148 @@ private:
 };
 } // namespace
 
-TEST_F(ColorPickerFrame, PresetsCommitExactValuesAndSupportUndoRedo)
-{
-    editor::UndoHistory<std::array<float, 4>> history;
-    const auto original = color_;
-    EXPECT_FALSE(Frame().changed);
-    const auto interaction = ClickSwatch(4); // Blue
-    ASSERT_TRUE(interaction.changed);
-    EXPECT_EQ(interaction.selected, mfd::ColorPreset::Blue);
-    EXPECT_FLOAT_EQ(color_[0], 0);
-    EXPECT_FLOAT_EQ(color_[1], 120 / 255.0f);
-    EXPECT_FLOAT_EQ(color_[2], 1);
-    EXPECT_FLOAT_EQ(color_[3], 1);
-    history.Record(original);
-    const auto blue = color_;
-    color_ = *history.Undo(color_);
-    EXPECT_EQ(color_, original);
-    color_ = *history.Redo(color_);
-    EXPECT_EQ(color_, blue);
-    EXPECT_FALSE(ClickSwatch(4).changed);
-}
-
-TEST_F(ColorPickerFrame, DisabledSwatchesAndCustomDoNotMutateOrOpen)
+TEST_F(ColorPickerFrame, CurrentColorButtonOpensAndClosesWithoutMutation)
 {
     const auto original = color_;
-    EXPECT_FALSE(ClickSwatch(0, true).changed);
-    EXPECT_FALSE(ClickSwatch(8, true).customOpened);
-    EXPECT_EQ(color_, original);
-}
-
-TEST_F(ColorPickerFrame, CustomOpensWithoutMutationAndRetainsAlpha)
-{
-    const auto original = color_;
-    const auto interaction = ClickSwatch(8);
-    EXPECT_TRUE(interaction.customOpened);
-    EXPECT_TRUE(interaction.customVisible);
-    EXPECT_FALSE(interaction.changed);
+    EXPECT_FALSE(Frame().popupVisible);
+    const auto opened = OpenSelector();
+    EXPECT_TRUE(opened.popupOpened);
+    EXPECT_TRUE(opened.popupVisible);
+    EXPECT_FALSE(opened.changed);
+    EXPECT_FALSE(opened.beganEdit);
     EXPECT_EQ(color_, original);
     EXPECT_FALSE(Frame().changed);
-    EXPECT_FLOAT_EQ(color_[3], 180 / 255.0f);
-    const auto cancelled = ClickPopupButton(false);
-    EXPECT_FALSE(cancelled.changed);
-    EXPECT_FALSE(cancelled.customVisible);
+    const auto closed = CloseSelector();
+    EXPECT_FALSE(closed.popupVisible);
+    EXPECT_FALSE(closed.changed);
     EXPECT_EQ(color_, original);
+    EXPECT_FALSE(history_.CanUndo());
 }
 
-TEST_F(ColorPickerFrame, CustomPickerCommitsRgbOnlyOnApplyAndPreservesAlpha)
+TEST_F(ColorPickerFrame, EightPopupPresetsCommitExactValuesAndSupportUndoRedo)
 {
-    const auto original = color_;
-    ASSERT_TRUE(ClickSwatch(8).customOpened);
+    ASSERT_TRUE(OpenSelector().popupOpened);
     Frame();
-    ImGuiWindow* popup = ImGui::GetCurrentContext()->OpenPopupStack.back().Window;
-    const ImVec2 pickerPoint(popup->Pos.x + 45, popup->Pos.y + 65);
-    Frame(pickerPoint);
-    Frame(pickerPoint, true);
-    Frame(pickerPoint);
-    EXPECT_EQ(color_, original); // The picker edits a popup draft until Apply.
-    const auto applied = ClickPopupButton(true);
-    EXPECT_TRUE(applied.changed);
-    EXPECT_FALSE(applied.customVisible);
+    const auto otherOriginal = otherColor_;
+    for (int index = 0; index < 8; ++index)
+    {
+        SCOPED_TRACE(index);
+        const auto original = color_;
+        const auto interaction = ClickSwatch(index);
+        const auto preset = static_cast<mfd::ColorPreset>(index + 1);
+        const auto expected = *mfd::TryColorPreset(preset);
+        EXPECT_TRUE(interaction.changed);
+        EXPECT_TRUE(interaction.beganEdit);
+        EXPECT_TRUE(interaction.popupVisible);
+        EXPECT_EQ(interaction.selected, preset);
+        EXPECT_FLOAT_EQ(color_[0], expected.r / 255.0f);
+        EXPECT_FLOAT_EQ(color_[1], expected.g / 255.0f);
+        EXPECT_FLOAT_EQ(color_[2], expected.b / 255.0f);
+        EXPECT_FLOAT_EQ(color_[3], 1);
+        EXPECT_EQ(history_.UndoDepth(), 1U);
+        const auto selected = color_;
+        color_ = *history_.Undo(color_);
+        EXPECT_EQ(color_, original);
+        color_ = *history_.Redo(color_);
+        EXPECT_EQ(color_, selected);
+        EXPECT_FALSE(ClickSwatch(index).changed);
+        EXPECT_EQ(history_.UndoDepth(), 1U);
+        history_.Clear();
+    }
+    // The old ninth Custom shortcut is gone: clicking below the eight presets is inert.
+    EXPECT_FALSE(ClickSwatch(8).changed);
+    EXPECT_FALSE(history_.CanUndo());
+    EXPECT_EQ(otherColor_, otherOriginal);
+    EXPECT_FALSE(otherInteraction_.popupVisible);
+    const auto selected = color_;
+    EXPECT_FALSE(CloseSelector().popupVisible);
+    EXPECT_EQ(color_, selected);
+    EXPECT_TRUE(OpenSelector().popupVisible);
+    EXPECT_EQ(color_, selected);
+}
+
+TEST_F(ColorPickerFrame, DisabledCurrentColorButtonDoesNotMutateOrOpen)
+{
+    const auto original = color_;
+    const auto result = OpenSelector(true);
+    EXPECT_FALSE(result.changed);
+    EXPECT_FALSE(result.popupOpened);
+    EXPECT_FALSE(result.popupVisible);
+    EXPECT_EQ(color_, original);
+    EXPECT_FALSE(history_.CanUndo());
+}
+
+TEST_F(ColorPickerFrame, RgbDragAppliesImmediatelyAndCreatesOneUndoSnapshot)
+{
+    const auto original = color_;
+    ASSERT_TRUE(OpenSelector().popupOpened);
+    Frame();
+    const ImVec2 start(Popup()->DC.CursorStartPos.x + 40, Popup()->DC.CursorStartPos.y + 40);
+    Frame(start);
+    const auto first = Frame(start, true);
+    EXPECT_TRUE(first.changed);
+    EXPECT_TRUE(first.beganEdit);
     EXPECT_NE(color_, original);
+    const ImVec2 next(start.x + 30, start.y + 25);
+    const auto continued = Frame(next, true);
+    EXPECT_TRUE(continued.changed);
+    EXPECT_FALSE(continued.beganEdit);
+    Frame(next);
     EXPECT_FLOAT_EQ(color_[3], original[3]);
+    EXPECT_EQ(history_.UndoDepth(), 1U);
+    const auto edited = color_;
+    EXPECT_FALSE(CloseSelector().popupVisible);
+    EXPECT_EQ(color_, edited);
+    color_ = *history_.Undo(color_);
+    EXPECT_EQ(color_, original);
+    color_ = *history_.Redo(color_);
+    EXPECT_EQ(color_, edited);
+}
+
+TEST_F(ColorPickerFrame, AlphaBarEditsAlphaImmediatelyAndPresetRestoresOpaqueColor)
+{
+    ASSERT_TRUE(OpenSelector().popupOpened);
+    Frame();
+    const auto original = color_;
+    const float size = ImGui::GetFrameHeight();
+    const ImVec2 point(Popup()->DC.CursorStartPos.x + size * 12 - size / 2,
+                       Popup()->DC.CursorStartPos.y + 80);
+    Frame(point);
+    EXPECT_TRUE(Frame(point, true).changed);
+    Frame(point);
+    EXPECT_FLOAT_EQ(color_[0], original[0]);
+    EXPECT_FLOAT_EQ(color_[1], original[1]);
+    EXPECT_FLOAT_EQ(color_[2], original[2]);
+    EXPECT_NE(color_[3], original[3]);
+    EXPECT_TRUE(ClickSwatch(4).changed);
+    EXPECT_FLOAT_EQ(color_[3], 1);
+    EXPECT_EQ(history_.UndoDepth(), 2U);
+}
+
+TEST_F(ColorPickerFrame, DisablingAnOpenSelectorPreventsPresetAndRgbaEdits)
+{
+    ASSERT_TRUE(OpenSelector().popupOpened);
+    Frame();
+    const auto original = color_;
+    const ImVec2 point(Popup()->DC.CursorStartPos.x + 40, Popup()->DC.CursorStartPos.y + 40);
+    EXPECT_FALSE(ClickSwatch(4, true).changed);
+    Frame(point, false, true);
+    EXPECT_FALSE(Frame(point, true, true).changed);
+    Frame(point, false, true);
+    EXPECT_EQ(color_, original);
+    EXPECT_FALSE(history_.CanUndo());
+}
+
+TEST_F(ColorPickerFrame, EscapeClosesTheSelectorAndRetainsLiveEdits)
+{
+    ASSERT_TRUE(OpenSelector().popupOpened);
+    Frame();
+    EXPECT_TRUE(ClickSwatch(5).changed);
+    const auto selected = color_;
+    ImGui::GetIO().AddKeyEvent(ImGuiKey_Escape, true);
+    EXPECT_FALSE(Frame().popupVisible);
+    ImGui::GetIO().AddKeyEvent(ImGuiKey_Escape, false);
+    EXPECT_FALSE(Frame().changed);
+    EXPECT_EQ(color_, selected);
+    EXPECT_EQ(history_.UndoDepth(), 1U);
 }

@@ -1,7 +1,8 @@
 # Built-in color presets: implementation and validation
 
-Implemented on `master`, validated on 2026-10-13 with Visual Studio Win32 Debug,
-C++17. The user-facing specification is [Color presets](src/reference/colors.md).
+Implemented on `master` in C++17, with the selector layout revised on 2026-10-14.
+Validation uses Visual Studio Win32 Debug; results are recorded below.
+The user-facing specification is [Color presets](src/reference/colors.md).
 
 ## Delivered behavior
 
@@ -12,12 +13,14 @@ The renderer continues consuming the unchanged `ColorRgba` structure.
 All eleven former color-edit call sites use one `DrawColorPicker` implementation:
 primitive stroke/fill, library default stroke/fill, page reticle stroke, strobe
 stroke, page title, page background, external-stream replacement color, and the
-new-page/new-window background drafts. The grid contains eight swatches and a
-Custom (+) entry. Tooltips expose names, RGBA and hex; contrasting outlines mark
-the matching color. Custom edits a popup draft, preserving alpha, with Apply and
-Cancel. Committed inspector changes call named mutation helpers and capture one
-undo snapshot. Rendering or cancelling does not create an override. Existing
-inherited fill and disabled-control behavior is preserved.
+new-page/new-window background drafts. Each control displays its current color
+as a button opening the standard RGBA selector, with exactly eight shortcuts on
+the right. Tooltips expose names, RGBA and hex; contrasting outlines mark the
+matching preset. RGBA editing and preset selection apply immediately. Closing
+with Escape or an outside click retains edits. Named mutation helpers capture
+one undo snapshot per continuous gesture or changed preset selection. Merely
+opening or closing does not create an override. Existing inherited fill and
+disabled-control behavior is preserved.
 
 ## Main files by module
 
@@ -111,11 +114,11 @@ produces RGBA and reset continues restoring authored values.
   extrapolation and other visual effects retain custom colors.
 - Added the shared color reference, linked from JSON/public contract, editor and
   generated API guides, tutorials 01/04/05/11/13/15, and the focused README notice.
-- The existing progress-fill exposure step now teaches selecting Yellow,
-  observing the preview, then opening and closing Custom. Existing tutorial step
+- The existing progress-fill exposure step teaches opening the current-color selector,
+  selecting Yellow, observing the preview and closing it. Existing tutorial step
   IDs and stages remain unchanged. Completion waits until the popup closes.
 
-## Executed validation
+## Initial validation (2026-10-13, before the selector layout revision)
 
 1. `cmake --preset vs2022-win32`: successful configuration.
 2. `cmake --build --preset debug-win32 --parallel 4`: final global build succeeded
@@ -142,7 +145,32 @@ Local logs are retained under `build/color-presets-final-build.log`,
 `build/color-presets-final-tests.log`, and `build/color-presets-readability-existing.log`.
 Build warnings originate from Protobuf/Abseil and generated Protobuf code.
 
-## Validation limits
+## Selector layout validation (2026-10-14)
+
+- `cmake --build --preset debug-win32 --parallel 1`: successful global build.
+  Sequential staging resolved a transient failure removing the staged tests directory.
+- `ctest --preset test-debug-win32-ci --parallel 1 --timeout 120`: **950/950 passed**,
+  including all seven revised picker interaction tests, seven tutorial unit tests
+  and the runtime deployment smoke tests.
+- The generated external-stream test directory had been deleted locally. Running
+  `cmake --preset vs2022-win32` restored its configuration; rebuilding
+  `external_stream_tests` and `external_stream_gpu_test` succeeded.
+- `ctest --preset test-debug-win32 -R '^ExternalStream' --parallel 1 --timeout 60`:
+  **24/24 passed**, including all seven local GPU integration/failure-mode tests.
+- Comparing the two successful runs with the regenerated CI inventory confirms
+  **969 distinct passing tests: all 962 CI tests plus seven local GPU tests**.
+  The restored local inventory contains 1,004 tests. Tutorial asset-dependent tests
+  remain excluded from CI; editor tutorial unit tests remain included.
+- `git diff --check` is clean. The readability scan found no newly introduced
+  forbidden C++ constructs. All eleven authored color controls still delegate to
+  the shared selector, including creation dialogs and external-stream fallback.
+
+Logs: `build/color-picker-layout-final-build.log`,
+`build/color-picker-layout-ci-tests.log`, `build/color-picker-layout-configure.log`,
+`build/color-picker-layout-stream-build.log`, `build/color-picker-layout-stream-tests.log`
+and `build/color-picker-layout-readability.log`.
+
+## Validation limits and selector layout revision
 
 The tutorial asset set is absent under `examples/tutorial/assets/`, so CMake
 cannot enable `tutorial_client`. Its three existing offscreen tutorial tests
@@ -150,13 +178,15 @@ skip for the same reason. The optional packaged-client example is also disabled
 because `_Deliveries/` is incomplete. Other representative generated clients
 and the compile/runtime fixture were rebuilt and tested.
 
-Editor interaction was exercised with headless ImGui frames, including actual
-swatch/popup clicks. No manual desktop visual walkthrough was performed.
+The initial editor interaction was exercised with headless ImGui frames, including
+actual swatch/popup clicks. The 2026-10-14 layout revision replaces the transactional
+Custom grid with the current-color button, immediate RGBA edits and eight in-popup
+shortcuts; its revised tests cover all eight presets, alpha, disabled controls,
+independent controls and undo grouping. No manual desktop visual walkthrough was performed.
 The unrelated untracked `AUDIT_CODE_STABILITE_UX_PERFORMANCES.md` was preserved.
 The CI preset explicitly excludes `tutorial_client_runtime_layout_smoke`; its
 existing offscreen filter also excludes the three asset-dependent tutorial render
-tests. Editor tutorial unit tests remain enabled. Final preset validation uses
-CTest test enumeration only, without another build or test execution.
+tests. Editor tutorial unit tests remain enabled. Preset validation on 2026-10-13 used CTest test enumeration only.
 Enumeration confirmed 1,001 local tests and 959 CI tests: all three tutorial
 render tests are excluded, all seven editor tutorial unit tests remain selected,
 and the filter matches the conditional tutorial runtime smoke test.
