@@ -13,6 +13,8 @@
 #include <chrono>
 #include <atomic>
 #include <condition_variable>
+#include <cstdio>
+#include <cstdlib>
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
@@ -79,7 +81,303 @@ std::size_t CountStaticReticleUpdates(const mfd::CommandBatch& batch,
 
     return count;
 }
+
+constexpr auto kShutdownSyncTimeout = std::chrono::seconds {1};
+
+// New shutdown tests run in a child process: even a broken join cannot hang
+// the suite. CTest's existing per-test timeout remains the outer guard.
+class PublisherShutdownDeadline
+{
+public:
+    PublisherShutdownDeadline()
+        : watchdog_([this]()
+          {
+              std::unique_lock lock(mutex_);
+              if (!condition_.wait_for(lock, std::chrono::seconds {10},
+                                       [this]() { return completed_; }))
+              {
+                  std::fputs("Publisher shutdown timed out\n", stderr);
+                  std::_Exit(EXIT_FAILURE);
+              }
+          })
+    {
+    }
+
+    ~PublisherShutdownDeadline()
+    {
+        {
+            std::lock_guard lock(mutex_);
+            completed_ = true;
+        }
+        condition_.notify_all();
+        watchdog_.join();
+    }
+
+private:
+    std::mutex mutex_;
+    std::condition_variable condition_;
+    bool completed_ = false;
+    std::thread watchdog_;
+};
+
+enum class ShutdownSendResult
+{
+    Success,
+    Failure,
+    Exception,
+    UnknownException
+};
+
+void CheckStopDuringSend(const ShutdownSendResult result, const bool flushConcurrently)
+{
+    PublisherShutdownDeadline deadline;
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool enteredSend = false;
+    bool releaseSend = false;
+    bool flushStarted = false;
+    bool flushCompleted = false;
+    bool stopCompleted = false;
+    std::size_t sendCount = 0U;
+
+    mfd::client::LatestBatchPublisher publisher(
+        [&mutex, &condition, &enteredSend, &releaseSend, &sendCount, result](const mfd::CommandBatch&)
+        {
+            {
+                std::unique_lock lock(mutex);
+                ++sendCount;
+                enteredSend = true;
+                condition.notify_all();
+                EXPECT_TRUE(condition.wait_for(lock, std::chrono::seconds {5},
+                                               [&releaseSend]() { return releaseSend; }));
+            }
+            if (result == ShutdownSendResult::Exception)
+            {
+                throw std::runtime_error("shutdown send failure");
+            }
+            if (result == ShutdownSendResult::UnknownException)
+            {
+                throw 42;
+            }
+            return result == ShutdownSendResult::Success;
+        },
+        []() { return std::string {"shutdown transport failure"}; });
+
+    EXPECT_TRUE(publisher.SubmitLatest(MakeBatch(1U)));
+    {
+        std::unique_lock lock(mutex);
+        EXPECT_TRUE(condition.wait_for(lock, kShutdownSyncTimeout,
+                                       [&enteredSend]() { return enteredSend; }));
+    }
+    // Leave a second batch pending to verify Stop abandons unsent work too.
+    EXPECT_TRUE(publisher.SubmitLatest(MakeBatch(2U)));
+
+    std::thread flusher;
+    if (flushConcurrently)
+    {
+        flusher = std::thread([&publisher, &mutex, &condition, &flushStarted, &flushCompleted]()
+        {
+            {
+                std::lock_guard lock(mutex);
+                flushStarted = true;
+            }
+            condition.notify_all();
+            publisher.Flush();
+            {
+                std::lock_guard lock(mutex);
+                flushCompleted = true;
+            }
+            condition.notify_all();
+        });
+        std::unique_lock lock(mutex);
+        EXPECT_TRUE(condition.wait_for(lock, kShutdownSyncTimeout,
+                                       [&flushStarted]() { return flushStarted; }));
+        EXPECT_FALSE(flushCompleted);
+    }
+
+    std::thread stopper([&publisher, &mutex, &condition, &stopCompleted]()
+    {
+        condition.notify_all();
+        publisher.Stop();
+        {
+            std::lock_guard lock(mutex);
+            stopCompleted = true;
+        }
+        condition.notify_all();
+    });
+    {
+        std::unique_lock lock(mutex);
+        // IsReady observes stopRequested under the publisher mutex. The early
+        // notification is only a wakeup hint; elapsed time never proves Stop.
+        EXPECT_TRUE(condition.wait_for(lock, kShutdownSyncTimeout,
+                                       [&publisher]() { return !publisher.IsReady(); }));
+        EXPECT_FALSE(stopCompleted);
+        if (flushConcurrently)
+        {
+            EXPECT_FALSE(flushCompleted);
+        }
+        releaseSend = true;
+    }
+    condition.notify_all();
+
+    {
+        std::unique_lock lock(mutex);
+        EXPECT_TRUE(condition.wait_for(lock, kShutdownSyncTimeout,
+                                       [&stopCompleted]() { return stopCompleted; }));
+        if (flushConcurrently)
+        {
+            EXPECT_TRUE(condition.wait_for(lock, kShutdownSyncTimeout,
+                                           [&flushCompleted]() { return flushCompleted; }));
+        }
+    }
+    // No fatal assertions can bypass callback release or thread cleanup.
+    stopper.join();
+    if (flusher.joinable())
+    {
+        flusher.join();
+    }
+
+    EXPECT_EQ(sendCount, 1U);
+    EXPECT_FALSE(publisher.IsReady());
+    if (result == ShutdownSendResult::Success)
+    {
+        EXPECT_TRUE(publisher.LastError().empty());
+    }
+    else if (result == ShutdownSendResult::Failure)
+    {
+        EXPECT_EQ(publisher.LastError(), "shutdown transport failure");
+    }
+    else if (result == ShutdownSendResult::Exception)
+    {
+        EXPECT_EQ(publisher.LastError(), "shutdown send failure");
+    }
+    else
+    {
+        EXPECT_EQ(publisher.LastError(), "Unknown exception while sending the latest command batch");
+    }
+    EXPECT_FALSE(publisher.SubmitLatest(MakeBatch(3U)));
+    publisher.Flush();
+    EXPECT_EQ(sendCount, 1U);
+}
+
+void CheckStopWithBlockedRetry()
+{
+    PublisherShutdownDeadline deadline;
+    std::size_t sendCount = 0U;
+    mfd::client::LatestBatchPublisher publisher(
+        [&sendCount](const mfd::CommandBatch&)
+        {
+            ++sendCount;
+            return false;
+        });
+
+    EXPECT_TRUE(publisher.SubmitLatest(MakeBatch(1U)));
+    publisher.Flush(); // A retained failed batch is now blocked until a submission.
+    EXPECT_EQ(sendCount, 1U);
+    EXPECT_EQ(publisher.LastError(), "Unable to send the latest command batch");
+    publisher.Stop();
+    publisher.Flush();
+    EXPECT_FALSE(publisher.IsReady());
+    EXPECT_FALSE(publisher.SubmitLatest(MakeBatch(2U)));
+    EXPECT_EQ(sendCount, 1U);
+}
+
+void CheckStopIsIdempotent()
+{
+    PublisherShutdownDeadline deadline;
+    std::size_t sendCount = 0U;
+    mfd::client::LatestBatchPublisher publisher(
+        [&sendCount](const mfd::CommandBatch&)
+        {
+            ++sendCount;
+            return true;
+        });
+
+    EXPECT_TRUE(publisher.SubmitLatest(MakeBatch(1U)));
+    publisher.Flush();
+    publisher.Stop();
+    publisher.Stop();
+    publisher.Flush();
+    EXPECT_FALSE(publisher.IsReady());
+    EXPECT_FALSE(publisher.SubmitLatest(MakeBatch(2U)));
+    EXPECT_EQ(sendCount, 1U);
+}
+
+void ExitWithShutdownTestResult()
+{
+    std::_Exit(testing::Test::HasFailure() ? EXIT_FAILURE : EXIT_SUCCESS);
+}
 } // namespace
+
+TEST(LatestBatchPublisherShutdownDeathTest, StopDuringFailedSendDoesNotRetry)
+{
+    EXPECT_EXIT(
+        {
+            CheckStopDuringSend(ShutdownSendResult::Failure, false);
+            ExitWithShutdownTestResult();
+        },
+        testing::ExitedWithCode(EXIT_SUCCESS), "");
+}
+
+TEST(LatestBatchPublisherShutdownDeathTest, StopDuringSuccessfulSendAbandonsPendingBatch)
+{
+    EXPECT_EXIT(
+        {
+            CheckStopDuringSend(ShutdownSendResult::Success, false);
+            ExitWithShutdownTestResult();
+        },
+        testing::ExitedWithCode(EXIT_SUCCESS), "");
+}
+
+TEST(LatestBatchPublisherShutdownDeathTest, StopDuringThrowingSendDoesNotRetry)
+{
+    EXPECT_EXIT(
+        {
+            CheckStopDuringSend(ShutdownSendResult::Exception, false);
+            ExitWithShutdownTestResult();
+        },
+        testing::ExitedWithCode(EXIT_SUCCESS), "");
+}
+
+TEST(LatestBatchPublisherShutdownDeathTest, StopDuringUnknownSendExceptionDoesNotRetry)
+{
+    EXPECT_EXIT(
+        {
+            CheckStopDuringSend(ShutdownSendResult::UnknownException, false);
+            ExitWithShutdownTestResult();
+        },
+        testing::ExitedWithCode(EXIT_SUCCESS), "");
+}
+
+TEST(LatestBatchPublisherShutdownDeathTest, FlushIsReleasedWhenStopFinishesFailedSend)
+{
+    EXPECT_EXIT(
+        {
+            CheckStopDuringSend(ShutdownSendResult::Failure, true);
+            ExitWithShutdownTestResult();
+        },
+        testing::ExitedWithCode(EXIT_SUCCESS), "");
+}
+
+TEST(LatestBatchPublisherShutdownDeathTest, StopAbandonsBlockedRetry)
+{
+    EXPECT_EXIT(
+        {
+            CheckStopWithBlockedRetry();
+            ExitWithShutdownTestResult();
+        },
+        testing::ExitedWithCode(EXIT_SUCCESS), "");
+}
+
+TEST(LatestBatchPublisherShutdownDeathTest, StopIsIdempotent)
+{
+    EXPECT_EXIT(
+        {
+            CheckStopIsIdempotent();
+            ExitWithShutdownTestResult();
+        },
+        testing::ExitedWithCode(EXIT_SUCCESS), "");
+}
 
 TEST(LatestBatchPublisherTests, FlushDeliversAcceptedBatch)
 {
