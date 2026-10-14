@@ -136,7 +136,15 @@ ImageTextureCache::~ImageTextureCache()
 
 ImageTextureCache::ImageTextureCache(ImageTextureCache&&) noexcept = default;
 
-ImageTextureCache& ImageTextureCache::operator=(ImageTextureCache&&) noexcept = default;
+ImageTextureCache& ImageTextureCache::operator=(ImageTextureCache&& other) noexcept
+{
+    if (this != &other)
+    {
+        Clear();
+        impl_ = std::move(other.impl_);
+    }
+    return *this;
+}
 
 const Texture2D* ImageTextureCache::Resolve(const std::filesystem::path& file)
 {

@@ -90,6 +90,9 @@ public:
      * @param batchBuilder Callback invoked synchronously after readiness and stop checks.
      * @return `true` when the callback was invoked and its batch was accepted.
      * @note Use this overload when building a batch commits local dirty-state bookkeeping.
+     * @note The callback runs without the publisher mutex and may query the publisher.
+     * Readiness is checked again before queuing; if Stop() runs during construction,
+     * the callback may have run even though this method returns `false`.
      */
     bool SubmitLatest(BatchBuilder batchBuilder);
 

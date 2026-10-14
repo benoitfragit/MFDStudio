@@ -83,9 +83,15 @@ std::string JsonScalarToString(const nlohmann::json& value)
         return value.get<bool>() ? "true" : "false";
     }
 
-    if (value.is_number_integer() || value.is_number_unsigned())
+    // nlohmann also reports unsigned numbers as integers, so check them first.
+    if (value.is_number_unsigned())
     {
-        return std::to_string(value.get<long long>());
+        return std::to_string(value.get<nlohmann::json::number_unsigned_t>());
+    }
+
+    if (value.is_number_integer())
+    {
+        return std::to_string(value.get<nlohmann::json::number_integer_t>());
     }
 
     if (value.is_number_float())

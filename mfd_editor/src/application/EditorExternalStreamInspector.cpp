@@ -16,23 +16,31 @@ std::optional<mfd::ExternalStreamGeometry> DrawExternalStreamInspector(
     std::array<char, 65> id {};
     std::copy_n(geometry.streamId.data(), std::min(geometry.streamId.size(), id.size() - 1), id.data());
     bool changed = ImGui::InputText("Stream identifier", id.data(), id.size(), ImGuiInputTextFlags_EnterReturnsTrue);
+    bool beganPropertyEdit = changed;
     if (changed) draft.streamId = id.data();
     std::array<float, 2> size {draft.width, draft.height};
-    if (ImGui::DragFloat2("Display size", size.data(), 0.002f, 0.001f, 4.0f))
+    const bool sizeChanged = ImGui::DragFloat2("Display size", size.data(), 0.002f, 0.001f, 4.0f);
+    // Like the shared color picker, record on the first changed frame: activation
+    // can precede the first drag delta, when the caller has no edit to apply yet.
+    ImGuiStorage& storage = *ImGui::GetStateStorage();
+    const ImGuiID sizeEditingId = ImGui::GetID("##external_stream_size_editing");
+    const bool beganSizeEdit = sizeChanged && !storage.GetBool(sizeEditingId);
+    storage.SetBool(sizeEditingId, ImGui::IsItemActive() && (sizeChanged || storage.GetBool(sizeEditingId)));
+    if (sizeChanged)
     { draft.width = size[0]; draft.height = size[1]; changed = true; }
     int fit = static_cast<int>(draft.fit);
     if (ImGui::Combo("Fit", &fit, "Keep proportions\0Stretch\0"))
-    { draft.fit = static_cast<mfd::StreamFit>(fit); changed = true; }
+    { draft.fit = static_cast<mfd::StreamFit>(fit); changed = true; beganPropertyEdit = true; }
     int playback = draft.defaultPlayback == mfd::StreamPlayback::Stop ? 1 : 0;
     if (ImGui::Combo("Default playback", &playback, "Play\0Stop\0"))
     {
         draft.defaultPlayback = playback ? mfd::StreamPlayback::Stop : mfd::StreamPlayback::Play;
-        draft.playback = draft.defaultPlayback; changed = true;
+        draft.playback = draft.defaultPlayback; changed = true; beganPropertyEdit = true;
     }
     std::array<float, 4> color {draft.fallback.r / 255.0f, draft.fallback.g / 255.0f,
                                 draft.fallback.b / 255.0f, draft.fallback.a / 255.0f};
     const auto colorInteraction = editor::ui::DrawColorPicker("Replacement color", color.data());
-    beganEdit = changed || colorInteraction.beganEdit;
+    beganEdit = beganPropertyEdit || beganSizeEdit || colorInteraction.beganEdit;
     if (colorInteraction.changed)
     {
         for (float& channel : color) channel = std::isfinite(channel) ? std::clamp(channel, 0.0f, 1.0f) : 0.0f;

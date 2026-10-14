@@ -1541,6 +1541,116 @@ TEST(UdpRuntimeBridgeTests, BoundsCumulativeInboundBulkDynamicReticleWork)
     bridge.Stop();
 }
 
+namespace
+{
+class UdpPartialDrainTests : public testing::Test
+{
+protected:
+    void SetUp() override
+    {
+        receiver_ = std::make_shared<FakeChannelState>();
+        bridge_ = std::make_unique<mfd::UdpRuntimeBridge>(
+            [receiver = receiver_]()
+            {
+                return std::make_unique<FakeExchangeChannel>(receiver, FakeExchangeChannel::Role::Receiver);
+            },
+            mfd::UdpRuntimeBridge::ChannelFactory {});
+        ASSERT_TRUE(bridge_->Start());
+    }
+
+    void EnqueueAndWait(const mfd::CommandBatch& batch, const std::size_t count = 1U)
+    {
+        const auto expected = bridge_->MetricsSnapshot().queuedBatches + count;
+        receiver_->PushInboundRepeated(ToBytes(mfd::SerializeCommandBatch(batch)), count);
+        ASSERT_TRUE(WaitUntil(std::chrono::seconds(10), [this, expected]()
+        {
+            return bridge_->MetricsSnapshot().queuedBatches == expected;
+        }));
+    }
+
+    mfd::CommandBatch WeightedBatch()
+    {
+        mfd::CommandBatch batch = MakeBulkDynamicReticleBatch(1U, 510U);
+        batch.commands.insert(batch.commands.begin(), 2U, mfd::ResetWindowCommand {});
+        return batch;
+    }
+
+    std::shared_ptr<FakeChannelState> receiver_;
+    std::unique_ptr<mfd::UdpRuntimeBridge> bridge_;
+};
+} // namespace
+
+TEST_F(UdpPartialDrainTests, CompleteExtractionAllowsNewBatchWithoutDropping)
+{
+    EnqueueAndWait(WeightedBatch());
+    std::vector<mfd::UserCommand> commands;
+    EXPECT_EQ(bridge_->DrainReceivedCommands(commands, 3U), 3U);
+    EXPECT_EQ(bridge_->MetricsSnapshot().inboundQueueDepth, 0U);
+    EnqueueAndWait(MakeResetBatch(2U, 1U));
+    EXPECT_EQ(bridge_->MetricsSnapshot().droppedBatches, 0U);
+    EXPECT_EQ(bridge_->DrainReceivedCommands(commands, 1U), 1U);
+    EXPECT_EQ(bridge_->MetricsSnapshot().drainedCommands, 4U);
+    EXPECT_EQ(bridge_->MetricsSnapshot().drainedBatches, 2U);
+}
+
+TEST_F(UdpPartialDrainTests, PartialExtractionRecomputesWeightedRemainder)
+{
+    EnqueueAndWait(WeightedBatch());
+    std::vector<mfd::UserCommand> commands;
+    EXPECT_EQ(bridge_->DrainReceivedCommands(commands, 1U), 1U);
+    std::vector<mfd::CommandBatch> batches;
+    EXPECT_EQ(bridge_->DrainReceivedBatchesForCommandBudget(batches, 510U), 0U);
+    ASSERT_EQ(bridge_->DrainReceivedBatchesForCommandBudget(batches, 511U), 1U);
+    ASSERT_EQ(batches.front().commands.size(), 2U);
+    EXPECT_TRUE(std::holds_alternative<mfd::ResetWindowCommand>(batches.front().commands[0]));
+    EXPECT_EQ(std::get<mfd::UpsertDynamicReticlesCommand>(batches.front().commands[1]).reticles.size(), 510U);
+    EnqueueAndWait(MakeResetBatch(2U, 1U));
+    EXPECT_EQ(bridge_->MetricsSnapshot().droppedBatches, 0U);
+}
+
+TEST_F(UdpPartialDrainTests, SuccessivePartialExtractionsPreserveQuotaAndQueueOrder)
+{
+    EnqueueAndWait(WeightedBatch());
+    std::vector<mfd::UserCommand> commands;
+    EXPECT_EQ(bridge_->DrainReceivedCommands(commands, 1U), 1U);
+    EXPECT_EQ(bridge_->DrainReceivedCommands(commands, 1U), 1U);
+    EXPECT_EQ(bridge_->MetricsSnapshot().drainedBatches, 0U);
+    EnqueueAndWait(MakeResetBatch(2U, 1U));
+    std::vector<mfd::CommandBatch> batches;
+    EXPECT_EQ(bridge_->DrainReceivedBatchesForCommandBudget(batches, 509U), 0U);
+    ASSERT_EQ(bridge_->DrainReceivedBatchesForCommandBudget(batches, 510U), 1U);
+    EXPECT_EQ(batches.front().sequence, 1U);
+    EXPECT_EQ(bridge_->DrainReceivedBatchesForCommandBudget(batches, 1U), 1U);
+    EXPECT_EQ(batches.back().sequence, 2U);
+    EXPECT_EQ(bridge_->MetricsSnapshot().drainedCommands, 4U);
+    EXPECT_EQ(bridge_->MetricsSnapshot().drainedBatches, 2U);
+    EXPECT_EQ(bridge_->MetricsSnapshot().droppedBatches, 0U);
+}
+
+TEST_F(UdpPartialDrainTests, RemainderCountsAtQueueWorkQuotaAndDrainDoesNotUnderflow)
+{
+    EnqueueAndWait(WeightedBatch());
+    std::vector<mfd::UserCommand> commands;
+    EXPECT_EQ(bridge_->DrainReceivedCommands(commands, 1U), 1U);
+    EXPECT_EQ(bridge_->DrainReceivedCommands(commands, 1U), 1U);
+    EnqueueAndWait(MakeBulkDynamicReticleBatch(2U, 512U), 127U);
+    EXPECT_EQ(bridge_->MetricsSnapshot().droppedBatches, 0U); // 65534 units
+    EnqueueAndWait(MakeResetBatch(3U, 2U)); // exactly 65536 units
+    EXPECT_EQ(bridge_->MetricsSnapshot().droppedBatches, 0U);
+    EnqueueAndWait(MakeResetBatch(4U, 1U)); // evicts the 510-unit remainder
+    EXPECT_EQ(bridge_->MetricsSnapshot().droppedBatches, 1U);
+
+    std::vector<mfd::CommandBatch> batches;
+    ASSERT_EQ(bridge_->DrainReceivedBatches(batches, 200U), 129U);
+    EXPECT_EQ(batches.front().sequence, 2U);
+    EXPECT_EQ(batches.back().sequence, 4U);
+    EXPECT_EQ(bridge_->MetricsSnapshot().inboundQueueDepth, 0U);
+    EnqueueAndWait(MakeResetBatch(5U, 1U));
+    EXPECT_EQ(bridge_->MetricsSnapshot().droppedBatches, 1U);
+    EXPECT_EQ(bridge_->DrainReceivedCommands(commands, 1U), 1U);
+    EXPECT_EQ(bridge_->MetricsSnapshot().inboundQueueDepth, 0U);
+}
+
 TEST(UdpRuntimeBridgeTests, CoalescingKeepsColorChoicesAtomicAndFillIndependent)
 {
     for (const bool olderPreset : {false, true})
