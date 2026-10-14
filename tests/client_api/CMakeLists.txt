@@ -74,6 +74,7 @@ mfd_stage_runtime(client_api_tests WITH_RUNTIME_DLLS STAGE_SUBDIR tests)
 
 gtest_discover_tests(client_api_tests
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:client_api_tests>"
+    PROPERTIES TIMEOUT 30
     DISCOVERY_TIMEOUT 60)
 
 add_custom_target(client_api_tests_run

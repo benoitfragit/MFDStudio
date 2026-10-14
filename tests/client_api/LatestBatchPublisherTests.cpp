@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <atomic>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
@@ -18,6 +19,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "mfd/client/LatestBatchPublisher.h"
@@ -104,6 +106,164 @@ TEST(LatestBatchPublisherTests, FlushDeliversAcceptedBatch)
     ASSERT_EQ(deliveredSequences.size(), 1U);
     EXPECT_EQ(deliveredSequences.front(), 42U);
     EXPECT_TRUE(publisher.LastError().empty());
+}
+
+TEST(LatestBatchPublisherTests, BatchBuilderCanQueryReadiness)
+{
+    std::uint32_t delivered = 0U;
+    mfd::client::LatestBatchPublisher publisher(
+        [&delivered](const mfd::CommandBatch& batch)
+        {
+            delivered = batch.sequence;
+            return true;
+        });
+
+    EXPECT_TRUE(publisher.SubmitLatest([&publisher]()
+    {
+        EXPECT_TRUE(publisher.IsReady());
+        return MakeBatch(41U);
+    }));
+    publisher.Flush();
+    EXPECT_EQ(delivered, 41U);
+}
+
+TEST(LatestBatchPublisherTests, BatchBuilderCanReadTransportError)
+{
+    bool failNextSend = true;
+    mfd::client::LatestBatchPublisher publisher(
+        [&failNextSend](const mfd::CommandBatch&)
+        {
+            const bool failed = failNextSend;
+            failNextSend = false;
+            return !failed;
+        },
+        []() { return std::string {"transport failure"}; });
+    ASSERT_TRUE(publisher.SubmitLatest(MakeBatch(1U)));
+    publisher.Flush();
+
+    EXPECT_TRUE(publisher.SubmitLatest([&publisher]()
+    {
+        EXPECT_EQ(publisher.LastError(), "transport failure");
+        return MakeBatch(2U);
+    }));
+    publisher.Flush();
+    EXPECT_TRUE(publisher.LastError().empty());
+}
+
+TEST(LatestBatchPublisherTests, StopDuringBatchConstructionRejectsPublication)
+{
+    std::atomic<std::size_t> sent {0U};
+    mfd::client::LatestBatchPublisher publisher(
+        [&sent](const mfd::CommandBatch&)
+        {
+            ++sent;
+            return true;
+        });
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool building = false;
+    bool releaseBuilder = false;
+    bool accepted = true;
+    std::thread submission([&publisher, &mutex, &condition, &building, &releaseBuilder, &accepted]()
+    {
+        accepted = publisher.SubmitLatest([&mutex, &condition, &building, &releaseBuilder]()
+        {
+            std::unique_lock lock(mutex);
+            building = true;
+            condition.notify_all();
+            condition.wait(lock, [&releaseBuilder]() { return releaseBuilder; });
+            return MakeBatch(1U);
+        });
+    });
+    {
+        std::unique_lock lock(mutex);
+        condition.wait(lock, [&building]() { return building; });
+    }
+    publisher.Stop();
+    {
+        std::lock_guard lock(mutex);
+        releaseBuilder = true;
+    }
+    condition.notify_all();
+    submission.join();
+
+    EXPECT_FALSE(accepted);
+    EXPECT_FALSE(publisher.IsReady());
+    EXPECT_EQ(sent.load(), 0U);
+    EXPECT_EQ(publisher.LastError(), "Latest batch publisher has been stopped");
+}
+
+TEST(LatestBatchPublisherTests, ConcurrentBuildersPreserveUndeliveredDeltas)
+{
+    // Block the sender so both submissions merge into the same pending batch.
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool sending = false;
+    bool releaseSend = false;
+    std::vector<mfd::CommandBatch> delivered;
+    mfd::client::LatestBatchPublisher publisher(
+        [&mutex, &condition, &sending, &releaseSend, &delivered](const mfd::CommandBatch& batch)
+        {
+            std::unique_lock lock(mutex);
+            delivered.push_back(batch);
+            sending = true;
+            condition.notify_all();
+            condition.wait(lock, [&releaseSend]() { return releaseSend; });
+            return true;
+        });
+    ASSERT_TRUE(publisher.SubmitLatest(MakeBatch(0U)));
+    {
+        std::unique_lock lock(mutex);
+        condition.wait(lock, [&sending]() { return sending; });
+    }
+
+    std::atomic<std::size_t> built {0U};
+    std::atomic<std::size_t> accepted {0U};
+    std::vector<std::thread> submissions;
+    for (std::uint32_t index = 1U; index <= 2U; ++index)
+    {
+        submissions.emplace_back([&publisher, &built, &accepted, index]()
+        {
+            if (publisher.SubmitLatest([&built, index]()
+            {
+                ++built;
+                const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+                while (built.load() < 2U && std::chrono::steady_clock::now() < deadline)
+                {
+                    std::this_thread::yield();
+                }
+                EXPECT_EQ(built.load(), 2U);
+                mfd::CommandBatch batch = MakeBatch(index);
+                batch.commands.emplace_back(mfd::RemoveDynamicReticleCommand {
+                    mfd::DynamicReticleHandle {"radar", "track_" + std::to_string(index)}});
+                return batch;
+            })) ++accepted;
+        });
+    }
+    for (std::thread& submission : submissions) submission.join();
+    {
+        std::lock_guard lock(mutex);
+        releaseSend = true;
+    }
+    condition.notify_all();
+    publisher.Flush();
+    EXPECT_EQ(accepted.load(), 2U);
+    ASSERT_EQ(delivered.size(), 2U);
+    ASSERT_EQ(delivered.back().commands.size(), 2U);
+    EXPECT_NE(std::get<mfd::RemoveDynamicReticleCommand>(delivered.back().commands[0]).target.reticleId,
+              std::get<mfd::RemoveDynamicReticleCommand>(delivered.back().commands[1]).target.reticleId);
+}
+
+TEST(LatestBatchPublisherTests, BatchBuilderExceptionsPropagateWithoutBlockingPublisher)
+{
+    mfd::client::LatestBatchPublisher publisher([](const mfd::CommandBatch&) { return true; });
+    EXPECT_THROW(publisher.SubmitLatest([]() -> mfd::CommandBatch
+    {
+        throw std::runtime_error("builder failure");
+    }), std::runtime_error);
+    EXPECT_TRUE(publisher.IsReady());
+    EXPECT_TRUE(publisher.SubmitLatest([]() { return MakeBatch(1U); }));
+    publisher.Flush();
 }
 
 TEST(LatestBatchPublisherTests, KeepsOnlyNewestPendingBatchWhileBusy)

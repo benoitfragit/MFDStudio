@@ -1251,8 +1251,10 @@ std::size_t UdpRuntimeBridge::DrainReceivedCommands(std::vector<UserCommand>& de
                 queued.batch.commands.begin(),
                 queued.batch.commands.begin() + static_cast<std::ptrdiff_t>(consumedInBatch));
             queued.commandCount = queued.batch.commands.size();
+            queued.commandWorkUnits = detail::EstimateCommandWorkUnits(queued.batch);
             queued.estimatedMemoryBytes = EstimateBatchMemoryBytes(queued.batch, queued.wireBytes);
             impl_->inboundQueuedCommands += queued.commandCount;
+            impl_->inboundQueuedCommandWorkUnits += queued.commandWorkUnits;
             impl_->inboundQueuedWireBytes += queued.wireBytes;
             impl_->inboundEstimatedMemoryBytes += queued.estimatedMemoryBytes;
             impl_->inboundBatches.push_front(std::move(queued));

@@ -20,6 +20,7 @@ set(MFD_API_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/DocumentSemanticValidatorTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/GeneratedTransportMapTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/JsonNumberParsingTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/JsonValueHelpersTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/JsonLoaderTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/MfdStudioBrandMarkTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/PageNameTests.cpp
@@ -88,3 +89,16 @@ add_custom_target(mfd_api_tests_run
     COMMAND $<TARGET_FILE:mfd_api_tests>
     DEPENDS mfd_api_tests
     USES_TERMINAL)
+
+# Substitute the raylib entry points to check exact release counts without a GPU.
+add_executable(image_texture_cache_tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/ImageTextureCacheTests.cpp
+    ${MFD_ROOT_DIR}/mfd_api/src/render/ImageTextureCache.cpp)
+target_include_directories(image_texture_cache_tests PRIVATE
+    ${MFD_ROOT_DIR}/mfd_api/src/render
+    $<TARGET_PROPERTY:raylib,INTERFACE_INCLUDE_DIRECTORIES>)
+mfd_private_library(image_texture_cache_tests GTest::gtest_main)
+target_compile_features(image_texture_cache_tests PRIVATE cxx_std_17)
+mfd_enable_target_warnings(image_texture_cache_tests)
+mfd_configure_test_runtime_output(image_texture_cache_tests)
+gtest_discover_tests(image_texture_cache_tests DISCOVERY_TIMEOUT 60)

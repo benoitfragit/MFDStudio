@@ -913,13 +913,11 @@ bool LatestBatchPublisher::SubmitLatest(BatchBuilder batchBuilder)
             impl_->lastError = "Latest batch publisher requires a valid batch builder";
             return false;
         }
-
-        MergePendingBatchPreservingUndeliveredDeltas(impl_->pendingBatch, batchBuilder());
-        impl_->retryBlocked = false;
     }
 
-    impl_->wakeCondition.notify_one();
-    return true;
+    // User code may query or stop the publisher while building. Publication is
+    // serialized by the batch overload, which checks readiness and stop again.
+    return SubmitLatest(batchBuilder());
 }
 
 bool LatestBatchPublisher::SubmitLatest(std::vector<mfd::UserCommand> commands, const std::uint32_t sequence)
