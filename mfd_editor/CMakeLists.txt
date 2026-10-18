@@ -14,6 +14,7 @@ set(MFD_EDITOR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorExternalStreamInspector.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationInspectors.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorApplicationWorkflow.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorFileCommit.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDocumentSerializer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorDesignExportService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorFileDialogs.cpp

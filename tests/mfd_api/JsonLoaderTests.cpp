@@ -2323,3 +2323,55 @@ TEST(JsonLoaderTests, NamedBuiltInPaletteMatchesSharedApi)
         EXPECT_EQ(actual.a, expected.a);
     }
 }
+
+namespace
+{
+mfd::ColorRgba LoadTestColor(const std::filesystem::path& root, const std::string& color)
+{
+    const auto pages = root / "pages.json";
+    WriteTextFile(pages, "{\"reticleLibraryFolder\":\"reticles\",\"pages\":[{\"name\":\"Color\",\"backgroundColor\":" +
+                        color + ",\"layers\":[{\"id\":\"default\"}]}]}");
+    return mfd::JsonLoader {}.LoadDocument(pages).pages.front().backgroundColor;
+}
+}
+
+TEST(JsonLoaderTests, ColorConversionsClampExtremeFiniteValuesBeforeRounding)
+{
+    TemporaryFolder workspace;
+    std::filesystem::create_directory(workspace.Path() / "reticles");
+    for (const std::string& color : {
+            "[1e308,-1e308,0.5,1e308]",
+            "\"rgba(1e308,-1e308,0.5,1e308)\"",
+            "\"rgba(1e308%,-1e308%,50%,1e308%)\"",
+            "{\"r\":1e308,\"g\":-1e308,\"b\":0.5,\"opacity\":1e308}"})
+    {
+        SCOPED_TRACE(color);
+        const auto actual = LoadTestColor(workspace.Path(), color);
+        EXPECT_EQ(actual.r, 255);
+        EXPECT_EQ(actual.g, 0);
+        EXPECT_EQ(actual.b, 128);
+        EXPECT_EQ(actual.a, 255);
+    }
+    const auto boundaries = LoadTestColor(workspace.Path(), "[0,1,255,127.5]");
+    EXPECT_EQ(boundaries.r, 0);
+    EXPECT_EQ(boundaries.g, 255);
+    EXPECT_EQ(boundaries.b, 255);
+    EXPECT_EQ(boundaries.a, 128);
+    EXPECT_EQ(LoadTestColor(workspace.Path(), "{\"opacity\":50}").a, 128);
+    EXPECT_EQ(LoadTestColor(workspace.Path(), "{\"opacity\":-1e308}").a, 0);
+}
+
+TEST(JsonLoaderTests, RgbFunctionsRejectMalformedSuffixesParenthesesAndNonFiniteTokens)
+{
+    TemporaryFolder workspace;
+    std::filesystem::create_directory(workspace.Path() / "reticles");
+    for (const std::string& value : {"rgb(255,0,0)garbage", "rgb(255,0,0))", "rgb((255),0,0)",
+                                   "rgb(255,0,0", "rgb(255,0)", "rgb(255,0,0,)", "rgba(255,0,0)",
+                                   "rgb(255,,0)", "rgb(nan,0,0)", "rgba(0,0,0,inf)", "rgb(-inf,0,0)"})
+    {
+        SCOPED_TRACE(value);
+        EXPECT_THROW(LoadTestColor(workspace.Path(), "\"" + value + "\""), std::exception);
+    }
+    EXPECT_EQ(LoadTestColor(workspace.Path(), "\" rgb(255,0,0)  \"").r, 255);
+    EXPECT_EQ(LoadTestColor(workspace.Path(), "\"rgba(255,0,0,50%)\"").a, 128);
+}

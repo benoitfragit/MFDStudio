@@ -78,6 +78,15 @@ Several formats are accepted:
 - **Object**: `{ "r": 51, "g": 255, "b": 136, "a": 255 }`,
   `{ "name": "amber", "opacity": 70 }`, `{ "rgb": [51, 255, 136], "alpha": 220 }`
 
+Finite color values are clamped before rounding to bytes, including extreme
+positive/negative doubles. Numeric channels in `[0, 1]` remain normalized;
+other numeric channels are bytes. Percentage strings clamp to `[0, 100]`
+before scaling. Numeric `opacity` keeps its existing interpretation: `[0, 1]`
+is normalized, `(1, 100]` is percent, and other values are bytes. Halfway
+values round upward after clamping. Non-finite tokens are rejected.
+`rgb()`/`rgba()` allow surrounding whitespace but reject trailing text,
+unmatched parentheses, empty channels, and incorrect component counts.
+
 ## Style
 
 | Meaning | Canonical | Aliases |

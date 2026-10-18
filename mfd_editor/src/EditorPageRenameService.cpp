@@ -4,6 +4,7 @@
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
 #include "EditorPageRenameService.h"
+#include "internal/EditorFileCommit.h"
 
 /**
  * @file
@@ -19,6 +20,7 @@
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 #include <nlohmann/json.hpp>
 
@@ -158,23 +160,6 @@ json LoadJsonFile(const std::filesystem::path& path)
     json document;
     input >> document;
     return document;
-}
-
-void WriteJsonFile(const std::filesystem::path& path, const std::string_view content)
-{
-    std::filesystem::create_directories(path.parent_path());
-
-    std::ofstream output(path, std::ios::binary | std::ios::trunc);
-    if (!output.is_open())
-    {
-        throw std::runtime_error("Unable to open file for writing: " + path.string());
-    }
-
-    output << content;
-    if (!output.good())
-    {
-        throw std::runtime_error("Unable to write JSON file: " + path.string());
-    }
 }
 
 const json* FindPageNode(const json& document) noexcept
@@ -699,31 +684,40 @@ bool PageRenameService::Execute(const RenamePagePlan& plan,
             writes.push_back(PendingWrite {normalizedFile, windowDocument.dump(2) + '\n', true});
         }
 
-        for (const PendingWrite& write : writes)
-        {
-            WriteJsonFile(write.file, write.content);
-        }
-
         mfd::PageDefinition& renamedPage = loaded.document.pages[static_cast<std::size_t>(trackedPageIndex)];
-        renamedPage.name = plan.newPageName;
-        renamedPage.normalizedName = mfd::NormalizePageName(plan.newPageName);
+        std::string newName = plan.newPageName;
+        std::string normalizedName = mfd::NormalizePageName(plan.newPageName);
+        RenamePageResult preparedResult;
 
         if (result != nullptr)
         {
-            result->modifiedFiles.clear();
-            result->modifiedFiles.reserve(writes.size());
-            result->updatedWindowCount = 0U;
+            preparedResult.modifiedFiles.reserve(writes.size());
+            preparedResult.updatedWindowCount = 0U;
 
             for (const PendingWrite& write : writes)
             {
-                result->modifiedFiles.push_back(write.file);
+                preparedResult.modifiedFiles.push_back(write.file);
                 if (write.windowFile)
                 {
-                    ++result->updatedWindowCount;
+                    ++preparedResult.updatedWindowCount;
                 }
             }
 
-            result->updatedCurrentDocument = true;
+            preparedResult.updatedCurrentDocument = true;
+        }
+
+        std::vector<internal::AssetFileWrite> transactionWrites;
+        transactionWrites.reserve(writes.size());
+        for (PendingWrite& write : writes)
+        {
+            transactionWrites.push_back({write.file, std::move(write.content), true});
+        }
+        internal::CommitAssetFiles(transactionWrites, {});
+        renamedPage.name.swap(newName);
+        renamedPage.normalizedName.swap(normalizedName);
+        if (result != nullptr)
+        {
+            *result = std::move(preparedResult);
         }
 
         if (error != nullptr)

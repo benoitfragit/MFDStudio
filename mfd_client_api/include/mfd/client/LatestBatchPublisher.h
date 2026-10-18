@@ -65,6 +65,11 @@ public:
      */
     explicit LatestBatchPublisher(SendFunction sendFunction, ErrorFunction errorFunction = {});
 
+    /**
+     * @brief Requests stop and joins the worker before releasing its state.
+     * @pre Destruction occurs outside send/error callbacks, after other API callers finish.
+     * @note Destruction from a worker callback terminates the process to prevent use-after-free.
+     */
     ~LatestBatchPublisher();
 
     LatestBatchPublisher(const LatestBatchPublisher&) = delete;
@@ -106,12 +111,16 @@ public:
 
     /**
      * @brief Blocks until the current send finishes and no immediately sendable batch remains.
+     * @pre Must not be called from a send/error callback.
      * @note A failed batch remains retained for the next submission; inspect LastError() after flushing.
      */
     void Flush();
 
     /**
-     * @brief Stops the worker thread and drops any unsent pending batch.
+     * @brief Requests worker shutdown and drops any unsent pending batch.
+     * @note Concurrent/repeated calls are safe while the publisher remains alive.
+     * From a send/error callback this only requests stop; an external Stop() or
+     * the destructor joins the worker. Other callers wait for finalization.
      */
     void Stop();
 

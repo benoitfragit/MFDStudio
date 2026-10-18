@@ -10,6 +10,7 @@ set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAutosaveSchedulerTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAssetReferenceIndexServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAssetPathServiceTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorFileCommitTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorDocumentSerializerTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorDesignExportServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorFullscreenPreviewControllerTests.cpp
@@ -74,6 +75,7 @@ target_sources(mfd_editor_tests
         ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorColorPicker.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorExternalStreamInspector.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorTutorialData.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/src/EditorFileCommit.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorDocumentSerializer.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorDesignExportService.h
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorDesignExportService.cpp

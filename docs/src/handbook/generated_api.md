@@ -277,3 +277,17 @@ For the exact signatures of `CommandClient`, `LatestBatchPublisher`,
 ## Preset and custom colors
 
 Static and dynamic reticles and their exposed primitives accept `SetColor(mfd::ColorPreset::Green)` alongside the existing RGBA overload. Fill-capable primitives also accept `SetFillColor(mfd::ColorPreset::Yellow)`. See the [color reference](../reference/colors.md) for the palette, working C++ example, batching and wire compatibility.
+
+### Publisher shutdown ownership
+
+`LatestBatchPublisher::Stop()` is idempotent and accepts concurrent callers while
+the publisher is alive. A send/error callback may request stop: it drops pending
+work and returns without joining itself. An external `Stop()` or the destructor
+then joins the worker; external callers serialize finalization. Failed sends
+are never requeued after stop. Callbacks must finish for external shutdown to
+complete.
+
+Destroy the publisher outside its callbacks, after all other API callers have
+finished. Destruction from a worker callback is a lifetime-contract violation
+and terminates the process rather than detaching a worker using freed state.
+`Flush()` must also be called outside send/error callbacks.

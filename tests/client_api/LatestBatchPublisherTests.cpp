@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <stdexcept>
@@ -303,11 +304,107 @@ void CheckStopIsIdempotent()
     EXPECT_EQ(sendCount, 1U);
 }
 
+void CheckReentrantAndConcurrentStop(const bool throwAfterStop)
+{
+    PublisherShutdownDeadline deadline;
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool callbackEntered = false;
+    bool allowSelfStop = false;
+    std::atomic<unsigned int> sends {0};
+    mfd::client::LatestBatchPublisher* callbackPublisher = nullptr;
+    mfd::client::LatestBatchPublisher publisher(
+        [&mutex, &condition, &callbackEntered, &allowSelfStop, &callbackPublisher, &sends, throwAfterStop]
+        (const mfd::CommandBatch&)
+        {
+            ++sends;
+            {
+                std::unique_lock<std::mutex> lock(mutex);
+                callbackEntered = true;
+                condition.notify_all();
+                condition.wait(lock, [&allowSelfStop]() { return allowSelfStop; });
+            }
+            callbackPublisher->Stop();
+            callbackPublisher->Stop();
+            if (throwAfterStop)
+            {
+                throw std::runtime_error("callback failed after self-stop");
+            }
+            return false;
+        });
+    callbackPublisher = &publisher;
+    EXPECT_TRUE(publisher.SubmitLatest(MakeBatch(1U)));
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        EXPECT_TRUE(condition.wait_for(lock, kShutdownSyncTimeout, [&callbackEntered]() { return callbackEntered; }));
+    }
+    std::thread firstStopper([&publisher]() { publisher.Stop(); });
+    std::thread secondStopper([&publisher]() { publisher.Stop(); });
+    // Wait until an external stopper has requested stop, before releasing the callback.
+    const auto deadlineAt = std::chrono::steady_clock::now() + kShutdownSyncTimeout;
+    while (publisher.IsReady() && std::chrono::steady_clock::now() < deadlineAt)
+    {
+        std::this_thread::yield();
+    }
+    EXPECT_FALSE(publisher.IsReady());
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        allowSelfStop = true;
+    }
+    condition.notify_all();
+    firstStopper.join();
+    secondStopper.join();
+    publisher.Stop();
+    publisher.Flush();
+    EXPECT_EQ(sends.load(), 1U);
+}
+
+void CheckSelfStopThenDestruction()
+{
+    PublisherShutdownDeadline deadline;
+    std::atomic<bool> callbackStopped {false};
+    mfd::client::LatestBatchPublisher* callbackPublisher = nullptr;
+    {
+        mfd::client::LatestBatchPublisher publisher(
+            [&callbackPublisher, &callbackStopped](const mfd::CommandBatch&)
+            {
+                callbackPublisher->Stop();
+                callbackStopped = true;
+                return true;
+            });
+        callbackPublisher = &publisher;
+        EXPECT_TRUE(publisher.SubmitLatest(MakeBatch(1U)));
+        publisher.Flush();
+        EXPECT_TRUE(callbackStopped.load());
+        EXPECT_FALSE(publisher.IsReady());
+    }
+}
+
 void ExitWithShutdownTestResult()
 {
     std::_Exit(testing::Test::HasFailure() ? EXIT_FAILURE : EXIT_SUCCESS);
 }
 } // namespace
+
+TEST(LatestBatchPublisherShutdownDeathTest, CallbackDestructionEnforcesLifetimeContract)
+{
+    EXPECT_DEATH(
+        {
+            std::unique_ptr<mfd::client::LatestBatchPublisher> publisher;
+            publisher = std::make_unique<mfd::client::LatestBatchPublisher>(
+                [&publisher](const mfd::CommandBatch&)
+                {
+                    publisher.reset();
+                    return true;
+                });
+            publisher->SubmitLatest(MakeBatch(1U));
+            std::this_thread::sleep_for(std::chrono::seconds {2});
+            // The DLL may use a separate CRT terminate handler. Require a
+            // failing process exit, without assuming the executable's handler.
+            std::_Exit(EXIT_SUCCESS);
+        },
+        "");
+}
 
 TEST(LatestBatchPublisherShutdownDeathTest, StopDuringFailedSendDoesNotRetry)
 {
@@ -2270,4 +2367,22 @@ TEST(LatestBatchPublisherTests, CoalescesPresetCustomTransitionsWithoutStaleColo
             EXPECT_EQ(area.fillColorPreset, mfd::ColorPreset::Yellow);
         }
     }
+}
+
+TEST(LatestBatchPublisherShutdownDeathTest, CallbackStopAndConcurrentJoinsComplete)
+{
+    EXPECT_EXIT({ CheckReentrantAndConcurrentStop(false); ExitWithShutdownTestResult(); },
+                testing::ExitedWithCode(EXIT_SUCCESS), "");
+}
+
+TEST(LatestBatchPublisherShutdownDeathTest, ThrowAfterCallbackStopAndConcurrentJoinsComplete)
+{
+    EXPECT_EXIT({ CheckReentrantAndConcurrentStop(true); ExitWithShutdownTestResult(); },
+                testing::ExitedWithCode(EXIT_SUCCESS), "");
+}
+
+TEST(LatestBatchPublisherShutdownDeathTest, DestructorJoinsAfterSelfStop)
+{
+    EXPECT_EXIT({ CheckSelfStopThenDestruction(); ExitWithShutdownTestResult(); },
+                testing::ExitedWithCode(EXIT_SUCCESS), "");
 }

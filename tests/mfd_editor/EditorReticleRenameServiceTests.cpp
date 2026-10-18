@@ -796,3 +796,46 @@ TEST(ReticleRenameServiceTests, AllowsRenameInsideExecAssetTree)
     EXPECT_EQ(json::parse(ReadTextFile(radarFile)).at("staticReticles").front().at("template").get<std::string>(), "threat_box");
     EXPECT_EQ(json::parse(ReadTextFile(templateFile)).at("id").get<std::string>(), "threat_box");
 }
+
+#if defined(_WIN32)
+TEST(ReticleRenameServiceTests, FailedPagePromotionRestoresTemplateAndKeepsReferencesAndLayout)
+{
+    ScopedTempDir tempDir;
+    const auto root = tempDir.Path();
+    const auto reticles = root / "reticles";
+    const auto window = root / "windows" / "current.json";
+    const auto page = root / "pages" / "radar.json";
+    const auto original = reticles / "track_box.json";
+    WritePageJson(page, "Radar", {{"track", "track_box"}});
+    WriteTemplateJson(original, "track_box");
+    WriteWindowJson(window, reticles, {page}, "Radar");
+    auto radar = MakePage("Radar", true);
+    AddStaticTemplateReference(radar, "track", "track_box");
+    auto [loaded, files] = MakeLoadedWindow(window, reticles, {{page, radar}});
+    AddTemplate(loaded, files, original, MakeTemplate("track_box"));
+    editor::ReticleRenameService service;
+    const auto plan = service.BuildPlan(loaded, files, {"track_box", "threat_box", root, true});
+    ASSERT_TRUE(plan.canExecute) << plan.error;
+    const auto pageBefore = ReadTextFile(page);
+    const auto templateBefore = ReadTextFile(original);
+    std::filesystem::permissions(page, std::filesystem::perms::owner_read,
+                                 std::filesystem::perm_options::replace);
+    std::string error;
+    const bool success = service.Execute(plan, loaded, files, nullptr, &error);
+    std::filesystem::permissions(page, std::filesystem::perms::owner_write,
+                                 std::filesystem::perm_options::add);
+    EXPECT_FALSE(success);
+    EXPECT_FALSE(error.empty());
+    EXPECT_EQ(ReadTextFile(page), pageBefore);
+    EXPECT_EQ(ReadTextFile(original), templateBefore);
+    EXPECT_FALSE(std::filesystem::exists(plan.targetTemplateFile));
+    EXPECT_EQ(loaded.document.pages.front().staticReticles.front().sourceTemplateId, "track_box");
+    EXPECT_EQ(files.templateFiles.at("track_box"), original);
+    EXPECT_EQ(loaded.document.reticleLibrary.count("track_box"), 1U);
+    // A destination created after planning must also be rejected without changing references.
+    WriteTextFile(plan.targetTemplateFile, "existing destination");
+    EXPECT_FALSE(service.Execute(plan, loaded, files, nullptr, &error));
+    EXPECT_EQ(ReadTextFile(plan.targetTemplateFile), "existing destination");
+    EXPECT_EQ(ReadTextFile(page), pageBefore);
+}
+#endif

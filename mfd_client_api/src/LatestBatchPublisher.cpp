@@ -38,6 +38,8 @@ struct LatestBatchPublisher::Impl
     SendFunction sendFunction {};
     ErrorFunction errorFunction {};
     std::thread worker {};
+    std::thread::id workerId {}; // Protected by mutex; never read the thread during join.
+    std::mutex joinMutex {};
     mutable std::mutex mutex {};
     std::condition_variable wakeCondition {};
     std::condition_variable idleCondition {};
@@ -684,6 +686,10 @@ void StartWorker(ImplType& impl)
     impl.worker = std::thread(
         [&impl]()
         {
+            {
+                std::lock_guard<std::mutex> lock(impl.mutex);
+                impl.workerId = std::this_thread::get_id();
+            }
             for (;;)
             {
                 mfd::CommandBatch batch;
@@ -760,6 +766,10 @@ void StartWorker(ImplType& impl)
                 impl.idleCondition.notify_all();
             }
 
+            {
+                std::lock_guard<std::mutex> lock(impl.mutex);
+                impl.workerId = {};
+            }
             impl.idleCondition.notify_all();
         });
 }
@@ -844,6 +854,15 @@ LatestBatchPublisher::LatestBatchPublisher(SendFunction sendFunction, ErrorFunct
 
 LatestBatchPublisher::~LatestBatchPublisher()
 {
+    {
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        if (impl_->workerId == std::this_thread::get_id())
+        {
+            // The callback still uses Impl after returning. Enforce the lifetime
+            // precondition instead of detaching or allowing a use-after-free.
+            std::terminate();
+        }
+    }
     Stop();
 }
 
@@ -954,19 +973,29 @@ void LatestBatchPublisher::Stop()
         return;
     }
 
+    bool calledFromWorker = false;
     {
         std::lock_guard<std::mutex> lock(impl_->mutex);
         impl_->stopRequested = true;
         impl_->pendingBatch.reset();
         impl_->retryBlocked = false;
+        calledFromWorker = impl_->workerId == std::this_thread::get_id();
     }
 
     impl_->wakeCondition.notify_all();
     impl_->idleCondition.notify_all();
+    if (calledFromWorker)
+    {
+        // Never wait for a joiner that may itself be waiting for this callback.
+        return;
+    }
 
+    std::lock_guard<std::mutex> joinLock(impl_->joinMutex);
     if (impl_->worker.joinable())
     {
         impl_->worker.join();
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        impl_->workerId = {};
     }
 }
 

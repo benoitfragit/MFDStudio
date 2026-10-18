@@ -156,3 +156,26 @@ competing for space.
 ## Color controls
 
 All authored colors use the same current-color button, including creation dialogs, page titles and external-stream replacement colors. Click it to open the standard RGBA selector with exactly eight preset shortcuts on the right. Both RGBA edits and presets apply immediately; click outside or press Escape to close. Each continuous edit can be undone in one step. See [Color presets](../reference/colors.md#editor). The guided progress-bar exposure step teaches opening the selector, choosing Yellow, observing the preview and closing the selector.
+
+## Recovery snapshots and rename failures
+
+Recovery snapshots keep their existing filename and JSON bundle format. A new
+snapshot is serialized, written to an adjacent temporary file, flushed, closed
+and verified before replacing the committed snapshot. Failed writes or
+replacement leave the previous snapshot intact. The status bar reports the
+failure and another attempt is deferred for 30 seconds; only a successful
+replacement resets the autosave success timer. Restore and clean-exit retention
+rules are unchanged. Atomic replacement gives reader-visible consistency, not
+a guarantee against power loss.
+
+Global page and reticle renames stage every changed file before modifying live
+assets. Original files are backed up, new contents promoted, then obsolete
+reticle files removed. The in-memory document and file layout change only after
+that transaction succeeds. A handled failure rolls back the changed files.
+If rollback itself fails, the error lists the affected target and retained
+`.mfd_backup_*` file: preserve those files, close the editor, and restore the
+listed originals before reopening the asset tree. These multi-file operations
+are not crash-atomic and assume no concurrent external writer.
+
+Undo and Redo keep the same history and selection semantics. When their history
+stack is empty, the editor reports that immediately without copying the document.

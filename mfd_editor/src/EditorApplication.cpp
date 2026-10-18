@@ -6,6 +6,7 @@
 #include "internal/application/EditorColorPicker.h"
 
 #include "EditorApplication.h"
+#include "internal/EditorFileCommit.h"
 
 /**
  * @file
@@ -1599,8 +1600,14 @@ int EditorApplication::Run()
             !workflowState_.recoveryPromptPending &&
             autosave_.DueForAutosave(editor::EditorAutosaveScheduler::kDefaultIntervalSeconds, workflowState_.documentDirty))
         {
-            WriteRecoverySnapshot();
-            autosave_.MarkAutosaved();
+            if (WriteRecoverySnapshot())
+            {
+                autosave_.MarkAutosaved();
+            }
+            else
+            {
+                autosave_.DeferRetry();
+            }
         }
 
         assetWatchAccumulatorSeconds_ += frameSeconds;
@@ -1704,33 +1711,23 @@ bool EditorApplication::SaveAll()
     return true;
 }
 
-void EditorApplication::WriteRecoverySnapshot()
+bool EditorApplication::WriteRecoverySnapshot()
 {
     if (!HasOpenWindow())
     {
-        return;
+        return false;
     }
-
     try
     {
         const std::string bundle =
             editor::SerializeRecoveryBundleToJsonString(documentState_.loaded, documentState_.files);
-        const std::filesystem::path path = documentState_.assetPaths.DefaultAssetPath(kRecoveryFileName);
-        if (path.has_parent_path())
-        {
-            std::error_code directoryError;
-            std::filesystem::create_directories(path.parent_path(), directoryError);
-        }
-
-        std::ofstream stream(path, std::ios::binary | std::ios::trunc);
-        if (stream.is_open())
-        {
-            stream << bundle;
-        }
+        editor::internal::WriteRecoveryFile(documentState_.assetPaths.DefaultAssetPath(kRecoveryFileName), bundle);
+        return true;
     }
-    catch (const std::exception&)
+    catch (const std::exception& exception)
     {
-        // Best-effort recovery snapshot: never interrupt authoring if it cannot be written.
+        RebuildStatus(std::string("Recovery snapshot failed: ") + exception.what(), true);
+        return false;
     }
 }
 
@@ -1808,6 +1805,12 @@ void EditorApplication::RearmAssetWatcher()
 
 void EditorApplication::Undo()
 {
+    if (!documentState_.history.CanUndo())
+    {
+        RebuildStatus("Nothing to undo.", true);
+        return;
+    }
+
     std::optional<UndoSnapshot> previous = documentState_.history.Undo(CaptureCurrentSnapshot());
     if (!previous.has_value())
     {
@@ -1821,6 +1824,12 @@ void EditorApplication::Undo()
 
 void EditorApplication::Redo()
 {
+    if (!documentState_.history.CanRedo())
+    {
+        RebuildStatus("Nothing to redo.", true);
+        return;
+    }
+
     std::optional<UndoSnapshot> next = documentState_.history.Redo(CaptureCurrentSnapshot());
     if (!next.has_value())
     {

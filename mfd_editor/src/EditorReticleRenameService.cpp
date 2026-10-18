@@ -4,6 +4,7 @@
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
 #include "EditorReticleRenameService.h"
+#include "internal/EditorFileCommit.h"
 
 /**
  * @file
@@ -19,6 +20,7 @@
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 #include <nlohmann/json.hpp>
 
@@ -183,41 +185,6 @@ json LoadJsonFile(const std::filesystem::path& path)
     return document;
 }
 
-void WriteTextFile(const std::filesystem::path& path, const std::string_view content)
-{
-    std::filesystem::create_directories(path.parent_path());
-
-    std::ofstream output(path, std::ios::binary | std::ios::trunc);
-    if (!output.is_open())
-    {
-        throw std::runtime_error("Unable to open file for writing: " + path.string());
-    }
-
-    output << content;
-    if (!output.good())
-    {
-        throw std::runtime_error("Unable to write file: " + path.string());
-    }
-}
-
-void DeleteFile(const std::filesystem::path& path)
-{
-    if (path.empty())
-    {
-        return;
-    }
-
-    std::error_code error;
-    if (!std::filesystem::exists(path, error))
-    {
-        return;
-    }
-
-    if (!std::filesystem::remove(path, error) && error)
-    {
-        throw std::runtime_error("Unable to delete file: " + path.string() + " (" + error.message() + ")");
-    }
-}
 
 bool IsTemplateReferenceKind(const ReticleReferenceKind kind)
 {
@@ -1096,46 +1063,48 @@ bool ReticleRenameService::Execute(const RenameReticlePlan& plan,
             updatedPageKeys.insert(PageUsageKey(normalizedFile));
         }
 
-        for (const PendingWrite& write : writes)
-        {
-            WriteTextFile(write.file, write.content);
-        }
-
-        for (const std::filesystem::path& fileToDelete : plan.filesToDelete)
-        {
-            DeleteFile(fileToDelete);
-        }
-
-        mfd::ReticleLibrary updatedLibrary = loaded.document.reticleLibrary;
-        updatedLibrary.erase(currentTemplateKey);
-        updatedLibrary.erase(plan.newReticleName);
-        updatedLibrary.emplace(plan.newReticleName, renamedTemplate);
-        loaded.document.reticleLibrary = std::move(updatedLibrary);
-
-        for (mfd::PageDefinition& page : loaded.document.pages)
+        auto updatedPages = loaded.document.pages;
+        for (mfd::PageDefinition& page : updatedPages)
         {
             RenamePageTemplateReferences(page, plan.oldReticleName, plan.newReticleName);
         }
-
-        files.templateFiles.erase(trackedTemplateKey);
-        files.templateFiles.erase(plan.newReticleName);
-        files.templateFiles.emplace(plan.newReticleName, plan.targetTemplateFile);
-        RemovePath(files.removedTemplateFiles, plan.currentTemplateFile);
-        RemovePath(files.removedTemplateFiles, plan.targetTemplateFile);
+        EditorFileLayout updatedFiles = files;
+        updatedFiles.templateFiles.erase(trackedTemplateKey);
+        updatedFiles.templateFiles.erase(plan.newReticleName);
+        updatedFiles.templateFiles.emplace(plan.newReticleName, plan.targetTemplateFile);
+        RemovePath(updatedFiles.removedTemplateFiles, plan.currentTemplateFile);
+        RemovePath(updatedFiles.removedTemplateFiles, plan.targetTemplateFile);
+        RenameReticleResult preparedResult;
 
         if (result != nullptr)
         {
-            result->modifiedFiles.clear();
-            result->modifiedFiles.reserve(writes.size());
-            result->deletedFiles = plan.filesToDelete;
-            result->updatedPageCount = updatedPageKeys.size();
-            result->renamedTemplateFile = !plan.filesToDelete.empty();
-            result->updatedCurrentDocument = true;
+            preparedResult.modifiedFiles.reserve(writes.size());
+            preparedResult.deletedFiles = plan.filesToDelete;
+            preparedResult.updatedPageCount = updatedPageKeys.size();
+            preparedResult.renamedTemplateFile = !plan.filesToDelete.empty();
+            preparedResult.updatedCurrentDocument = true;
 
             for (const PendingWrite& write : writes)
             {
-                result->modifiedFiles.push_back(write.file);
+                preparedResult.modifiedFiles.push_back(write.file);
             }
+        }
+
+        std::vector<internal::AssetFileWrite> transactionWrites;
+        transactionWrites.reserve(writes.size());
+        for (PendingWrite& write : writes)
+        {
+            const bool newTemplateFile = PathsEqual(write.file, plan.targetTemplateFile) &&
+                                         !PathsEqual(plan.currentTemplateFile, plan.targetTemplateFile);
+            transactionWrites.push_back({write.file, std::move(write.content), !newTemplateFile});
+        }
+        internal::CommitAssetFiles(transactionWrites, plan.filesToDelete);
+        loaded.document.reticleLibrary.swap(serializedLibrary);
+        loaded.document.pages.swap(updatedPages);
+        files = std::move(updatedFiles);
+        if (result != nullptr)
+        {
+            *result = std::move(preparedResult);
         }
 
         if (error != nullptr)

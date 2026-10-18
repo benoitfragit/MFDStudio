@@ -10,7 +10,9 @@
  * @brief Cadence control deciding when the editor should write a crash-recovery snapshot.
  */
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace editor
 {
@@ -38,7 +40,8 @@ public:
             return;
         }
 
-        elapsedSeconds_ += deltaSeconds;
+        elapsedSeconds_ = (std::min)(elapsedSeconds_, std::numeric_limits<float>::max() - deltaSeconds) + deltaSeconds;
+        retryDelaySeconds_ = (std::max)(0.0f, retryDelaySeconds_ - deltaSeconds);
     }
 
     /**
@@ -48,19 +51,27 @@ public:
      */
     [[nodiscard]] bool DueForAutosave(const float intervalSeconds, const bool dirty) const noexcept
     {
-        return dirty && elapsedSeconds_ >= SanitizeInterval(intervalSeconds);
+        return dirty && retryDelaySeconds_ <= 0.0f && elapsedSeconds_ >= SanitizeInterval(intervalSeconds);
     }
 
     /** @brief Resets the timer after a snapshot was written. */
     void MarkAutosaved() noexcept
     {
         elapsedSeconds_ = 0.0f;
+        retryDelaySeconds_ = 0.0f;
+    }
+
+    /** @brief Delays a failed attempt without recording a successful snapshot. */
+    void DeferRetry() noexcept
+    {
+        retryDelaySeconds_ = kDefaultIntervalSeconds;
     }
 
     /** @brief Resets the timer, e.g. when the document becomes clean. */
     void Reset() noexcept
     {
         elapsedSeconds_ = 0.0f;
+        retryDelaySeconds_ = 0.0f;
     }
 
     /** @brief Returns the seconds accumulated since the last reset. */
@@ -82,5 +93,6 @@ private:
     }
 
     float elapsedSeconds_ = 0.0f;
+    float retryDelaySeconds_ = 0.0f;
 };
 } // namespace editor

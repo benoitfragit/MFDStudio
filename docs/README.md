@@ -38,3 +38,7 @@ pwsh -File docs/CheckDocs.ps1 -SkipBuild   # static checks only, no mdBook neede
 - [JSON Reference](./src/reference/json.md)
 - [Public API Contract](./src/reference/public_contract.md)
 - [Build](./src/dev/build.md)
+
+## Targeted maintenance validation
+
+- [2026-10-18 correction matrix and validation](targeted-corrections-2026-10-18.md)

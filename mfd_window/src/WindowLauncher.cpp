@@ -65,6 +65,7 @@ extern "C" __declspec(dllimport) void* APIENTRY wglGetProcAddress(const char* na
 
 #include "internal/RuntimeSessionInternalAccess.hpp"
 #include "WindowLauncherInternal.h"
+#include "AsyncFramebufferCapture.h"
 #include "mfd/window/debug/RuntimeDebugOverlay.hpp"
 
 #if defined(_WIN32)
@@ -73,7 +74,9 @@ extern "C" __declspec(dllimport) int __stdcall IsDebuggerPresent();
 
 namespace
 {
-constexpr unsigned int kCaptureRingSize = 2;
+using mfd::window::detail::AsyncFramebufferCapture;
+using mfd::window::detail::CapturedFramebuffer;
+using mfd::window::detail::FenceStatus;
 constexpr std::size_t kPluginErrorBufferCapacity = 1024U;
 constexpr int kFramebufferResizeCooldownFrames = 3;
 using GlSyncHandle = void*;
@@ -143,29 +146,6 @@ bool IsSupportedFramebufferPixelFormat(const MfdWindowFramebufferPixelFormat pix
            pixelFormat == MfdWindowFramebufferPixelFormat_Bgra32;
 }
 
-struct CapturedFramebuffer
-{
-    int width = 0;
-    int height = 0;
-    MfdWindowFramebufferPixelFormat pixelFormat = MfdWindowFramebufferPixelFormat_Rgba32;
-    std::vector<std::byte> pixels;
-
-    [[nodiscard]] bool Empty() const noexcept
-    {
-        return pixels.empty();
-    }
-
-    [[nodiscard]] std::size_t ByteSize() const noexcept
-    {
-        return pixels.size();
-    }
-
-    [[nodiscard]] mfd::ByteView Bytes() const noexcept
-    {
-        return {pixels.data(), pixels.size()};
-    }
-};
-
 #if defined(_WIN32)
 using GLenum = unsigned int;
 using GLuint = unsigned int;
@@ -209,10 +189,17 @@ using GLboolean = unsigned char;
 GLenum ToOpenGlPixelFormat(MfdWindowFramebufferPixelFormat pixelFormat) noexcept;
 #endif
 
-class PboReadbackApi
+class PboReadbackApi final : public mfd::window::detail::FramebufferReadbackApi
 {
 public:
     PboReadbackApi() noexcept;
+    bool ContextReady() const noexcept override { return IsWindowReady(); }
+    void FlushRendering() const override { rlDrawRenderBatchActive(); }
+    CapturedFramebuffer ReadSynchronously(int width, int height, MfdWindowFramebufferPixelFormat format) const override;
+    void ReportFailure() const noexcept override
+    {
+        TraceLog(LOG_WARNING, "Framebuffer GPU fence failed; disabling PBO capture and using synchronous readback.");
+    }
 
     static const PboReadbackApi& Instance() noexcept
     {
@@ -220,17 +207,17 @@ public:
         return api;
     }
 
-    [[nodiscard]] bool Available() const noexcept;
-    void GenBuffers(int count, unsigned int* buffers) const noexcept;
-    void DeleteBuffers(int count, const unsigned int* buffers) const noexcept;
-    void BindPixelPackBuffer(unsigned int bufferId) const noexcept;
-    void AllocatePixelPackBuffer(std::size_t sizeInBytes) const noexcept;
-    void ReadPixels(int width, int height, MfdWindowFramebufferPixelFormat pixelFormat) const noexcept;
-    [[nodiscard]] void* MapPixelPackBufferReadOnly() const noexcept;
-    [[nodiscard]] bool UnmapPixelPackBuffer() const noexcept;
-    [[nodiscard]] GlSyncHandle CreateFence() const noexcept;
-    [[nodiscard]] bool IsFenceReady(GlSyncHandle fence) const noexcept;
-    void DeleteFence(GlSyncHandle fence) const noexcept;
+    [[nodiscard]] bool Available() const noexcept override;
+    void GenBuffers(int count, unsigned int* buffers) const noexcept override;
+    void DeleteBuffers(int count, const unsigned int* buffers) const noexcept override;
+    void BindPixelPackBuffer(unsigned int bufferId) const noexcept override;
+    void AllocatePixelPackBuffer(std::size_t sizeInBytes) const noexcept override;
+    void ReadPixels(int width, int height, MfdWindowFramebufferPixelFormat pixelFormat) const noexcept override;
+    [[nodiscard]] void* MapPixelPackBufferReadOnly() const noexcept override;
+    [[nodiscard]] bool UnmapPixelPackBuffer() const noexcept override;
+    [[nodiscard]] GlSyncHandle CreateFence() const noexcept override;
+    [[nodiscard]] FenceStatus PollFence(GlSyncHandle fence) const noexcept override;
+    void DeleteFence(GlSyncHandle fence) const noexcept override;
 
 private:
 #if defined(_WIN32)
@@ -320,7 +307,7 @@ PboReadbackApi::PboReadbackApi() noexcept
 bool PboReadbackApi::Available() const noexcept
 {
 #if defined(_WIN32)
-    return genBuffers_ != nullptr &&
+    return rlGetVersion() >= RL_OPENGL_33 && genBuffers_ != nullptr &&
            deleteBuffers_ != nullptr &&
            bindBuffer_ != nullptr &&
            bufferData_ != nullptr &&
@@ -416,19 +403,15 @@ GlSyncHandle PboReadbackApi::CreateFence() const noexcept
 #endif
 }
 
-bool PboReadbackApi::IsFenceReady([[maybe_unused]] const GlSyncHandle fence) const noexcept
+FenceStatus PboReadbackApi::PollFence([[maybe_unused]] const GlSyncHandle fence) const noexcept
 {
 #if defined(_WIN32)
-    if (clientWaitSync_ == nullptr || fence == nullptr)
+    if (clientWaitSync_ != nullptr && fence != nullptr)
     {
-        return false;
+        return mfd::window::detail::DecodeFenceStatus(clientWaitSync_(fence, 0, 0));
     }
-
-    const GLenum waitResult = clientWaitSync_(fence, 0, 0);
-    return waitResult == GL_ALREADY_SIGNALED || waitResult == GL_CONDITION_SATISFIED;
-#else
-    return false;
 #endif
+    return FenceStatus::Failed;
 }
 
 void PboReadbackApi::DeleteFence([[maybe_unused]] const GlSyncHandle fence) const noexcept
@@ -484,24 +467,6 @@ void SwapRedAndBlueChannels(std::byte* const pixels, const std::size_t pixelCoun
     }
 }
 
-void FlipRows(std::vector<std::byte>& pixels, const std::size_t rowStrideBytes, const int height)
-{
-    if (rowStrideBytes == 0U || height <= 1)
-    {
-        return;
-    }
-
-    std::vector<std::byte> scratchRow(rowStrideBytes);
-    for (int top = 0, bottom = height - 1; top < bottom; ++top, --bottom)
-    {
-        std::byte* topRow = pixels.data() + static_cast<std::size_t>(top) * rowStrideBytes;
-        std::byte* bottomRow = pixels.data() + static_cast<std::size_t>(bottom) * rowStrideBytes;
-        std::memcpy(scratchRow.data(), topRow, rowStrideBytes);
-        std::memcpy(topRow, bottomRow, rowStrideBytes);
-        std::memcpy(bottomRow, scratchRow.data(), rowStrideBytes);
-    }
-}
-
 CapturedFramebuffer ConvertRgba32Framebuffer(const mfd::Rgba32Framebuffer& source,
                                              const MfdWindowFramebufferPixelFormat pixelFormat)
 {
@@ -525,268 +490,14 @@ CapturedFramebuffer ConvertRgba32Framebuffer(const mfd::Rgba32Framebuffer& sourc
     return converted;
 }
 
-class AsyncFramebufferCapture
+CapturedFramebuffer PboReadbackApi::ReadSynchronously(const int width, const int height,
+                                                        const MfdWindowFramebufferPixelFormat format) const
 {
-public:
-    explicit AsyncFramebufferCapture(const MfdWindowFramebufferPixelFormat pixelFormat) noexcept :
-        pixelFormat_(pixelFormat)
-    {
-    }
-
-    ~AsyncFramebufferCapture()
-    {
-        if (IsWindowReady())
-        {
-            Release();
-        }
-    }
-
-    [[nodiscard]] std::optional<CapturedFramebuffer> Capture(const int captureWidth, const int captureHeight)
-    {
-        if (captureWidth <= 0 || captureHeight <= 0 || !IsSupportedFramebufferPixelFormat(pixelFormat_))
-        {
-            return std::nullopt;
-        }
-
-        if (!pboSupportChecked_)
-        {
-            pboSupportChecked_ = true;
-            pboAvailable_ = (rlGetVersion() >= RL_OPENGL_33) && PboReadbackApi::Instance().Available();
-        }
-
-        if (!pboAvailable_)
-        {
-            return CaptureSynchronously(captureWidth, captureHeight);
-        }
-
-        if (!EnsureResources(captureWidth, captureHeight))
-        {
-            DisablePbo();
-            return CaptureSynchronously(captureWidth, captureHeight);
-        }
-
-        rlDrawRenderBatchActive();
-
-        const unsigned int writeIndex = frameIndex_ % kCaptureRingSize;
-        // cppcheck-suppress knownConditionTrueFalse
-        if (!SubmitReadback(writeIndex, captureWidth, captureHeight))
-        {
-            DisablePbo();
-            return CaptureSynchronously(captureWidth, captureHeight);
-        }
-
-        std::optional<CapturedFramebuffer> readyFrame;
-        if (frameIndex_ + 1 >= kCaptureRingSize)
-        {
-            const unsigned int readIndex = (frameIndex_ + 1) % kCaptureRingSize;
-            readyFrame = TryConsume(readIndex);
-            if (!pboAvailable_)
-            {
-                return CaptureSynchronously(captureWidth, captureHeight);
-            }
-        }
-
-        ++frameIndex_;
-        if (readyFrame.has_value())
-        {
-            hasLatestFramebuffer_ = true;
-            return readyFrame;
-        }
-
-        if (hasLatestFramebuffer_)
-        {
-            return latestFramebuffer_;
-        }
-
-        return readyFrame;
-    }
-
-private:
-    struct CaptureSlot
-    {
-        unsigned int pboId = 0;
-        std::size_t capacityBytes = 0;
-        int width = 0;
-        int height = 0;
-        GlSyncHandle fence = nullptr;
-
-        void ReleaseFence(const PboReadbackApi& api) noexcept
-        {
-            if (fence != nullptr)
-            {
-                api.DeleteFence(fence);
-                fence = nullptr;
-            }
-        }
-
-        void ResetMetadata() noexcept
-        {
-            capacityBytes = 0;
-            width = 0;
-            height = 0;
-        }
-    };
-
-    [[nodiscard]] std::optional<CapturedFramebuffer> CaptureSynchronously(const int captureWidth,
-                                                                         const int captureHeight)
-    {
-        mfd::FramebufferCaptureRequest request;
-        request.width = captureWidth;
-        request.height = captureHeight;
-        latestFramebuffer_ =
-            ConvertRgba32Framebuffer(mfd::OpenGlFramebufferReader::ReadRgba32(request), pixelFormat_);
-        hasLatestFramebuffer_ = !latestFramebuffer_.Empty();
-        return latestFramebuffer_;
-    }
-
-    void DisablePbo() noexcept
-    {
-        Release();
-        pboAvailable_ = false;
-    }
-
-    bool EnsureResources(const int width, const int height)
-    {
-        if (!pboAvailable_)
-        {
-            return false;
-        }
-
-        const PboReadbackApi& api = PboReadbackApi::Instance();
-        const std::size_t requiredBytes = ExpectedFramebufferByteCount(pixelFormat_, width, height);
-        if (requiredBytes == 0)
-        {
-            return false;
-        }
-
-        if (!initialized_)
-        {
-            for (CaptureSlot& slot : slots_)
-            {
-                api.GenBuffers(1, &slot.pboId);
-                if (slot.pboId == 0)
-                {
-                    Release();
-                    return false;
-                }
-            }
-            initialized_ = true;
-            frameIndex_ = 0;
-        }
-
-        for (CaptureSlot& slot : slots_)
-        {
-            if (slot.capacityBytes == requiredBytes && slot.width == width && slot.height == height)
-            {
-                continue;
-            }
-
-            slot.ReleaseFence(api);
-            api.BindPixelPackBuffer(slot.pboId);
-            api.AllocatePixelPackBuffer(requiredBytes);
-            api.BindPixelPackBuffer(0);
-            slot.capacityBytes = requiredBytes;
-            slot.width = width;
-            slot.height = height;
-        }
-
-        return true;
-    }
-
-    bool SubmitReadback(const unsigned int slotIndex, const int width, const int height)
-    {
-        const PboReadbackApi& api = PboReadbackApi::Instance();
-        CaptureSlot& slot = slots_[slotIndex];
-        if (slot.pboId == 0 || slot.capacityBytes == 0 || slot.width != width || slot.height != height)
-        {
-            return false;
-        }
-
-        slot.ReleaseFence(api);
-        api.BindPixelPackBuffer(slot.pboId);
-        api.ReadPixels(width, height, pixelFormat_);
-        api.BindPixelPackBuffer(0);
-
-        slot.fence = api.CreateFence();
-        // cppcheck-suppress knownConditionTrueFalse
-        return slot.fence != nullptr;
-    }
-
-    [[nodiscard]] std::optional<CapturedFramebuffer> TryConsume(const unsigned int slotIndex)
-    {
-        const PboReadbackApi& api = PboReadbackApi::Instance();
-        CaptureSlot& slot = slots_[slotIndex];
-        if (slot.pboId == 0 || slot.capacityBytes == 0 || slot.fence == nullptr)
-        {
-            return std::nullopt;
-        }
-
-        if (!api.IsFenceReady(slot.fence))
-        {
-            return std::nullopt;
-        }
-
-        api.BindPixelPackBuffer(slot.pboId);
-        void* mappedBuffer = api.MapPixelPackBufferReadOnly();
-        // cppcheck-suppress knownConditionTrueFalse
-        if (mappedBuffer == nullptr)
-        {
-            api.BindPixelPackBuffer(0);
-            slot.ReleaseFence(api);
-            DisablePbo();
-            return std::nullopt;
-        }
-
-        latestFramebuffer_.width = slot.width;
-        latestFramebuffer_.height = slot.height;
-        latestFramebuffer_.pixelFormat = pixelFormat_;
-        latestFramebuffer_.pixels.resize(slot.capacityBytes);
-        std::memcpy(latestFramebuffer_.pixels.data(), mappedBuffer, slot.capacityBytes);
-
-        const bool unmapSucceeded = api.UnmapPixelPackBuffer();
-        api.BindPixelPackBuffer(0);
-        slot.ReleaseFence(api);
-        // cppcheck-suppress knownConditionTrueFalse
-        if (!unmapSucceeded)
-        {
-            DisablePbo();
-            return std::nullopt;
-        }
-
-        FlipRows(latestFramebuffer_.pixels,
-                 ExpectedFramebufferRowStride(pixelFormat_, latestFramebuffer_.width),
-                 latestFramebuffer_.height);
-        return latestFramebuffer_;
-    }
-
-    void Release() noexcept
-    {
-        const PboReadbackApi& api = PboReadbackApi::Instance();
-        for (CaptureSlot& slot : slots_)
-        {
-            slot.ReleaseFence(api);
-            if (slot.pboId != 0)
-            {
-                api.DeleteBuffers(1, &slot.pboId);
-                slot.pboId = 0;
-            }
-
-            slot.ResetMetadata();
-        }
-
-        initialized_ = false;
-        frameIndex_ = 0;
-    }
-
-    std::array<CaptureSlot, kCaptureRingSize> slots_ {};
-    CapturedFramebuffer latestFramebuffer_ {};
-    MfdWindowFramebufferPixelFormat pixelFormat_ = MfdWindowFramebufferPixelFormat_Rgba32;
-    std::size_t frameIndex_ = 0;
-    bool initialized_ = false;
-    bool pboSupportChecked_ = false;
-    bool pboAvailable_ = true;
-    bool hasLatestFramebuffer_ = false;
-};
+    mfd::FramebufferCaptureRequest request;
+    request.width = width;
+    request.height = height;
+    return ConvertRgba32Framebuffer(mfd::OpenGlFramebufferReader::ReadRgba32(request), format);
+}
 
 struct CommandLineOptions
 {
@@ -1385,7 +1096,7 @@ public:
         ApplyRuntimeCommandTransactionMode();
         if (framebufferCallback)
         {
-            framebufferCapture_ = std::make_unique<AsyncFramebufferCapture>(framebufferPixelFormat_);
+            framebufferCapture_ = std::make_unique<AsyncFramebufferCapture>(framebufferPixelFormat_, PboReadbackApi::Instance());
             framebufferPublisher_ = std::make_unique<AsyncFramebufferPublisher>(std::move(framebufferCallback));
         }
     }
@@ -1822,7 +1533,7 @@ private:
 
         if (framebufferCapture_ == nullptr)
         {
-            framebufferCapture_ = std::make_unique<AsyncFramebufferCapture>(framebufferPixelFormat_);
+            framebufferCapture_ = std::make_unique<AsyncFramebufferCapture>(framebufferPixelFormat_, PboReadbackApi::Instance());
         }
 
         return framebufferCapture_ != nullptr;

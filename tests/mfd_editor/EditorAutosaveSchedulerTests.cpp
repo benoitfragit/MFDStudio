@@ -70,3 +70,25 @@ TEST(EditorAutosaveSchedulerTests, IntervalIsClampedToAtLeastOneSecond)
     EXPECT_TRUE(scheduler.DueForAutosave(0.0f, true));
 }
 } // namespace
+
+TEST(EditorAutosaveSchedulerTests, FailedAttemptDefersRetryWithoutRecordingSuccess)
+{
+    editor::EditorAutosaveScheduler scheduler;
+    scheduler.Advance(40.0f);
+    scheduler.DeferRetry();
+    EXPECT_FLOAT_EQ(scheduler.ElapsedSeconds(), 40.0f);
+    EXPECT_FALSE(scheduler.DueForAutosave(30.0f, true));
+    scheduler.Advance(29.0f);
+    EXPECT_FALSE(scheduler.DueForAutosave(30.0f, true));
+    scheduler.Advance(1.0f);
+    EXPECT_TRUE(scheduler.DueForAutosave(30.0f, true));
+    scheduler.DeferRetry();
+    scheduler.MarkAutosaved();
+    EXPECT_FLOAT_EQ(scheduler.ElapsedSeconds(), 0.0f);
+    scheduler.Advance(30.0f);
+    EXPECT_TRUE(scheduler.DueForAutosave(30.0f, true));
+    scheduler.DeferRetry();
+    scheduler.Reset();
+    scheduler.Advance(30.0f);
+    EXPECT_TRUE(scheduler.DueForAutosave(30.0f, true));
+}

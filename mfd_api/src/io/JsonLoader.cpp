@@ -58,9 +58,14 @@ void ValidateGeneratedTransportMapAgainstDocument(const GeneratedTransportMap& m
                                                   const WindowAssetDefinition& window,
                                                   const MfdDocument& document);
 
-std::uint8_t ClampByte(const int value)
+std::uint8_t ClampByte(const double value)
 {
-    return static_cast<std::uint8_t>(std::clamp(value, 0, 255));
+    if (!std::isfinite(value))
+    {
+        throw std::runtime_error("Color channel is not finite");
+    }
+    // Clamp before rounding: finite JSON doubles can exceed every integer type.
+    return static_cast<std::uint8_t>(std::lround(std::clamp(value, 0.0, 255.0)));
 }
 
 int HexDigit(const char value)
@@ -295,10 +300,10 @@ std::uint8_t ParseChannelNumber(const json& value)
     const double rawValue = value.get<double>();
     if (rawValue >= 0.0 && rawValue <= 1.0)
     {
-        return ClampByte(static_cast<int>(std::lround(rawValue * 255.0)));
+        return ClampByte(rawValue * 255.0);
     }
 
-    return ClampByte(static_cast<int>(std::lround(rawValue)));
+    return ClampByte(rawValue);
 }
 
 std::uint8_t ParseOpacityNumber(const json& value)
@@ -311,15 +316,15 @@ std::uint8_t ParseOpacityNumber(const json& value)
     const double rawValue = value.get<double>();
     if (rawValue >= 0.0 && rawValue <= 1.0)
     {
-        return ClampByte(static_cast<int>(std::lround(rawValue * 255.0)));
+        return ClampByte(rawValue * 255.0);
     }
 
     if (rawValue >= 0.0 && rawValue <= 100.0)
     {
-        return ClampByte(static_cast<int>(std::lround(rawValue * 255.0 / 100.0)));
+        return ClampByte(rawValue * 255.0 / 100.0);
     }
 
-    return ClampByte(static_cast<int>(std::lround(rawValue)));
+    return ClampByte(rawValue);
 }
 
 bool BeginsWith(const std::string_view value, const std::string_view prefix) noexcept
@@ -493,16 +498,16 @@ std::uint8_t ParseChannelToken(std::string_view value)
     if (!value.empty() && value.back() == '%')
     {
         const double percent = ParseNumericToken(value.substr(0, value.size() - 1));
-        return ClampByte(static_cast<int>(std::lround(percent * 255.0 / 100.0)));
+        return ClampByte(std::clamp(percent, 0.0, 100.0) * 255.0 / 100.0);
     }
 
     const double numericValue = ParseNumericToken(value);
     if (numericValue >= 0.0 && numericValue <= 1.0)
     {
-        return ClampByte(static_cast<int>(std::lround(numericValue * 255.0)));
+        return ClampByte(numericValue * 255.0);
     }
 
-    return ClampByte(static_cast<int>(std::lround(numericValue)));
+    return ClampByte(numericValue);
 }
 
 std::optional<ColorRgba> TryParseRgbFunction(const std::string_view value)
@@ -520,7 +525,8 @@ std::optional<ColorRgba> TryParseRgbFunction(const std::string_view value)
     const std::size_t closeParenthesis = trimmed.rfind(')');
     if (openParenthesis == std::string_view::npos ||
         closeParenthesis == std::string_view::npos ||
-        closeParenthesis <= openParenthesis)
+        closeParenthesis <= openParenthesis ||
+        closeParenthesis + 1 != trimmed.size())
     {
         throw std::runtime_error("Invalid rgb()/rgba() color format");
     }

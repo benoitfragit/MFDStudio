@@ -552,3 +552,32 @@ TEST(PageRenameServiceTests, AllowsRenameInsideExecAssetTree)
     EXPECT_EQ(json::parse(ReadTextFile(radarFile)).at("name").get<std::string>(), "Tactical");
     EXPECT_EQ(json::parse(ReadTextFile(windowFile)).at("defaultPage").get<std::string>(), "Tactical");
 }
+
+#if defined(_WIN32)
+TEST(PageRenameServiceTests, FailedWindowPromotionRestoresPageAndLeavesEditorStateUntouched)
+{
+    ScopedTempDir tempDir;
+    const auto root = tempDir.Path();
+    const auto window = root / "windows" / "current.json";
+    const auto page = root / "pages" / "radar.json";
+    WriteTextFile(window, R"({"pages":["../pages/radar.json"],"defaultPage":"Radar"})");
+    WriteTextFile(page, R"({"name":"Radar","staticReticles":[]})");
+    auto [loaded, files] = MakeLoadedWindow(window, {{page, "Radar", true}});
+    editor::PageRenameService service;
+    const auto plan = service.BuildPlan(loaded, files, {0, "Tactical", root});
+    ASSERT_TRUE(plan.canExecute) << plan.error;
+    const auto pageBefore = ReadTextFile(page);
+    const auto windowBefore = ReadTextFile(window);
+    std::filesystem::permissions(window, std::filesystem::perms::owner_read,
+                                 std::filesystem::perm_options::replace);
+    std::string error;
+    const bool success = service.Execute(plan, loaded, files, nullptr, &error);
+    std::filesystem::permissions(window, std::filesystem::perms::owner_write,
+                                 std::filesystem::perm_options::add);
+    EXPECT_FALSE(success);
+    EXPECT_FALSE(error.empty());
+    EXPECT_EQ(ReadTextFile(page), pageBefore);
+    EXPECT_EQ(ReadTextFile(window), windowBefore);
+    EXPECT_EQ(loaded.document.pages.front().name, "Radar");
+}
+#endif

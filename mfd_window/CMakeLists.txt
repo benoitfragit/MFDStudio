@@ -10,6 +10,7 @@ set(MFD_WINDOW_LAUNCHER_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/window/RuntimeFeedbackThrottle.hpp)
 
 set(MFD_WINDOW_LAUNCHER_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/AsyncFramebufferCapture.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/WindowLauncher.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugOverlay.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeDebugPreview.cpp

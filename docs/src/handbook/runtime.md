@@ -98,3 +98,13 @@ the control path is alive.
 `demo_client` is a normal standalone UDP client. It loads the same window JSON
 locally for discovery, then sends public commands to the runtime - it shares no
 memory with `mfd_window`, which is exactly why it is a good reference client.
+
+## Framebuffer capture failures
+
+Asynchronous PBO capture polls GPU fences without blocking. A timeout keeps the
+pending slot intact and publishes no new frame; a previously delivered image
+is not submitted again as a fresh capture. A failed fence emits a warning,
+releases PBO/fence resources, and switches that capture instance to synchronous
+readback. Failed synchronous capture produces no frame. Resizing recreates the
+capture instance; cleanup occurs before closing the GL context. Pixel formats
+and the framebuffer plugin ABI are unchanged.

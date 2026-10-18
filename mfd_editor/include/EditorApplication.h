@@ -112,7 +112,7 @@ private:
     /** @brief Serializes every modified file back to disk. */
     bool SaveAll();
     /** @brief Writes a crash-recovery snapshot of the current document next to the assets. */
-    void WriteRecoverySnapshot();
+    [[nodiscard]] bool WriteRecoverySnapshot();
     /** @brief Deletes the crash-recovery snapshot once it is no longer needed. */
     void ClearRecoverySnapshot();
     /** @brief Restores the document from a previous-session recovery snapshot, then reloads it. */
