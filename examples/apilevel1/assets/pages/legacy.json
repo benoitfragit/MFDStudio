@@ -1,0 +1,22 @@
+{
+  "name": "Legacy",
+  "title": "LEVEL 0 content in a LEVEL 1 Window",
+  "bg": "#050A0EFF",
+  "layers": [{"id": "default"}],
+  "staticReticles": [
+    {
+      "id": "legacy_caption",
+      "layerId": "default",
+      "stroke": "#8FE6D9FF",
+      "elements": [
+        {
+          "id": "caption",
+          "type": "text",
+          "at": [-0.65, 0.0],
+          "size": 0.055,
+          "text": "Legacy page: no container dependency"
+        }
+      ]
+    }
+  ]
+}

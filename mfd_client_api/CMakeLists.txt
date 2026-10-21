@@ -2,6 +2,7 @@
 # Project author: Benoit Fra
 # Repository: https://github.com/benoitfragit/MFDStudio
 set(CLIENT_API_PUBLIC_HEADERS
+    ${MFD_APILEVEL1_ROOT_DIR}/generator/include/mfd/client/Container.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/Animation.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/ClientSdk.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/ClientExport.h
@@ -10,6 +11,7 @@ set(CLIENT_API_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/WindowLivenessMonitor.h)
 
 set(CLIENT_API_SOURCES
+    ${MFD_APILEVEL1_ROOT_DIR}/generator/src/Container.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Animation.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/LatestBatchPublisher.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/WindowLivenessMonitor.cpp)
@@ -27,6 +29,8 @@ add_library(mfd::client ALIAS mfd_client_api)
 target_include_directories(mfd_client_api
     PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+        "$<BUILD_INTERFACE:${MFD_APILEVEL1_ROOT_DIR}/generator/include>"
+        "$<BUILD_INTERFACE:${MFD_APILEVEL1_RUNTIME_INCLUDE_DIR}>"
         "$<BUILD_INTERFACE:${MFD_COMMON_API_PUBLIC_INCLUDE_DIR}>"
         "$<BUILD_INTERFACE:${MFD_API_PUBLIC_INCLUDE_DIR}>"
         "$<INSTALL_INTERFACE:include>")
@@ -88,6 +92,11 @@ install(FILES
     DESTINATION include/mfd/client
     COMPONENT ${MFD_COMPONENT_CLIENT_API_DEVELOPMENT})
 install(FILES
+    ${MFD_APILEVEL1_RUNTIME_INCLUDE_DIR}/mfd/apilevel1/ContainerCommands.h
+    ${MFD_APILEVEL1_RUNTIME_INCLUDE_DIR}/mfd/apilevel1/ContainerTypes.h
+    DESTINATION include/mfd/apilevel1
+    COMPONENT ${MFD_COMPONENT_CLIENT_API_DEVELOPMENT})
+install(FILES
     ${MFD_ROOT_DIR}/mfd_common_api/include/mfd/MfdExport.h
     DESTINATION include/mfd
     COMPONENT ${MFD_COMPONENT_CLIENT_API_DEVELOPMENT})
@@ -141,3 +150,7 @@ install(DIRECTORY
     COMPONENT ${MFD_COMPONENT_CLIENT_API_DEVELOPMENT}
     FILES_MATCHING
         PATTERN "*.py")
+install(FILES
+    "${MFD_APILEVEL1_ROOT_DIR}/generator/generate_containers.py"
+    DESTINATION tools/extensions/apilevel1/generator
+    COMPONENT ${MFD_COMPONENT_CLIENT_API_DEVELOPMENT})

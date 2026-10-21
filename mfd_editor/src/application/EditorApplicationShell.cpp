@@ -28,10 +28,12 @@
 #include "EditorUiTheme.h"
 #include "EditorWorkspaceLayout.h"
 #include "MfdStudioBrandMark.h"
+#include "mfd/apilevel1/ContainerLayoutEngine.h"
 
 namespace
 {
 using editor::ui::AccentButton;
+using editor::ui::BeginRowIconStrip;
 using editor::ui::DisabledTextWrapped;
 using editor::ui::DrawVerticalSplitter;
 using editor::ui::EditorIcon;
@@ -687,6 +689,7 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
     const editor::SidebarFilterQuery filter = ResolveSidebarFilter();
     const int visiblePages = CountVisibleSidebarPages(filter, problems);
     const int visibleReticles = CountVisibleSidebarReticles(filter, problems);
+    const bool containersEnabled = documentState_.loaded.window.apiLevel == mfd::ApiLevel::Level1;
 
     const float sidebarBodyHeight = std::max(0.0f, ImGui::GetContentRegionAvail().y);
     const float sidebarBodyWidth = std::max(0.0f, ImGui::GetContentRegionAvail().x);
@@ -698,16 +701,37 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
     const float minSectionHeight =
         sectionChromeHeight + sectionRowHeight * kSidebarSectionMinVisibleRows;
 
-    // The Pages/Reticle split is user-driven: a stored fraction (0.5 = even) drives the preferred
-    // Pages height, and the draggable splitter below feeds the fraction back. The splitter gap is
-    // reserved as the section spacing so both sections plus the handle exactly fill the body.
+    // Both LEVEL 1 splits are user-driven. The outer split reserves the lower Containers section;
+    // the inner split keeps the existing Pages/Reticle behavior unchanged inside the upper region.
     const float splitterThickness = editor::ui::kPaneSplitterWidth;
-    const float distributableHeight = std::max(0.0f, sidebarBodyHeight - splitterThickness);
+    editor::app::SidebarSectionLayoutResult outerLayout;
+    float outerDistributableHeight = 0.0f;
+    if (containersEnabled)
+    {
+        outerDistributableHeight = std::max(0.0f, sidebarBodyHeight - splitterThickness);
+        const float containerFraction =
+            std::clamp(layoutState_.sidebarContainersHeightFraction, 0.0f, 1.0f);
+        const float upperPreferredHeight = outerDistributableHeight * (1.0f - containerFraction);
+        const float upperMinimumHeight = 2.0f * minSectionHeight + splitterThickness;
+        outerLayout = editor::app::ComputeSidebarSectionLayout(
+            {sidebarBodyHeight,
+             splitterThickness,
+             upperPreferredHeight,
+             upperMinimumHeight,
+             minSectionHeight});
+    }
+    else
+    {
+        outerLayout.pagesHeight = sidebarBodyHeight;
+    }
+
+    const float upperBodyHeight = outerLayout.pagesHeight;
+    const float distributableHeight = std::max(0.0f, upperBodyHeight - splitterThickness);
     const float pagesFraction = std::clamp(layoutState_.sidebarPagesSplitFraction, 0.0f, 1.0f);
     const float pagesPreferredHeight = distributableHeight * pagesFraction;
     const editor::app::SidebarSectionLayoutResult sectionLayout =
         editor::app::ComputeSidebarSectionLayout(
-            {sidebarBodyHeight, splitterThickness, pagesPreferredHeight, minSectionHeight, minSectionHeight});
+            {upperBodyHeight, splitterThickness, pagesPreferredHeight, minSectionHeight, minSectionHeight});
 
     DrawSidebarPagesSection(filter, problems, visiblePages, sectionLayout.pagesHeight);
     if (sectionLayout.sectionSpacing > 0.0f)
@@ -720,6 +744,21 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
         ShowItemTooltip("Drag to resize the Pages and Reticle library sections.");
     }
     DrawSidebarReticleSection(filter, problems, visibleReticles, sectionLayout.reticlesHeight);
+    if (containersEnabled)
+    {
+        if (outerLayout.sectionSpacing > 0.0f)
+        {
+            if (editor::ui::DrawHorizontalSplitter(
+                    "##SidebarContainersSplitter", sidebarBodyWidth, outerLayout.sectionSpacing))
+            {
+                const float upperFraction = editor::app::ResolveSidebarPagesFraction(
+                    outerLayout.pagesHeight, ImGui::GetIO().MouseDelta.y, outerDistributableHeight);
+                layoutState_.sidebarContainersHeightFraction = 1.0f - upperFraction;
+            }
+            ShowItemTooltip("Drag to resize the Reticle library and Containers sections.");
+        }
+        DrawSidebarContainersSection(outerLayout.reticlesHeight);
+    }
 }
 
 void EditorApplication::DrawSidebarPagesSection(const editor::SidebarFilterQuery& filter,
@@ -783,6 +822,219 @@ void EditorApplication::DrawSidebarReticleSection(const editor::SidebarFilterQue
     }
 
     ImGui::EndChild();
+}
+
+void EditorApplication::DrawSidebarContainersSection(const float sectionHeight)
+{
+    const bool containersAvailable =
+        containerEditorHost_.EnsureLoaded(documentState_.loaded.window.sourceFile);
+    ImGui::BeginChild("SidebarContainersSection", ImVec2(0.0f, std::max(1.0f, sectionHeight)), false);
+    const mfd::PageDefinition* page = ActivePage();
+    const std::size_t count = page == nullptr ? 0U : page->containers.size();
+    const std::string header = "Containers (" + std::to_string(count) + ")###SidebarContainersHeader";
+    if (ImGui::CollapsingHeader(header.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        if (!containersAvailable)
+        {
+            ImGui::TextWrapped("LEVEL 1 container editing is unavailable.");
+            ImGui::TextDisabled("%s", containerEditorHost_.Diagnostic().c_str());
+            ImGui::EndChild();
+            return;
+        }
+
+        DrawContainerActionToolbar();
+        ImGui::Spacing();
+        ImGui::BeginChild("SidebarContainersScrollRegion", ImVec2(0.0f, std::max(1.0f, ImGui::GetContentRegionAvail().y)), false);
+        if (page == nullptr || page->containers.empty())
+        {
+            ImGui::TextDisabled("No container on this Page.");
+            ImGui::TextWrapped("Use + to add a root container.");
+        }
+        else
+        {
+            for (const mfd::api1::ContainerDefinition& container : page->containers)
+            {
+                bool owned = false;
+                for (const mfd::api1::ContainerDefinition& candidate : page->containers)
+                {
+                    owned = std::any_of(candidate.children.begin(), candidate.children.end(),
+                                        [&container](const mfd::api1::ContainerChildPlacement& placement)
+                                        {
+                                            return placement.childId == container.id;
+                                        });
+                    if (owned) break;
+                }
+                if (!owned && DrawContainerTreeNode(*page, container, 0U)) break;
+            }
+        }
+        ImGui::EndChild();
+    }
+    ImGui::EndChild();
+}
+
+bool EditorApplication::DrawContainerTreeNode(const mfd::PageDefinition& page,
+                                              const mfd::api1::ContainerDefinition& container,
+                                              const std::size_t depth)
+{
+    if (depth > mfd::api1::kMaximumContainerDepth) return false;
+    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow |
+                               ImGuiTreeNodeFlags_OpenOnDoubleClick |
+                               ImGuiTreeNodeFlags_SpanAvailWidth |
+                               ImGuiTreeNodeFlags_AllowOverlap;
+    if (container.children.empty()) flags |= ImGuiTreeNodeFlags_Leaf;
+    if (documentState_.selection.kind == SelectionKind::Container &&
+        documentState_.selection.containerId == container.id)
+        flags |= ImGuiTreeNodeFlags_Selected;
+    const std::string label = (container.name.empty() ? container.id : container.name) + "##container_" + container.id;
+    const bool open = ImGui::TreeNodeEx(label.c_str(), flags);
+    const ImVec2 rowMin = ImGui::GetItemRectMin();
+    const ImVec2 rowMax = ImGui::GetItemRectMax();
+    ShowItemTooltip("Click to inspect this container. Drag it onto another container to reparent it.");
+    if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+        SelectContainer(documentState_.selection.pageIndex, container.id);
+    if (ImGui::BeginDragDropSource())
+    {
+        ImGui::SetDragDropPayload("MFD_CONTAINER_ID", container.id.c_str(), container.id.size() + 1U);
+        ImGui::TextUnformatted(container.id.c_str());
+        ImGui::EndDragDropSource();
+    }
+    if (ImGui::BeginDragDropTarget())
+    {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("MFD_CONTAINER_ID"); payload != nullptr)
+        {
+            const std::string dragged(static_cast<const char*>(payload->Data));
+            if (dragged != container.id)
+            {
+                ImGui::EndDragDropTarget();
+                if (open) ImGui::TreePop();
+                ReparentContainer(dragged, container.id);
+                return true;
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
+
+    enum class ContainerRowAction
+    {
+        None,
+        AddChild,
+        Rename,
+        Duplicate,
+        Delete
+    };
+    ContainerRowAction requestedAction = ContainerRowAction::None;
+    if (ImGui::BeginPopupContextItem(("ContainerContextMenu##" + container.id).c_str()))
+    {
+        if (ImGui::MenuItem("Add child container")) requestedAction = ContainerRowAction::AddChild;
+        if (ImGui::MenuItem("Rename container...")) requestedAction = ContainerRowAction::Rename;
+        if (ImGui::MenuItem("Duplicate container hierarchy")) requestedAction = ContainerRowAction::Duplicate;
+        ImGui::Separator();
+        if (ImGui::MenuItem("Delete container hierarchy")) requestedAction = ContainerRowAction::Delete;
+        ImGui::EndPopup();
+    }
+
+    const bool selected = documentState_.selection.kind == SelectionKind::Container &&
+                          documentState_.selection.containerId == container.id;
+    if (selected || ImGui::IsMouseHoveringRect(rowMin, rowMax))
+    {
+        const std::string suffix = "##container_row_" + container.id;
+        const float iconSize = BeginRowIconStrip(rowMin, rowMax, 2);
+        if (IconButton(("duplicate" + suffix).c_str(),
+                       EditorIcon::Duplicate,
+                       "Duplicate this container hierarchy.",
+                       true,
+                       iconSize))
+            requestedAction = ContainerRowAction::Duplicate;
+        ImGui::SameLine();
+        if (IconButton(("delete" + suffix).c_str(),
+                       EditorIcon::Delete,
+                       "Delete this container hierarchy.",
+                       true,
+                       iconSize))
+            requestedAction = ContainerRowAction::Delete;
+    }
+
+    if (requestedAction != ContainerRowAction::None)
+    {
+        const std::string containerId = container.id;
+        SelectContainer(documentState_.selection.pageIndex, containerId);
+        if (open) ImGui::TreePop();
+        switch (requestedAction)
+        {
+        case ContainerRowAction::AddChild:
+            AddChildContainer(containerId);
+            return true;
+        case ContainerRowAction::Rename:
+            OpenContainerRenamePopup(containerId);
+            return false;
+        case ContainerRowAction::Duplicate:
+            DuplicateContainer(containerId);
+            return true;
+        case ContainerRowAction::Delete:
+            DeleteContainer(containerId);
+            return true;
+        case ContainerRowAction::None:
+            break;
+        }
+    }
+
+    if (open)
+    {
+        for (const mfd::api1::ContainerChildPlacement& child : container.children)
+        {
+            const mfd::api1::ContainerDefinition* definition =
+                mfd::api1::FindContainer(page.containers, child.childId);
+            if (definition != nullptr && DrawContainerTreeNode(page, *definition, depth + 1U))
+            {
+                ImGui::TreePop();
+                return true;
+            }
+        }
+        ImGui::TreePop();
+    }
+    return false;
+}
+
+void EditorApplication::DrawContainerActionToolbar()
+{
+    if (ActivePage() == nullptr) return;
+    if (IconButton("##sidebar_add_container_root", EditorIcon::Add, "Add a root container."))
+    {
+        AddRootContainer();
+    }
+    const bool hasSelection = SelectedContainer() != nullptr;
+    ImGui::SameLine();
+    if (IconButton("##sidebar_add_child_container",
+                   EditorIcon::AddChild,
+                   "Add a child container to the selected container.",
+                   hasSelection))
+    {
+        AddChildContainer(documentState_.selection.containerId);
+    }
+    ImGui::SameLine();
+    if (IconButton("##sidebar_rename_container",
+                   EditorIcon::Rename,
+                   "Rename the selected container.",
+                   hasSelection))
+    {
+        OpenContainerRenamePopup(documentState_.selection.containerId);
+    }
+    ImGui::SameLine();
+    if (IconButton("##sidebar_duplicate_container",
+                   EditorIcon::Duplicate,
+                   "Duplicate the selected container hierarchy.",
+                   hasSelection))
+    {
+        DuplicateContainer(documentState_.selection.containerId);
+    }
+    ImGui::SameLine();
+    if (IconButton("##sidebar_delete_container",
+                   EditorIcon::Delete,
+                   "Delete the selected container hierarchy.",
+                   hasSelection))
+    {
+        DeleteContainer(documentState_.selection.containerId);
+    }
 }
 
 void EditorApplication::DrawPageActionToolbar()
@@ -1186,6 +1438,9 @@ void EditorApplication::DrawInspector()
     case SelectionKind::PageStrobe:
         contextLabel = "Page > Strobe";
         break;
+    case SelectionKind::Container:
+        contextLabel = "Page > Container";
+        break;
     case SelectionKind::LibraryReticle:
         contextLabel = "Library > Reticle";
         break;
@@ -1213,6 +1468,9 @@ void EditorApplication::DrawInspector()
         break;
     case SelectionKind::PageStrobe:
         DrawSelectedPageStrobeInspector();
+        break;
+    case SelectionKind::Container:
+        DrawContainerInspector();
         break;
     case SelectionKind::LibraryReticle:
         DrawLibraryReticleInspector();

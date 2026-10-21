@@ -86,6 +86,12 @@ if(WIN32)
 endif()
 
 add_executable(mfd_editor
+    ${MFD_APILEVEL1_EDITOR_INCLUDE_DIR}/mfd/apilevel1/ContainerGizmoAdapter.h
+    ${MFD_APILEVEL1_ROOT_DIR}/editor/src/ContainerGizmoAdapter.cpp
+    ${MFD_APILEVEL1_EDITOR_INCLUDE_DIR}/mfd/apilevel1/ContainerEditorHost.h
+    ${MFD_APILEVEL1_ROOT_DIR}/editor/src/ContainerEditorHost.cpp
+    ${MFD_APILEVEL1_EDITOR_INCLUDE_DIR}/mfd/apilevel1/ContainerEditorModel.h
+    ${MFD_APILEVEL1_ROOT_DIR}/editor/src/ContainerEditorModel.cpp
     ${MFD_EDITOR_SOURCES}
     ${MFD_EDITOR_HEADERS}
     ${MFD_EDITOR_WINDOWS_RESOURCES})
@@ -93,7 +99,10 @@ add_executable(mfd_editor
 target_include_directories(mfd_editor
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${MFD_ROOT_DIR}/mfd_api/src/render)
+        ${MFD_ROOT_DIR}/mfd_api/src/render
+        ${MFD_APILEVEL1_RUNTIME_INCLUDE_DIR}
+        ${MFD_APILEVEL1_ROOT_DIR}/runtime/src
+        ${MFD_APILEVEL1_EDITOR_INCLUDE_DIR})
 
 target_link_libraries(mfd_editor
     PRIVATE

@@ -337,6 +337,49 @@ bool ResolveGeneratedPage(const std::optional<GeneratedTransportMap>& transportM
     return true;
 }
 
+bool ResolveGeneratedContainer(const std::optional<GeneratedTransportMap>& transportMap,
+                               std::string& lastError,
+                               api1::ContainerHandle& target)
+{
+    if (!ResolveGeneratedPage(
+            transportMap, lastError, target.page, target.pageId, "UpdateContainerCommand"))
+    {
+        return false;
+    }
+    const GeneratedTransportMap* map = RequireTransportMap(
+        transportMap, lastError, "UpdateContainerCommand");
+    if (map == nullptr)
+    {
+        return false;
+    }
+    const auto iterator = std::find_if(
+        map->containers.begin(), map->containers.end(), [&target](const TransportMapContainerEntry& entry)
+        {
+            if (entry.pageId != target.pageId)
+            {
+                return false;
+            }
+            return target.containerTransportId != 0U
+                     ? entry.id == target.containerTransportId
+                     : entry.normalizedContainerId == NormalizePageName(target.containerId);
+        });
+    if (iterator == map->containers.end())
+    {
+        lastError = "Unknown exposed container '" + target.containerId +
+                    "' while normalizing UpdateContainerCommand";
+        return false;
+    }
+    if (!target.containerId.empty() &&
+        NormalizePageName(target.containerId) != iterator->normalizedContainerId)
+    {
+        lastError = "Generated container id does not match container '" + target.containerId + "'";
+        return false;
+    }
+    target.containerId = iterator->containerId;
+    target.containerTransportId = iterator->id;
+    return true;
+}
+
 bool ResolveGeneratedStaticReticle(const std::optional<GeneratedTransportMap>& transportMap,
                                    std::string& lastError,
                                    StaticReticleHandle& target,
@@ -853,6 +896,11 @@ struct OversizedCommandSplitter
         return RejectUnsplittableCommand();
     }
 
+    std::optional<std::vector<UserCommand>> operator()(const api1::UpdateContainerCommand&) const
+    {
+        return RejectUnsplittableCommand();
+    }
+
     std::optional<std::vector<UserCommand>> operator()(const ResetWindowCommand&) const
     {
         return RejectUnsplittableCommand();
@@ -1035,6 +1083,11 @@ struct CommandTransportNormalizer
                    "RemoveDynamicReticleCommand") &&
                ResolveDynamicRuntimeId(
                    lastError, command.target.page, command.target, "RemoveDynamicReticleCommand");
+    }
+
+    bool operator()(api1::UpdateContainerCommand& command) const
+    {
+        return ResolveGeneratedContainer(transportMap, lastError, command.target);
     }
 
     bool operator()(ResetWindowCommand&) const noexcept

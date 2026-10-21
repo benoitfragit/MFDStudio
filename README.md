@@ -34,6 +34,7 @@ release, while `Release Workflow` reflects the most recent `release.yml` run:
 | 2. End-to-end walkthrough | [Getting Started Tutorial](https://benoitfragit.github.io/MFDStudio/getting-started.html) |
 | 3. The JSON model | [Concepts](https://benoitfragit.github.io/MFDStudio/concepts.html) |
 | 4. Drive from typed C++ | [Generated Client API](https://benoitfragit.github.io/MFDStudio/handbook/generated_api.html) |
+| 4a. Author nested layouts | [API LEVEL 1 Containers](./docs/src/handbook/containers.md) |
 | 5. Run the runtime | [Runtime](https://benoitfragit.github.io/MFDStudio/handbook/runtime.html) |
 | 6. Explore the HUD | [HUD](https://benoitfragit.github.io/MFDStudio/handbook/hud.html) |
 | 7. Explore the LHLD console | [LHLD](https://benoitfragit.github.io/MFDStudio/handbook/lhld.html) |

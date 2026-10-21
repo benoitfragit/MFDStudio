@@ -99,6 +99,11 @@ struct CommandGeneratedIdentifierProbe
         return DynamicHandleUsesGeneratedIdentifiers(command.target);
     }
 
+    bool operator()(const api1::UpdateContainerCommand& command) const noexcept
+    {
+        return command.target.pageId != 0U || command.target.containerTransportId != 0U;
+    }
+
     bool operator()(const ResetWindowCommand&) const noexcept
     {
         return false;

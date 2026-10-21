@@ -6,6 +6,8 @@
 #include "internal/application/EditorColorPicker.h"
 
 #include "EditorApplication.h"
+#include "mfd/apilevel1/ContainerLayoutEngine.h"
+#include "mfd/apilevel1/ContainerGizmoAdapter.h"
 #include "internal/EditorFileCommit.h"
 
 /**
@@ -56,6 +58,7 @@
 #include "mfd/model/RuntimeBudgets.h"
 #include "mfd/model/internal/RuntimeModelValidation.h"
 #include "Canvas2D.h"
+#include "ContainerDecorationRenderer.h"
 #include "RenderTextureUtils.h"
 #include "mfd/render/WindowBranding.h"
 
@@ -1469,6 +1472,11 @@ EditorApplication::EditorApplication(std::filesystem::path assetDirectory)
     {
         layoutState_.sidebarPagesSplitFraction = std::clamp(*uiState.sidebarPagesSplitFraction, 0.0f, 1.0f);
     }
+    if (uiState.sidebarContainersHeightFraction.has_value())
+    {
+        layoutState_.sidebarContainersHeightFraction =
+            std::clamp(*uiState.sidebarContainersHeightFraction, 0.0f, 1.0f);
+    }
     layoutState_.inspectorSectionOpen = uiState.sectionOpen;
     editor::ui::SetInspectorSectionStateStore(&layoutState_.inspectorSectionOpen);
 
@@ -1485,6 +1493,7 @@ EditorApplication::EditorApplication(std::filesystem::path assetDirectory)
 
 EditorApplication::~EditorApplication()
 {
+    containerEditorHost_.Unload();
     editor::ui::SetInspectorSectionStateStore(nullptr);
 
     editor::EditorUiPersistentState uiState;
@@ -1497,6 +1506,7 @@ EditorApplication::~EditorApplication()
     uiState.snapToGrid = layoutState_.pagePreviewViewOptions.snapToGrid;
     uiState.gridStepLogical = SharedGridStepLogical(layoutState_.pagePreviewViewOptions);
     uiState.sidebarPagesSplitFraction = layoutState_.sidebarPagesSplitFraction;
+    uiState.sidebarContainersHeightFraction = layoutState_.sidebarContainersHeightFraction;
     uiState.sectionOpen = layoutState_.inspectorSectionOpen;
     editor::SaveEditorUiState(documentState_.assetPaths.DefaultAssetPath(kUiStateFileName), uiState);
 
@@ -1896,6 +1906,13 @@ void EditorApplication::NudgeSelection(const mfd::Vec2 delta)
     const bool snap = layoutState_.pagePreviewViewOptions.snapToGrid;
     const float gridStep = SharedGridStepLogical(layoutState_.pagePreviewViewOptions);
 
+    if (mfd::api1::ContainerDefinition* container = SelectedContainer(); container != nullptr)
+    {
+        PushUndoSnapshot();
+        container->geometry.center = ApplyNudgeToPosition(container->geometry.center, delta, snap, gridStep);
+        return;
+    }
+
     if (IsPageTitleSelected())
     {
         if (mfd::PageTitleDisplayDefinition* title = SelectedPageTitleDisplay(); title != nullptr)
@@ -2130,6 +2147,27 @@ void EditorApplication::DeleteSelection()
         return;
     }
 
+    if (documentState_.selection.kind == SelectionKind::Container)
+    {
+        mfd::PageDefinition* page = ActivePage();
+        const std::string containerId = documentState_.selection.containerId;
+        if (page == nullptr || SelectedContainer() == nullptr)
+        {
+            RebuildStatus("No container selected to delete.", true);
+            return;
+        }
+        PushUndoSnapshot();
+        std::string error;
+        if (!mfd::api1::ContainerEditorModel::Delete(*page, containerId, error))
+            RebuildStatus(error, true);
+        else
+        {
+            SelectPage(documentState_.selection.pageIndex, false);
+            RebuildStatus("Container '" + containerId + "' and its descendants were removed.", false);
+        }
+        return;
+    }
+
     if (documentState_.selection.kind == SelectionKind::PageStrobe)
     {
         mfd::PageDefinition* page = ActivePage();
@@ -2165,7 +2203,7 @@ void EditorApplication::DeleteSelection()
         return;
     }
 
-    RebuildStatus("Select a page, a page reticle, the page strobe, or a library reticle to delete it.", true);
+    RebuildStatus("Select a page, container, page reticle, page strobe, or library reticle to delete it.", true);
 }
 
 void EditorApplication::HandleDroppedFiles()
@@ -3551,7 +3589,24 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
     ClearBackground(ToRayColor(page->backgroundColor));
 
     {
+        std::vector<mfd::api1::ContainerLayoutNode> containerLayouts;
+        std::string containerLayoutError;
+        if (!page->containers.empty())
+        {
+            mfd::api1::ContainerLayoutEngine layoutEngine;
+            if (!layoutEngine.Evaluate(page->containers, containerLayouts, containerLayoutError))
+            {
+                containerLayouts.clear();
+            }
+        }
+
         DrawPagePreviewBackgroundGuides(viewport, *page);
+        mfd::detail::DrawContainerDecorations(
+            page->containers,
+            containerLayouts,
+            viewport.view,
+            previewState_.previewTexture.texture.width,
+            previewState_.previewTexture.texture.height);
 
         EnsurePreviewFont();
         ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
@@ -3563,9 +3618,21 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         bool restoreEraseLayerOnly = false;
         mfd::Canvas2D* canvasForRestore = nullptr;
         const auto restoreClippedPreviewBackground =
-            [this, page, &viewport, &restoreLayerOrder, &restoreEraseLayerOnly, &canvasForRestore]()
+            [this,
+             page,
+             &viewport,
+             &containerLayouts,
+             &restoreLayerOrder,
+             &restoreEraseLayerOnly,
+             &canvasForRestore]()
         {
             DrawPagePreviewBackgroundGuides(viewport, *page);
+            mfd::detail::DrawContainerDecorations(
+                page->containers,
+                containerLayouts,
+                viewport.view,
+                previewState_.previewTexture.texture.width,
+                previewState_.previewTexture.texture.height);
             if (restoreEraseLayerOnly && canvasForRestore != nullptr)
             {
                 RedrawEarlierLayerReticlesForClipRestore(*page, *canvasForRestore, restoreLayerOrder);
@@ -5023,6 +5090,42 @@ std::string EditorApplication::ActiveInsertionLayerId(const mfd::PageDefinition&
 
 void EditorApplication::DrawPagePreviewGizmos(const ViewportState& viewport, const mfd::PageDefinition& page)
 {
+    if (documentState_.selection.kind == SelectionKind::Container)
+    {
+        mfd::api1::ContainerLayoutEngine layoutEngine;
+        std::vector<mfd::api1::ContainerLayoutNode> layouts;
+        std::string layoutError;
+        if (!layoutEngine.Evaluate(page.containers, layouts, layoutError)) return;
+        const auto selectedLayout = std::find_if(
+            layouts.begin(),
+            layouts.end(),
+            [this](const mfd::api1::ContainerLayoutNode& node)
+            {
+                return node.id == documentState_.selection.containerId;
+            });
+        if (selectedLayout == layouts.end()) return;
+
+        const mfd::api1::ContainerRect& bounds = selectedLayout->bounds;
+        const ImVec2 topLeft = viewport.ToScreen(
+            {bounds.center.x - bounds.size.x * 0.5f, bounds.center.y + bounds.size.y * 0.5f});
+        const ImVec2 bottomRight = viewport.ToScreen(
+            {bounds.center.x + bounds.size.x * 0.5f, bounds.center.y - bounds.size.y * 0.5f});
+        const ImVec2 topRight(bottomRight.x, topLeft.y);
+        const ImVec2 bottomLeft(topLeft.x, bottomRight.y);
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        drawList->AddRect(topLeft, bottomRight, IM_COL32(255, 193, 92, 255), 3.0f, 0, 2.0f);
+        const mfd::api1::ContainerDefinition* selected = SelectedContainer();
+        if (selected == nullptr || selected->sizeMode == mfd::api1::ContainerSizeMode::FitContent) return;
+        for (const ImVec2 corner : std::array<ImVec2, 4U> {topLeft, topRight, bottomRight, bottomLeft})
+        {
+            drawList->AddRectFilled(ImVec2(corner.x - 5.5f, corner.y - 5.5f),
+                                    ImVec2(corner.x + 5.5f, corner.y + 5.5f),
+                                    IM_COL32(255, 193, 92, 255),
+                                    2.0f);
+        }
+        return;
+    }
+
     const auto drawSingleSelectionHandles = [&viewport](const mfd::ReticleGroup& reticle, const ReticleScreenBounds& bounds)
     {
         const mfd::Vec2 visualCenterLogical = mfd::ApplyTransform(ReticleVisualCenterLocal(reticle), reticle.transform);
@@ -5182,6 +5285,7 @@ void EditorApplication::CancelPreviewInteraction() noexcept
     interactionState_.reticleIndex = -1;
     interactionState_.reticleIndices.clear();
     interactionState_.startReticleTransforms.clear();
+    interactionState_.containerId.clear();
 }
 
 bool EditorApplication::HandleArmedPreviewToolInteraction(const ViewportState& viewport, const ImVec2 mouse)
@@ -5677,6 +5781,75 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
 
     const bool additiveSelection = ImGui::GetIO().KeyCtrl;
     const std::optional<int> clickedReticleIndex = FindNearestPageReticle(viewport, mouse);
+    if (!additiveSelection && layoutState_.pagePreviewViewOptions.showGizmos)
+    {
+        mfd::api1::ContainerLayoutEngine layoutEngine;
+        std::vector<mfd::api1::ContainerLayoutNode> containerLayouts;
+        std::string layoutError;
+        if (layoutEngine.Evaluate(page->containers, containerLayouts, layoutError))
+        {
+            const mfd::api1::ContainerLayoutNode* selectedLayout = nullptr;
+            if (documentState_.selection.kind == SelectionKind::Container)
+            {
+                for (const mfd::api1::ContainerLayoutNode& layout : containerLayouts)
+                {
+                    if (layout.id == documentState_.selection.containerId)
+                    {
+                        selectedLayout = &layout;
+                        break;
+                    }
+                }
+            }
+            if (selectedLayout != nullptr)
+            {
+                const auto& bounds = selectedLayout->bounds;
+                const ImVec2 topLeft = interactiveViewport.ToScreen(
+                    {bounds.center.x - bounds.size.x * 0.5f, bounds.center.y + bounds.size.y * 0.5f});
+                const ImVec2 bottomRight = interactiveViewport.ToScreen(
+                    {bounds.center.x + bounds.size.x * 0.5f, bounds.center.y - bounds.size.y * 0.5f});
+                const ImVec2 center((topLeft.x + bottomRight.x) * 0.5f,
+                                    (topLeft.y + bottomRight.y) * 0.5f);
+                const std::array<ImVec2, 4U> corners {
+                    topLeft,
+                    ImVec2(bottomRight.x, topLeft.y),
+                    bottomRight,
+                    ImVec2(topLeft.x, bottomRight.y)};
+                for (const ImVec2 corner : corners)
+                {
+                    if (Distance(mouse, corner) > 16.0f) continue;
+                    const mfd::api1::ContainerDefinition* selected = SelectedContainer();
+                    if (selected == nullptr) return;
+                    if (selected->sizeMode == mfd::api1::ContainerSizeMode::FitContent) break;
+                    interactionState_.containerId = selected->id;
+                    interactionState_.startContainerGeometry = selected->geometry;
+                    interactionState_.startMouseLogical = interactiveViewport.ToLogical(mouse);
+                    interactionState_.startCenterScreen = center;
+                    interactionState_.startCornerScreen = corner;
+                    interactionState_.startDistance = std::max(8.0f, Distance(corner, center));
+                    PushUndoSnapshot();
+                    interactionState_.mode = InteractionMode::ResizeContainer;
+                    return;
+                }
+            }
+
+            if (!clickedReticleIndex.has_value())
+            {
+                const mfd::Vec2 pointer = interactiveViewport.ToLogical(mouse);
+                for (auto iterator = containerLayouts.rbegin(); iterator != containerLayouts.rend(); ++iterator)
+                {
+                    const auto& bounds = iterator->bounds;
+                    const bool inside = iterator->effectiveVisible &&
+                                        pointer.x >= bounds.center.x - bounds.size.x * 0.5f &&
+                                        pointer.x <= bounds.center.x + bounds.size.x * 0.5f &&
+                                        pointer.y >= bounds.center.y - bounds.size.y * 0.5f &&
+                                        pointer.y <= bounds.center.y + bounds.size.y * 0.5f;
+                    if (!inside) continue;
+                    SelectContainer(documentState_.selection.pageIndex, iterator->id);
+                    return;
+                }
+            }
+        }
+    }
     const bool singleEditableSelection =
         (documentState_.selection.kind == SelectionKind::PageReticle && SelectedPageReticleCount() == 1) ||
         documentState_.selection.kind == SelectionKind::PageTitle ||
@@ -6846,6 +7019,137 @@ void EditorApplication::SelectPageStrobe(const int pageIndex, const int strobeIn
     interactionState_.handleKind = PrimitiveHandleKind::None;
 }
 
+void EditorApplication::SelectContainer(const int pageIndex, std::string containerId)
+{
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(documentState_.loaded.document.pages.size())) return;
+    mfd::PageDefinition& page = documentState_.loaded.document.pages[static_cast<std::size_t>(pageIndex)];
+    if (mfd::api1::FindContainer(page.containers, containerId) == nullptr) return;
+    documentState_.selection.kind = SelectionKind::Container;
+    documentState_.selection.pageIndex = pageIndex;
+    documentState_.selection.containerId = std::move(containerId);
+    documentState_.selection.pageReticleIndex = -1;
+    documentState_.selection.pageReticleIndices.clear();
+    interactionState_.mode = InteractionMode::None;
+}
+
+void EditorApplication::AddRootContainer()
+{
+    mfd::PageDefinition* page = ActivePage();
+    if (page == nullptr)
+    {
+        return;
+    }
+
+    const UndoSnapshot before = CaptureCurrentSnapshot();
+    const std::string id =
+        mfd::api1::ContainerEditorModel::AddRoot(*page, mfd::api1::ContainerType::Canvas);
+    if (id.empty())
+    {
+        RebuildStatus("The Page has reached the container limit.", true);
+        return;
+    }
+    PushUndoSnapshot(before);
+    SelectContainer(documentState_.selection.pageIndex, id);
+}
+
+void EditorApplication::AddChildContainer(const std::string_view parentId)
+{
+    mfd::PageDefinition* page = ActivePage();
+    if (page == nullptr)
+    {
+        return;
+    }
+
+    const UndoSnapshot before = CaptureCurrentSnapshot();
+    std::string error;
+    const std::string id = mfd::api1::ContainerEditorModel::AddChild(
+        *page, parentId, mfd::api1::ContainerType::Canvas, error);
+    if (id.empty())
+    {
+        RebuildStatus(std::move(error), true);
+        return;
+    }
+    PushUndoSnapshot(before);
+    SelectContainer(documentState_.selection.pageIndex, id);
+}
+
+void EditorApplication::DuplicateContainer(const std::string_view containerId)
+{
+    mfd::PageDefinition* page = ActivePage();
+    if (page == nullptr)
+    {
+        return;
+    }
+
+    const UndoSnapshot before = CaptureCurrentSnapshot();
+    std::string error;
+    const std::string id = mfd::api1::ContainerEditorModel::Duplicate(*page, containerId, error);
+    if (id.empty())
+    {
+        RebuildStatus(std::move(error), true);
+        return;
+    }
+    PushUndoSnapshot(before);
+    SelectContainer(documentState_.selection.pageIndex, id);
+}
+
+void EditorApplication::DeleteContainer(const std::string_view containerId)
+{
+    mfd::PageDefinition* page = ActivePage();
+    if (page == nullptr)
+    {
+        return;
+    }
+
+    const int pageIndex = documentState_.selection.pageIndex;
+    const UndoSnapshot before = CaptureCurrentSnapshot();
+    std::string error;
+    if (!mfd::api1::ContainerEditorModel::Delete(*page, containerId, error))
+    {
+        RebuildStatus(std::move(error), true);
+        return;
+    }
+    PushUndoSnapshot(before);
+    SelectPage(pageIndex, false);
+}
+
+void EditorApplication::ReparentContainer(const std::string_view containerId,
+                                          const std::string_view parentId)
+{
+    mfd::PageDefinition* page = ActivePage();
+    if (page == nullptr)
+    {
+        return;
+    }
+
+    const std::string stableContainerId(containerId);
+    const UndoSnapshot before = CaptureCurrentSnapshot();
+    std::string error;
+    if (!mfd::api1::ContainerEditorModel::Reparent(*page, containerId, parentId, error))
+    {
+        RebuildStatus(std::move(error), true);
+        return;
+    }
+    PushUndoSnapshot(before);
+    SelectContainer(documentState_.selection.pageIndex, stableContainerId);
+}
+
+void EditorApplication::DowngradeWindowToLegacyRemovingContainers()
+{
+    PushUndoSnapshot();
+    for (mfd::PageDefinition& page : documentState_.loaded.document.pages)
+    {
+        page.containers.clear();
+    }
+    documentState_.loaded.window.apiLevel = mfd::ApiLevel::Legacy;
+    if (documentState_.selection.kind == SelectionKind::Container)
+    {
+        SelectPage(documentState_.selection.pageIndex, false);
+    }
+    containerEditorHost_.Unload();
+    RebuildStatus("All containers were removed and the Window was downgraded to API LEVEL 0.", false);
+}
+
 void EditorApplication::TogglePageReticleSelection(const int pageIndex, const int reticleIndex)
 {
     if (pageIndex < 0 || pageIndex >= static_cast<int>(documentState_.loaded.document.pages.size()))
@@ -6945,6 +7249,20 @@ const mfd::PageDefinition* EditorApplication::ActivePage() const noexcept
     }
 
     return &documentState_.loaded.document.pages[static_cast<std::size_t>(documentState_.selection.pageIndex)];
+}
+
+mfd::api1::ContainerDefinition* EditorApplication::SelectedContainer() noexcept
+{
+    mfd::PageDefinition* page = ActivePage();
+    if (page == nullptr || documentState_.selection.kind != SelectionKind::Container) return nullptr;
+    return mfd::api1::FindContainer(page->containers, documentState_.selection.containerId);
+}
+
+const mfd::api1::ContainerDefinition* EditorApplication::SelectedContainer() const noexcept
+{
+    const mfd::PageDefinition* page = ActivePage();
+    if (page == nullptr || documentState_.selection.kind != SelectionKind::Container) return nullptr;
+    return mfd::api1::FindContainer(page->containers, documentState_.selection.containerId);
 }
 
 mfd::ReticleGroup* EditorApplication::SelectedPageReticle() noexcept
@@ -8232,6 +8550,28 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
         return;
     }
 
+    if (interactionState_.mode == InteractionMode::ResizeContainer)
+    {
+        mfd::api1::ContainerDefinition* container =
+            page == nullptr ? nullptr : mfd::api1::FindContainer(page->containers, interactionState_.containerId);
+        if (container == nullptr)
+        {
+            CancelPreviewInteraction();
+            return;
+        }
+        const float currentDistance = std::max(
+            4.0f,
+            Distance(ImGui::GetMousePos(), interactionState_.startCenterScreen));
+        const float factor = std::clamp(
+            currentDistance / std::max(8.0f, interactionState_.startDistance),
+            0.1f,
+            10.0f);
+        const mfd::api1::ContainerGizmoAdapter gizmo;
+        container->geometry = gizmo.ResizeAroundCenter(
+            interactionState_.startContainerGeometry, container->minimumSize, factor, container->sizeMode);
+        return;
+    }
+
     mfd::ReticleGroup* reticle = nullptr;
     mfd::Transform2D* reticleTransform = nullptr;
     if (documentState_.selection.kind == SelectionKind::PageTitle)
@@ -8385,6 +8725,9 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
         *reticleTransform = nextTransform;
         break;
     }
+
+    case InteractionMode::ResizeContainer:
+        break;
 
     case InteractionMode::None:
         break;
@@ -8553,6 +8896,12 @@ void EditorApplication::DrawPopups()
         workflowState_.reticleRenamePopup.openRequested = false;
     }
 
+    if (workflowState_.containerRenamePopup.openRequested)
+    {
+        ImGui::OpenPopup("Rename container");
+        workflowState_.containerRenamePopup.openRequested = false;
+    }
+
     if (workflowState_.reticleExtractionPopup.openRequested)
     {
         ImGui::OpenPopup("Extract as reticle");
@@ -8608,15 +8957,20 @@ void EditorApplication::DrawPopups()
             BrowseNewWindowFile();
         }
         ImGui::InputText("Window title", workflowState_.newWindowDraft.title.data(), workflowState_.newWindowDraft.title.size());
-        if (ImGui::BeginCombo("API LEVEL", u8"0 \u2014 Legacy"))
+        const bool newLevel1 = workflowState_.newWindowDraft.apiLevel == mfd::ApiLevel::Level1;
+        if (ImGui::BeginCombo("API LEVEL", newLevel1 ? u8"1 \u2014 Containers" : u8"0 \u2014 Legacy"))
         {
-            if (ImGui::Selectable(u8"0 \u2014 Legacy", true))
+            if (ImGui::Selectable(u8"0 \u2014 Legacy", !newLevel1))
             {
                 workflowState_.newWindowDraft.apiLevel = mfd::ApiLevel::Legacy;
             }
+            if (ImGui::Selectable(u8"1 \u2014 Containers", newLevel1))
+            {
+                workflowState_.newWindowDraft.apiLevel = mfd::ApiLevel::Level1;
+            }
             ImGui::EndCombo();
         }
-        ShowItemTooltip(u8"Legacy API \u2014 existing features and behavior.");
+        ShowItemTooltip("LEVEL 1 enables optional nested containers when both extension DLLs are available.");
         int windowSize[2] {workflowState_.newWindowDraft.width, workflowState_.newWindowDraft.height};
         if (ImGui::InputInt2("Size (px)", windowSize))
         {
@@ -8803,6 +9157,7 @@ void EditorApplication::DrawPopups()
     DrawPageImportPopup();
     DrawPageRenamePopup();
     DrawReticleRenamePopup();
+    DrawContainerRenamePopup();
     DrawReticleExtractionPopup();
     DrawDesignExportPopup();
     DrawPageManagementPopup();

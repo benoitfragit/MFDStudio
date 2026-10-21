@@ -292,6 +292,7 @@ void CollectDynamicLifecycleCommands(const std::vector<mfd::UserCommand>& source
 }
 
 using StaticUpdateKeyToIndex = std::unordered_map<std::string, std::size_t>;
+using ContainerUpdateKeyToIndex = std::unordered_map<std::string, std::size_t>;
 
 std::string MakeStaticReticleKey(const mfd::StaticReticleHandle& target)
 {
@@ -312,6 +313,31 @@ std::string MakeStaticReticleKey(const mfd::StaticReticleHandle& target)
         key.push_back('S');
         mfd::detail::AppendCompositeStringField(key, 'P', target.page);
         mfd::detail::AppendCompositeStringField(key, 'R', target.reticle);
+        return key;
+    }
+
+    return {};
+}
+
+std::string MakeContainerKey(const mfd::api1::ContainerHandle& target)
+{
+    std::string key;
+    if (target.pageId != 0U && target.containerTransportId != 0U)
+    {
+        key.reserve(1U + 2U * mfd::detail::kCompositeKeyFieldOverhead);
+        key.push_back('C');
+        mfd::detail::AppendCompositeUnsignedField(key, 'P', target.pageId);
+        mfd::detail::AppendCompositeUnsignedField(key, 'C', target.containerTransportId);
+        return key;
+    }
+
+    if (!target.page.empty() && !target.containerId.empty())
+    {
+        key.reserve(1U + target.page.size() + target.containerId.size() +
+                    2U * mfd::detail::kCompositeKeyFieldOverhead);
+        key.push_back('C');
+        mfd::detail::AppendCompositeStringField(key, 'P', target.page);
+        mfd::detail::AppendCompositeStringField(key, 'C', target.containerId);
         return key;
     }
 
@@ -555,6 +581,59 @@ void IndexStaticReticleUpdates(const std::vector<mfd::UserCommand>& commands, St
     }
 }
 
+void MergeContainerPatchFillingNewestAbsentFields(mfd::api1::ContainerStatePatch& newest,
+                                                  const mfd::api1::ContainerStatePatch& pending)
+{
+    FillOptionalIfNewestAbsent(newest.visible, pending.visible);
+    FillOptionalIfNewestAbsent(newest.enabled, pending.enabled);
+    FillOptionalIfNewestAbsent(newest.scrollOffset, pending.scrollOffset);
+}
+
+void CollectContainerUpdates(const std::vector<mfd::UserCommand>& commands,
+                             std::vector<mfd::api1::UpdateContainerCommand>& identifiedUpdates,
+                             ContainerUpdateKeyToIndex& identifiedIndexes,
+                             std::vector<mfd::api1::UpdateContainerCommand>& unidentifiableUpdates)
+{
+    identifiedUpdates.reserve(commands.size());
+    identifiedIndexes.reserve(commands.size());
+    for (const mfd::UserCommand& command : commands)
+    {
+        const auto* update = std::get_if<mfd::api1::UpdateContainerCommand>(&command);
+        if (update == nullptr) continue;
+
+        const std::string key = MakeContainerKey(update->target);
+        if (key.empty())
+        {
+            unidentifiableUpdates.push_back(*update);
+            continue;
+        }
+
+        const auto [position, inserted] = identifiedIndexes.try_emplace(key, identifiedUpdates.size());
+        if (inserted)
+        {
+            identifiedUpdates.push_back(*update);
+            continue;
+        }
+
+        mfd::api1::UpdateContainerCommand laterUpdate = *update;
+        MergeContainerPatchFillingNewestAbsentFields(laterUpdate.patch, identifiedUpdates[position->second].patch);
+        identifiedUpdates[position->second] = std::move(laterUpdate);
+    }
+}
+
+void IndexContainerUpdates(const std::vector<mfd::UserCommand>& commands,
+                           ContainerUpdateKeyToIndex& indexes)
+{
+    indexes.reserve(commands.size());
+    for (std::size_t index = 0U; index < commands.size(); ++index)
+    {
+        const auto* update = std::get_if<mfd::api1::UpdateContainerCommand>(&commands[index]);
+        if (update == nullptr) continue;
+        const std::string key = MakeContainerKey(update->target);
+        if (!key.empty()) indexes.try_emplace(key, index);
+    }
+}
+
 void MergePendingBatchPreservingUndeliveredDeltas(std::optional<mfd::CommandBatch>& pendingBatch,
                                                   mfd::CommandBatch&& newestBatch)
 {
@@ -584,6 +663,9 @@ void MergePendingBatchPreservingUndeliveredDeltas(std::optional<mfd::CommandBatc
     std::vector<mfd::UpdateReticleCommand> pendingStaticUpdates;
     StaticUpdateKeyToIndex pendingStaticIndexes;
     std::vector<mfd::UpdateReticleCommand> unidentifiablePendingStaticUpdates;
+    std::vector<mfd::api1::UpdateContainerCommand> pendingContainerUpdates;
+    ContainerUpdateKeyToIndex pendingContainerIndexes;
+    std::vector<mfd::api1::UpdateContainerCommand> unidentifiablePendingContainerUpdates;
     if (!pendingHasReset)
     {
         CollectDynamicLifecycleCommands(pendingBatch->commands, pendingDynamicOperations, pendingDynamicIndexes);
@@ -591,6 +673,10 @@ void MergePendingBatchPreservingUndeliveredDeltas(std::optional<mfd::CommandBatc
                                     pendingStaticUpdates,
                                     pendingStaticIndexes,
                                     unidentifiablePendingStaticUpdates);
+        CollectContainerUpdates(pendingBatch->commands,
+                                pendingContainerUpdates,
+                                pendingContainerIndexes,
+                                unidentifiablePendingContainerUpdates);
     }
 
     std::vector<DynamicLifecycleOperation> newestDynamicOperations;
@@ -601,10 +687,13 @@ void MergePendingBatchPreservingUndeliveredDeltas(std::optional<mfd::CommandBatc
 
     StaticUpdateKeyToIndex newestStaticIndexes;
     IndexStaticReticleUpdates(mergedBatch.commands, newestStaticIndexes);
+    ContainerUpdateKeyToIndex newestContainerIndexes;
+    IndexContainerUpdates(mergedBatch.commands, newestContainerIndexes);
 
     std::vector<mfd::UserCommand> carriedOperations;
     carriedOperations.reserve(pendingDynamicOperations.size() + pendingStaticUpdates.size() +
-                              unidentifiablePendingStaticUpdates.size());
+                              unidentifiablePendingStaticUpdates.size() + pendingContainerUpdates.size() +
+                              unidentifiablePendingContainerUpdates.size());
 
     for (DynamicLifecycleOperation& operation : pendingDynamicOperations)
     {
@@ -651,6 +740,26 @@ void MergePendingBatchPreservingUndeliveredDeltas(std::optional<mfd::CommandBatc
     }
 
     for (mfd::UpdateReticleCommand& pendingUpdate : unidentifiablePendingStaticUpdates)
+    {
+        carriedOperations.push_back(mfd::UserCommand {std::move(pendingUpdate)});
+    }
+
+    for (mfd::api1::UpdateContainerCommand& pendingUpdate : pendingContainerUpdates)
+    {
+        const std::string key = MakeContainerKey(pendingUpdate.target);
+        const auto newestIt = newestContainerIndexes.find(key);
+        if (newestIt == newestContainerIndexes.end())
+        {
+            carriedOperations.push_back(mfd::UserCommand {std::move(pendingUpdate)});
+            continue;
+        }
+
+        auto& newestUpdate =
+            std::get<mfd::api1::UpdateContainerCommand>(mergedBatch.commands[newestIt->second]);
+        MergeContainerPatchFillingNewestAbsentFields(newestUpdate.patch, pendingUpdate.patch);
+    }
+
+    for (mfd::api1::UpdateContainerCommand& pendingUpdate : unidentifiablePendingContainerUpdates)
     {
         carriedOperations.push_back(mfd::UserCommand {std::move(pendingUpdate)});
     }

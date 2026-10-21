@@ -168,11 +168,11 @@ TEST(PageImportServiceTests, ImportsSimplePageWithoutReticleDependency)
     EXPECT_TRUE(std::filesystem::exists(plan.targetPageFile));
 }
 
-TEST(PageImportServiceTests, RejectsUnsupportedDestinationApiLevelBeforeMutation)
+TEST(PageImportServiceTests, ImportsLegacyPageIntoLevelOneDestination)
 {
     ScopedTempDir tempDir;
     auto [loaded, files] = MakeCurrentWindowFixture(tempDir.Path());
-    loaded.window.apiLevel = static_cast<mfd::ApiLevel>(1U);
+    loaded.window.apiLevel = mfd::ApiLevel::Level1;
 
     const std::filesystem::path sourcePageFile =
         tempDir.Path() / "source" / "assets" / "pages" / "support.json";
@@ -183,6 +183,33 @@ TEST(PageImportServiceTests, RejectsUnsupportedDestinationApiLevelBeforeMutation
   "staticReticles": []
 })json");
 
+    editor::PageImportService service;
+    const editor::PageImportPlan plan =
+        service.BuildPlan(loaded, files, MakeImportRequest(loaded, sourcePageFile));
+
+    ASSERT_TRUE(plan.canExecute) << plan.error;
+    EXPECT_EQ(plan.requiredApiLevel, mfd::ApiLevel::Legacy);
+    std::string error;
+    ASSERT_TRUE(service.Execute(plan, loaded, files, nullptr, &error)) << error;
+    EXPECT_EQ(loaded.document.pages.size(), 2U);
+    EXPECT_TRUE(loaded.document.pages.back().containers.empty());
+}
+
+TEST(PageImportServiceTests, RejectsLevelOnePageFromLegacyDestinationBeforeMutation)
+{
+    ScopedTempDir tempDir;
+    auto [loaded, files] = MakeCurrentWindowFixture(tempDir.Path());
+
+    const std::filesystem::path sourcePageFile =
+        tempDir.Path() / "source" / "assets" / "pages" / "containers.json";
+    WriteTextFile(sourcePageFile,
+                  R"json({
+  "name": "Containers",
+  "layers": [{ "id": "layer" }],
+  "staticReticles": [],
+  "containers": [{ "id": "main", "type": "canvas" }]
+})json");
+
     const std::size_t originalPageCount = loaded.document.pages.size();
     const std::size_t originalPageFileCount = files.pageFiles.size();
     editor::PageImportService service;
@@ -190,17 +217,50 @@ TEST(PageImportServiceTests, RejectsUnsupportedDestinationApiLevelBeforeMutation
         service.BuildPlan(loaded, files, MakeImportRequest(loaded, sourcePageFile));
 
     EXPECT_FALSE(plan.canExecute);
-    EXPECT_NE(plan.error.find("API LEVEL 0"), std::string::npos);
+    EXPECT_EQ(plan.requiredApiLevel, mfd::ApiLevel::Level1);
+    EXPECT_NE(plan.error.find("LEVEL 1 containers"), std::string::npos);
     EXPECT_EQ(loaded.document.pages.size(), originalPageCount);
     EXPECT_EQ(files.pageFiles.size(), originalPageFileCount);
 
     editor::PageImportPlan forgedPlan;
     forgedPlan.canExecute = true;
+    forgedPlan.requiredApiLevel = mfd::ApiLevel::Level1;
     std::string error;
     EXPECT_FALSE(service.Execute(forgedPlan, loaded, files, nullptr, &error));
-    EXPECT_NE(error.find("API LEVEL 0"), std::string::npos);
+    EXPECT_NE(error.find("LEVEL 1 containers"), std::string::npos);
     EXPECT_EQ(loaded.document.pages.size(), originalPageCount);
     EXPECT_EQ(files.pageFiles.size(), originalPageFileCount);
+}
+
+TEST(PageImportServiceTests, ImportsLevelOnePageIntoLevelOneDestination)
+{
+    ScopedTempDir tempDir;
+    auto [loaded, files] = MakeCurrentWindowFixture(tempDir.Path());
+    loaded.window.apiLevel = mfd::ApiLevel::Level1;
+
+    const std::filesystem::path sourcePageFile =
+        tempDir.Path() / "source" / "assets" / "pages" / "containers.json";
+    WriteTextFile(sourcePageFile,
+                  R"json({
+  "name": "Containers",
+  "layers": [{ "id": "layer" }],
+  "staticReticles": [],
+  "containers": [
+    { "id": "main", "type": "linear", "children": [{ "id": "child" }] },
+    { "id": "child", "type": "grid" }
+  ]
+})json");
+
+    editor::PageImportService service;
+    const editor::PageImportPlan plan =
+        service.BuildPlan(loaded, files, MakeImportRequest(loaded, sourcePageFile));
+
+    ASSERT_TRUE(plan.canExecute) << plan.error;
+    EXPECT_EQ(plan.requiredApiLevel, mfd::ApiLevel::Level1);
+    std::string error;
+    ASSERT_TRUE(service.Execute(plan, loaded, files, nullptr, &error)) << error;
+    ASSERT_EQ(loaded.document.pages.size(), 2U);
+    EXPECT_EQ(loaded.document.pages.back().containers.size(), 2U);
 }
 
 TEST(PageImportServiceTests, ImportsPageWithReticleDependencyIntoCurrentLibrary)

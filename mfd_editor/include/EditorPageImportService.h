@@ -87,6 +87,8 @@ struct PageImportPlan
     ImportDisposition pageDisposition = ImportDisposition::CopyNew;
     /** @brief Indicates that the source file used the `{"page": {...}}` wrapper syntax. */
     bool sourceUsesPageWrapper = false;
+    /** @brief Minimum API level inferred from the source Page's actual content. */
+    mfd::ApiLevel requiredApiLevel = mfd::ApiLevel::Legacy;
     /** @brief Reticle-template dependencies imported or reused by this plan. */
     std::vector<ReticleImportPlan> reticles;
     /** @brief Validation error explaining why the plan cannot execute. */

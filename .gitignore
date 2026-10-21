@@ -51,6 +51,7 @@
 /examples/radar_load/assets/windows/*.generated.map
 /examples/tutorial/assets/windows/*.generated.map
 /examples/client_test_package/assets/windows/*.generated.map
+/examples/apilevel1/assets/windows/*.generated.map
 /examples/demo/client/generated/*
 /examples/hud/runtime/generated/*
 /examples/radar_load/client/generated/*

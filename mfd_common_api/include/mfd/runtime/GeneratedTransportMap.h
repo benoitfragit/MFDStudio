@@ -141,6 +141,19 @@ struct TransportMapStrobeEntry
     bool defaultActive = false;
 };
 
+/** @brief One exposed API LEVEL 1 container entry. */
+struct TransportMapContainerEntry
+{
+    /** @brief Stable generated transport id of the container. */
+    TransportId id = 0U;
+    /** @brief Generated transport id of the owning page. */
+    TransportId pageId = 0U;
+    /** @brief Stable authored page-local container identifier. */
+    std::string containerId;
+    /** @brief Normalized identifier used by runtime lookup. */
+    std::string normalizedContainerId;
+};
+
 /** @brief Parsed content of one `*.generated.map` companion file. */
 struct GeneratedTransportMap
 {
@@ -164,6 +177,8 @@ struct GeneratedTransportMap
     std::vector<TransportMapBlinkTypeEntry> blinkTypes;
     /** @brief Generated page-local strobe entries. */
     std::vector<TransportMapStrobeEntry> strobes;
+    /** @brief Generated exposed API LEVEL 1 container entries. */
+    std::vector<TransportMapContainerEntry> containers;
 };
 
 /**

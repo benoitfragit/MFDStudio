@@ -1,0 +1,76 @@
+# This file is part of MFDStudio.
+# Project author: Benoit Fra
+# Repository: https://github.com/benoitfragit/MFDStudio
+
+include(GoogleTest)
+
+add_executable(mfd_apilevel1_tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/ContainerCommandTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ContainerInputRouterTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ContainerEditorExtensionTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ContainerGizmoAdapterTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ContainerEditorModelTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ContainerLayoutTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ContainerRuntimeAbiTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ContainerRuntimeSessionTests.cpp
+    ${MFD_APILEVEL1_ROOT_DIR}/editor/src/ContainerEditorModel.cpp
+    ${MFD_APILEVEL1_ROOT_DIR}/editor/src/ContainerGizmoAdapter.cpp
+    ${MFD_APILEVEL1_ROOT_DIR}/runtime/src/ContainerInputRouter.cpp)
+
+mfd_configure_test_runtime_output(mfd_apilevel1_tests)
+target_compile_features(mfd_apilevel1_tests PRIVATE cxx_std_17)
+target_include_directories(mfd_apilevel1_tests PRIVATE
+    ${MFD_APILEVEL1_RUNTIME_INCLUDE_DIR}
+    ${MFD_APILEVEL1_EDITOR_INCLUDE_DIR})
+target_link_libraries(mfd_apilevel1_tests PRIVATE
+    mfd::api
+    mfd::io_json
+    mfd::model
+    mfd::runtime_api
+    mfd::transport
+    mfd_containers_api1
+    mfd_editor_containers_api1)
+mfd_private_library(mfd_apilevel1_tests GTest::gtest_main)
+mfd_private_library(mfd_apilevel1_tests nlohmann_json::nlohmann_json)
+mfd_enable_target_warnings(mfd_apilevel1_tests)
+
+if(WIN32)
+    add_custom_command(
+        TARGET mfd_apilevel1_tests
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:mfd_api>
+                $<TARGET_FILE:mfd_runtime_api>
+                $<TARGET_FILE:mfd_containers_api1>
+                $<TARGET_FILE:mfd_editor_containers_api1>
+                $<TARGET_FILE_DIR:mfd_apilevel1_tests>/
+        VERBATIM)
+endif()
+
+gtest_discover_tests(mfd_apilevel1_tests
+    WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_apilevel1_tests>"
+    DISCOVERY_TIMEOUT 60)
+add_executable(mfd_apilevel1_extension_availability_tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/ExtensionAvailabilityTests.cpp)
+target_compile_features(mfd_apilevel1_extension_availability_tests PRIVATE cxx_std_17)
+target_link_libraries(mfd_apilevel1_extension_availability_tests PRIVATE
+    mfd::runtime_api
+    GTest::gtest_main)
+mfd_enable_target_warnings(mfd_apilevel1_extension_availability_tests)
+set_target_properties(mfd_apilevel1_extension_availability_tests PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/without_extension")
+
+if(WIN32)
+    add_custom_command(
+        TARGET mfd_apilevel1_extension_availability_tests
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+                "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_apilevel1_extension_availability_tests>"
+                "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:mfd_apilevel1_extension_availability_tests>,$<SEMICOLON>>"
+                -P "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake"
+        VERBATIM)
+endif()
+
+gtest_discover_tests(mfd_apilevel1_extension_availability_tests
+    WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_apilevel1_extension_availability_tests>"
+    DISCOVERY_TIMEOUT 60)

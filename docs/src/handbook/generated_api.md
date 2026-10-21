@@ -36,14 +36,20 @@ Treat those three outputs as one contract:
 - if the generated C++ and the map drift apart, generated batches are rejected
 
 The generator validates the Window's optional `apiLevel` before generation.
-This release accepts only an omitted level or integer `0`, both representing
-LEVEL 0 (Legacy); any unsupported or malformed value fails with an explicit
+This release accepts an omitted level or integer `0` as LEVEL 0, and integer `1`
+as LEVEL 1 Containers; any unsupported or malformed value fails with an explicit
 diagnostic. Adding `"apiLevel": 0` to an otherwise identical legacy Window does
 not alter the generated header, source, transport IDs, map, or `mappingHash`.
 The level is intentionally absent from the generated transport map and hash.
 LEVEL 0 requires no extension DLL, additional runtime dependency, or client-code
 migration. The shared `ApiLevel` header ships with the existing client API
 development component.
+
+For actual LEVEL 1 content, the existing generator loads the Containers Python
+extension and emits `mfd::client::Container` handles only for definitions marked
+`exposed`. A LEVEL 1 capability selection alone, and non-exposed layout-only
+containers, do not change legacy generated names or IDs. See
+[API LEVEL 1 containers](./containers.md#generated-c-control).
 
 There is no name-based compatibility path for feedback identity. Regenerate and
 ship the generated C++ and map together whenever authored identifiers change.

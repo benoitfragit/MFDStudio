@@ -43,6 +43,28 @@ void PaintAdd(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
     drawList.AddLine(ImVec2(m.center.x, m.center.y - m.radius), ImVec2(m.center.x, m.center.y + m.radius), col, m.thickness);
 }
 
+void PaintAddChild(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
+{
+    const float branchX = m.center.x - m.radius * 0.72f;
+    const float top = m.center.y - m.radius * 0.82f;
+    const float bottom = m.center.y + m.radius * 0.54f;
+    const float branchEnd = m.center.x - m.radius * 0.05f;
+    drawList.AddCircleFilled(ImVec2(branchX, top), std::max(1.2f, m.thickness * 0.65f), col);
+    drawList.AddLine(ImVec2(branchX, top), ImVec2(branchX, bottom), col, m.thickness);
+    drawList.AddLine(ImVec2(branchX, bottom), ImVec2(branchEnd, bottom), col, m.thickness);
+
+    const ImVec2 plusCenter(m.center.x + m.radius * 0.46f, m.center.y + m.radius * 0.36f);
+    const float plusRadius = m.radius * 0.48f;
+    drawList.AddLine(ImVec2(plusCenter.x - plusRadius, plusCenter.y),
+                     ImVec2(plusCenter.x + plusRadius, plusCenter.y),
+                     col,
+                     m.thickness);
+    drawList.AddLine(ImVec2(plusCenter.x, plusCenter.y - plusRadius),
+                     ImVec2(plusCenter.x, plusCenter.y + plusRadius),
+                     col,
+                     m.thickness);
+}
+
 void PaintSearch(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
 {
     const ImVec2 ringCenter(m.center.x - m.radius * 0.25f, m.center.y - m.radius * 0.25f);
@@ -353,6 +375,9 @@ void PaintGlyph(ImDrawList& drawList, const EditorIcon icon, const ImVec2& topLe
         return;
     case EditorIcon::Add:
         PaintAdd(drawList, metrics, col);
+        return;
+    case EditorIcon::AddChild:
+        PaintAddChild(drawList, metrics, col);
         return;
     case EditorIcon::Search:
         PaintSearch(drawList, metrics, col);

@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cctype>
+#include <cstdint>
 #include <fstream>
 #include <functional>
 #include <optional>
@@ -35,6 +36,7 @@ struct PageSourceMetadata
     std::string pageName;
     std::vector<std::string> templateIds;
     bool usesPageWrapper = false;
+    mfd::ApiLevel requiredApiLevel = mfd::ApiLevel::Legacy;
 };
 
 class ScopedImportWorkspace
@@ -103,13 +105,24 @@ std::filesystem::path NormalizePath(std::filesystem::path path)
 
 std::optional<std::string> DestinationApiLevelError(const mfd::ApiLevel apiLevel)
 {
-    if (apiLevel == mfd::ApiLevel::Legacy)
+    if (apiLevel == mfd::ApiLevel::Legacy || apiLevel == mfd::ApiLevel::Level1)
     {
         return std::nullopt;
     }
 
     return "Page import rejected: the destination Window uses an unsupported API LEVEL. "
-           "This editor supports only API LEVEL 0 (Legacy).";
+           "This editor supports API LEVEL 0 (Legacy) and LEVEL 1 (Containers).";
+}
+
+std::optional<std::string> PageCompatibilityError(const mfd::ApiLevel destination,
+                                                  const mfd::ApiLevel required)
+{
+    if (static_cast<std::uint32_t>(destination) >= static_cast<std::uint32_t>(required))
+    {
+        return std::nullopt;
+    }
+    return "Page import rejected before modification: the Page contains LEVEL 1 containers, "
+           "but the destination Window is API LEVEL 0 (Legacy).";
 }
 
 bool PathExists(const std::filesystem::path& path)
@@ -255,6 +268,17 @@ PageSourceMetadata ParsePageSourceMetadata(const std::filesystem::path& sourcePa
     PageSourceMetadata metadata;
     metadata.pageName = nameField->get<std::string>();
     metadata.usesPageWrapper = &pageNode != &document;
+    if (pageNode.contains("containers"))
+    {
+        if (!pageNode.at("containers").is_array())
+        {
+            throw std::runtime_error("Page containers field must be a JSON array.");
+        }
+        if (!pageNode.at("containers").empty())
+        {
+            metadata.requiredApiLevel = mfd::ApiLevel::Level1;
+        }
+    }
 
     std::unordered_set<std::string, mfd::TransparentStringHash, mfd::TransparentStringEqual> seenTemplateIds;
 
@@ -562,6 +586,10 @@ mfd::LoadedWindowConfiguration LoadSourceConfigurationForImport(const PageImport
     windowDocument["reticleLibraryFolder"] = NormalizePath(sourceReticleLibraryFolder).generic_string();
     windowDocument["pages"] = json::array({NormalizePath(plan.sourcePageFile).generic_string()});
     windowDocument["defaultPage"] = plan.sourcePageName;
+    if (plan.requiredApiLevel == mfd::ApiLevel::Level1)
+    {
+        windowDocument["apiLevel"] = 1;
+    }
 
     std::ofstream output(windowFile, std::ios::binary);
     if (!output.is_open())
@@ -628,6 +656,14 @@ PageImportPlan PageImportService::BuildPlan(const mfd::LoadedWindowConfiguration
         plan.sourcePageName = sourceMetadata.pageName;
         plan.targetPageName = sourceMetadata.pageName;
         plan.sourceUsesPageWrapper = sourceMetadata.usesPageWrapper;
+        plan.requiredApiLevel = sourceMetadata.requiredApiLevel;
+        if (const std::optional<std::string> compatibilityError =
+                PageCompatibilityError(loaded.window.apiLevel, plan.requiredApiLevel);
+            compatibilityError.has_value())
+        {
+            plan.error = *compatibilityError;
+            return plan;
+        }
         plan.sourceAssetsRoot = InferAssetsRootFromPageFile(plan.sourcePageFile);
 
         const AssetReferenceIndex index = referenceIndexService_.BuildIndex(AssetReferenceIndexRequest {plan.sourceAssetsRoot});
@@ -883,6 +919,16 @@ bool PageImportService::Execute(const PageImportPlan& plan,
         }
         return false;
     }
+    if (const std::optional<std::string> compatibilityError =
+            PageCompatibilityError(loaded.window.apiLevel, plan.requiredApiLevel);
+        compatibilityError.has_value())
+    {
+        if (error != nullptr)
+        {
+            *error = *compatibilityError;
+        }
+        return false;
+    }
 
     try
     {
@@ -893,6 +939,18 @@ bool PageImportService::Execute(const PageImportPlan& plan,
         }
 
         mfd::PageDefinition importedPage = importedConfiguration.document.pages.front();
+        const mfd::ApiLevel actualRequiredLevel = importedPage.containers.empty()
+                                                      ? mfd::ApiLevel::Legacy
+                                                      : mfd::ApiLevel::Level1;
+        if (const std::optional<std::string> compatibilityError =
+                PageCompatibilityError(loaded.window.apiLevel, actualRequiredLevel);
+            compatibilityError.has_value())
+        {
+            throw std::runtime_error(*compatibilityError);
+        }
+        mfd::LoadedWindowConfiguration stagedLoaded = loaded;
+        EditorFileLayout stagedFileLayout = files;
+
         std::unordered_map<std::string, std::string, mfd::TransparentStringHash, mfd::TransparentStringEqual> templateIdRemap;
         templateIdRemap.reserve(plan.reticles.size());
 
@@ -904,7 +962,7 @@ bool PageImportService::Execute(const PageImportPlan& plan,
         ApplyTemplateIdRemap(importedPage, templateIdRemap);
         importedPage.name = plan.targetPageName;
         importedPage.normalizedName = mfd::NormalizePageName(plan.targetPageName);
-        importedPage.defaultPage = !HasAnyDefaultPage(loaded.document.pages);
+        importedPage.defaultPage = !HasAnyDefaultPage(stagedLoaded.document.pages);
 
         std::vector<std::string> importedTemplateIds;
         std::vector<std::filesystem::path> stagedFiles;
@@ -913,7 +971,7 @@ bool PageImportService::Execute(const PageImportPlan& plan,
         {
             if (reticlePlan.disposition == ImportDisposition::KeepExisting)
             {
-                RemovePathIfPresent(files.removedTemplateFiles, reticlePlan.targetFile);
+                RemovePathIfPresent(stagedFileLayout.removedTemplateFiles, reticlePlan.targetFile);
                 continue;
             }
 
@@ -928,26 +986,30 @@ bool PageImportService::Execute(const PageImportPlan& plan,
             mfd::ReticleGroup importedTemplate = sourceTemplateIterator->second;
             RenameImportedTemplate(importedTemplate, reticlePlan.targetTemplateId);
 
-            loaded.document.reticleLibrary[reticlePlan.targetTemplateId] = std::move(importedTemplate);
-            files.templateFiles[reticlePlan.targetTemplateId] = NormalizePath(reticlePlan.targetFile);
-            RemovePathIfPresent(files.removedTemplateFiles, reticlePlan.targetFile);
+            stagedLoaded.document.reticleLibrary[reticlePlan.targetTemplateId] = std::move(importedTemplate);
+            stagedFileLayout.templateFiles[reticlePlan.targetTemplateId] = NormalizePath(reticlePlan.targetFile);
+            RemovePathIfPresent(stagedFileLayout.removedTemplateFiles, reticlePlan.targetFile);
 
             importedTemplateIds.push_back(reticlePlan.targetTemplateId);
             stagedFiles.push_back(NormalizePath(reticlePlan.targetFile));
         }
 
-        files.pageFiles.push_back(NormalizePath(plan.targetPageFile));
-        RemovePathIfPresent(files.removedPageFiles, plan.targetPageFile);
-        loaded.document.pages.push_back(std::move(importedPage));
-        loaded.window.pageFiles = files.pageFiles;
+        stagedFileLayout.pageFiles.push_back(NormalizePath(plan.targetPageFile));
+        RemovePathIfPresent(stagedFileLayout.removedPageFiles, plan.targetPageFile);
+        stagedLoaded.document.pages.push_back(std::move(importedPage));
+        stagedLoaded.window.pageFiles = stagedFileLayout.pageFiles;
 
-        const int importedPageIndex = static_cast<int>(loaded.document.pages.size()) - 1;
+        const int importedPageIndex = static_cast<int>(stagedLoaded.document.pages.size()) - 1;
         stagedFiles.push_back(NormalizePath(plan.targetPageFile));
+
+        const std::string importedPageName = stagedLoaded.document.pages.back().name;
+        loaded = std::move(stagedLoaded);
+        files = std::move(stagedFileLayout);
 
         if (result != nullptr)
         {
             result->importedPageIndex = importedPageIndex;
-            result->pageName = loaded.document.pages.back().name;
+            result->pageName = importedPageName;
             result->pageFile = NormalizePath(plan.targetPageFile);
             result->importedTemplateIds = std::move(importedTemplateIds);
             result->stagedFiles = std::move(stagedFiles);

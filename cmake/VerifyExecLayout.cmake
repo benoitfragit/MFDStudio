@@ -13,9 +13,20 @@ foreach(required_var
 endforeach()
 
 set(config_root "${EXEC_ROOT}/${TOOLSET}/${PLATFORM}/${BUILD_CONFIG}")
-set(exec_stage_sentinel "${config_root}/mfd_window.exe")
+set(exec_stage_required_files
+    "${config_root}/mfd_window.exe"
+    "${config_root}/mfd_containers_api1.dll"
+    "${config_root}/mfd_editor_containers_api1.dll"
+    "${config_root}/apilevel1_containers_client.exe"
+    "${config_root}/assets/windows/containers_window.json")
+set(exec_stage_needs_refresh OFF)
+foreach(required_file IN LISTS exec_stage_required_files)
+    if(NOT EXISTS "${required_file}")
+        set(exec_stage_needs_refresh ON)
+    endif()
+endforeach()
 
-if(NOT EXISTS "${exec_stage_sentinel}")
+if(exec_stage_needs_refresh)
     execute_process(
         COMMAND
             ${CMAKE_COMMAND}
@@ -53,6 +64,9 @@ expect_exists("Exec root staged window launcher" "${config_root}/mfd_window.exe"
 expect_exists("Exec root staged editor" "${config_root}/mfd_editor.exe")
 expect_exists("Exec root staged client API DLL" "${config_root}/mfd_client_api.dll")
 expect_exists("Exec root staged low-level API DLL" "${config_root}/mfd_api.dll")
+expect_exists("Exec root staged LEVEL 1 runtime DLL" "${config_root}/mfd_containers_api1.dll")
+expect_exists("Exec root staged LEVEL 1 editor DLL" "${config_root}/mfd_editor_containers_api1.dll")
+expect_exists("Exec root staged LEVEL 1 example client" "${config_root}/apilevel1_containers_client.exe")
 expect_exists("Exec root staged launch script" "${config_root}/Start-MfdWindow.bat")
 expect_exists("Exec root staged demo launch script" "${config_root}/Start-MfdDemo.bat")
 expect_exists("Exec root staged HUD launch script" "${config_root}/Start-HUD.bat")
@@ -60,8 +74,11 @@ expect_exists("Exec root staged LHLD launch script" "${config_root}/Start-LHLD.b
 expect_exists("Exec root staged radar load launch script" "${config_root}/Start-RadarLoad.bat")
 expect_exists("Exec root staged package test launch script" "${config_root}/Start-MfdPackageTest.bat")
 expect_exists("Exec root staged tutorial launch script" "${config_root}/Start-Tutorial.bat")
+expect_exists("Exec root staged API LEVEL 1 launch script" "${config_root}/Start-APILevel1Containers.bat")
 expect_exists("Exec root staged branding icon" "${config_root}/branding/mfdstudio_app_icon.png")
 expect_exists("Exec root staged demo asset" "${config_root}/assets/windows/demo_window.json")
+expect_exists("Exec root staged LEVEL 1 window asset" "${config_root}/assets/windows/containers_window.json")
+expect_exists("Exec root staged LEVEL 1 page asset" "${config_root}/assets/pages/containers.json")
 expect_exists("Exec root staged HUD window asset" "${config_root}/assets/windows/hud_window.json")
 expect_exists("Exec root staged LHLD window asset" "${config_root}/assets/windows/lhld_window.json")
 expect_exists("Exec root staged HUD/LHLD text font" "${config_root}/assets/fonts/ShareTechMono-Regular.ttf")

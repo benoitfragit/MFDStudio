@@ -28,6 +28,7 @@
 #include "mfd/control/StrobeFeedback.h"
 #include "mfd/control/WindowFeedback.h"
 #include "mfd/control/internal/CommandWorkBudget.h"
+#include "mfd/apilevel1/ContainerRuntimeHost.h"
 
 namespace mfd::runtime_api
 {
@@ -380,10 +381,16 @@ public:
         const std::string previousPage = scene_.ActivePageName();
         SceneRegistry candidateScene;
         std::unique_ptr<UdpRuntimeBridge> candidateBridge;
+        api1::ContainerRuntimeHost candidateContainerRuntime;
         WindowAssetDefinition candidateWindow;
         std::filesystem::path candidateWindowFile;
         try
         {
+            if (loaded.window.apiLevel == ApiLevel::Level1 &&
+                !candidateContainerRuntime.LoadForProcess(loaded.window.sourceFile, error))
+            {
+                return false;
+            }
             candidateScene.LoadDocument(std::move(loaded.document), std::move(loaded.generatedTransportMap));
             if (candidateScene.HasPage(previousPage))
             {
@@ -427,6 +434,7 @@ public:
         scene_ = std::move(candidateScene);
         windowDefinition_ = std::move(candidateWindow);
         runtimeBridge_ = std::move(candidateBridge);
+        containerRuntime_ = std::move(candidateContainerRuntime);
         windowFile_ = std::move(candidateWindowFile);
         ResetLoadedState();
 
@@ -746,6 +754,7 @@ private:
     CommandProcessor commandProcessor_ {scene_};
     WindowAssetDefinition windowDefinition_ {};
     std::unique_ptr<UdpRuntimeBridge> runtimeBridge_ {};
+    api1::ContainerRuntimeHost containerRuntime_ {};
     RuntimeFeedbackThrottle feedbackThrottle_ {};
     RuntimeFeedbackThrottle lifecycleThrottle_ {};
     std::vector<CommandBatch> pendingCommandBatches_ {};

@@ -1227,7 +1227,7 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemov
 TEST(EditorDocumentSerializerTests, SerializeWindowRejectsUnsupportedApiLevel)
 {
     mfd::WindowAssetDefinition window;
-    window.apiLevel = static_cast<mfd::ApiLevel>(1U);
+    window.apiLevel = static_cast<mfd::ApiLevel>(2U);
 
     EXPECT_THROW(editor::SerializeWindowToJsonString(window, {}, {}), std::runtime_error);
 }

@@ -1125,6 +1125,10 @@ public:
             {
                 HandleShortcuts();
                 Update(deltaSeconds);
+                if (!ShouldDrawStartupSplash() && !debugOverlay_.Active())
+                {
+                    renderer_.HandleContainerInput(RuntimeScene(), RenderViewportWidth(), GetScreenHeight());
+                }
             }
             catch (const std::exception& exception)
             {

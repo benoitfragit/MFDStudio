@@ -29,6 +29,10 @@ namespace mfd
 {
 struct ReticlePatch;
 struct WindowDisplayPatch;
+namespace api1
+{
+struct ContainerStatePatch;
+}
 
 /**
  * @brief Lightweight description of one page exposed by the runtime scene.
@@ -239,6 +243,19 @@ public:
     std::optional<PageViewState> ViewForPage(std::string_view pageName) const noexcept;
     /** @brief Returns the current active page view. */
     PageViewState ActivePageView() const noexcept;
+    /**
+     * @brief Copies active-page container definitions with runtime state overrides applied.
+     * @param destination Caller-owned scratch vector, cleared before use.
+     */
+    void CollectActiveContainerDefinitions(
+        std::vector<api1::ContainerDefinition>& destination) const;
+    /**
+     * @brief Applies local pointer-driven scroll state to an active-page container.
+     * @param containerId Stable authored container identifier.
+     * @param offset Finite non-negative offset already clamped by the layout engine.
+     * @return `true` when the active page owns the container and the state was updated.
+     */
+    bool SetActiveContainerScrollOffset(std::string_view containerId, Vec2 offset) noexcept;
     /** @brief Returns the live strobe state of a page when that page is currently active. */
     std::optional<StrobeSummary> StrobeForPage(std::string_view pageName) const;
     /** @brief Returns the strobe state of the active page when it exists. */
@@ -476,12 +493,22 @@ private:
             bool enabled = false;
         };
 
+        struct ContainerState
+        {
+            std::string normalizedPageName;
+            std::string normalizedContainerId;
+            bool visible = true;
+            bool enabled = true;
+            Vec2 scrollOffset {};
+        };
+
         std::vector<PageState> pages;
         std::vector<ReticleState> staticReticles;
         std::vector<DynamicReticleState> dynamicReticles;
         std::vector<StrobeState> strobes;
         std::vector<DynamicTemplateVisibilityState> dynamicTemplateVisibility;
         std::vector<DynamicTemplateStrobeMagnetState> dynamicTemplateStrobeMagnet;
+        std::vector<ContainerState> containers;
         /** @brief Normalized page keys covered by a page-scoped snapshot (`scoped == true`). */
         std::vector<std::string> scopedPageKeys;
         std::uint64_t nextDynamicCreationSequence = 1;
@@ -550,6 +577,21 @@ private:
     {
         TransportId pageId = 0;
         std::string strobeName;
+    };
+    /** @brief Generated API LEVEL 1 container lookup row. */
+    struct TransportContainerLookup
+    {
+        TransportId pageId = 0U;
+        std::string containerId;
+    };
+    /** @brief Mutable runtime state kept separate from authored definitions. */
+    struct ContainerRuntimeState
+    {
+        std::string normalizedPageName;
+        std::string normalizedContainerId;
+        bool visible = true;
+        bool enabled = true;
+        Vec2 scrollOffset {};
     };
 
     /** @brief Copies one page's mutable runtime state into a snapshot under construction. */
@@ -789,6 +831,12 @@ private:
     const std::string* ResolveBlinkType(TransportId pageId, TransportId blinkTypeId) const noexcept;
     /** @brief Resolves one generated strobe transport id within a page. */
     const std::string* ResolveStrobeName(TransportId pageId, TransportId strobeId) const noexcept;
+    /** @brief Resolves one generated container id within a page. */
+    const std::string* ResolveContainerId(TransportId pageId, TransportId containerId) const noexcept;
+    /** @brief Applies one validated container patch using normalized runtime identifiers. */
+    bool ApplyContainerPatchByKey(std::string_view normalizedPageName,
+                                  std::string_view containerId,
+                                  const api1::ContainerStatePatch& patch) noexcept;
     /** @brief Resolves one generated primitive transport id for a static reticle owner. */
     const std::string* ResolvePrimitiveIdForReticle(TransportId reticleId, TransportId primitiveId) const noexcept;
     /** @brief Resolves one generated primitive transport id for a template owner. */
@@ -829,6 +877,11 @@ private:
     std::unordered_map<TransportId, TransportBlinkLookup> transportBlinks_ {};
     /** @brief Generated strobe lookup indexed by generated transport id. */
     std::unordered_map<TransportId, TransportStrobeLookup> transportStrobes_ {};
+    /** @brief Generated API LEVEL 1 container lookup indexed by transport id. */
+    std::unordered_map<TransportId, TransportContainerLookup> transportContainers_ {};
+    /** @brief Runtime container overrides keyed by normalized page and container ids. */
+    std::unordered_map<std::string, ContainerRuntimeState, TransparentStringHash, TransparentStringEqual>
+        containerRuntimeStates_ {};
     /** @brief Monotonic creation sequence used to keep dynamic instance ordering stable inside one template binding. */
     std::uint64_t nextDynamicCreationSequence_ = 1;
     /** @brief Normalized name of the currently active page. */

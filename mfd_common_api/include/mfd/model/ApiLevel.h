@@ -21,6 +21,8 @@ namespace mfd
  */
 enum class ApiLevel : std::uint32_t
 {
-    Legacy = 0
+    Legacy = 0,
+    /** @brief Enables the optional recursive container extension. */
+    Level1 = 1
 };
 } // namespace mfd

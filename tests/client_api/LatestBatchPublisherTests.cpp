@@ -2369,6 +2369,58 @@ TEST(LatestBatchPublisherTests, CoalescesPresetCustomTransitionsWithoutStaleColo
     }
 }
 
+TEST(LatestBatchPublisherTests, MergesPendingContainerPatchFieldsForTheSameTarget)
+{
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool entered = false;
+    bool release = false;
+    std::vector<mfd::CommandBatch> delivered;
+    mfd::client::LatestBatchPublisher publisher(
+        [&mutex, &condition, &entered, &release, &delivered](const mfd::CommandBatch& batch)
+        {
+            std::unique_lock lock(mutex);
+            delivered.push_back(batch);
+            if (batch.sequence != 1U) return true;
+            entered = true;
+            condition.notify_all();
+            return condition.wait_for(lock, std::chrono::seconds(5), [&release]() { return release; });
+        });
+
+    EXPECT_TRUE(publisher.SubmitLatest(MakeBatch(1U)));
+    {
+        std::unique_lock lock(mutex);
+        ASSERT_TRUE(condition.wait_for(lock, std::chrono::seconds(2), [&entered]() { return entered; }));
+    }
+
+    mfd::api1::UpdateContainerCommand older;
+    older.target = {"HUD", "main_panel", 7U, 19U};
+    older.patch.visible = false;
+    auto pending = MakeBatch(2U);
+    pending.commands.emplace_back(older);
+    EXPECT_TRUE(publisher.SubmitLatest(std::move(pending)));
+
+    mfd::api1::UpdateContainerCommand newer;
+    newer.target = older.target;
+    newer.patch.enabled = false;
+    auto latest = MakeBatch(3U);
+    latest.commands.emplace_back(newer);
+    EXPECT_TRUE(publisher.SubmitLatest(std::move(latest)));
+    {
+        std::lock_guard lock(mutex);
+        release = true;
+    }
+    condition.notify_all();
+    publisher.Flush();
+
+    ASSERT_EQ(delivered.size(), 2U);
+    ASSERT_EQ(delivered.back().commands.size(), 1U);
+    const auto* merged = std::get_if<mfd::api1::UpdateContainerCommand>(&delivered.back().commands.front());
+    ASSERT_NE(merged, nullptr);
+    EXPECT_EQ(merged->patch.visible, false);
+    EXPECT_EQ(merged->patch.enabled, false);
+}
+
 TEST(LatestBatchPublisherShutdownDeathTest, CallbackStopAndConcurrentJoinsComplete)
 {
     EXPECT_EXIT({ CheckReentrantAndConcurrentStop(false); ExitWithShutdownTestResult(); },

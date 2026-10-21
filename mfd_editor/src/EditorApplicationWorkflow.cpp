@@ -22,6 +22,7 @@
 #include "EditorTutorialController.h"
 #include "EditorTutorialData.h"
 #include "EditorUiTheme.h"
+#include "mfd/apilevel1/ContainerLayoutEngine.h"
 #include "mfd/ipc/UdpLimits.h"
 #include "mfd/model/RuntimeBudgets.h"
 
@@ -180,6 +181,23 @@ void EditorApplication::OpenReticleRenamePopup(std::string templateId)
     workflowState_.reticleRenamePopup.openRequested = true;
     workflowState_.reticleRenamePopup.renameTemplateFile = true;
     CopyTextBuffer(workflowState_.reticleRenamePopup.newName, iterator->second.id.empty() ? iterator->first : iterator->second.id);
+}
+
+void EditorApplication::OpenContainerRenamePopup(std::string containerId)
+{
+    const mfd::PageDefinition* page = ActivePage();
+    const mfd::api1::ContainerDefinition* container =
+        page == nullptr ? nullptr : mfd::api1::FindContainer(page->containers, containerId);
+    if (container == nullptr)
+    {
+        RebuildStatus("The selected container is no longer available.", true);
+        return;
+    }
+
+    workflowState_.containerRenamePopup.pageIndex = documentState_.selection.pageIndex;
+    workflowState_.containerRenamePopup.currentId = std::move(containerId);
+    workflowState_.containerRenamePopup.openRequested = true;
+    CopyTextBuffer(workflowState_.containerRenamePopup.newId, container->id);
 }
 
 void EditorApplication::OpenReticleExtractionPopup()
@@ -1266,6 +1284,72 @@ void EditorApplication::DrawReticleRenamePopup()
     ImGui::EndPopup();
 }
 
+void EditorApplication::DrawContainerRenamePopup()
+{
+    if (!ImGui::BeginPopupModal("Rename container", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        return;
+    }
+
+    const int pageIndex = workflowState_.containerRenamePopup.pageIndex;
+    mfd::PageDefinition* page =
+        pageIndex >= 0 && pageIndex < static_cast<int>(documentState_.loaded.document.pages.size())
+            ? &documentState_.loaded.document.pages[static_cast<std::size_t>(pageIndex)]
+            : nullptr;
+    const mfd::api1::ContainerDefinition* container =
+        page == nullptr
+            ? nullptr
+            : mfd::api1::FindContainer(page->containers, workflowState_.containerRenamePopup.currentId);
+    if (container == nullptr)
+    {
+        ImGui::TextWrapped("The selected container is no longer available.");
+        if (ImGui::Button("Close"))
+        {
+            workflowState_.containerRenamePopup = {};
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+        return;
+    }
+
+    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Rename container");
+    ImGui::TextDisabled("Old id: %s", container->id.c_str());
+    ImGui::InputText("New id",
+                     workflowState_.containerRenamePopup.newId.data(),
+                     workflowState_.containerRenamePopup.newId.size());
+    ShowItemTooltip("Container ids are stable page-local identifiers used by hierarchy edges and generated APIs.");
+
+    const std::string requestedId = workflowState_.containerRenamePopup.newId.data();
+    const bool canRename = !requestedId.empty() && requestedId != container->id;
+    ImGui::BeginDisabled(!canRename);
+    if (AccentButton("Rename container"))
+    {
+        const UndoSnapshot before = CaptureCurrentSnapshot();
+        const std::string previousId = container->id;
+        std::string error;
+        if (mfd::api1::ContainerEditorModel::Rename(*page, previousId, requestedId, error))
+        {
+            PushUndoSnapshot(before);
+            SelectContainer(pageIndex, requestedId);
+            workflowState_.containerRenamePopup = {};
+            ImGui::CloseCurrentPopup();
+            ImGui::EndDisabled();
+            ImGui::EndPopup();
+            return;
+        }
+        RebuildStatus(std::move(error), true);
+    }
+    ImGui::EndDisabled();
+
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel"))
+    {
+        workflowState_.containerRenamePopup = {};
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
+}
+
 void EditorApplication::DrawReticleExtractionPopup()
 {
     if (!ImGui::BeginPopupModal("Extract as reticle", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
@@ -1999,9 +2083,16 @@ bool EditorApplication::CreateNewWindow()
         return false;
     }
 
-    if (workflowState_.newWindowDraft.apiLevel != mfd::ApiLevel::Legacy)
+    if (workflowState_.newWindowDraft.apiLevel != mfd::ApiLevel::Legacy &&
+        workflowState_.newWindowDraft.apiLevel != mfd::ApiLevel::Level1)
     {
-        RebuildStatus("This editor supports only API LEVEL 0 (Legacy).", true);
+        RebuildStatus("This editor supports API LEVEL 0 (Legacy) and LEVEL 1 (Containers).", true);
+        return false;
+    }
+    if (workflowState_.newWindowDraft.apiLevel == mfd::ApiLevel::Level1 &&
+        !containerEditorHost_.EnsureLoaded(windowFile))
+    {
+        RebuildStatus(containerEditorHost_.Diagnostic(), true);
         return false;
     }
 

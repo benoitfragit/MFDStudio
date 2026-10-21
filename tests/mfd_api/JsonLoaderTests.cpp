@@ -95,12 +95,13 @@ TEST(JsonLoaderTests, AcceptsJsonFileAtByteBudgetAndRejectsBoundaryPlusOne)
     EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
 }
 
-TEST(JsonLoaderTests, WindowApiLevelDefaultsToLegacyAndAcceptsExplicitZero)
+TEST(JsonLoaderTests, WindowApiLevelDefaultsToLegacyAndAcceptsSupportedLevels)
 {
     TemporaryFolder workspace;
     const std::filesystem::path pageFile = workspace.Path() / "page.json";
     const std::filesystem::path implicitWindowFile = workspace.Path() / "implicit_window.json";
     const std::filesystem::path explicitWindowFile = workspace.Path() / "explicit_window.json";
+    const std::filesystem::path levelOneWindowFile = workspace.Path() / "level_one_window.json";
     std::filesystem::create_directories(workspace.Path() / "reticles");
 
     WriteTextFile(pageFile,
@@ -115,15 +116,21 @@ TEST(JsonLoaderTests, WindowApiLevelDefaultsToLegacyAndAcceptsExplicitZero)
     WriteTextFile(
         explicitWindowFile,
         R"json({ "apiLevel": 0, "reticleLibraryFolder": "reticles", "pages": ["page.json"] })json");
+    WriteTextFile(
+        levelOneWindowFile,
+        R"json({ "apiLevel": 1, "reticleLibraryFolder": "reticles", "pages": ["page.json"] })json");
 
     mfd::JsonLoader loader;
     const mfd::LoadedWindowConfiguration implicitLevel =
         loader.LoadWindowConfiguration(implicitWindowFile);
     const mfd::LoadedWindowConfiguration explicitLevel =
         loader.LoadWindowConfiguration(explicitWindowFile);
+    const mfd::LoadedWindowConfiguration levelOne =
+        loader.LoadWindowConfiguration(levelOneWindowFile);
 
     EXPECT_EQ(implicitLevel.window.apiLevel, mfd::ApiLevel::Legacy);
     EXPECT_EQ(explicitLevel.window.apiLevel, mfd::ApiLevel::Legacy);
+    EXPECT_EQ(levelOne.window.apiLevel, mfd::ApiLevel::Level1);
 }
 
 TEST(JsonLoaderTests, WindowApiLevelRejectsUnsupportedAndMalformedValues)
@@ -138,7 +145,7 @@ TEST(JsonLoaderTests, WindowApiLevelRejectsUnsupportedAndMalformedValues)
 })json");
 
     const std::array<std::string_view, 6> invalidValues {{
-        "1",
+        "2",
         "-1",
         "0.5",
         "\"0\"",

@@ -1,0 +1,21 @@
+{
+  "apiLevel": 1,
+  "title": "MFD Containers API LEVEL 1",
+  "size": [900, 720],
+  "position": [120, 90],
+  "targetFps": 60,
+  "reticleLibraryFolder": "../reticles",
+  "commands": {
+    "udp": {
+      "enabled": true,
+      "address": "127.0.0.1",
+      "port": 47320,
+      "maxPacketSize": 16384
+    }
+  },
+  "defaultPage": "Containers",
+  "pages": [
+    "../pages/legacy.json",
+    "../pages/containers.json"
+  ]
+}

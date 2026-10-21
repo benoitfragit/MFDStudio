@@ -32,6 +32,7 @@ enum class EditorIcon
     Cut,              ///< Scissors silhouette used for cut.
     Duplicate,        ///< Copy silhouette with a plus marker used for duplicate.
     Add,              ///< Plus silhouette used for create/add actions.
+    AddChild,         ///< Hierarchy branch with a plus used for direct child creation.
     Search,           ///< Magnifier silhouette used to annotate the filter field and file pickers.
     Overflow,         ///< Three-dot silhouette used for an overflow menu trigger.
     Tutorial,         ///< Graduation-cap silhouette used for the guided tutorial entry point.

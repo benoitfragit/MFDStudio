@@ -60,6 +60,7 @@ enum class SelectionKind
     PageReticle,
     PageTitle,
     PageStrobe,
+    Container,
     LibraryReticle,
     LibraryPrimitive
 };
@@ -73,6 +74,7 @@ enum class InteractionMode
     MoveReticle,
     RotateReticle,
     ScaleReticle,
+    ResizeContainer,
     MovePrimitive,
     EditPrimitiveHandle,
     ZoomBoxDrag,    ///< Dragging the zoom-box marquee to frame a region to zoom into.
@@ -105,6 +107,8 @@ struct Selection
     int pageReticleIndex = -1;
     std::vector<int> pageReticleIndices {};
     std::string libraryReticleId {};
+    /** @brief Stable page-local identifier selected in the LEVEL 1 container tree. */
+    std::string containerId {};
     std::string libraryBrowserReticleId {};
     int primitiveIndex = -1;
 };
@@ -257,6 +261,15 @@ struct ReticleRenamePopupState
     std::string currentTemplateId {};
     std::array<char, 128> newName {};
     bool renameTemplateFile = true;
+};
+
+/** @brief UI state driving the page-local container rename popup. */
+struct ContainerRenamePopupState
+{
+    bool openRequested = false;
+    int pageIndex = -1;
+    std::string currentId {};
+    std::array<char, 128> newId {};
 };
 
 /** @brief UI state driving the reticle-extraction review popup. */
@@ -419,6 +432,7 @@ struct WorkflowState
     PageImportPopupState pageImportPopup {};
     PageRenamePopupState pageRenamePopup {};
     ReticleRenamePopupState reticleRenamePopup {};
+    ContainerRenamePopupState containerRenamePopup {};
     ReticleExtractionPopupState reticleExtractionPopup {};
     DesignExportPopupState designExportPopup {};
 };
@@ -461,6 +475,8 @@ struct InteractionState
     mfd::Transform2D startTransform {};
     std::vector<mfd::Transform2D> startReticleTransforms {};
     mfd::Primitive startPrimitive {};
+    mfd::api1::ContainerRect startContainerGeometry {};
+    std::string containerId {};
     mfd::Vec2 startMouseLogical {};
     mfd::Vec2 startMouseReticleLocal {};
     mfd::Vec2 startMousePrimitiveLocal {};
@@ -489,6 +505,8 @@ struct LayoutState
     std::array<char, 96> sidebarFilter {};
     /** @brief User-chosen fraction (0..1) of the sidebar body given to the Pages section; 0.5 = even split. */
     float sidebarPagesSplitFraction = 0.5f;
+    /** @brief User-chosen fraction (0..1) of the LEVEL 1 sidebar body given to Containers. */
+    float sidebarContainersHeightFraction = 0.34f;
     std::map<std::string, bool> inspectorSectionOpen {};
     bool libraryStudioShowPrimitiveLabels = true;
     bool libraryStudioShowGizmos = true;

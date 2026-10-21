@@ -16,6 +16,8 @@
 #include <string_view>
 #include <unordered_map>
 #include <variant>
+
+#include "mfd/apilevel1/ContainerCommands.h"
 #include <vector>
 
 #include "mfd/MfdExport.h"
@@ -487,6 +489,7 @@ using UserCommand = std::variant<ActivatePageCommand,
                                  SetDynamicReticleSetVisibilityCommand,
                                  SetDynamicReticleSetStrobeMagnetEnabledCommand,
                                  RemoveDynamicReticleCommand,
+                                 api1::UpdateContainerCommand,
                                  ResetWindowCommand>;
 
 /**

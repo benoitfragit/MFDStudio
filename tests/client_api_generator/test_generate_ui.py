@@ -115,7 +115,7 @@ class GenerateUiTests(unittest.TestCase):
                 "--force-overwrite",
             ]
 
-            for api_level in (1, -1, 0.5, "0", True, None):
+            for api_level in (2, -1, 0.5, "0", True, None):
                 window.write_text(
                     json.dumps({"apiLevel": api_level, "pages": [page.name]}),
                     encoding="utf-8",
@@ -123,6 +123,144 @@ class GenerateUiTests(unittest.TestCase):
                 result = subprocess.run(command, capture_output=True, text=True, check=False)
                 self.assertNotEqual(result.returncode, 0, api_level)
                 self.assertIn("apiLevel", result.stderr)
+
+    def test_level_one_generates_exposed_container_api_and_map(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            page = root / "page.json"
+            window = root / "window.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Main",
+                        "layers": [{"id": "default"}],
+                        "staticReticles": [],
+                        "containers": [
+                            {
+                                "id": "main_panel",
+                                "type": "linear",
+                                "exposed": True,
+                                "visible": True,
+                                "enabled": False,
+                                "scrolling": {"offset": [0.0, 0.25]},
+                                "children": [{"id": "details"}],
+                            },
+                            {"id": "details", "type": "grid", "exposed": False},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            window.write_text(
+                json.dumps({"apiLevel": 1, "pages": [page.name]}),
+                encoding="utf-8",
+            )
+            header = root / "GeneratedUi.h"
+            source = root / "GeneratedUi.cpp"
+            generated_map = root / "GeneratedUi.generated.map"
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(header),
+                    "--output-source",
+                    str(source),
+                    "--output-map",
+                    str(generated_map),
+                    "--force-overwrite",
+                ],
+                check=True,
+            )
+
+            header_text = header.read_text(encoding="utf-8")
+            source_text = source.read_text(encoding="utf-8")
+            mapping = json.loads(generated_map.read_text(encoding="utf-8"))
+            self.assertIn('#include "mfd/client/Container.h"', header_text)
+            self.assertIn("mfd::client::Container& MainPanel() noexcept;", header_text)
+            self.assertIn('"main_panel"', source_text)
+            self.assertEqual(len(mapping["containers"]), 1)
+            self.assertEqual(mapping["containers"][0]["containerId"], "main_panel")
+            inputs = subprocess.run(
+                [sys.executable, str(self.generator), "--window-json", str(window),
+                 "--output-header", str(header), "--output-source", str(source),
+                 "--output-map", str(generated_map), "--print-inputs"],
+                capture_output=True, text=True, check=True,
+            )
+            extension = self.generator.resolve().parents[3] / "extensions/apilevel1/generator/generate_containers.py"
+            self.assertIn(extension.as_posix(), inputs.stdout.splitlines())
+
+    def test_level_one_without_exposed_containers_keeps_legacy_generated_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            page = root / "page.json"
+            window = root / "window.json"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Main",
+                        "layers": [{"id": "default"}],
+                        "staticReticles": [],
+                        "containers": [{"id": "layout_only", "type": "canvas"}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            window.write_text(json.dumps({"apiLevel": 1, "pages": [page.name]}), encoding="utf-8")
+            header = root / "GeneratedUi.h"
+            generated_map = root / "GeneratedUi.generated.map"
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(header),
+                    "--output-source",
+                    str(root / "GeneratedUi.cpp"),
+                    "--output-map",
+                    str(generated_map),
+                    "--force-overwrite",
+                ],
+                check=True,
+            )
+
+            self.assertNotIn('mfd/client/Container.h', header.read_text(encoding="utf-8"))
+            self.assertNotIn("containers", json.loads(generated_map.read_text(encoding="utf-8")))
+
+    def test_rejects_malformed_container_catalogs_and_excessive_depth(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            page = root / "page.json"
+            window = root / "window.json"
+            window.write_text(json.dumps({"apiLevel": 1, "pages": [page.name]}), encoding="utf-8")
+            command = [
+                sys.executable, str(self.generator), "--window-json", str(window),
+                "--output-header", str(root / "GeneratedUi.h"),
+                "--output-source", str(root / "GeneratedUi.cpp"),
+                "--output-map", str(root / "GeneratedUi.generated.map"), "--force-overwrite",
+            ]
+            deep = [
+                {"id": f"node{index}", "children": [{"id": f"node{index + 1}"}]}
+                for index in range(64)
+            ] + [{"id": "node64"}]
+            cases = [
+                (None, "JSON array"), ({}, "JSON array"),
+                ([{"id": "  "}], "non-empty id"),
+                ([{"id": f"node{index}"} for index in range(4097)], "4096"),
+                (deep, "64 levels"),
+            ]
+            for containers, diagnostic in cases:
+                with self.subTest(diagnostic=diagnostic):
+                    page.write_text(json.dumps({
+                        "name": "Main", "layers": [{"id": "default"}], "containers": containers,
+                    }), encoding="utf-8")
+                    result = subprocess.run(command, capture_output=True, text=True, check=False)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(diagnostic, result.stderr)
 
     def test_generates_header_and_source_covering_full_ui_api(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

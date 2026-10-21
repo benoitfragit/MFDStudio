@@ -30,6 +30,7 @@
 #include "TimeFormatValidation.h"
 #include "mfd/ipc/UdpLimits.h"
 #include "mfd/model/RuntimeBudgets.h"
+#include "mfd/apilevel1/ContainerLayoutEngine.h"
 
 namespace
 {
@@ -84,6 +85,93 @@ using editor::app::SetActivePageStrobe;
 using editor::app::SuggestPageStrobeDraftName;
 using editor::app::SummarizeDynamicLayerBindings;
 using editor::app::SupportsPrimitiveLineStyle;
+}
+
+void EditorApplication::DrawContainerInspector()
+{
+    mfd::PageDefinition* page = ActivePage();
+    mfd::api1::ContainerDefinition* container = SelectedContainer();
+    if (page == nullptr || container == nullptr)
+    {
+        ImGui::TextDisabled("The selected container no longer exists.");
+        return;
+    }
+    if (!containerEditorHost_.EnsureLoaded(documentState_.loaded.window.sourceFile))
+    {
+        ImGui::TextWrapped("LEVEL 1 container controls are unavailable.");
+        ImGui::TextDisabled("%s", containerEditorHost_.Diagnostic().c_str());
+        return;
+    }
+
+    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Container");
+    ImGui::TextDisabled("Identifier");
+    ImGui::SameLine();
+    ImGui::TextUnformatted(container->id.c_str());
+    ImGui::SameLine();
+    if (IconButton("##container_rename", EditorIcon::Rename, "Rename this container."))
+    {
+        OpenContainerRenamePopup(container->id);
+    }
+
+    std::string parentId;
+    mfd::api1::ContainerDefinition* parentContainer = nullptr;
+    mfd::api1::ContainerChildPlacement* parentPlacement = nullptr;
+    for (mfd::api1::ContainerDefinition& candidate : page->containers)
+    {
+        const auto placement = std::find_if(candidate.children.begin(), candidate.children.end(),
+                                            [container](const mfd::api1::ContainerChildPlacement& child)
+                                            {
+                                                return child.childId == container->id;
+                                            });
+        if (placement != candidate.children.end())
+        {
+            parentId = candidate.id;
+            parentContainer = &candidate;
+            parentPlacement = &*placement;
+            break;
+        }
+    }
+    const char* parentPreview = parentId.empty() ? "Root" : parentId.c_str();
+    std::optional<std::string> requestedParentId;
+    if (ImGui::BeginCombo("Parent", parentPreview))
+    {
+        if (ImGui::Selectable("Root", parentId.empty()) && !parentId.empty())
+        {
+            requestedParentId = std::string {};
+        }
+        for (const mfd::api1::ContainerDefinition& candidate : page->containers)
+        {
+            if (candidate.id == container->id) continue;
+            if (ImGui::Selectable(candidate.id.c_str(), candidate.id == parentId))
+            {
+                requestedParentId = candidate.id;
+            }
+        }
+        ImGui::EndCombo();
+    }
+    if (requestedParentId.has_value())
+    {
+        ReparentContainer(container->id, *requestedParentId);
+        return;
+    }
+
+    const UndoSnapshot beforeExtension = CaptureCurrentSnapshot();
+    if (containerEditorHost_.DrawInspector(*container, parentPlacement, parentContainer))
+    {
+        std::string error;
+        std::vector<mfd::api1::ContainerLayoutNode> layouts;
+        if (mfd::api1::ContainerLayoutEngine {}.Evaluate(page->containers, layouts, error))
+        {
+            PushUndoSnapshot(beforeExtension);
+        }
+        else
+        {
+            *page = beforeExtension.loaded.document.pages[static_cast<std::size_t>(documentState_.selection.pageIndex)];
+            RebuildStatus(std::move(error), true);
+        }
+    }
+    ImGui::Separator();
+    ImGui::TextDisabled("Child placement is parent-owned; drag tree entries to reparent them.");
 }
 
 namespace
@@ -328,17 +416,59 @@ void EditorApplication::DrawWindowInspector()
         documentState_.loaded.window.title = title.data();
     }
 
-    if (ImGui::BeginCombo("API LEVEL", u8"0 \u2014 Legacy"))
+    const bool level1Selected = documentState_.loaded.window.apiLevel == mfd::ApiLevel::Level1;
+    const char* apiLevelPreview = level1Selected ? u8"1 \u2014 Containers" : u8"0 \u2014 Legacy";
+    if (ImGui::BeginCombo("API LEVEL", apiLevelPreview))
     {
-        if (ImGui::Selectable(u8"0 \u2014 Legacy", true) &&
+        if (ImGui::Selectable(u8"0 \u2014 Legacy", !level1Selected) &&
             documentState_.loaded.window.apiLevel != mfd::ApiLevel::Legacy)
         {
-            PushUndoSnapshot();
-            documentState_.loaded.window.apiLevel = mfd::ApiLevel::Legacy;
+            const bool hasContainers = std::any_of(
+                documentState_.loaded.document.pages.begin(), documentState_.loaded.document.pages.end(),
+                [](const mfd::PageDefinition& page) { return !page.containers.empty(); });
+            if (hasContainers)
+                ImGui::OpenPopup("Downgrade to API LEVEL 0##confirm");
+            else
+            {
+                PushUndoSnapshot();
+                documentState_.loaded.window.apiLevel = mfd::ApiLevel::Legacy;
+                containerEditorHost_.Unload();
+            }
+        }
+        if (ImGui::Selectable(u8"1 \u2014 Containers", level1Selected) && !level1Selected)
+        {
+            if (containerEditorHost_.EnsureLoaded(documentState_.loaded.window.sourceFile))
+            {
+                PushUndoSnapshot();
+                documentState_.loaded.window.apiLevel = mfd::ApiLevel::Level1;
+                RebuildStatus("Window upgraded transactionally to API LEVEL 1 (Containers).", false);
+            }
+            else
+            {
+                RebuildStatus(containerEditorHost_.Diagnostic(), true);
+            }
         }
         ImGui::EndCombo();
     }
-    ShowItemTooltip(u8"Legacy API \u2014 existing features and behavior.");
+    ShowItemTooltip("The Window level is a capability ceiling. LEVEL 1 requires compatible runtime and editor extensions.");
+    if (ImGui::BeginPopupModal("Downgrade to API LEVEL 0##confirm", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::TextUnformatted("This Window contains API LEVEL 1 containers.");
+        ImGui::TextWrapped("Downgrading requires deleting every container from every Page. "
+                           "The operation is recorded as one undo step.");
+        ImGui::Spacing();
+        if (ImGui::Button("Cancel"))
+        {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Delete containers and downgrade"))
+        {
+            DowngradeWindowToLegacyRemovingContainers();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
 
     int windowSize[2] {documentState_.loaded.window.width, documentState_.loaded.window.height};
     const bool sizeChanged = ImGui::InputInt2("Size (px)", windowSize);

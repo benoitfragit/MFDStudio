@@ -63,6 +63,7 @@ TEST(EditorUiStatePersistenceTests, SaveAndLoadRoundTripGridPreferences)
     saved.snapToGrid = true;
     saved.gridStepLogical = 0.125f;
     saved.sidebarPagesSplitFraction = 0.7f;
+    saved.sidebarContainersHeightFraction = 0.3f;
     saved.sectionOpen["page.preview"] = true;
 
     editor::SaveEditorUiState(file, saved);
@@ -86,6 +87,8 @@ TEST(EditorUiStatePersistenceTests, SaveAndLoadRoundTripGridPreferences)
     EXPECT_FLOAT_EQ(*loaded.gridStepLogical, 0.125f);
     ASSERT_TRUE(loaded.sidebarPagesSplitFraction.has_value());
     EXPECT_FLOAT_EQ(*loaded.sidebarPagesSplitFraction, 0.7f);
+    ASSERT_TRUE(loaded.sidebarContainersHeightFraction.has_value());
+    EXPECT_FLOAT_EQ(*loaded.sidebarContainersHeightFraction, 0.3f);
     ASSERT_EQ(loaded.sectionOpen.size(), 1U);
     EXPECT_TRUE(loaded.sectionOpen.at("page.preview"));
 }
@@ -103,6 +106,7 @@ TEST(EditorUiStatePersistenceTests, LoadIgnoresInvalidGridFlagsAndClampsGridStep
   "snapToGrid": false,
   "gridStepLogical": 2.0,
   "sidebarPagesSplitFraction": 1.5,
+  "sidebarContainersHeightFraction": -0.1,
   "sections": {
     "visible": true,
     "invalid": "no"
@@ -120,6 +124,7 @@ TEST(EditorUiStatePersistenceTests, LoadIgnoresInvalidGridFlagsAndClampsGridStep
     ASSERT_TRUE(loaded.gridStepLogical.has_value());
     EXPECT_FLOAT_EQ(*loaded.gridStepLogical, editor::app::kMaxGridStepLogical);
     EXPECT_FALSE(loaded.sidebarPagesSplitFraction.has_value());
+    EXPECT_FALSE(loaded.sidebarContainersHeightFraction.has_value());
     ASSERT_EQ(loaded.sectionOpen.size(), 1U);
     EXPECT_TRUE(loaded.sectionOpen.at("visible"));
 }

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import math
 import re
@@ -129,6 +130,7 @@ class PageSpec:
     status_member_name: str | None
     status_primitive_accessor_name: str | None
     strobes: list["StrobeSpec"]
+    containers: list[object]
 
 
 @dataclass(frozen=True)
@@ -213,12 +215,31 @@ def validate_api_level(window_root: dict) -> None:
 
     api_level = window_root["apiLevel"]
     if type(api_level) is not int:
-        raise RuntimeError("Window apiLevel must be the integer 0 (Legacy)")
-    if api_level != 0:
+        raise RuntimeError("Window apiLevel must be the integer 0 (Legacy) or 1 (Containers)")
+    if api_level not in (0, 1):
         raise RuntimeError(
             f"Unsupported Window apiLevel {api_level}. "
-            "This generator supports only API LEVEL 0 (Legacy)"
+            "This generator supports API LEVEL 0 (Legacy) and LEVEL 1 (Containers)"
         )
+
+
+def load_container_generator():
+    """Load the optional LEVEL 1 generator extension from source or an SDK install."""
+    script = Path(__file__).resolve()
+    candidates = (
+        script.parents[3] / "extensions" / "apilevel1" / "generator" / "generate_containers.py",
+        script.parents[2] / "extensions" / "apilevel1" / "generator" / "generate_containers.py",
+    )
+    module_path = next((candidate for candidate in candidates if candidate.exists()), None)
+    if module_path is None:
+        raise RuntimeError("LEVEL 1 container generator extension is missing")
+    module_spec = importlib.util.spec_from_file_location("mfd_generate_containers_api1", module_path)
+    if module_spec is None or module_spec.loader is None:
+        raise RuntimeError(f"Unable to load LEVEL 1 container generator extension: {module_path}")
+    module = importlib.util.module_from_spec(module_spec)
+    sys.modules[module_spec.name] = module
+    module_spec.loader.exec_module(module)
+    return module
 
 
 def resolve_path(base: Path, raw_path: str) -> Path:
@@ -1219,6 +1240,7 @@ def build_page_specs(window_root: dict,
     page_specs: list[PageSpec] = []
     used_dynamic_template_ids: set[str] = set()
     seen_ids: set[int] = set()
+    container_generator = None
 
     for page_entry in page_entries(window_root):
         page_path = resolve_path(window_path.parent, page_entry.path)
@@ -1298,6 +1320,18 @@ def build_page_specs(window_root: dict,
 
         strobe_specs = resolve_strobe_specs(page_name, page_base_name, page_root, template_library)
 
+        raw_containers = page_root.get("containers", [])
+        if not isinstance(raw_containers, list):
+            raise RuntimeError(f"Page '{page_name}' containers must be a JSON array")
+        if raw_containers and window_root.get("apiLevel", 0) < 1:
+            raise RuntimeError(
+                f"Page '{page_name}' uses LEVEL 1 containers but its Window is API LEVEL 0")
+        containers: list[object] = []
+        if raw_containers:
+            if container_generator is None:
+                container_generator = load_container_generator()
+            containers = container_generator.collect_container_specs(page_name, page_root, seen_ids)
+
         ensure_unique_reticle_spec_names(page_name, reticles)
         ensure_unique_strobe_spec_names(page_name, strobe_specs)
         ensure_unique_page_reticle_wrapper_names(page_name, reticles, strobe_specs)
@@ -1314,6 +1348,7 @@ def build_page_specs(window_root: dict,
             status_member_name=status_member_name,
             status_primitive_accessor_name=status_primitive_accessor_name,
             strobes=strobe_specs,
+            containers=containers,
         ))
 
     return page_specs, build_template_specs(template_library, used_dynamic_template_ids)
@@ -1396,6 +1431,7 @@ def emit_header(namespace_name: str,
                 page_specs: list[PageSpec],
                 template_specs: list[TemplateSpec]) -> str:
     template_specs_by_id = {template.template_id: template for template in template_specs}
+    has_containers = any(page.containers for page in page_specs)
     lines: list[str] = [
         "/*",
         " * This file is part of MFDStudio.",
@@ -1417,6 +1453,10 @@ def emit_header(namespace_name: str,
         "",
         '#include "mfd/client/GeneratedUiSupport.h"',
         '#include "mfd/model/Types.h"',
+    ]
+    if has_containers:
+        lines.append('#include "mfd/client/Container.h"')
+    lines.extend([
         "",
         f"namespace {namespace_name}",
         "{",
@@ -1444,7 +1484,7 @@ def emit_header(namespace_name: str,
         "using TimeHandle = mfd::client::TimeHandle;",
         "using WindowDisplay = mfd::client::WindowDisplay;",
         "",
-    ]
+    ])
 
     for template in template_specs:
         lines.extend([
@@ -1614,6 +1654,12 @@ def emit_header(namespace_name: str,
         if page_templates:
             lines.append("")
 
+        for container in page.containers:
+            lines.append(f"    mfd::client::Container& {container.accessor_name}() noexcept;")
+
+        if page.containers:
+            lines.append("")
+
         for blink in page.blink_members:
             lines.append(
                 f'    BlinkType {blink.member_name} {{"{cpp_string(blink.blink_name)}", {blink.transport_id}U}};')
@@ -1642,6 +1688,9 @@ def emit_header(namespace_name: str,
 
         for template in page_templates:
             lines.append(f"    {template.dynamic_set_class_name} {template.dynamic_member_name};")
+
+        for container in page.containers:
+            lines.append(f"    mfd::client::Container {container.member_name};")
 
         lines.extend([
             "};",
@@ -1903,6 +1952,13 @@ def emit_source(namespace_name: str,
         for template in page_templates:
             page_ctor_initializers.append(
                 f"    {template.dynamic_member_name}(Name(), {page.transport_id}U, feedbackState)")
+        for container in page.containers:
+            visible = "true" if container.visible else "false"
+            enabled = "true" if container.enabled else "false"
+            page_ctor_initializers.append(
+                f'    {container.member_name}(Name(), "{cpp_string(container.container_id)}", '
+                f'{page.transport_id}U, {container.transport_id}U, {visible}, {enabled}, '
+                f'mfd::Vec2 {{{float_literal(container.scroll_x)}, {float_literal(container.scroll_y)}}})')
 
         lines.append(
             f"{page.page_class_name}::{page.page_class_name}(RuntimeFeedbackState* feedbackState) :")
@@ -1935,6 +1991,8 @@ def emit_source(namespace_name: str,
             lines.append(f"    {reticle.member_name}.ClearDirty();")
         for template in page_templates:
             lines.append(f"    {template.dynamic_member_name}.ClearDirty();")
+        for container in page.containers:
+            lines.append(f"    {container.member_name}.ClearDirty();")
         lines.extend([
             "}",
             "",
@@ -1948,6 +2006,8 @@ def emit_source(namespace_name: str,
             lines.append(f"    {reticle.member_name}.ResetToAuthored();")
         for template in page_templates:
             lines.append(f"    {template.dynamic_member_name}.ResetToAuthored();")
+        for container in page.containers:
+            lines.append(f"    {container.member_name}.ResetToAuthored();")
         lines.extend([
             "}",
             "",
@@ -1968,6 +2028,8 @@ def emit_source(namespace_name: str,
             lines.append(f"    count += {reticle.member_name}.AppendCommands(commands) ? 1U : 0U;")
         for template in page_templates:
             lines.append(f"    count += {template.dynamic_member_name}.AppendCommands(commands);")
+        for container in page.containers:
+            lines.append(f"    count += {container.member_name}.AppendCommands(commands) ? 1U : 0U;")
         lines.extend([
             "",
             "    return count;",
@@ -2012,6 +2074,14 @@ def emit_source(namespace_name: str,
                 f"{template.dynamic_set_class_name}& {page.page_class_name}::{template.dynamic_accessor_name}() noexcept",
                 "{",
                 f"    return {template.dynamic_member_name};",
+                "}",
+                "",
+            ])
+        for container in page.containers:
+            lines.extend([
+                f"mfd::client::Container& {page.page_class_name}::{container.accessor_name}() noexcept",
+                "{",
+                f"    return {container.member_name};",
                 "}",
                 "",
             ])
@@ -2334,6 +2404,17 @@ def mapping_document(window_root: dict,
                 "defaultActive": strobe.default_active,
             })
 
+    containers = []
+    for page in sorted(page_specs, key=lambda entry: entry.canonical_key):
+        for container in sorted(page.containers, key=lambda entry: entry.canonical_key):
+            containers.append({
+                "id": container.transport_id,
+                "pageId": page.transport_id,
+                "containerId": container.container_id,
+                "normalizedContainerId": normalize_lookup_name(container.container_id),
+                "exposed": True,
+            })
+
     seen_ids: dict[int, str] = {}
     for table_name, rows, id_field in (
         ("pages", pages, "id"),
@@ -2342,6 +2423,7 @@ def mapping_document(window_root: dict,
         ("templates", templates, "id"),
         ("blinkTypes", blink_types, "id"),
         ("strobes", strobes, "id"),
+        ("containers", containers, "id"),
     ):
         for row in rows:
             row_id = row[id_field]
@@ -2364,10 +2446,12 @@ def mapping_document(window_root: dict,
         "blinkTypes": blink_types,
         "strobes": strobes,
     }
+    if containers:
+        mapping_without_hash["containers"] = containers
 
     canonical_payload = json.dumps(mapping_without_hash, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
     mapping_hash = hashlib.sha256(canonical_payload.encode("utf-8")).hexdigest()
-    return {
+    document = {
         "schemaVersion": 1,
         "mappingHash": mapping_hash,
         "window": mapping_without_hash["window"],
@@ -2378,6 +2462,9 @@ def mapping_document(window_root: dict,
         "blinkTypes": blink_types,
         "strobes": strobes,
     }
+    if containers:
+        document["containers"] = containers
+    return document
 
 
 def emit_map(document: dict) -> str:
@@ -2389,8 +2476,14 @@ def collect_input_paths(window_path: Path) -> list[Path]:
     validate_api_level(window_root)
     input_paths: set[Path] = {window_path}
 
+    uses_containers = False
     for page_entry in page_entries(window_root):
-        input_paths.add(resolve_path(window_path.parent, page_entry.path))
+        page_path = resolve_path(window_path.parent, page_entry.path)
+        input_paths.add(page_path)
+        if extract_page_node(load_json(page_path)).get("containers"):
+            uses_containers = True
+    if uses_containers:
+        input_paths.add(Path(load_container_generator().__file__).resolve())
 
     raw_folder = window_root.get("reticleLibraryFolder") or window_root.get("reticles") or window_root.get("reticleFolder")
     folder = resolve_path(window_path.parent, raw_folder or ".")

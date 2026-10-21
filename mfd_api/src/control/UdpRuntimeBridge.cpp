@@ -67,7 +67,8 @@ enum class CommandCoalescingKind
     UpdateStrobe,
     UpsertDynamicReticle,
     SetDynamicReticleSetVisibility,
-    SetDynamicReticleSetStrobeMagnetEnabled
+    SetDynamicReticleSetStrobeMagnetEnabled,
+    UpdateContainer
 };
 
 struct CoalescingIdentifier
@@ -83,6 +84,7 @@ struct CommandCoalescingKey
     CoalescingIdentifier reticle {};
     CoalescingIdentifier dynamicTemplate {};
     CoalescingIdentifier strobe {};
+    CoalescingIdentifier container {};
 };
 
 struct UdpRuntimeCounters
@@ -158,7 +160,8 @@ bool operator==(const CommandCoalescingKey& lhs, const CommandCoalescingKey& rhs
            lhs.page == rhs.page &&
            lhs.reticle == rhs.reticle &&
            lhs.dynamicTemplate == rhs.dynamicTemplate &&
-           lhs.strobe == rhs.strobe;
+           lhs.strobe == rhs.strobe &&
+           lhs.container == rhs.container;
 }
 
 std::uint64_t LoadCounter(const std::atomic<std::uint64_t>& counter) noexcept
@@ -483,6 +486,16 @@ struct CommandCoalescingKeyVisitor
         return std::nullopt;
     }
 
+    std::optional<CommandCoalescingKey> operator()(const api1::UpdateContainerCommand& command) const
+    {
+        CommandCoalescingKey key;
+        key.kind = CommandCoalescingKind::UpdateContainer;
+        key.page = MakeCoalescingIdentifier(detail::PageBindingOf(command));
+        key.container = MakeCoalescingIdentifier(
+            command.target.containerTransportId, command.target.containerId);
+        return key;
+    }
+
     std::optional<CommandCoalescingKey> operator()(const ResetWindowCommand&) const
     {
         // A window reset invalidates every earlier command and must never be merged away.
@@ -533,6 +546,27 @@ void MergeCoalescedCommand(UserCommand& target, const UserCommand& source)
         if (targetCommand != nullptr)
         {
             MergeReticlePatch(targetCommand->patch, sourceCommand->patch);
+            return;
+        }
+    }
+
+    if (const auto* sourceCommand = std::get_if<api1::UpdateContainerCommand>(&source))
+    {
+        auto* targetCommand = std::get_if<api1::UpdateContainerCommand>(&target);
+        if (targetCommand != nullptr)
+        {
+            if (sourceCommand->patch.visible.has_value())
+            {
+                targetCommand->patch.visible = sourceCommand->patch.visible;
+            }
+            if (sourceCommand->patch.enabled.has_value())
+            {
+                targetCommand->patch.enabled = sourceCommand->patch.enabled;
+            }
+            if (sourceCommand->patch.scrollOffset.has_value())
+            {
+                targetCommand->patch.scrollOffset = sourceCommand->patch.scrollOffset;
+            }
             return;
         }
     }

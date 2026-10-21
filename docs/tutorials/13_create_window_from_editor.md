@@ -81,7 +81,7 @@ assets when you use **File > Open window asset...**.
 In **Create new window**, set:
 - **Window file** (for example `examples/demo/assets/windows/my_window.json`)
 - **Window title**
-- **API LEVEL** (`0 — Legacy`; the only supported level in this release)
+- **API LEVEL** (`0 — Legacy` or `1 — Containers`)
 - **Size (px)** (`width`, `height`)
 - **Position (px)** (`x`, `y`)
 - **Font file (optional)** (for example `examples/demo/assets/fonts/ShareTechMono-Regular.ttf`)

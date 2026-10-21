@@ -5,6 +5,8 @@
  */
 #include "EditorDocumentSerializer.h"
 
+#include "mfd/apilevel1/ContainerJson.h"
+
 #include "mfd/core/internal/JsonAssetDiscovery.h"
 
 /**
@@ -66,10 +68,10 @@ void ValidatePageRuntimeBudgets(const mfd::PageDefinition& page)
 
 void ValidateWindowRuntimeBudgets(const mfd::WindowAssetDefinition& window)
 {
-    if (window.apiLevel != mfd::ApiLevel::Legacy)
+    if (window.apiLevel != mfd::ApiLevel::Legacy && window.apiLevel != mfd::ApiLevel::Level1)
     {
         throw std::runtime_error(
-            "Cannot save the Window: this editor supports only API LEVEL 0 (Legacy).");
+            "Cannot save the Window: the API level is unsupported by this editor.");
     }
 
     if (!mfd::runtime_validation::IsValidWindowExtent(window.width) ||
@@ -1312,6 +1314,10 @@ json SerializePage(const mfd::PageDefinition& page,
         reticles.push_back(SerializePageReticle(reticle, library, baseFolder));
     }
     node["staticReticles"] = std::move(reticles);
+    if (!page.containers.empty())
+    {
+        node["containers"] = mfd::api1::SerializePageContainers(page.containers);
+    }
     return node;
 }
 
@@ -1733,6 +1739,21 @@ std::vector<std::pair<std::filesystem::path, json>> CollectEditorDocumentFiles(
     }
 
     ValidatePageNameCatalog(loaded.document);
+
+    if (loaded.window.apiLevel == mfd::ApiLevel::Legacy)
+    {
+        const auto incompatiblePage = std::find_if(
+            loaded.document.pages.begin(), loaded.document.pages.end(), [](const mfd::PageDefinition& page)
+            {
+                return !page.containers.empty();
+            });
+        if (incompatiblePage != loaded.document.pages.end())
+        {
+            throw std::runtime_error(
+                "Cannot save page '" + incompatiblePage->name +
+                "': containers require API LEVEL 1 on the Window.");
+        }
+    }
 
     std::vector<std::pair<std::filesystem::path, json>> files;
     files.reserve(1U + loaded.document.pages.size() + loaded.document.reticleLibrary.size());

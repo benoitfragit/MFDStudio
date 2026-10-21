@@ -10,6 +10,9 @@
 
 #include "mfd/io/JsonLoader.h"
 
+#include "mfd/apilevel1/ContainerJson.h"
+#include "mfd/apilevel1/ContainerLayoutEngine.h"
+
 #include <array>
 #include <algorithm>
 #include <cmath>
@@ -125,20 +128,26 @@ ApiLevel ParseApiLevel(const json& root)
     const json& value = root.at("apiLevel");
     if (!value.is_number_integer() && !value.is_number_unsigned())
     {
-        throw std::runtime_error("Window apiLevel must be the integer 0 (Legacy).");
+        throw std::runtime_error("Window apiLevel must be the integer 0 (Legacy) or 1 (Containers).");
     }
 
-    const bool isLegacy = value.is_number_unsigned()
-                              ? value.get<std::uint64_t>() == 0U
-                              : value.get<std::int64_t>() == 0;
-    if (!isLegacy)
+    if (value.is_number_unsigned() && value.get<std::uint64_t>() > 1U)
     {
         throw std::runtime_error(
             "Unsupported Window apiLevel " + value.dump() +
-            ". This build supports only API LEVEL 0 (Legacy).");
+            ". This build supports API LEVEL 0 (Legacy) and LEVEL 1 (Containers).");
+    }
+    const std::int64_t parsed = value.is_number_unsigned()
+                                    ? static_cast<std::int64_t>(value.get<std::uint64_t>())
+                                    : value.get<std::int64_t>();
+    if (parsed < 0 || parsed > 1)
+    {
+        throw std::runtime_error(
+            "Unsupported Window apiLevel " + value.dump() +
+            ". This build supports API LEVEL 0 (Legacy) and LEVEL 1 (Containers).");
     }
 
-    return ApiLevel::Legacy;
+    return parsed == 0 ? ApiLevel::Legacy : ApiLevel::Level1;
 }
 
 float ParseFiniteFloat(const json& value, const char* fieldName)
@@ -2624,6 +2633,7 @@ PageDefinition ParsePage(const json& node,
     page.layers = ParsePageLayerDefinitions(node);
     page.editor = ParsePageEditorState(node);
     page.dynamicReticleBindings = ParseDynamicReticleLayerBindings(node);
+    page.containers = api1::ParsePageContainers(node);
 
     if (page.layers.empty())
     {
@@ -3255,16 +3265,48 @@ void ValidateGeneratedTransportMapAgainstDocument(const GeneratedTransportMap& m
         }
     }
 
+    for (const auto& containerEntry : map.containers)
+    {
+        const auto pageIt = pagesById.find(containerEntry.pageId);
+        if (pageIt == pagesById.end())
+        {
+            throw std::runtime_error(
+                "Generated transport map container '" + containerEntry.containerId +
+                "' references unknown page id " + std::to_string(containerEntry.pageId));
+        }
+        const PageDefinition* page = FindPageDefinition(document, pageIt->second->name);
+        const api1::ContainerDefinition* container =
+            page == nullptr ? nullptr : api1::FindContainer(page->containers, containerEntry.containerId);
+        if (container == nullptr || !container->exposed)
+        {
+            throw std::runtime_error(
+                "Generated transport map references unknown or unexposed container '" +
+                containerEntry.containerId + "' on page '" + pageIt->second->name + "'");
+        }
+        if (NormalizePageName(container->id) != containerEntry.normalizedContainerId)
+        {
+            throw std::runtime_error(
+                "Generated transport map container normalization mismatch for '" +
+                containerEntry.containerId + "'");
+        }
+    }
+
     std::size_t expectedReticleCount = 0U;
     std::size_t expectedPrimitiveCount = 0U;
     std::size_t expectedBlinkTypeCount = 0U;
     std::size_t expectedStrobeCount = 0U;
+    std::size_t expectedContainerCount = 0U;
     std::unordered_set<std::string> expectedTemplateIds;
     for (const PageDefinition& page : document.pages)
     {
         expectedReticleCount += page.staticReticles.size() + page.strobes.size();
         expectedBlinkTypeCount += page.blinkTypes.size();
         expectedStrobeCount += page.strobes.size();
+        expectedContainerCount += static_cast<std::size_t>(std::count_if(
+            page.containers.begin(), page.containers.end(), [](const api1::ContainerDefinition& container)
+            {
+                return container.exposed;
+            }));
         for (const ReticleGroup& reticle : page.staticReticles)
         {
             expectedPrimitiveCount += CountGeneratedPrimitives(reticle);
@@ -3297,6 +3339,7 @@ void ValidateGeneratedTransportMapAgainstDocument(const GeneratedTransportMap& m
     RequireGeneratedEntryCount("primitives", map.primitives.size(), expectedPrimitiveCount);
     RequireGeneratedEntryCount("blinkTypes", map.blinkTypes.size(), expectedBlinkTypeCount);
     RequireGeneratedEntryCount("strobes", map.strobes.size(), expectedStrobeCount);
+    RequireGeneratedEntryCount("containers", map.containers.size(), expectedContainerCount);
     if (mappedTemplateIds != expectedTemplateIds)
     {
         throw std::runtime_error("Generated transport map templates table does not match dynamic template bindings");
@@ -3336,6 +3379,21 @@ LoadedWindowConfiguration LoadWindowConfigurationImpl(const std::filesystem::pat
         }
 
         loaded.document.pages.push_back(std::move(page));
+    }
+
+    if (loaded.window.apiLevel == ApiLevel::Legacy)
+    {
+        const auto incompatiblePage = std::find_if(
+            loaded.document.pages.begin(), loaded.document.pages.end(), [](const PageDefinition& page)
+            {
+                return !page.containers.empty();
+            });
+        if (incompatiblePage != loaded.document.pages.end())
+        {
+            throw std::runtime_error(
+                "Page '" + incompatiblePage->name +
+                "' requires API LEVEL 1 (Containers), but the destination Window is LEVEL 0 (Legacy).");
+        }
     }
 
     ApplyDefaultPageName(loaded.document, ParseDefaultPageName(root, "Window JSON"), "window JSON");

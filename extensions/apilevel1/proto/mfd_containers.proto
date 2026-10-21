@@ -1,0 +1,29 @@
+// This file is part of MFDStudio.
+// API LEVEL 1 container transport contract.
+syntax = "proto3";
+
+package mfd.transport;
+
+message ContainerVec2
+{
+  float x = 1;
+  float y = 2;
+}
+message ContainerHandle
+{
+  uint64 page_id = 1;
+  uint64 container_id = 2;
+}
+
+message ContainerStatePatch
+{
+  optional bool visible = 1;
+  optional bool enabled = 2;
+  optional ContainerVec2 scroll_offset = 3;
+}
+
+message UpdateContainerCommand
+{
+  ContainerHandle target = 1;
+  ContainerStatePatch patch = 2;
+}

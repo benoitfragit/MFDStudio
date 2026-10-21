@@ -11,6 +11,7 @@
 
 - [Editor](./handbook/editor.md)
 - [Generated Client API](./handbook/generated_api.md)
+- [API LEVEL 1 Containers](./handbook/containers.md)
 - [Runtime](./handbook/runtime.md)
 - [HUD](./handbook/hud.md)
 - [LHLD](./handbook/lhld.md)

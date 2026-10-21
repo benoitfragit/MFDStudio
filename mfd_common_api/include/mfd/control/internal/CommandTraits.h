@@ -88,6 +88,11 @@ inline CommandPageBinding PageBindingOf(const RemoveDynamicReticleCommand& comma
     return {&command.target.page, command.target.pageId};
 }
 
+inline CommandPageBinding PageBindingOf(const api1::UpdateContainerCommand& command) noexcept
+{
+    return {&command.target.page, command.target.pageId};
+}
+
 inline CommandPageBinding PageBindingOf(const ResetWindowCommand&) noexcept
 {
     return {};

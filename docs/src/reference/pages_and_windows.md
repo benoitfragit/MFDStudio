@@ -62,22 +62,22 @@ Numeric fields must be finite; pixel integers must fit a signed 32-bit int.
 
 ### API LEVEL
 
-This release supports only **API LEVEL 0 (Legacy)**. The optional root-level
+This release supports **API LEVEL 0 (Legacy)** and **API LEVEL 1 (Containers)**. The optional root-level
 `apiLevel` field belongs to the Window; Pages and Reticles do not carry their
 own level. Existing Window files can omit it and continue to load as LEVEL 0.
-The editor writes `"apiLevel": 0` explicitly when it saves a Window.
+The editor writes the selected integer level explicitly when it saves a Window.
 
-Only the integer `0` is valid. Unsupported positive levels and malformed values
+Only integers `0` and `1` are valid. Unsupported levels and malformed values
 such as negative numbers, fractions, strings, booleans, or `null` are rejected
 by the editor, runtime loader, and generated-API tool instead of being coerced
 or silently downgraded.
 
 Page-import compatibility is based on the Page's actual content and recursively
-referenced assets, not merely on the source Window's selected level. At LEVEL 0,
-the existing Page and Reticle feature set requires LEVEL 0 and imports preserve
-the destination Window level. Future levels will apply the same recursive rule
-to Containers and Widgets; those features and scanners are not implemented in
-this release. A standalone Page JSON therefore has no `apiLevel` field.
+referenced assets, not merely on the source Window's selected level. Existing
+Page and Reticle content requires LEVEL 0; any container requires LEVEL 1.
+A legacy-only Page from a LEVEL 1 Window therefore remains importable into a
+LEVEL 0 Window. A container Page is rejected atomically by a LEVEL 0 destination.
+A standalone Page JSON has no `apiLevel` field. See [API LEVEL 1 containers](../handbook/containers.md).
 
 ## Transports
 
@@ -135,6 +135,7 @@ for the active page.
 | `activeStrobe` | no | Startup strobe selection. |
 | `strobes` | no | Named strobe catalog. |
 | `staticReticles` | no | Static reticles on the page. |
+| `containers` | no | LEVEL 1 catalog; `sizeMode` accepts `fixed`, `fitContent`, `fitHorizontal`, or `fitVertical`. |
 | `strobe` | no | Legacy single-strobe shorthand → one `Default` entry. |
 
 Blink synchronizes per page by effective duration: two types with the same

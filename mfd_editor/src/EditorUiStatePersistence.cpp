@@ -119,6 +119,7 @@ EditorUiPersistentState LoadEditorUiState(const std::filesystem::path& file)
         ReadOptionalFlag(root, "snapToGrid", state.snapToGrid);
         ReadOptionalGridStep(root, "gridStepLogical", state.gridStepLogical);
         ReadOptionalFraction(root, "sidebarPagesSplitFraction", state.sidebarPagesSplitFraction);
+        ReadOptionalFraction(root, "sidebarContainersHeightFraction", state.sidebarContainersHeightFraction);
 
         if (root.contains("sections") && root.at("sections").is_object())
         {
@@ -179,6 +180,11 @@ void SaveEditorUiState(const std::filesystem::path& file, const EditorUiPersiste
         if (state.sidebarPagesSplitFraction.has_value())
         {
             root["sidebarPagesSplitFraction"] = std::clamp(*state.sidebarPagesSplitFraction, 0.0f, 1.0f);
+        }
+        if (state.sidebarContainersHeightFraction.has_value())
+        {
+            root["sidebarContainersHeightFraction"] =
+                std::clamp(*state.sidebarContainersHeightFraction, 0.0f, 1.0f);
         }
 
         json sections = json::object();

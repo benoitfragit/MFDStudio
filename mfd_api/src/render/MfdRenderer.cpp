@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -22,11 +23,14 @@
 
 #include "Canvas2D.h"
 #include "BezierPolylineCache.h"
+#include "ContainerDecorationRenderer.h"
 #include "ImageTextureCache.h"
 #include "ExternalStreamRegistry.h"
 #include "RenderWorkBudget.h"
 #include "RenderTextureUtils.h"
 #include "TextLayoutCache.h"
+#include "mfd/apilevel1/ContainerRuntimeHost.h"
+#include "mfd/apilevel1/ContainerInputRouter.h"
 
 namespace mfd
 {
@@ -156,18 +160,25 @@ bool ActiveReticleViewsUseClipping(const std::vector<ReticleRenderView>& activeR
     return false;
 }
 
-bool ActiveReticleViewsUseLayerLocalClipping(const std::vector<ReticleRenderView>& activeReticles)
+Rectangle ToScreenRect(const api1::ContainerRect& rect,
+                       const PageViewState& view,
+                       const int width,
+                       const int height) noexcept
 {
-    for (const ReticleRenderView& reticle : activeReticles)
-    {
-        if (reticle.group != nullptr && reticle.visible && reticle.group->clipping.eraseLayerOnly &&
-            ResolveClipPrimitive(*reticle.group) != nullptr)
-        {
-            return true;
-        }
-    }
+    const Vec2 center = ApplyPageView(rect.center, view);
+    const float scale = static_cast<float>(std::min(width, height)) * 0.5f * SanitizeZoom(view.zoom);
+    const float pixelWidth = std::max(0.0f, rect.size.x * scale);
+    const float pixelHeight = std::max(0.0f, rect.size.y * scale);
+    return {static_cast<float>(width) * 0.5f + center.x * static_cast<float>(std::min(width, height)) * 0.5f - pixelWidth * 0.5f,
+            static_cast<float>(height) * 0.5f - center.y * static_cast<float>(std::min(width, height)) * 0.5f - pixelHeight * 0.5f,
+            pixelWidth,
+            pixelHeight};
+}
 
-    return false;
+bool Contains(const Rectangle rectangle, const Vector2 point) noexcept
+{
+    return point.x >= rectangle.x && point.x <= rectangle.x + rectangle.width &&
+           point.y >= rectangle.y && point.y <= rectangle.y + rectangle.height;
 }
 
 /**
@@ -181,6 +192,10 @@ struct LayerLocalRestoreContext
 {
     const Canvas2D* canvas = nullptr;
     const std::vector<ReticleRenderView>* reticles = nullptr;
+    const std::vector<api1::ContainerDefinition>* containerDefinitions = nullptr;
+    const std::vector<api1::ContainerLayoutNode>* containerLayouts = nullptr;
+    PageViewState view {};
+    detail::ContainerDecorationPointerState pointer {};
     Color background = BLACK;
     int width = 0;
     int height = 0;
@@ -192,6 +207,16 @@ struct LayerLocalRestoreContext
 void RestoreLayerLocalBackground(LayerLocalRestoreContext& context)
 {
     DrawRectangle(0, 0, context.width, context.height, context.background);
+    if (context.containerDefinitions != nullptr && context.containerLayouts != nullptr)
+    {
+        detail::DrawContainerDecorations(
+            *context.containerDefinitions,
+            *context.containerLayouts,
+            context.view,
+            context.width,
+            context.height,
+            context.pointer);
+    }
     if (!context.eraseLayerOnly || context.canvas == nullptr || context.reticles == nullptr)
     {
         return;
@@ -212,25 +237,47 @@ void RestoreLayerLocalBackground(LayerLocalRestoreContext& context)
 }
 
 void DrawActivePageContent(const SceneRegistry& scene,
+                           const std::vector<api1::ContainerDefinition>& containerDefinitions,
+                           const std::vector<api1::ContainerLayoutNode>& containerLayouts,
                            const std::vector<ReticleRenderView>& activeReticles,
                            const ReticleGroup& titleReticle,
                            const int width,
                            const int height,
                            const Font* textFont,
                            const bool clippingEnabled,
+                           const std::size_t activeScrollbarSourceIndex,
+                           const bool activeScrollbarHorizontal,
                            BezierPolylineCache* bezierCache,
                            ImageTextureCache* imageCache,
                            TextLayoutCache* textLayoutCache,
                            ExternalStreamRegistry* externalStreams)
 {
+    const Vector2 mouse = GetMousePosition();
+    const detail::ContainerDecorationPointerState containerPointer {
+        {mouse.x, mouse.y},
+        true,
+        IsMouseButtonDown(MOUSE_BUTTON_LEFT),
+        activeScrollbarSourceIndex,
+        activeScrollbarHorizontal};
+    detail::DrawContainerDecorations(
+        containerDefinitions,
+        containerLayouts,
+        scene.ActivePageView(),
+        width,
+        height,
+        containerPointer);
     LayerLocalRestoreContext restoreContext;
     restoreContext.reticles = &activeReticles;
+    restoreContext.containerDefinitions = &containerDefinitions;
+    restoreContext.containerLayouts = &containerLayouts;
+    restoreContext.view = scene.ActivePageView();
+    restoreContext.pointer = containerPointer;
     restoreContext.background = ToRayColor(scene.ActiveBackgroundColor());
     restoreContext.width = width;
     restoreContext.height = height;
 
     Canvas2D::BackgroundRestoreCallback restore;
-    if (clippingEnabled && ActiveReticleViewsUseLayerLocalClipping(activeReticles))
+    if (clippingEnabled && ActiveReticleViewsUseClipping(activeReticles))
     {
         restore = [&restoreContext]()
         {
@@ -269,6 +316,16 @@ void DrawActivePageContent(const SceneRegistry& scene,
 
 struct MfdRenderer::Impl
 {
+    struct ThumbDragState
+    {
+        std::string pageName;
+        std::string containerId;
+        std::size_t sourceIndex = 0U;
+        float pointerToCenter = 0.0f;
+        bool horizontal = false;
+        bool active = false;
+    };
+
     struct TitleReticleCache
     {
         std::string pageName {};
@@ -292,11 +349,52 @@ struct MfdRenderer::Impl
     bool defaultFontFilterApplied = false;
     bool invertColorsFallbackWarned = false;
     std::vector<ReticleRenderView> activeReticlesScratch {};
+    std::vector<api1::ContainerDefinition> containerDefinitionsScratch {};
+    std::vector<api1::ContainerLayoutNode> containerLayoutsScratch {};
+    api1::ContainerRuntimeHost containerRuntime {};
+    api1::ContainerInputRouter containerInputRouter {};
+    ThumbDragState thumbDrag {};
+    bool containerRuntimeLoadAttempted = false;
+    std::string containerLayoutDiagnostic;
     BezierPolylineCache bezierCache {};
     ImageTextureCache imageCache {};
     ExternalStreamRegistry externalStreams {};
     TextLayoutCache textLayoutCache {};
     TitleReticleCache titleReticleCache {};
+
+    void ResolveContainers(const SceneRegistry& scene)
+    {
+        scene.CollectActiveContainerDefinitions(containerDefinitionsScratch);
+        containerLayoutsScratch.clear();
+        if (containerDefinitionsScratch.empty()) return;
+        if (!containerRuntime.IsAvailable() && !containerRuntimeLoadAttempted)
+        {
+            containerRuntimeLoadAttempted = true;
+            std::string loadError;
+            if (!containerRuntime.LoadForProcess({}, loadError))
+            {
+                TraceLog(LOG_ERROR, "%s", loadError.c_str());
+                return;
+            }
+        }
+        if (containerRuntime.IsAvailable())
+        {
+            std::string layoutError;
+            if (!containerRuntime.Evaluate(containerDefinitionsScratch, containerLayoutsScratch, layoutError))
+            {
+                containerLayoutsScratch.clear();
+                if (containerLayoutDiagnostic != layoutError)
+                {
+                    TraceLog(LOG_ERROR, "Container layout: %s", layoutError.c_str());
+                    containerLayoutDiagnostic = std::move(layoutError);
+                }
+            }
+            else
+            {
+                containerLayoutDiagnostic.clear();
+            }
+        }
+    }
 
     ~Impl()
     {
@@ -525,6 +623,122 @@ void MfdRenderer::SetTextFontFile(std::filesystem::path fontFile)
     }
 }
 
+void MfdRenderer::HandleContainerInput(SceneRegistry& scene,
+                                       const int viewportWidth,
+                                       const int viewportHeight)
+{
+    if (impl_ == nullptr || viewportWidth <= 0 || viewportHeight <= 0)
+    {
+        return;
+    }
+    impl_->ResolveContainers(scene);
+    if (impl_->thumbDrag.active && impl_->thumbDrag.pageName != scene.ActivePageName())
+    {
+        impl_->thumbDrag.active = false;
+    }
+    if (impl_->containerLayoutsScratch.empty())
+    {
+        impl_->thumbDrag.active = false;
+        return;
+    }
+
+    const Vector2 mouse = GetMousePosition();
+    if (mouse.x < 0.0f || mouse.y < 0.0f ||
+        mouse.x > static_cast<float>(viewportWidth) || mouse.y > static_cast<float>(viewportHeight))
+    {
+        if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) impl_->thumbDrag.active = false;
+        return;
+    }
+
+    const PageViewState view = scene.ActivePageView();
+    const float logicalScale = static_cast<float>(std::min(viewportWidth, viewportHeight)) * 0.5f;
+    const float zoom = SanitizeZoom(view.zoom);
+    const Vec2 pointer {
+        (mouse.x - static_cast<float>(viewportWidth) * 0.5f) / logicalScale / zoom + view.center.x,
+        -(mouse.y - static_cast<float>(viewportHeight) * 0.5f) / logicalScale / zoom + view.center.y};
+
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+    {
+        for (auto iterator = impl_->containerLayoutsScratch.rbegin();
+             iterator != impl_->containerLayoutsScratch.rend();
+             ++iterator)
+        {
+            const api1::ContainerLayoutNode& layout = *iterator;
+            if (!impl_->containerInputRouter.CanReceivePointer(
+                    impl_->containerDefinitionsScratch,
+                    impl_->containerLayoutsScratch,
+                    layout,
+                    pointer))
+                continue;
+            const bool verticalHit = layout.verticalScrollbar.visible &&
+                                     Contains(ToScreenRect(layout.verticalScrollbar.thumb,
+                                                           view, viewportWidth, viewportHeight), mouse);
+            const bool horizontalHit = layout.horizontalScrollbar.visible &&
+                                       Contains(ToScreenRect(layout.horizontalScrollbar.thumb,
+                                                             view, viewportWidth, viewportHeight), mouse);
+            if (!verticalHit && !horizontalHit) continue;
+            impl_->thumbDrag.sourceIndex = layout.sourceIndex;
+            impl_->thumbDrag.pageName = scene.ActivePageName();
+            impl_->thumbDrag.containerId = layout.id;
+            impl_->thumbDrag.horizontal = horizontalHit;
+            const float pointerCoordinate = horizontalHit ? pointer.x : pointer.y;
+            const float thumbCenter = horizontalHit
+                                          ? layout.horizontalScrollbar.thumb.center.x
+                                          : layout.verticalScrollbar.thumb.center.y;
+            impl_->thumbDrag.pointerToCenter = pointerCoordinate - thumbCenter;
+            impl_->thumbDrag.active = true;
+            break;
+        }
+    }
+
+    if (impl_->thumbDrag.active)
+    {
+        if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT))
+        {
+            impl_->thumbDrag.active = false;
+        }
+        else
+        {
+            for (const api1::ContainerLayoutNode& layout : impl_->containerLayoutsScratch)
+            {
+                if (layout.sourceIndex != impl_->thumbDrag.sourceIndex ||
+                    layout.sourceIndex >= impl_->containerDefinitionsScratch.size() ||
+                    layout.id != impl_->thumbDrag.containerId ||
+                    !layout.effectiveVisible || !layout.effectiveEnabled)
+                {
+                    continue;
+                }
+                Vec2 offset = layout.scrollOffset;
+                const float pointerCoordinate = impl_->thumbDrag.horizontal ? pointer.x : pointer.y;
+                const float updated = impl_->containerInputRouter.OffsetForThumb(
+                    layout,
+                    impl_->thumbDrag.horizontal,
+                    pointerCoordinate - impl_->thumbDrag.pointerToCenter);
+                if (impl_->thumbDrag.horizontal) offset.x = updated;
+                else offset.y = updated;
+                scene.SetActiveContainerScrollOffset(
+                    impl_->containerDefinitionsScratch[layout.sourceIndex].id, offset);
+                return;
+            }
+            impl_->thumbDrag.active = false;
+        }
+    }
+
+    const Vector2 wheel = GetMouseWheelMoveV();
+    api1::ContainerScrollRequest request;
+    if (impl_->containerInputRouter.RouteWheel(
+            impl_->containerDefinitionsScratch,
+            impl_->containerLayoutsScratch,
+            pointer,
+            {wheel.x, wheel.y},
+            0.08f / zoom,
+            request) && request.sourceIndex < impl_->containerDefinitionsScratch.size())
+    {
+        scene.SetActiveContainerScrollOffset(
+            impl_->containerDefinitionsScratch[request.sourceIndex].id, request.offset);
+    }
+}
+
 void MfdRenderer::DrawActivePage(const SceneRegistry& scene)
 {
     const int screenWidth = GetScreenWidth();
@@ -548,6 +762,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
     }
 
     const WindowDisplayState display = scene.WindowDisplay();
+    impl_->ResolveContainers(scene);
 
     const auto activePage = scene.ActivePageSummary();
     if (!activePage.has_value())
@@ -607,6 +822,11 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
     }
 
     const bool usesFullScreenViewport = viewportWidth == screenWidth && viewportHeight == screenHeight;
+    const std::size_t activeScrollbarSourceIndex =
+        impl_ != nullptr && impl_->thumbDrag.active
+            ? impl_->thumbDrag.sourceIndex
+            : std::numeric_limits<std::size_t>::max();
+    const bool activeScrollbarHorizontal = impl_ != nullptr && impl_->thumbDrag.horizontal;
     const bool needsRenderTarget =
         !usesFullScreenViewport ||
         NeedsWindowPostProcess(display) ||
@@ -615,12 +835,16 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
     {
         DrawActivePageContent(
             scene,
+            impl_->containerDefinitionsScratch,
+            impl_->containerLayoutsScratch,
             *activeReticles,
             *titleReticle,
             viewportWidth,
             viewportHeight,
             textFont,
             false,
+            activeScrollbarSourceIndex,
+            activeScrollbarHorizontal,
             impl_ == nullptr ? nullptr : &impl_->bezierCache,
             impl_ == nullptr ? nullptr : &impl_->imageCache,
             impl_ == nullptr ? nullptr : &impl_->textLayoutCache, &impl_->externalStreams);
@@ -635,12 +859,16 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
     {
         DrawActivePageContent(
             scene,
+            impl_->containerDefinitionsScratch,
+            impl_->containerLayoutsScratch,
             *activeReticles,
             *titleReticle,
             viewportWidth,
             viewportHeight,
             textFont,
             false,
+            activeScrollbarSourceIndex,
+            activeScrollbarHorizontal,
             impl_ == nullptr ? nullptr : &impl_->bezierCache,
             impl_ == nullptr ? nullptr : &impl_->imageCache,
             impl_ == nullptr ? nullptr : &impl_->textLayoutCache, &impl_->externalStreams);
@@ -664,12 +892,16 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
         ClearBackground(ToRayColor(scene.ActiveBackgroundColor()));
         DrawActivePageContent(
             scene,
+            impl_->containerDefinitionsScratch,
+            impl_->containerLayoutsScratch,
             *activeReticles,
             *titleReticle,
             viewportWidth,
             viewportHeight,
             textFont,
             impl_->renderTargetStencilReady,
+            activeScrollbarSourceIndex,
+            activeScrollbarHorizontal,
             &impl_->bezierCache,
             &impl_->imageCache,
             &impl_->textLayoutCache, &impl_->externalStreams);

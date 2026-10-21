@@ -47,6 +47,8 @@
 #include "BezierPolylineCache.h"
 #include "ImageTextureCache.h"
 #include "TextLayoutCache.h"
+#include "mfd/apilevel1/ContainerEditorHost.h"
+#include "mfd/apilevel1/ContainerEditorModel.h"
 
 class EditorTutorialController;
 
@@ -103,6 +105,7 @@ private:
     using PageImportPopupState = editor::app::PageImportPopupState;
     using PageRenamePopupState = editor::app::PageRenamePopupState;
     using ReticleRenamePopupState = editor::app::ReticleRenamePopupState;
+    using ContainerRenamePopupState = editor::app::ContainerRenamePopupState;
     using ReticleExtractionPopupState = editor::app::ReticleExtractionPopupState;
     using DesignExportPopupState = editor::app::DesignExportPopupState;
     using LayerPreviewTextureSlot = editor::app::LayerPreviewTextureSlot;
@@ -161,6 +164,8 @@ private:
     bool ExecutePageRenamePlan(const editor::RenamePagePlan& plan);
     /** @brief Opens the global reticle-template rename popup for the provided template id. */
     void OpenReticleRenamePopup(std::string templateId);
+    /** @brief Opens the page-local rename popup for one container. */
+    void OpenContainerRenamePopup(std::string containerId);
     /** @brief Builds the service request used by the reticle-rename popup. */
     [[nodiscard]] editor::RenameReticleRequest BuildReticleRenameRequest(std::string_view oldTemplateId,
                                                                          std::string_view newTemplateId,
@@ -231,6 +236,14 @@ private:
                                    const editor::SidebarProblemSummary& problems,
                                    int visibleReticles,
                                    float sectionHeight);
+    /** @brief Draws the gated LEVEL 1 Containers section immediately below Reticles. */
+    void DrawSidebarContainersSection(float sectionHeight);
+    /** @brief Draws one recursive container-tree entry using authored ownership edges. */
+    [[nodiscard]] bool DrawContainerTreeNode(const mfd::PageDefinition& page,
+                                             const mfd::api1::ContainerDefinition& container,
+                                             std::size_t depth);
+    /** @brief Draws add, add-child, duplicate and delete actions for the container tree. */
+    void DrawContainerActionToolbar();
     /** @brief Draws the Pages header toolbar: the add-page glyph plus the selected page's rename/remove/delete actions. */
     void DrawPageActionToolbar();
     /** @brief Draws the Reticle-library header toolbar: the add-reticle glyph plus the selected template's rename/duplicate/delete actions. */
@@ -258,6 +271,8 @@ private:
     void DrawWindowInspector();
     /** @brief Draws page-level properties such as view and blink types. */
     void DrawPageInspector();
+    /** @brief Draws editor-DLL-provided controls for the selected container. */
+    void DrawContainerInspector();
     /** @brief Draws the page-level strobe selector and its basic configuration. */
     void DrawPageStrobeInspector(mfd::PageDefinition& page);
     /** @brief Draws the editor-only layer manager for the active page. */
@@ -520,6 +535,8 @@ private:
     void DrawPageRenamePopup();
     /** @brief Draws the global reticle-template rename planning popup. */
     void DrawReticleRenamePopup();
+    /** @brief Draws the page-local container rename popup. */
+    void DrawContainerRenamePopup();
     /** @brief Draws the reusable-reticle extraction planning popup. */
     void DrawReticleExtractionPopup();
     /** @brief Draws the design-export planning popup. */
@@ -560,6 +577,20 @@ private:
     void SelectPageTitle(int pageIndex);
     /** @brief Selects one page-level strobe instance. Defaults to the active authored strobe. */
     void SelectPageStrobe(int pageIndex, int strobeIndex = -1);
+    /** @brief Selects one LEVEL 1 container on the active Page. */
+    void SelectContainer(int pageIndex, std::string containerId);
+    /** @brief Creates and selects one root Canvas container on the active Page. */
+    void AddRootContainer();
+    /** @brief Creates and selects one Canvas child under the provided container. */
+    void AddChildContainer(std::string_view parentId);
+    /** @brief Duplicates and selects the provided container hierarchy. */
+    void DuplicateContainer(std::string_view containerId);
+    /** @brief Deletes the provided container hierarchy and restores Page selection. */
+    void DeleteContainer(std::string_view containerId);
+    /** @brief Reparents one container as a single undoable mutation. */
+    void ReparentContainer(std::string_view containerId, std::string_view parentId);
+    /** @brief Deletes all LEVEL 1 content and lowers the Window in one undoable operation. */
+    void DowngradeWindowToLegacyRemovingContainers();
     /** @brief Toggles one page reticle inside the multi-selection. */
     void TogglePageReticleSelection(int pageIndex, int reticleIndex);
     /** @brief Selects one reticle template in the library tree. */
@@ -571,6 +602,10 @@ private:
     mfd::PageDefinition* ActivePage() noexcept;
     /** @brief Returns the currently active page when the selection targets one. */
     const mfd::PageDefinition* ActivePage() const noexcept;
+    /** @brief Returns the currently selected authored container, when valid. */
+    mfd::api1::ContainerDefinition* SelectedContainer() noexcept;
+    /** @copydoc SelectedContainer() */
+    const mfd::api1::ContainerDefinition* SelectedContainer() const noexcept;
     /** @brief Returns the selected page reticle instance when available. */
     mfd::ReticleGroup* SelectedPageReticle() noexcept;
     /** @brief Returns the selected page reticle instance when available. */
@@ -722,5 +757,7 @@ private:
     editor::app::InteractionState interactionState_ {};
     /** @brief Grouped layout and view state for the main editor workspace. */
     editor::app::LayoutState layoutState_ {};
+    /** @brief Optional LEVEL 1 editor/runtime DLL owner; never loaded for LEVEL 0 Windows. */
+    mfd::api1::ContainerEditorHost containerEditorHost_ {};
 };
 

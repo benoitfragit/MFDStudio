@@ -60,6 +60,13 @@ public:
      * UI area.
      */
     void DrawActivePage(const SceneRegistry& scene, int viewportWidth, int viewportHeight);
+    /**
+     * @brief Routes runtime pointer input to nested container scroll regions.
+     * @param scene Mutable runtime scene receiving scroll-state updates.
+     * @param viewportWidth Render viewport width in pixels.
+     * @param viewportHeight Render viewport height in pixels.
+     */
+    void HandleContainerInput(SceneRegistry& scene, int viewportWidth, int viewportHeight);
     /** @brief Returns cached stream observations from the last render; never polls GPU or IPC. */
     const std::vector<ExternalStreamFeedback>& ExternalStreams() const noexcept;
 

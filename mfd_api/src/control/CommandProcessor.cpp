@@ -183,6 +183,11 @@ struct CommandRollbackFootprintCollector
         touchedPages.push_back(detail::PageBindingOf(command));
     }
 
+    void operator()(const api1::UpdateContainerCommand& command) const
+    {
+        touchedPages.push_back(detail::PageBindingOf(command));
+    }
+
     void operator()(const ResetWindowCommand&) const noexcept
     {
         touchesWholeScene = true;
@@ -741,6 +746,11 @@ struct CommandProcessor::ResolvedCommandDispatcher
         return processor.OnRemoveDynamicReticle(command);
     }
 
+    CommandResult operator()(const api1::UpdateContainerCommand& command) const
+    {
+        return processor.OnUpdateContainer(command);
+    }
+
     CommandResult operator()(const ResetWindowCommand& command) const
     {
         return processor.OnResetWindow(command);
@@ -1218,6 +1228,37 @@ struct CommandProcessor::IdentifierResolver
         return processor.ResolveGeneratedDynamicReticle(command.target);
     }
 
+    bool operator()(api1::UpdateContainerCommand& command) const
+    {
+        if (!processor.ResolveGeneratedPage(command.target.page, command.target.pageId))
+        {
+            return false;
+        }
+        if (command.target.containerTransportId == 0U)
+        {
+            return !command.target.containerId.empty();
+        }
+        const std::string* resolved = processor.scene_.ResolveContainerId(
+            command.target.pageId, command.target.containerTransportId);
+        if (resolved == nullptr)
+        {
+            processor.SetFailure(
+                "Unknown generated container transport id " +
+                std::to_string(command.target.containerTransportId));
+            return false;
+        }
+        if (!command.target.containerId.empty() &&
+            !PageNamesEqual(command.target.containerId, *resolved))
+        {
+            processor.SetFailure(
+                "Generated container transport id does not match container '" +
+                command.target.containerId + "'");
+            return false;
+        }
+        command.target.containerId = *resolved;
+        return true;
+    }
+
     bool operator()(ResetWindowCommand&) const noexcept
     {
         return true;
@@ -1471,6 +1512,21 @@ CommandProcessor::CommandResult CommandProcessor::OnRemoveDynamicReticle(const R
                                       "' from page '" + command.target.page + "'");
     }
 
+    return CommandResult::Success();
+}
+
+CommandProcessor::CommandResult CommandProcessor::OnUpdateContainer(
+    const api1::UpdateContainerCommand& command)
+{
+    const auto pageRef = scene_.ResolvePageRef(command.target.pageId, command.target.page);
+    if (!pageRef.has_value() ||
+        !scene_.ApplyContainerPatchByKey(
+            pageRef->normalizedName, command.target.containerId, command.patch))
+    {
+        return CommandResult::Failure(
+            "Unable to update exposed container '" + command.target.containerId +
+            "' on page '" + command.target.page + "'");
+    }
     return CommandResult::Success();
 }
 

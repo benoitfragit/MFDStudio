@@ -521,6 +521,28 @@ struct UserCommandValidator
         }
     }
 
+    void operator()(const api1::UpdateContainerCommand& command) const
+    {
+        if ((command.target.pageId == 0U && command.target.page.empty()) ||
+            (command.target.containerTransportId == 0U && command.target.containerId.empty()))
+        {
+            throw std::runtime_error("UpdateContainerCommand requires a target page and container");
+        }
+        if (!command.patch.visible.has_value() && !command.patch.enabled.has_value() &&
+            !command.patch.scrollOffset.has_value())
+        {
+            throw std::runtime_error("UpdateContainerCommand patch cannot be empty");
+        }
+        if (command.patch.scrollOffset.has_value())
+        {
+            ValidateVec2(*command.patch.scrollOffset, "UpdateContainerCommand.scrollOffset");
+            if (command.patch.scrollOffset->x < 0.0f || command.patch.scrollOffset->y < 0.0f)
+            {
+                throw std::runtime_error("UpdateContainerCommand.scrollOffset must be non-negative");
+            }
+        }
+    }
+
     void operator()(const ResetWindowCommand&) const noexcept
     {
         // A window reset carries no payload: there is nothing to validate.
@@ -1416,6 +1438,32 @@ struct UserCommandProtoWriter
         FillProtoDynamicHandle(command.target, target->mutable_remove_dynamic_reticle()->mutable_target());
     }
 
+    void operator()(const api1::UpdateContainerCommand& command) const
+    {
+        if (command.target.pageId == 0U || command.target.containerTransportId == 0U)
+        {
+            throw std::runtime_error(
+                "UpdateContainerCommand serialization requires generated page and container ids");
+        }
+        auto* message = target->mutable_update_container();
+        message->mutable_target()->set_page_id(command.target.pageId);
+        message->mutable_target()->set_container_id(command.target.containerTransportId);
+        auto* patch = message->mutable_patch();
+        if (command.patch.visible.has_value())
+        {
+            patch->set_visible(*command.patch.visible);
+        }
+        if (command.patch.enabled.has_value())
+        {
+            patch->set_enabled(*command.patch.enabled);
+        }
+        if (command.patch.scrollOffset.has_value())
+        {
+            patch->mutable_scroll_offset()->set_x(command.patch.scrollOffset->x);
+            patch->mutable_scroll_offset()->set_y(command.patch.scrollOffset->y);
+        }
+    }
+
     void operator()(const ResetWindowCommand&) const
     {
         target->mutable_reset_window();
@@ -1549,6 +1597,29 @@ void AppendParsedUserCommandFromProto(const pb::UserCommand& value, std::vector<
         auto& command = std::get<RemoveDynamicReticleCommand>(
             target.emplace_back(std::in_place_type<RemoveDynamicReticleCommand>));
         command.target = FromProtoDynamicHandle(value.remove_dynamic_reticle().target());
+        return;
+    }
+
+    case pb::UserCommand::kUpdateContainer:
+    {
+        auto& command = std::get<api1::UpdateContainerCommand>(
+            target.emplace_back(std::in_place_type<api1::UpdateContainerCommand>));
+        const auto& source = value.update_container();
+        if (source.has_target())
+        {
+            command.target.pageId = source.target().page_id();
+            command.target.containerTransportId = source.target().container_id();
+        }
+        if (source.has_patch())
+        {
+            if (source.patch().has_visible()) command.patch.visible = source.patch().visible();
+            if (source.patch().has_enabled()) command.patch.enabled = source.patch().enabled();
+            if (source.patch().has_scroll_offset())
+            {
+                command.patch.scrollOffset = Vec2 {
+                    source.patch().scroll_offset().x(), source.patch().scroll_offset().y()};
+            }
+        }
         return;
     }
 

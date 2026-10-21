@@ -130,6 +130,9 @@ mfd_fetch_dependencies()
 set(MFD_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 set(MFD_COMMON_API_PUBLIC_INCLUDE_DIR "${MFD_ROOT_DIR}/mfd_common_api/include")
 set(MFD_API_PUBLIC_INCLUDE_DIR "${MFD_ROOT_DIR}/mfd_api/include")
+set(MFD_APILEVEL1_ROOT_DIR "${MFD_ROOT_DIR}/extensions/apilevel1")
+set(MFD_APILEVEL1_RUNTIME_INCLUDE_DIR "${MFD_APILEVEL1_ROOT_DIR}/runtime/include")
+set(MFD_APILEVEL1_EDITOR_INCLUDE_DIR "${MFD_APILEVEL1_ROOT_DIR}/editor/include")
 
 include(RuntimePackaging)
 
@@ -171,6 +174,7 @@ add_subdirectory(mfd_client_api)
 add_subdirectory(mfd_window_plugin_api)
 add_subdirectory(mfd_window)
 add_subdirectory(mfd_editor)
+add_subdirectory(extensions/apilevel1)
 
 if(MFD_BUILD_TESTS)
     add_subdirectory(tests)

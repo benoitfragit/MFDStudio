@@ -63,12 +63,15 @@ set(MFD_IO_JSON_PUBLIC_HEADERS
 
 set(MFD_IO_JSON_PRIVATE_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonNumberParsing.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonValueHelpers.h)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonValueHelpers.h
+    ${MFD_APILEVEL1_RUNTIME_INCLUDE_DIR}/mfd/apilevel1/ContainerJson.h)
 
 set(MFD_IO_JSON_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/io/JsonLoader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonNumberParsing.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonValueHelpers.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonValueHelpers.cpp
+    ${MFD_APILEVEL1_ROOT_DIR}/runtime/src/ContainerJson.cpp
+    ${MFD_APILEVEL1_ROOT_DIR}/runtime/src/ContainerLayoutEngine.cpp)
 
 add_library(mfd_io_json_objects OBJECT
     ${MFD_IO_JSON_PUBLIC_HEADERS}
@@ -161,19 +164,25 @@ set(MFD_RENDER_PRIVATE_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/BezierPolylineCache.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/CanvasDrawWork.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/Canvas2D.h
+    ${MFD_APILEVEL1_ROOT_DIR}/runtime/src/ContainerDecorationRenderer.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ImageTextureCache.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/MfdStudioBrandMark.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlCompat.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/PolygonTriangulation.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderWorkBudget.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderTextureUtils.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/TextLayoutCache.h)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/TextLayoutCache.h
+    ${MFD_APILEVEL1_RUNTIME_INCLUDE_DIR}/mfd/apilevel1/ContainerInputRouter.h
+    ${MFD_APILEVEL1_RUNTIME_INCLUDE_DIR}/mfd/apilevel1/ContainerRuntimeHost.h)
 
 set(MFD_RENDER_SOURCES
+    ${MFD_APILEVEL1_ROOT_DIR}/runtime/src/ContainerInputRouter.cpp
+    ${MFD_APILEVEL1_ROOT_DIR}/runtime/src/ContainerRuntimeHost.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ExternalStreamRegistry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/BezierPolylineCache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/CanvasDrawWork.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/Canvas2D.cpp
+    ${MFD_APILEVEL1_ROOT_DIR}/runtime/src/ContainerDecorationRenderer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ImageTextureCache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/MfdStudioBrandMark.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/MfdRenderer.cpp
@@ -198,6 +207,7 @@ mfd_configure_component(
         "${MFD_COMMON_API_PUBLIC_INCLUDE_DIR}"
         "${MFD_API_PUBLIC_INCLUDE_DIR}")
 target_include_directories(mfd_render_raylib_objects PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/render)
+target_include_directories(mfd_render_raylib_objects PRIVATE ${MFD_APILEVEL1_ROOT_DIR}/runtime/src)
 target_link_libraries(mfd_render_raylib_objects
     PRIVATE
         mfd::external_stream
