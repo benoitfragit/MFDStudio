@@ -2,13 +2,19 @@
 
 ## Toolchain
 
-- Visual Studio 2022
+- Visual Studio 2022 with **Desktop development with C++**
+- MSVC v142 build tools (selected explicitly by the Visual Studio presets)
+- a Windows 10 or Windows 11 SDK
 - CMake 3.25 or newer
-- Python 3
+- Python 3.7 or newer
 - C++17
 
 The first configure downloads third-party dependencies automatically, so the
-first build is slower than incremental builds.
+first build is slower than incremental builds and needs network access. For an
+offline configure, populate `third_party/archives` and enable
+`USE_LOCAL_PACKAGE=ON` instead. The optional external-stream Python producer
+also requires Python to match the target architecture (`32-bit` for Win32,
+`64-bit` for x64); ordinary generation and unit tests do not.
 
 ## Recommended first build
 
@@ -60,6 +66,17 @@ Build the editor:
 ```powershell
 cmake --build --preset debug-win32 --target mfd_editor
 ```
+
+That target includes the API LEVEL 1 container runtime and host-owned editor UI
+extension. Their DLLs are copied beside `mfd_editor.exe`; a separate extension
+build or ImGui installation is not required. Close a running copy from the same
+staging directory before rebuilding, otherwise Windows can reject the final
+`copy_if_different` step while the executable is locked.
+
+The editor can launch without `examples/tutorial/assets`, but the complete
+39-step guided authoring flow and its asset-dependent runtime tests only become
+available after those tutorial assets have been authored. CMake reports this
+condition during configure; editor tutorial unit tests remain available.
 
 ## Tests
 

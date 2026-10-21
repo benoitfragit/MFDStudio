@@ -33,6 +33,7 @@
 namespace
 {
 using editor::ui::AccentButton;
+using editor::ui::BeginNavigationSection;
 using editor::ui::BeginRowIconStrip;
 using editor::ui::DisabledTextWrapped;
 using editor::ui::DrawVerticalSplitter;
@@ -771,15 +772,10 @@ void EditorApplication::DrawSidebarPagesSection(const editor::SidebarFilterQuery
     const float clampedSectionHeight = sectionHeight > 0.0f ? sectionHeight : 1.0f;
     ImGui::BeginChild("SidebarPagesSection", ImVec2(0.0f, clampedSectionHeight), false);
 
-    if (tutorialActive)
-    {
-        ImGui::SetNextItemOpen(true, ImGuiCond_Always);
-    }
-
     // The visible count lives in the label while the stable id (after '###') keeps the open state
     // from resetting whenever the filter changes that count.
     const std::string pagesHeader = "Pages (" + std::to_string(visiblePages) + ")###SidebarPagesHeader";
-    if (ImGui::CollapsingHeader(pagesHeader.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+    if (BeginNavigationSection(pagesHeader.c_str(), tutorialActive))
     {
         DrawPageActionToolbar();
         ImGui::Spacing();
@@ -803,14 +799,9 @@ void EditorApplication::DrawSidebarReticleSection(const editor::SidebarFilterQue
     const float clampedSectionHeight = sectionHeight > 0.0f ? sectionHeight : 1.0f;
     ImGui::BeginChild("SidebarReticleSection", ImVec2(0.0f, clampedSectionHeight), false);
 
-    if (tutorialActive)
-    {
-        ImGui::SetNextItemOpen(true, ImGuiCond_Always);
-    }
-
     const std::string libraryHeader =
         "Reticle library (" + std::to_string(visibleReticles) + ")###SidebarLibraryHeader";
-    if (ImGui::CollapsingHeader(libraryHeader.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+    if (BeginNavigationSection(libraryHeader.c_str(), tutorialActive))
     {
         DrawLibraryActionToolbar();
         ImGui::Spacing();
@@ -832,7 +823,7 @@ void EditorApplication::DrawSidebarContainersSection(const float sectionHeight)
     const mfd::PageDefinition* page = ActivePage();
     const std::size_t count = page == nullptr ? 0U : page->containers.size();
     const std::string header = "Containers (" + std::to_string(count) + ")###SidebarContainersHeader";
-    if (ImGui::CollapsingHeader(header.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+    if (BeginNavigationSection(header.c_str(), false))
     {
         if (!containersAvailable)
         {

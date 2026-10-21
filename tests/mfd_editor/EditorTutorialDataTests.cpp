@@ -11,6 +11,7 @@
 
 #include "EditorTutorialData.h"
 
+#include <limits>
 #include <string_view>
 
 #include <gtest/gtest.h>
@@ -27,7 +28,7 @@ TEST(EditorTutorialDataTests, StepCountMatchesExposedSpanSize)
 {
     const auto steps = editor::tutorial::Steps();
     ASSERT_EQ(static_cast<int>(steps.size()), editor::tutorial::StepCount());
-    ASSERT_GT(editor::tutorial::StepCount(), 0);
+    ASSERT_EQ(editor::tutorial::StepCount(), 39);
 }
 
 TEST(EditorTutorialDataTests, StepsExposeNonEmptyCoreFields)
@@ -204,4 +205,25 @@ TEST(EditorTutorialDataTests, ColorGuidanceRequiresExposureThenOpeningThenYellow
     EXPECT_NE(std::string_view(step.instruction).find("current Fill color button"), std::string_view::npos);
     EXPECT_NE(std::string_view(step.instruction).find("eight shortcuts"), std::string_view::npos);
     EXPECT_EQ(std::string_view(step.instruction).find("Custom (+)"), std::string_view::npos);
+}
+
+TEST(EditorTutorialDataTests, CoachHeightRemainsReadableAndBoundedByAvailableSpace)
+{
+    EXPECT_FLOAT_EQ(editor::tutorial::TutorialCoachPanelHeight(1000.0f, false), 240.0f);
+    EXPECT_FLOAT_EQ(editor::tutorial::TutorialCoachPanelHeight(1000.0f, true), 280.0f);
+    EXPECT_FLOAT_EQ(editor::tutorial::TutorialCoachPanelHeight(480.0f, false), 216.0f);
+    EXPECT_FLOAT_EQ(editor::tutorial::TutorialCoachPanelHeight(100.0f, true), 45.0f);
+    EXPECT_FLOAT_EQ(editor::tutorial::TutorialCoachPanelHeight(
+                        std::numeric_limits<float>::infinity(), false),
+                    0.0f);
+}
+
+TEST(EditorTutorialDataTests, HaloWrapWidthFitsNarrowAndWideViewports)
+{
+    EXPECT_FLOAT_EQ(editor::tutorial::TutorialHaloWrapWidth(100.0f), 60.0f);
+    EXPECT_FLOAT_EQ(editor::tutorial::TutorialHaloWrapWidth(720.0f), 216.0f);
+    EXPECT_FLOAT_EQ(editor::tutorial::TutorialHaloWrapWidth(1920.0f), 320.0f);
+    EXPECT_FLOAT_EQ(editor::tutorial::TutorialHaloWrapWidth(
+                        std::numeric_limits<float>::quiet_NaN()),
+                    180.0f);
 }

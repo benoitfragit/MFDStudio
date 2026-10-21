@@ -35,9 +35,12 @@
 namespace
 {
 using editor::ui::AccentButton;
+using editor::ui::BeginInspectorField;
 using editor::ui::BeginInspectorSection;
 using editor::ui::DisabledTextWrapped;
+using editor::ui::DrawInspectorHeading;
 using editor::ui::EditorIcon;
+using editor::ui::EndInspectorField;
 using editor::ui::IconButton;
 using editor::ui::InspectorHelpMarker;
 using editor::ui::ShowItemTooltip;
@@ -103,15 +106,15 @@ void EditorApplication::DrawContainerInspector()
         return;
     }
 
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Container");
-    ImGui::TextDisabled("Identifier");
-    ImGui::SameLine();
+    DrawInspectorHeading("Container", "Arrange content with the API LEVEL 1 layout system.");
+    BeginInspectorField("Identifier");
     ImGui::TextUnformatted(container->id.c_str());
     ImGui::SameLine();
     if (IconButton("##container_rename", EditorIcon::Rename, "Rename this container."))
     {
         OpenContainerRenamePopup(container->id);
     }
+    EndInspectorField();
 
     std::string parentId;
     mfd::api1::ContainerDefinition* parentContainer = nullptr;
@@ -133,7 +136,8 @@ void EditorApplication::DrawContainerInspector()
     }
     const char* parentPreview = parentId.empty() ? "Root" : parentId.c_str();
     std::optional<std::string> requestedParentId;
-    if (ImGui::BeginCombo("Parent", parentPreview))
+    BeginInspectorField("Parent");
+    if (ImGui::BeginCombo("##value", parentPreview))
     {
         if (ImGui::Selectable("Root", parentId.empty()) && !parentId.empty())
         {
@@ -149,6 +153,7 @@ void EditorApplication::DrawContainerInspector()
         }
         ImGui::EndCombo();
     }
+    EndInspectorField();
     if (requestedParentId.has_value())
     {
         ReparentContainer(container->id, *requestedParentId);
@@ -393,8 +398,7 @@ void EditorApplication::DrawWindowInspector()
         return;
     }
 
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Window");
-    DisabledTextWrapped("Tune the root window asset, transports and runtime feedback cadence.");
+    DrawInspectorHeading("Window", "Tune the root asset, transports and runtime feedback cadence.");
     ImGui::TextDisabled("Source file: %s", documentState_.loaded.window.sourceFile.string().c_str());
     ImGui::TextDisabled("Loaded pages: %d", static_cast<int>(documentState_.loaded.document.pages.size()));
 
@@ -405,7 +409,9 @@ void EditorApplication::DrawWindowInspector()
     CopyTextBuffer(fontFile, documentState_.loaded.window.fontFile.string());
     CopyTextBuffer(reticleLibraryFolder, documentState_.loaded.window.reticleLibraryFolder.string());
 
-    const bool titleChanged = ImGui::InputText("Window title", title.data(), title.size());
+    BeginInspectorField("Window title");
+    const bool titleChanged = ImGui::InputText("##value", title.data(), title.size());
+    EndInspectorField();
     ShowItemTooltip("Human-readable title stored in the root window JSON.");
     if (ImGui::IsItemActivated())
     {
@@ -418,7 +424,8 @@ void EditorApplication::DrawWindowInspector()
 
     const bool level1Selected = documentState_.loaded.window.apiLevel == mfd::ApiLevel::Level1;
     const char* apiLevelPreview = level1Selected ? u8"1 \u2014 Containers" : u8"0 \u2014 Legacy";
-    if (ImGui::BeginCombo("API LEVEL", apiLevelPreview))
+    BeginInspectorField("API LEVEL");
+    if (ImGui::BeginCombo("##value", apiLevelPreview))
     {
         if (ImGui::Selectable(u8"0 \u2014 Legacy", !level1Selected) &&
             documentState_.loaded.window.apiLevel != mfd::ApiLevel::Legacy)
@@ -450,6 +457,7 @@ void EditorApplication::DrawWindowInspector()
         }
         ImGui::EndCombo();
     }
+    EndInspectorField();
     ShowItemTooltip("The Window level is a capability ceiling. LEVEL 1 requires compatible runtime and editor extensions.");
     if (ImGui::BeginPopupModal("Downgrade to API LEVEL 0##confirm", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
     {
@@ -471,7 +479,9 @@ void EditorApplication::DrawWindowInspector()
     }
 
     int windowSize[2] {documentState_.loaded.window.width, documentState_.loaded.window.height};
-    const bool sizeChanged = ImGui::InputInt2("Size (px)", windowSize);
+    BeginInspectorField("Size (px)");
+    const bool sizeChanged = ImGui::InputInt2("##value", windowSize);
+    EndInspectorField();
     ShowItemTooltip("Initial native window size in pixels.");
     if (ImGui::IsItemActivated())
     {
@@ -486,7 +496,9 @@ void EditorApplication::DrawWindowInspector()
     }
 
     int windowPosition[2] {documentState_.loaded.window.positionX, documentState_.loaded.window.positionY};
-    const bool positionChanged = ImGui::InputInt2("Position (px)", windowPosition);
+    BeginInspectorField("Position (px)");
+    const bool positionChanged = ImGui::InputInt2("##value", windowPosition);
+    EndInspectorField();
     ShowItemTooltip("Initial native window position in pixels.");
     if (ImGui::IsItemActivated())
     {
@@ -499,7 +511,9 @@ void EditorApplication::DrawWindowInspector()
     }
 
     int targetFps = documentState_.loaded.window.targetFps;
-    const bool targetFpsChanged = ImGui::InputInt("Target FPS", &targetFps);
+    BeginInspectorField("Target FPS");
+    const bool targetFpsChanged = ImGui::InputInt("##value", &targetFps);
+    EndInspectorField();
     ShowItemTooltip("Requested runtime cadence for the host window loop.");
     if (ImGui::IsItemActivated())
     {
@@ -510,7 +524,9 @@ void EditorApplication::DrawWindowInspector()
         documentState_.loaded.window.targetFps = std::max(1, targetFps);
     }
 
-    const bool fontChanged = ImGui::InputText("Font file", fontFile.data(), fontFile.size());
+    BeginInspectorField("Font file");
+    ImGui::SetNextItemWidth(-ImGui::GetFrameHeight() - ImGui::GetStyle().ItemInnerSpacing.x);
+    const bool fontChanged = ImGui::InputText("##value", fontFile.data(), fontFile.size());
     ShowItemTooltip("Optional font file resolved from the window JSON.");
     if (ImGui::IsItemActivated())
     {
@@ -526,9 +542,12 @@ void EditorApplication::DrawWindowInspector()
     {
         BrowseWindowFontFile();
     }
+    EndInspectorField();
 
+    BeginInspectorField("Reticle folder");
+    ImGui::SetNextItemWidth(-ImGui::GetFrameHeight() - ImGui::GetStyle().ItemInnerSpacing.x);
     const bool reticleFolderChanged =
-        ImGui::InputText("Reticle library folder", reticleLibraryFolder.data(), reticleLibraryFolder.size());
+        ImGui::InputText("##value", reticleLibraryFolder.data(), reticleLibraryFolder.size());
     ShowItemTooltip("Folder containing the reusable reticle JSON templates referenced by this window.");
     if (ImGui::IsItemActivated())
     {
@@ -543,6 +562,7 @@ void EditorApplication::DrawWindowInspector()
     {
         BrowseWindowReticleLibraryFolder();
     }
+    EndInspectorField();
 
     ImGui::Spacing();
     const bool sectionForceOpen = tutorial_->IsCoachVisible();
@@ -757,8 +777,7 @@ void EditorApplication::DrawPageInspector()
         return;
     }
 
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Page");
-    DisabledTextWrapped("Edit the page and work directly in the preview.");
+    DrawInspectorHeading("Page", "Edit the page and work directly in the preview.");
 
     const bool sectionForceOpen = tutorial_->IsCoachVisible();
 
@@ -799,91 +818,108 @@ void EditorApplication::DrawPageInspector()
     CopyTextBuffer(title, page->title);
     ImVec4 background = ToImGuiColor(page->backgroundColor);
 
-    ImGui::InputText("Name", name.data(), name.size(), ImGuiInputTextFlags_ReadOnly);
-    ShowItemTooltip("Internal page id used in JSON and API references.");
-    DisabledTextWrapped("Use 'Rename page globally...' to change this id safely.");
+    if (BeginInspectorSection("section_page_settings", "Page settings", true, sectionForceOpen))
+    {
+        BeginInspectorField("Name");
+        ImGui::InputText("##value", name.data(), name.size(), ImGuiInputTextFlags_ReadOnly);
+        EndInspectorField();
+        ShowItemTooltip("Internal page id used in JSON and API references.");
+        DisabledTextWrapped("Use 'Rename page globally...' to change this id safely.");
 
-    const bool titleChanged = ImGui::InputText("Title", title.data(), title.size());
-    ShowItemTooltip("Human-readable title shown in the editor and optionally in the runtime page chrome.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
-    if (titleChanged)
-    {
-        page->title = title.data();
-    }
-
-    if (ImGui::Button("Select title chrome"))
-    {
-        SelectPageTitle(documentState_.selection.pageIndex);
-        if (page->name == "Page1" && tutorial_->MatchesTarget("page_select_title_chrome"))
+        BeginInspectorField("Title");
+        const bool titleChanged = ImGui::InputText("##value", title.data(), title.size());
+        EndInspectorField();
+        ShowItemTooltip("Human-readable title shown in the editor and optionally in the runtime page chrome.");
+        if (ImGui::IsItemActivated())
         {
-            tutorial_->CompleteStep();
+            PushUndoSnapshot();
         }
-        return;
-    }
-    ShowItemTooltip("Edit the page title position, scale, visibility and decoration in its dedicated inspector.");
-    tutorial_->DrawHalo(
-        "page_select_title_chrome",
-        "Select the Page1 title chrome",
-        "Open the dedicated title inspector. It exposes move, scale, visibility, color, line style, and decoration controls for the generated page title.");
-
-    const auto backgroundInteraction = editor::ui::DrawColorPicker("Background", &background.x);
-    const bool bgChanged = backgroundInteraction.changed;
-    ShowItemTooltip("Preview and runtime background color for this page.");
-    if (bgChanged)
-    {
-        ApplyAuthoredColor(page->backgroundColor, background, backgroundInteraction.beganEdit);
-    }
-
-    const bool centerChanged = ImGui::DragFloat2("View center", &page->view.center.x, 0.01f, -1.0f, 1.0f, "%.3f");
-    ShowItemTooltip(
-        "Authored page camera center stored in the JSON.\n"
-        "This is different from the temporary mouse-wheel zoom and pan used only by the editor preview.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
-    if (centerChanged)
-    {
-        page->view.center.x = std::clamp(page->view.center.x, -1.0f, 1.0f);
-        page->view.center.y = std::clamp(page->view.center.y, -1.0f, 1.0f);
-        layoutState_.pagePreviewView = page->view;
-        layoutState_.pagePreviewView.zoom = mfd::SanitizeZoom(layoutState_.pagePreviewView.zoom);
-    }
-
-    const bool zoomChanged = ImGui::DragFloat("Zoom", &page->view.zoom, 0.02f, 0.1f, 20.0f, "%.3f");
-    ShowItemTooltip(
-        "Authored default page zoom stored in the JSON.\n"
-        "Mouse-wheel zoom in the preview does not change this value.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
-    if (zoomChanged)
-    {
-        page->view.zoom = mfd::SanitizeZoom(page->view.zoom);
-        layoutState_.pagePreviewView = page->view;
-    }
-
-    bool defaultPage = page->defaultPage;
-    if (ImGui::Checkbox("Default page for this window", &defaultPage))
-    {
-        PushUndoSnapshot();
-        if (defaultPage)
+        if (titleChanged)
         {
-            for (auto& candidate : documentState_.loaded.document.pages)
+            page->title = title.data();
+        }
+
+        if (ImGui::Button("Select title chrome"))
+        {
+            SelectPageTitle(documentState_.selection.pageIndex);
+            if (page->name == "Page1" && tutorial_->MatchesTarget("page_select_title_chrome"))
             {
-                candidate.defaultPage = false;
+                tutorial_->CompleteStep();
             }
+            return;
+        }
+        ShowItemTooltip("Edit the page title position, scale, visibility and decoration in its dedicated inspector.");
+        tutorial_->DrawHalo(
+            "page_select_title_chrome",
+            "Select the Page1 title chrome",
+            "Open the dedicated title inspector. It exposes move, scale, visibility, color, line style, and decoration controls for the generated page title.");
+
+        BeginInspectorField("Background");
+        const auto backgroundInteraction = editor::ui::DrawColorPicker("##value", &background.x);
+        EndInspectorField();
+        const bool bgChanged = backgroundInteraction.changed;
+        ShowItemTooltip("Preview and runtime background color for this page.");
+        if (bgChanged)
+        {
+            ApplyAuthoredColor(page->backgroundColor, background, backgroundInteraction.beganEdit);
         }
 
-        page->defaultPage = defaultPage;
-    }
-    ShowItemTooltip("Mark this page as the default page opened by the runtime for this window.");
+        BeginInspectorField("View center");
+        const bool centerChanged =
+            ImGui::DragFloat2("##value", &page->view.center.x, 0.01f, -1.0f, 1.0f, "%.3f");
+        EndInspectorField();
+        ShowItemTooltip(
+            "Authored page camera center stored in the JSON.\n"
+            "This is different from the temporary mouse-wheel zoom and pan used only by the editor preview.");
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+        if (centerChanged)
+        {
+            page->view.center.x = std::clamp(page->view.center.x, -1.0f, 1.0f);
+            page->view.center.y = std::clamp(page->view.center.y, -1.0f, 1.0f);
+            layoutState_.pagePreviewView = page->view;
+            layoutState_.pagePreviewView.zoom = mfd::SanitizeZoom(layoutState_.pagePreviewView.zoom);
+        }
 
-    DisabledTextWrapped("If no page is marked default, the runtime opens the first page in the window JSON.");
+        BeginInspectorField("Zoom");
+        const bool zoomChanged = ImGui::DragFloat("##value", &page->view.zoom, 0.02f, 0.1f, 20.0f, "%.3f");
+        EndInspectorField();
+        ShowItemTooltip(
+            "Authored default page zoom stored in the JSON.\n"
+            "Mouse-wheel zoom in the preview does not change this value.");
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+        if (zoomChanged)
+        {
+            page->view.zoom = mfd::SanitizeZoom(page->view.zoom);
+            layoutState_.pagePreviewView = page->view;
+        }
+
+        bool defaultPage = page->defaultPage;
+        BeginInspectorField("Default page");
+        const bool defaultPageChanged = ImGui::Checkbox("##value", &defaultPage);
+        EndInspectorField();
+        if (defaultPageChanged)
+        {
+            PushUndoSnapshot();
+            if (defaultPage)
+            {
+                for (auto& candidate : documentState_.loaded.document.pages)
+                {
+                    candidate.defaultPage = false;
+                }
+            }
+
+            page->defaultPage = defaultPage;
+        }
+        ShowItemTooltip("Mark this page as the default page opened by the runtime for this window.");
+
+        DisabledTextWrapped("If no page is marked default, the runtime opens the first page in the window JSON.");
+    }
 
     if (BeginInspectorSection("section_page_blink", "Blink types", false, sectionForceOpen))
     {
@@ -2151,7 +2187,7 @@ void EditorApplication::DrawPageReticleInspector()
 
     if (selectedIndices.size() > 1U)
     {
-        ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Page reticles");
+        DrawInspectorHeading("Page reticles", "Apply one action to the current multi-selection.");
         ImGui::Text("Page: %s", page->name.c_str());
         ImGui::Text("%d reticles selected", static_cast<int>(selectedIndices.size()));
         DisabledTextWrapped("Ctrl+click in the page or in the tree to add or remove reticles from the selection.");
@@ -2221,7 +2257,7 @@ void EditorApplication::DrawPageReticleInspector()
         return;
     }
 
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Page reticle");
+    DrawInspectorHeading("Page reticle", "Edit this page-local instance without changing its shared template.");
     ImGui::Text("Page: %s", page->name.c_str());
     std::array<char, 128> reticleId {};
     CopyTextBuffer(reticleId, reticle->id);
@@ -2728,7 +2764,7 @@ void EditorApplication::DrawSelectedPageTitleInspector()
     }
 
     const std::string displayedTitle = mfd::ResolvePageDisplayTitleText(page->name, page->title);
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Page title");
+    DrawInspectorHeading("Page title", "Frame and style the generated title chrome.");
     InspectorHelpMarker(
         "Move inside the frame, rotate with the blue handle, scale with the corner handles.\n"
         "Edit the title text from the page inspector.");
@@ -2952,7 +2988,7 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
         return;
     }
 
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Page strobe");
+    DrawInspectorHeading("Page strobe", "Edit this page-local strobe instance and its display behavior.");
     ImGui::Text("Page: %s", page->name.c_str());
     ImGui::Text("Name: %s", strobe->name.c_str());
     ImGui::Text("Strobe id: %s", reticle->id.c_str());
@@ -3387,7 +3423,7 @@ void EditorApplication::DrawLibraryReticleInspector()
 
     const ScopedImGuiId scopedId("LibraryReticleInspector");
 
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Library reticle");
+    DrawInspectorHeading("Library reticle", "Edit a reusable template shared by page instances.");
     ImGui::Text("Template id: %s", reticle->id.c_str());
     if (const auto fileIt = documentState_.files.templateFiles.find(reticle->id); fileIt != documentState_.files.templateFiles.end())
     {
@@ -3704,7 +3740,7 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
 
     const bool sectionForceOpen = tutorial_->IsCoachVisible();
 
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Primitive");
+    DrawInspectorHeading("Primitive", "Edit the selected shape in the reticle studio.");
     if (AccentButton("Copy primitive"))
     {
         CopySelectedLibraryPrimitive();

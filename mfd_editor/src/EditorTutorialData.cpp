@@ -11,6 +11,8 @@
  */
 
 #include <array>
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 
 namespace editor::tutorial
@@ -315,6 +317,32 @@ int NextColorTutorialPhase(const int phase, const bool exposed,
         return 2;
     }
     return phase == 2 && selected == mfd::ColorPreset::Yellow ? 3 : phase;
+}
+
+float TutorialCoachPanelHeight(const float availableHeight, const bool referenceDocument) noexcept
+{
+    if (!std::isfinite(availableHeight) || availableHeight <= 0.0f)
+    {
+        return 0.0f;
+    }
+
+    const float desiredHeight = referenceDocument ? 280.0f : 240.0f;
+    const float responsiveMaximum = availableHeight * 0.45f;
+    const float minimumHeight = std::min(160.0f, responsiveMaximum);
+    return std::clamp(desiredHeight, minimumHeight, responsiveMaximum);
+}
+
+float TutorialHaloWrapWidth(const float workWidth) noexcept
+{
+    if (!std::isfinite(workWidth) || workWidth <= 0.0f)
+    {
+        return 180.0f;
+    }
+
+    const float maximumAvailable = std::max(40.0f, workWidth - 40.0f);
+    const float minimumWidth = std::min(180.0f, maximumAvailable);
+    const float maximumWidth = std::min(320.0f, maximumAvailable);
+    return std::clamp(workWidth * 0.30f, minimumWidth, maximumWidth);
 }
 
 int StepCount() noexcept

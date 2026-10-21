@@ -12,6 +12,7 @@
 
 #include <imgui.h>
 
+#include "EditorUiTheme.h"
 #include "mfd/apilevel1/ContainerEditorAbi.h"
 #include "mfd/apilevel1/ContainerRuntimeHost.h"
 
@@ -40,14 +41,29 @@ std::filesystem::path ExecutableDirectory()
 
 void MFD_CONTAINER_EDITOR_CALL DrawText(void*, const char* const text)
 {
-    ImGui::TextUnformatted(text == nullptr ? "" : text);
+    ImGui::TextDisabled("%s", text == nullptr ? "" : text);
+}
+
+std::uint8_t MFD_CONTAINER_EDITOR_CALL BeginSection(void*,
+                                                   const char* const sectionId,
+                                                   const char* const label,
+                                                   const std::uint8_t defaultOpen)
+{
+    if (sectionId == nullptr || label == nullptr)
+    {
+        return 0U;
+    }
+
+    return editor::ui::BeginInspectorSection(sectionId, label, defaultOpen != 0U, false) ? 1U : 0U;
 }
 
 std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawCheckbox(void*, const char* const label, std::uint8_t* const value)
 {
     if (value == nullptr) return 0U;
     bool checked = *value != 0U;
-    const bool changed = ImGui::Checkbox(label, &checked);
+    editor::ui::BeginInspectorField(label);
+    const bool changed = ImGui::Checkbox("##value", &checked);
+    editor::ui::EndInspectorField();
     *value = checked ? 1U : 0U;
     return changed ? 1U : 0U;
 }
@@ -55,8 +71,13 @@ std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawCheckbox(void*, const char* const lab
 std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawFloat(void*, const char* const label, float* const value,
                                                 const float speed, const float minimum, const float maximum)
 {
+    if (value == nullptr) return 0U;
     const float previous = *value;
-    if (!ImGui::DragFloat(label, value, speed, minimum, maximum, "%.3f", ImGuiSliderFlags_AlwaysClamp)) return 0U;
+    editor::ui::BeginInspectorField(label);
+    const bool changed =
+        ImGui::DragFloat("##value", value, speed, minimum, maximum, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+    editor::ui::EndInspectorField();
+    if (!changed) return 0U;
     *value = std::isfinite(*value) ? std::clamp(*value, minimum, maximum) : previous;
     return *value != previous ? 1U : 0U;
 }
@@ -64,8 +85,13 @@ std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawFloat(void*, const char* const label,
 std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawFloat2(void*, const char* const label, float* const values,
                                                  const float speed, const float minimum, const float maximum)
 {
+    if (values == nullptr) return 0U;
     const std::array<float, 2U> previous {values[0], values[1]};
-    if (!ImGui::DragFloat2(label, values, speed, minimum, maximum, "%.3f", ImGuiSliderFlags_AlwaysClamp)) return 0U;
+    editor::ui::BeginInspectorField(label);
+    const bool changed =
+        ImGui::DragFloat2("##value", values, speed, minimum, maximum, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+    editor::ui::EndInspectorField();
+    if (!changed) return 0U;
     for (std::size_t axis = 0U; axis < previous.size(); ++axis)
     {
         values[axis] = std::isfinite(values[axis]) ? std::clamp(values[axis], minimum, maximum) : previous[axis];
@@ -80,7 +106,8 @@ std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawCombo(void*, const char* const label,
     bool changed = false;
     const std::size_t selected = static_cast<std::size_t>(std::clamp<std::int32_t>(
         *current, 0, static_cast<std::int32_t>(labelCount - 1U)));
-    if (ImGui::BeginCombo(label, labels[selected]))
+    editor::ui::BeginInspectorField(label);
+    if (ImGui::BeginCombo("##value", labels[selected]))
     {
         for (std::size_t index = 0U; index < labelCount; ++index)
         {
@@ -92,12 +119,17 @@ std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawCombo(void*, const char* const label,
         }
         ImGui::EndCombo();
     }
+    editor::ui::EndInspectorField();
     return changed ? 1U : 0U;
 }
 
 std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawColor(void*, const char* const label, float* const rgba)
 {
-    return ImGui::ColorEdit4(label, rgba) ? 1U : 0U;
+    if (rgba == nullptr) return 0U;
+    editor::ui::BeginInspectorField(label);
+    const bool changed = ImGui::ColorEdit4("##value", rgba);
+    editor::ui::EndInspectorField();
+    return changed ? 1U : 0U;
 }
 
 void ToFloatColor(const ColorRgba color, float* const destination) noexcept
@@ -238,7 +270,7 @@ bool ContainerEditorHost::DrawInspector(ContainerDefinition& container,
 
     MfdContainerEditorUiFacadeV1 ui {sizeof(MfdContainerEditorUiFacadeV1),
         MFD_CONTAINER_EDITOR_UI_FACADE_VERSION, nullptr, &DrawText, &DrawCheckbox,
-        &DrawFloat, &DrawFloat2, &DrawCombo, &DrawColor};
+        &DrawFloat, &DrawFloat2, &DrawCombo, &DrawColor, &BeginSection};
     const char* const parentId = parent == nullptr ? "" : parent->id.c_str();
     const std::uint32_t parentType =
         parent == nullptr ? 0U : static_cast<std::uint32_t>(parent->type);

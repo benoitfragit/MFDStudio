@@ -117,6 +117,14 @@ only fixed-layout C records and callbacks; no STL ownership or ImGui context
 crosses the DLL boundary. Registration is tied to the loaded DLL and selection
 lifetime, and unload removes callbacks before unloading code.
 
+The facade also owns section and aligned-field presentation. Container type,
+geometry, placement, layout, scrolling and appearance therefore use the same
+neutral section cards, label column, typography, spacing and interaction states
+as LEVEL 0 inspectors. The extension supplies domain labels and values only; it
+cannot drift into a separate ImGui theme. Section support is an optional
+`struct_size`-guarded tail callback: an older facade remains binary compatible
+and receives the same controls expanded with text headings.
+
 If a LEVEL 1 Window is opened without a compatible editor DLL, the sidebar shows
 a read-only diagnostic and does not expose broken actions. LEVEL 0 editing does
 not attempt to load this DLL.

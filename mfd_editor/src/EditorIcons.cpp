@@ -438,17 +438,21 @@ bool IconButton(const char* const strId,
     }
 
     ImDrawList* const drawList = ImGui::GetWindowDrawList();
-    if (hovered)
+    const bool active = enabled && ImGui::IsItemActive();
+    if (sizeOverride <= 0.0f || hovered || active)
     {
+        const ImGuiCol backgroundColor = active ? ImGuiCol_ButtonActive
+                                                : hovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button;
         drawList->AddRectFilled(topLeft,
                                 ImVec2(topLeft.x + size, topLeft.y + size),
-                                ImGui::GetColorU32(ImGuiCol_ButtonHovered),
+                                ImGui::GetColorU32(backgroundColor),
                                 ImGui::GetStyle().FrameRounding);
     }
 
+    const ImVec4 accent = ImGui::GetStyleColorVec4(ImGuiCol_CheckMark);
     const ImU32 glyphColor =
         !enabled ? ImGui::GetColorU32(ImGuiCol_TextDisabled)
-                 : (hovered ? ImGui::GetColorU32(ImVec4(0.33f, 0.86f, 0.78f, 1.0f)) : kGlyphRest);
+                 : (hovered || active ? ImGui::GetColorU32(accent) : kGlyphRest);
     PaintGlyph(*drawList, icon, topLeft, size, glyphColor);
 
     if (enabled)

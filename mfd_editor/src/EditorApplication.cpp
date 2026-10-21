@@ -1213,12 +1213,27 @@ ViewportToolbarLayout ComputeViewportToolbarLayout(const ImVec2 viewportOrigin,
                                    layout.helpButtonPos.y);
     layout.textPos = ImVec2(layout.resetButtonPos.x + layout.buttonSize.x + style.ItemSpacing.x,
                             layout.helpButtonPos.y + style.FramePadding.y);
-    // The hit rectangle starts at the leading tools so canvas drags never begin under any button.
-    layout.toolbarMin = layout.leadingToolsPos;
+    // The interaction guard includes the toolbar card padding so canvas drags never begin
+    // inside the visual surface around the controls.
+    layout.toolbarMin = ImVec2(layout.leadingToolsPos.x - 6.0f, layout.leadingToolsPos.y - 6.0f);
     layout.toolbarMax = ImVec2(
-        layout.textPos.x + textSize.x,
-        layout.helpButtonPos.y + std::max(layout.buttonSize.y, textSize.y + style.FramePadding.y * 2.0f));
+        layout.textPos.x + textSize.x + 8.0f,
+        layout.helpButtonPos.y + std::max(layout.buttonSize.y, textSize.y + style.FramePadding.y * 2.0f) + 6.0f);
     return layout;
+}
+
+void DrawViewportToolbarSurface(const ViewportToolbarLayout& layout)
+{
+    ImDrawList* const drawList = ImGui::GetWindowDrawList();
+    const ImVec4 panel = ImGui::GetStyleColorVec4(ImGuiCol_ChildBg);
+    drawList->AddRectFilled(layout.toolbarMin,
+                            layout.toolbarMax,
+                            ImGui::GetColorU32(ImVec4(panel.x, panel.y, panel.z, 0.96f)),
+                            ImGui::GetStyle().FrameRounding + 2.0f);
+    drawList->AddRect(layout.toolbarMin,
+                      layout.toolbarMax,
+                      ImGui::GetColorU32(ImGuiCol_Border),
+                      ImGui::GetStyle().FrameRounding + 2.0f);
 }
 
 /**
@@ -1228,6 +1243,7 @@ ViewportToolbarLayout ComputeViewportToolbarLayout(const ImVec2 viewportOrigin,
  */
 ViewportToolAction DrawViewportLeadingTools(const ViewportToolbarLayout& layout, const editor::app::PreviewTool armedTool)
 {
+    DrawViewportToolbarSurface(layout);
     const float spacing = ImGui::GetStyle().ItemSpacing.x;
     const float stride = layout.buttonSize.x + spacing;
     ViewportToolAction action = ViewportToolAction::None;
@@ -1267,7 +1283,7 @@ ViewportToolAction DrawViewportLeadingTools(const ViewportToolbarLayout& layout,
         ImGui::GetWindowDrawList()->AddRect(
             armedPos,
             ImVec2(armedPos.x + layout.buttonSize.x, armedPos.y + layout.buttonSize.y),
-            IM_COL32(84, 219, 201, 255),
+            ImGui::GetColorU32(ImGuiCol_CheckMark),
             ImGui::GetStyle().FrameRounding,
             0,
             2.0f);
@@ -1339,6 +1355,11 @@ bool DrawViewportToolbar(const ImVec2 viewportOrigin,
 {
     const ViewportToolbarLayout layout = ComputeViewportToolbarLayout(viewportOrigin, zoom, mouseLogical, leadingToolCount);
     bool resetRequested = false;
+
+    if (leadingToolCount == 0)
+    {
+        DrawViewportToolbarSurface(layout);
+    }
 
     ImGui::SetCursorScreenPos(layout.helpButtonPos);
     if (IconButton(helpButtonId, EditorIcon::Help, "Open a compact summary of the controls available in this view."))
@@ -1555,7 +1576,10 @@ int EditorApplication::Run()
     SetWindowMinSize(720, 480);
     SetTargetFPS(60);
 
-    rlImGuiSetup(true);
+    rlImGuiBeginInitImGui();
+    ImGui::StyleColorsDark();
+    editor::ui::ConfigureEditorFont(GetWindowScaleDPI().y);
+    rlImGuiEndInitImGui();
     ApplyEditorTheme();
 
     while (true)

@@ -15,6 +15,13 @@ surfaces visible at the same time:
 - page preview: the main authoring canvas for selection, zoom, and layout work
 - right inspector: the editable properties of the current page, reticle, or primitive
 
+The shell uses one restrained dark design system throughout the executable and
+the API LEVEL 1 extension: Segoe UI on Windows (with a readable fallback),
+aligned label/value rows, quiet section surfaces, turquoise state accents and
+blue interaction accents. The same compact icon buttons, spacing and focus
+states are used in sidebars, viewport tools and inspectors; extension code never
+creates a second visual theme.
+
 ## Start
 
 ```powershell
@@ -82,6 +89,12 @@ then auto-collapses the sidebar and inspector instead of blocking the resize.
 Auto-collapse is temporary and never changes saved panel widths; use the **View**
 menu or widen the window to bring panels back.
 
+Inspector fields keep labels in a stable left column and controls in a flexible
+right column. Collapsible groups use neutral surfaces with a thin state marker,
+so selection and active-tool colors remain meaningful instead of turning every
+section into a saturated banner. The preview toolbar is grouped on one bordered
+surface above the canvas and retains a visible armed state for one-shot tools.
+
 In the fully loaded workspace, the left sidebar exposes pages and reticles, the
 center keeps the preview tools visible, and the right inspector follows the
 current selection. This is the recommended layout for authoring and for the
@@ -138,6 +151,16 @@ The page-preview header carries a compact glyph toolbar to the left of the help
 
 Zoom box and smart select are one-shot: after a drag (or `Esc`) they disarm and the
 left button returns to normal selection and dragging.
+
+## Integrated tutorial coach
+
+The guided flow contains 39 ordered steps. Its coach is a bounded, scrollable
+panel: it keeps the current step, stage progress and required action readable
+without consuming the entire preview on a short window. Target halos use the
+same editor palette, stay inside the viewport work area and move around the
+target when the preferred side has insufficient room. Starting the tutorial
+temporarily opens the inspector sections needed by the current target without
+overwriting the user's persisted inspector preferences.
 
 ## Reticle studio
 

@@ -9,6 +9,7 @@
 #include "mfd/apilevel1/ContainerEditorAbi.h"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 #include <gtest/gtest.h>
@@ -18,11 +19,20 @@ namespace
 struct FacadeState
 {
     int calls = 0;
+    int sectionCalls = 0;
 };
 
 void MFD_CONTAINER_EDITOR_CALL CountText(void* context, const char*)
 {
     ++static_cast<FacadeState*>(context)->calls;
+}
+
+std::uint8_t MFD_CONTAINER_EDITOR_CALL CountSection(void* context, const char*, const char*, std::uint8_t)
+{
+    auto& state = *static_cast<FacadeState*>(context);
+    ++state.calls;
+    ++state.sectionCalls;
+    return 1U;
 }
 
 std::uint8_t MFD_CONTAINER_EDITOR_CALL CountCheckbox(void* context, const char*, std::uint8_t*)
@@ -69,7 +79,7 @@ TEST(ContainerEditorExtensionTests, ValidatesAbiAndDrawsThroughHostOwnedFacade)
     FacadeState state;
     MfdContainerEditorUiFacadeV1 facade {
         sizeof(MfdContainerEditorUiFacadeV1), MFD_CONTAINER_EDITOR_UI_FACADE_VERSION, &state,
-        &CountText, &CountCheckbox, &CountDragFloat, &CountDragFloat2, &CountCombo, &CountColor};
+        &CountText, &CountCheckbox, &CountDragFloat, &CountDragFloat2, &CountCombo, &CountColor, &CountSection};
     std::uint32_t type = 0U;
     std::uint32_t sizeMode = 0U;
     std::uint32_t orientation = 0U;
@@ -122,6 +132,17 @@ TEST(ContainerEditorExtensionTests, ValidatesAbiAndDrawsThroughHostOwnedFacade)
 
     EXPECT_EQ(api.draw_inspector(&facade, &selection), 0U);
     EXPECT_GT(state.calls, 20);
+    EXPECT_GE(state.sectionCalls, 6);
+    const int validCallCount = state.calls;
     facade.version = MFD_CONTAINER_EDITOR_UI_FACADE_VERSION + 1U;
     EXPECT_EQ(api.draw_inspector(&facade, &selection), 0U);
+    EXPECT_EQ(state.calls, validCallCount);
+
+    facade.version = MFD_CONTAINER_EDITOR_UI_FACADE_VERSION;
+    facade.struct_size = offsetof(MfdContainerEditorUiFacadeV1, begin_section);
+    facade.begin_section = nullptr;
+    state = {};
+    EXPECT_EQ(api.draw_inspector(&facade, &selection), 0U);
+    EXPECT_GT(state.calls, 20);
+    EXPECT_EQ(state.sectionCalls, 0);
 }

@@ -63,13 +63,23 @@ Editor color controls and generated C++ clients share eight [built-in color pres
 
 ```powershell
 cmake --preset vs2022-win32
-cmake --build --preset debug-win32 --target mfd_window mfd_framebuffer_stdout_plugin demo_client radar_load_client hud_client lhld_client
+cmake --build --preset debug-win32 --target mfd_editor mfd_window mfd_framebuffer_stdout_plugin demo_client radar_load_client hud_client lhld_client
 ```
 
-Requires Visual Studio 2022, CMake 3.25+, Python 3, and C++17. The first
-configure downloads third-party dependencies. See the
+Requires Visual Studio 2022 with the **Desktop development with C++** workload,
+the **MSVC v142** toolset used by the presets, a Windows SDK, CMake 3.25+, and
+Python 3.7+. The first configure downloads third-party dependencies and therefore
+requires network access unless `USE_LOCAL_PACKAGE=ON` is configured with the
+repository's local archive layout. Close a running staged executable before
+rebuilding the same target because Windows keeps the deployed `.exe` locked.
+See the
 [Build page](https://benoitfragit.github.io/MFDStudio/dev/build.html) for presets
 and options.
+
+Building `mfd_editor` also builds and stages the API LEVEL 1 container runtime
+and editor extension DLLs. No separate ImGui or font installation is required:
+the editor uses Segoe UI when available on Windows and keeps a readable bundled
+fallback.
 
 ## Run
 

@@ -99,6 +99,21 @@ int StepCount() noexcept;
 int NextColorTutorialPhase(int phase, bool exposed, mfd::ColorPreset selected, bool popupOpened) noexcept;
 
 /**
+ * @brief Resolves the tutorial coach height without consuming the whole workspace.
+ * @param availableHeight Remaining panel height in pixels.
+ * @param referenceDocument Whether the current step embeds document hand-off controls.
+ * @return A finite height bounded by the available region.
+ */
+float TutorialCoachPanelHeight(float availableHeight, bool referenceDocument) noexcept;
+
+/**
+ * @brief Resolves a readable halo-callout wrap width for the current viewport.
+ * @param workWidth Main viewport work width in pixels.
+ * @return Text wrap width that leaves room for bubble padding and viewport margins.
+ */
+float TutorialHaloWrapWidth(float workWidth) noexcept;
+
+/**
  * @brief Returns `true` when the provided step is a UI-driven action.
  */
 bool IsUiStep(const TutorialStepDefinition& step) noexcept;

@@ -30,6 +30,16 @@ extern "C"
 #define MFD_CONTAINER_EDITOR_UI_FACADE_VERSION 1U
 
 typedef void(MFD_CONTAINER_EDITOR_CALL* MfdEditorUiTextV1)(void* host_context, const char* text);
+/**
+ * @brief Starts a host-themed collapsible inspector section.
+ * @param host_context Opaque context supplied by the host facade.
+ * @param section_id Stable identifier used to persist the section state.
+ * @param label Human-readable section caption.
+ * @param default_open Non-zero when the section should open on first use.
+ * @return Non-zero when the extension should draw the section body.
+ */
+typedef uint8_t(MFD_CONTAINER_EDITOR_CALL* MfdEditorUiBeginSectionV1)(
+    void* host_context, const char* section_id, const char* label, uint8_t default_open);
 typedef uint8_t(MFD_CONTAINER_EDITOR_CALL* MfdEditorUiCheckboxV1)(
     void* host_context, const char* label, uint8_t* value);
 typedef uint8_t(MFD_CONTAINER_EDITOR_CALL* MfdEditorUiDragFloatV1)(
@@ -58,6 +68,12 @@ typedef struct MfdContainerEditorUiFacadeV1
     MfdEditorUiDragFloat2V1 drag_float2;
     MfdEditorUiComboV1 combo;
     MfdEditorUiColorEdit4V1 color_edit4;
+    /**
+     * @brief Draws a host-themed collapsible section and reports whether its body is visible.
+     * @note Optional tail extension. Check `struct_size` before reading this callback so a
+     *       facade produced before section support remains binary compatible.
+     */
+    MfdEditorUiBeginSectionV1 begin_section;
 } MfdContainerEditorUiFacadeV1;
 
 /** @brief Mutable POD projection of the selected authored container. */

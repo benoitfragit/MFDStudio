@@ -45,6 +45,44 @@ constexpr std::string_view kTutorialProgressBarTemplateId = "mfd_tutorial_progre
 constexpr std::string_view kTutorialProgressBarFillPrimitiveId = "fill_bar";
 constexpr std::string_view kTutorialProgressBarFramePrimitiveId = "frame";
 
+ImVec2 ResolveHaloBubblePosition(const ImVec2 itemMin,
+                                 const ImVec2 itemMax,
+                                 const ImVec2 bubbleSize,
+                                 const ImVec2 workMin,
+                                 const ImVec2 workMax) noexcept
+{
+    constexpr float kViewportMargin = 8.0f;
+    constexpr float kTargetGap = 18.0f;
+    const float minimumX = workMin.x + kViewportMargin;
+    const float minimumY = workMin.y + kViewportMargin;
+    const float maximumX = std::max(minimumX, workMax.x - bubbleSize.x - kViewportMargin);
+    const float maximumY = std::max(minimumY, workMax.y - bubbleSize.y - kViewportMargin);
+
+    ImVec2 position(itemMax.x + kTargetGap, itemMin.y - 4.0f);
+    if (position.x <= maximumX)
+    {
+        position.y = std::clamp(position.y, minimumY, maximumY);
+        return position;
+    }
+
+    position.x = itemMin.x - bubbleSize.x - kTargetGap;
+    if (position.x >= minimumX)
+    {
+        position.y = std::clamp(position.y, minimumY, maximumY);
+        return position;
+    }
+
+    position.x = std::clamp((itemMin.x + itemMax.x - bubbleSize.x) * 0.5f, minimumX, maximumX);
+    position.y = itemMax.y + kTargetGap;
+    if (position.y <= maximumY)
+    {
+        return position;
+    }
+
+    position.y = std::clamp(itemMin.y - bubbleSize.y - kTargetGap, minimumY, maximumY);
+    return position;
+}
+
 bool ConfigureTutorialStrobeLinePrimitive(mfd::Primitive& primitive, const bool vertical) noexcept
 {
     if (primitive.type != mfd::PrimitiveType::Line)
@@ -529,24 +567,26 @@ void EditorTutorialController::DrawCoach()
         tutorialSteps[static_cast<std::size_t>(stepIndex_)];
     const TutorialStageInfo& stage = StageForStep(stepIndex_);
     const int stageIndex = StageIndexForStep(stepIndex_);
-    const float panelHeight = editor::tutorial::IsReferenceDocumentStep(step) ? 250.0f : 220.0f;
+    const bool referenceDocument = editor::tutorial::IsReferenceDocumentStep(step);
+    const float panelHeight =
+        editor::tutorial::TutorialCoachPanelHeight(ImGui::GetContentRegionAvail().y, referenceDocument);
 
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.05f, 0.09f, 0.12f, 1.0f));
-    if (!ImGui::BeginChild("TutorialCoachPanel", ImVec2(0.0f, panelHeight), true, ImGuiWindowFlags_HorizontalScrollbar))
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImGui::GetStyleColorVec4(ImGuiCol_PopupBg));
+    if (!ImGui::BeginChild("TutorialCoachPanel", ImVec2(0.0f, panelHeight), true))
     {
         ImGui::EndChild();
         ImGui::PopStyleColor();
         return;
     }
 
-    ImGui::TextColored(ImVec4(0.42f, 0.84f, 0.96f, 1.0f), "Tutorial coach");
+    ImGui::TextColored(ImGui::GetStyleColorVec4(ImGuiCol_NavHighlight), "Tutorial coach");
     ImGui::SameLine();
     ImGui::TextDisabled("Step %d / %d", stepIndex_ + 1, editor::tutorial::StepCount());
     ImGui::ProgressBar(OverallTutorialProgress(stepIndex_), ImVec2(-1.0f, 0.0f));
     ImGui::Spacing();
     ImGui::TextDisabled("Stage %d / %zu", stageIndex + 1, kTutorialStages.size());
     ImGui::SameLine();
-    ImGui::TextColored(ImVec4(0.42f, 0.84f, 0.96f, 1.0f), "%s", stage.title);
+    ImGui::TextColored(ImGui::GetStyleColorVec4(ImGuiCol_NavHighlight), "%s", stage.title);
     ImGui::TextWrapped("%s", stage.summary);
     ImGui::ProgressBar(StageTutorialProgress(stage, stepIndex_), ImVec2(-1.0f, 0.0f));
     ImGui::Separator();
@@ -555,7 +595,7 @@ void EditorTutorialController::DrawCoach()
     ImGui::TextWrapped("%s", step.instruction);
     ImGui::Spacing();
 
-    if (editor::tutorial::IsReferenceDocumentStep(step))
+    if (referenceDocument)
     {
         DrawReferenceDocument();
     }
@@ -574,7 +614,11 @@ void EditorTutorialController::DrawCoach()
     {
         RestartFromScratch();
     }
-    ImGui::SameLine();
+    const float endButtonWidth = ImGui::CalcTextSize("End tutorial").x + ImGui::GetStyle().FramePadding.x * 2.0f;
+    if (ImGui::GetContentRegionAvail().x >= endButtonWidth + ImGui::GetStyle().ItemSpacing.x)
+    {
+        ImGui::SameLine();
+    }
     if (ImGui::Button("End tutorial"))
     {
         Finish();
@@ -597,72 +641,71 @@ void EditorTutorialController::DrawHalo(const std::string_view targetId,
         return;
     }
 
+    if (!ImGui::IsItemVisible())
+    {
+        return;
+    }
+
     const ImVec2 min = ImGui::GetItemRectMin();
     const ImVec2 max = ImGui::GetItemRectMax();
     ImDrawList* drawList = ImGui::GetForegroundDrawList();
-    const ImVec2 innerMin(min.x - 4.0f, min.y - 4.0f);
-    const ImVec2 innerMax(max.x + 4.0f, max.y + 4.0f);
-    const ImVec2 outerMin(min.x - 8.0f, min.y - 8.0f);
-    const ImVec2 outerMax(max.x + 8.0f, max.y + 8.0f);
-    drawList->AddRect(innerMin, innerMax, IM_COL32(84, 224, 255, 255), 10.0f, 0, 2.5f);
-    drawList->AddRect(outerMin, outerMax, IM_COL32(84, 224, 255, 110), 12.0f, 0, 3.5f);
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const ImVec2 workMin = viewport->WorkPos;
+    const ImVec2 workMax(viewport->WorkPos.x + viewport->WorkSize.x,
+                         viewport->WorkPos.y + viewport->WorkSize.y);
+    const ImVec2 innerMin(std::max(workMin.x, min.x - 4.0f), std::max(workMin.y, min.y - 4.0f));
+    const ImVec2 innerMax(std::min(workMax.x, max.x + 4.0f), std::min(workMax.y, max.y + 4.0f));
+    const ImVec2 outerMin(std::max(workMin.x, min.x - 8.0f), std::max(workMin.y, min.y - 8.0f));
+    const ImVec2 outerMax(std::min(workMax.x, max.x + 8.0f), std::min(workMax.y, max.y + 8.0f));
+    const ImU32 accentColor = ImGui::GetColorU32(ImGuiCol_NavHighlight);
+    const ImVec4 accent = ImGui::GetStyleColorVec4(ImGuiCol_NavHighlight);
+    const ImU32 subtleAccentColor = ImGui::GetColorU32(ImVec4(accent.x, accent.y, accent.z, 0.43f));
+    drawList->AddRect(innerMin, innerMax, accentColor, 10.0f, 0, 2.5f);
+    drawList->AddRect(outerMin, outerMax, subtleAccentColor, 12.0f, 0, 3.5f);
 
-    constexpr float kWrapWidth = 260.0f;
+    const float wrapWidth = editor::tutorial::TutorialHaloWrapWidth(viewport->WorkSize.x);
     const char* const titleBegin = title.data();
     const char* const titleEnd = titleBegin + title.size();
     const char* const reasonBegin = reason.data();
     const char* const reasonEnd = reasonBegin + reason.size();
-    const ImVec2 titleSize = ImGui::CalcTextSize(titleBegin, titleEnd, false, kWrapWidth);
-    const ImVec2 reasonSize = ImGui::CalcTextSize(reasonBegin, reasonEnd, false, kWrapWidth);
-    const ImGuiViewport* viewport = ImGui::GetMainViewport();
-
-    ImVec2 bubbleMin(max.x + 18.0f, min.y - 4.0f);
+    const ImVec2 titleSize = ImGui::CalcTextSize(titleBegin, titleEnd, false, wrapWidth);
+    const ImVec2 reasonSize = ImGui::CalcTextSize(reasonBegin, reasonEnd, false, wrapWidth);
     const float bubbleWidth = std::max(titleSize.x, reasonSize.x) + 24.0f;
     const float bubbleHeight = titleSize.y + reasonSize.y + 28.0f;
-    if (bubbleMin.x + bubbleWidth > viewport->WorkPos.x + viewport->WorkSize.x - 8.0f)
-    {
-        bubbleMin.x = min.x - bubbleWidth - 18.0f;
-    }
-    if (bubbleMin.x < viewport->WorkPos.x + 8.0f)
-    {
-        bubbleMin.x = viewport->WorkPos.x + 8.0f;
-    }
-    if (bubbleMin.y + bubbleHeight > viewport->WorkPos.y + viewport->WorkSize.y - 8.0f)
-    {
-        bubbleMin.y = viewport->WorkPos.y + viewport->WorkSize.y - bubbleHeight - 8.0f;
-    }
-    if (bubbleMin.y < viewport->WorkPos.y + 8.0f)
-    {
-        bubbleMin.y = viewport->WorkPos.y + 8.0f;
-    }
-
+    const ImVec2 bubbleMin = ResolveHaloBubblePosition(
+        min, max, ImVec2(bubbleWidth, bubbleHeight), workMin, workMax);
     const ImVec2 bubbleMax(bubbleMin.x + bubbleWidth, bubbleMin.y + bubbleHeight);
-    drawList->AddRectFilled(bubbleMin, bubbleMax, IM_COL32(11, 26, 34, 235), 12.0f);
-    drawList->AddRect(bubbleMin, bubbleMax, IM_COL32(84, 224, 255, 255), 12.0f, 0, 2.0f);
+    const ImVec4 popupBackground = ImGui::GetStyleColorVec4(ImGuiCol_PopupBg);
+    drawList->AddRectFilled(
+        bubbleMin,
+        bubbleMax,
+        ImGui::GetColorU32(ImVec4(popupBackground.x, popupBackground.y, popupBackground.z, 0.96f)),
+        12.0f);
+    drawList->AddRect(bubbleMin, bubbleMax, accentColor, 12.0f, 0, 2.0f);
 
     const ImVec2 itemCenter((min.x + max.x) * 0.5f, (min.y + max.y) * 0.5f);
     const ImVec2 bubbleAnchor =
         bubbleMin.x > itemCenter.x ? ImVec2(bubbleMin.x, bubbleMin.y + 20.0f) : ImVec2(bubbleMax.x, bubbleMin.y + 20.0f);
-    drawList->AddLine(itemCenter, bubbleAnchor, IM_COL32(84, 224, 255, 255), 2.0f);
-    drawList->AddCircleFilled(itemCenter, 4.0f, IM_COL32(84, 224, 255, 255));
+    drawList->AddLine(itemCenter, bubbleAnchor, accentColor, 2.0f);
+    drawList->AddCircleFilled(itemCenter, 4.0f, accentColor);
 
     const ImVec2 textPos(bubbleMin.x + 12.0f, bubbleMin.y + 10.0f);
     drawList->AddText(
         ImGui::GetFont(),
         ImGui::GetFontSize(),
         textPos,
-        IM_COL32(255, 255, 255, 255),
+        ImGui::GetColorU32(ImGuiCol_Text),
         titleBegin,
         titleEnd,
-        kWrapWidth);
+        wrapWidth);
     drawList->AddText(
         ImGui::GetFont(),
         ImGui::GetFontSize(),
         ImVec2(textPos.x, textPos.y + titleSize.y + 6.0f),
-        IM_COL32(181, 216, 228, 255),
+        ImGui::GetColorU32(ImGuiCol_TextDisabled),
         reasonBegin,
         reasonEnd,
-        kWrapWidth);
+        wrapWidth);
 }
 
 bool EditorTutorialController::MatchesTarget(const std::string_view targetId) const noexcept

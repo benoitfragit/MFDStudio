@@ -24,6 +24,23 @@ namespace editor::ui
 inline constexpr float kPaneSplitterWidth = 8.0f;
 
 /**
+ * @brief Resolves the editor font size for the current display scale.
+ * @param displayScale Vertical display scale reported by raylib.
+ * @return Finite font size in pixels, clamped to the supported UI range.
+ */
+[[nodiscard]] float EditorFontPixelSize(float displayScale) noexcept;
+
+/**
+ * @brief Adds the editor UI font to the active ImGui atlas.
+ * @param displayScale Vertical display scale reported by raylib.
+ * @return `true` when the Windows Segoe UI font was loaded; `false` when the
+ *         readable ImGui fallback was installed instead.
+ * @pre An ImGui context exists and the rlImGui custom initialization phase is active.
+ * @note This font belongs to the editor shell only and never changes authored MFD asset fonts.
+ */
+bool ConfigureEditorFont(float displayScale);
+
+/**
  * @brief Applies the editor color palette and rounded-corner theme.
  */
 void ApplyEditorTheme();
@@ -34,6 +51,34 @@ void ApplyEditorTheme();
  * @return `true` when the button is pressed on this frame.
  */
 bool AccentButton(const char* label);
+
+/**
+ * @brief Draws the title and optional description of an inspector.
+ * @param title Short inspector title.
+ * @param description Optional explanatory caption shown below the title.
+ */
+void DrawInspectorHeading(const char* title, const char* description = nullptr);
+
+/**
+ * @brief Resolves the label column width for an inspector field row.
+ * @param availableWidth Width available to the row in pixels.
+ * @return A finite label width clamped for narrow and wide inspector panes.
+ */
+[[nodiscard]] float InspectorFieldLabelWidth(float availableWidth) noexcept;
+
+/**
+ * @brief Starts one aligned label/value row in an inspector form.
+ * @param label Human-readable field label and stable ImGui id scope.
+ * @pre Must be paired with exactly one call to `EndInspectorField` after drawing the value widget.
+ * @note Draw the value widget with a hidden label such as `"##value"` so labels stay in one column.
+ */
+void BeginInspectorField(const char* label);
+
+/**
+ * @brief Ends the ImGui id scope opened by `BeginInspectorField`.
+ * @pre `BeginInspectorField` was called earlier in the current window and row.
+ */
+void EndInspectorField();
 
 /**
  * @brief Draws a draggable vertical splitter handle.
@@ -69,6 +114,14 @@ void ShowItemTooltip(const char* text);
  * @return `true` when the section body must be drawn this frame.
  */
 bool BeginInspectorSection(const char* strId, const char* label, bool defaultOpen, bool forceOpen);
+
+/**
+ * @brief Draws a restrained collapsible section header for a sidebar navigation group.
+ * @param label Visible caption, optionally followed by an ImGui `###stable_id` suffix.
+ * @param forceOpen Whether the section must remain open for tutorial target visibility.
+ * @return `true` when the section body must be drawn this frame.
+ */
+bool BeginNavigationSection(const char* label, bool forceOpen);
 
 /**
  * @brief Injects the map used to persist collapsible inspector-section open states across sessions.

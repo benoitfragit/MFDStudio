@@ -152,7 +152,8 @@ truth.
 
 - **Cause.** Missing toolchain, or a first configure interrupted before
   dependencies finished downloading.
-- **Diagnostic.** Required: Visual Studio 2022, CMake 3.25+, Python 3, C++17.
+- **Diagnostic.** Required: Visual Studio 2022 with the Desktop development with
+  C++ workload, MSVC v142, a Windows SDK, CMake 3.25+, Python 3.7+, and C++17.
   The first configure fetches third-party sources.
 - **Fix.** Use the documented presets and re-run configure; see
   [Build](../dev/build.md).

@@ -47,7 +47,13 @@ That guided flow is intentionally split into four phases:
 3. **Review saved outputs**: open the dedicated follow-up guide and inspect the saved assets, generated map, and runtime entry points outside the editor.
 4. **Continue in docs**: follow the demo client, generated-client, and architecture reading path.
 
-The coach is integrated at the top of the page preview as one scrollable panel. It shows the current stage, the global progress, and the exact action still expected on each blocked UI step.
+The coach contains 39 ordered steps and is integrated at the top of the page
+preview as one bounded, scrollable panel. It shows the current stage, the global
+progress, and the exact action still expected on each blocked UI step. On short
+windows it uses at most 45% of the available height. Its callout halos remain
+inside the visible work area and move around the highlighted control rather than
+covering it. Sections required by a tutorial target open temporarily without
+overwriting your saved inspector preferences.
 
 ## Step 1 - Open the window wizard
 

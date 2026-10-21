@@ -47,7 +47,7 @@ enum class EditorIcon
 };
 
 /**
- * @brief Draws a flat, transparent-background icon button with a white glyph.
+ * @brief Draws a compact icon button using the editor surface and interaction colors.
  * @param strId Stable unique ImGui id for the button (e.g. "##delete_page_2").
  * @param icon Glyph to render.
  * @param tooltip Optional delayed hover tooltip; skipped when null or empty.
@@ -56,7 +56,8 @@ enum class EditorIcon
  *        height so the button lines up with adjacent standard widgets. Pass the
  *        value returned by BeginRowIconStrip to fit a compact tree row.
  * @return `true` when the button is clicked this frame while enabled.
- * @note The button hovers with the theme accent color over a rounded highlight.
+ * @note Standard toolbar buttons keep a quiet resting surface. Compact tree-row buttons
+ *       passed through `sizeOverride` remain transparent until hovered.
  */
 bool IconButton(const char* strId, EditorIcon icon, const char* tooltip, bool enabled = true, float sizeOverride = 0.0f);
 

@@ -47,6 +47,7 @@ using editor::detail::SuggestReplacementPageIndex;
 using editor::detail::ToColorRgba;
 using editor::ui::AccentButton;
 using editor::ui::DisabledTextWrapped;
+using editor::ui::DrawInspectorHeading;
 using editor::ui::EditorIcon;
 using editor::ui::IconButton;
 using editor::ui::ShowItemTooltip;
@@ -892,7 +893,7 @@ void EditorApplication::DrawPageImportPopup()
     const editor::PageImportPlan plan =
         services_.pageImport.BuildPlan(documentState_.loaded, documentState_.files, BuildPageImportRequest(workflowState_.pageImportPopup.sourcePageFile));
 
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Import page asset");
+    DrawInspectorHeading("Import page asset");
     ImGui::TextWrapped("Review the staged page and reticle-template import before it is added to the current window.");
     ImGui::Separator();
 
@@ -1006,7 +1007,7 @@ void EditorApplication::DrawPageRenamePopup()
 
     const mfd::PageDefinition& page = documentState_.loaded.document.pages[static_cast<std::size_t>(workflowState_.pageRenamePopup.pageIndex)];
 
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Rename page globally");
+    DrawInspectorHeading("Rename page globally");
     ImGui::TextWrapped("Review every shared window reference before renaming this page asset across the current scanned asset tree.");
     ImGui::Separator();
 
@@ -1137,7 +1138,7 @@ void EditorApplication::DrawReticleRenamePopup()
 
     const mfd::ReticleGroup& reticle = reticleIterator->second;
 
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Rename reticle globally");
+    DrawInspectorHeading("Rename reticle globally");
     ImGui::TextWrapped(
         "Pages reference reticle templates by logical id. Review every scanned page reference before renaming this shared template across the current asset tree.");
     ImGui::Separator();
@@ -1312,7 +1313,7 @@ void EditorApplication::DrawContainerRenamePopup()
         return;
     }
 
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Rename container");
+    DrawInspectorHeading("Rename container");
     ImGui::TextDisabled("Old id: %s", container->id.c_str());
     ImGui::InputText("New id",
                      workflowState_.containerRenamePopup.newId.data(),
@@ -1357,7 +1358,7 @@ void EditorApplication::DrawReticleExtractionPopup()
         return;
     }
 
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Extract a reusable reticle");
+    DrawInspectorHeading("Extract a reusable reticle");
     ImGui::TextWrapped(
         "Review the current page-reticle selection before replacing it with one reusable library template. The visual result should stay identical or nearly identical after extraction.");
     ImGui::Separator();
@@ -1481,7 +1482,7 @@ void EditorApplication::DrawDesignExportPopup()
         return;
     }
 
-    ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Export design");
+    DrawInspectorHeading("Export design");
     ImGui::TextWrapped(
         "Generate Markdown ICD files and exploded designer views for the currently loaded window without modifying authored JSON assets.");
     ImGui::Separator();
@@ -1630,7 +1631,7 @@ void EditorApplication::DrawPageManagementPopup()
     }
     else
     {
-        ImGui::TextColored(ImVec4(0.33f, 0.86f, 0.78f, 1.0f), "Remove page from window");
+        DrawInspectorHeading("Remove page from window");
         ImGui::TextWrapped("This detaches the page from the current window but keeps its JSON file on disk.");
     }
 
