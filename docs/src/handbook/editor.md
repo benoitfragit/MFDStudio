@@ -17,8 +17,8 @@ surfaces visible at the same time:
 
 The shell uses one restrained dark design system throughout the executable and
 the API LEVEL 1 extension: Segoe UI on Windows (with a readable fallback),
-aligned label/value rows, quiet section surfaces, turquoise state accents and
-blue interaction accents. The same compact icon buttons, spacing and focus
+aligned label/value rows, borderless sections, turquoise state accents and blue
+interaction accents. The same compact ghost icon buttons, spacing and focus
 states are used in sidebars, viewport tools and inspectors; extension code never
 creates a second visual theme.
 
@@ -90,10 +90,11 @@ Auto-collapse is temporary and never changes saved panel widths; use the **View*
 menu or widen the window to bring panels back.
 
 Inspector fields keep labels in a stable left column and controls in a flexible
-right column. Collapsible groups use neutral surfaces with a thin state marker,
-so selection and active-tool colors remain meaningful instead of turning every
-section into a saturated banner. The preview toolbar is grouped on one bordered
-surface above the canvas and retains a visible armed state for one-shot tools.
+right column. Collapsible groups stay transparent until interaction, so selection
+and active-tool colors remain meaningful instead of turning every section into a
+saturated banner. The preview toolbar floats on one quiet borderless surface above
+the canvas and retains a visible armed state for one-shot tools. Sidebar, workspace
+and inspector panes use spacing rather than nested outlines to establish hierarchy.
 
 In the fully loaded workspace, the left sidebar exposes pages and reticles, the
 center keeps the preview tools visible, and the right inspector follows the

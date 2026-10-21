@@ -1225,15 +1225,11 @@ ViewportToolbarLayout ComputeViewportToolbarLayout(const ImVec2 viewportOrigin,
 void DrawViewportToolbarSurface(const ViewportToolbarLayout& layout)
 {
     ImDrawList* const drawList = ImGui::GetWindowDrawList();
-    const ImVec4 panel = ImGui::GetStyleColorVec4(ImGuiCol_ChildBg);
+    const ImVec4 panel = ImGui::GetStyleColorVec4(ImGuiCol_FrameBg);
     drawList->AddRectFilled(layout.toolbarMin,
                             layout.toolbarMax,
-                            ImGui::GetColorU32(ImVec4(panel.x, panel.y, panel.z, 0.96f)),
+                            ImGui::GetColorU32(ImVec4(panel.x, panel.y, panel.z, 0.92f)),
                             ImGui::GetStyle().FrameRounding + 2.0f);
-    drawList->AddRect(layout.toolbarMin,
-                      layout.toolbarMax,
-                      ImGui::GetColorU32(ImGuiCol_Border),
-                      ImGui::GetStyle().FrameRounding + 2.0f);
 }
 
 /**

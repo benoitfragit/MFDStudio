@@ -60,7 +60,7 @@ TEST(EditorUiThemeTests, InspectorFieldLabelWidthKeepsFormsReadableAcrossPaneSiz
     EXPECT_FLOAT_EQ(editor::ui::InspectorFieldLabelWidth(std::numeric_limits<float>::infinity()), 104.0f);
 }
 
-TEST(EditorUiThemeTests, ApplyEditorThemeConfiguresRoundedEditorPalette)
+TEST(EditorUiThemeTests, ApplyEditorThemeConfiguresFlatEditorPalette)
 {
     ScopedImGuiContext context;
 
@@ -69,36 +69,41 @@ TEST(EditorUiThemeTests, ApplyEditorThemeConfiguresRoundedEditorPalette)
 
     editor::ui::ApplyEditorTheme();
 
-    EXPECT_FLOAT_EQ(style.WindowRounding, 10.0f);
-    EXPECT_FLOAT_EQ(style.ChildRounding, 10.0f);
-    EXPECT_FLOAT_EQ(style.FrameRounding, 8.0f);
+    EXPECT_FLOAT_EQ(style.WindowRounding, 8.0f);
+    EXPECT_FLOAT_EQ(style.ChildRounding, 8.0f);
+    EXPECT_FLOAT_EQ(style.FrameRounding, 6.0f);
     EXPECT_FLOAT_EQ(style.PopupRounding, 8.0f);
-    EXPECT_FLOAT_EQ(style.ScrollbarRounding, 10.0f);
-    EXPECT_FLOAT_EQ(style.GrabRounding, 8.0f);
-    EXPECT_FLOAT_EQ(style.WindowPadding.x, 14.0f);
-    EXPECT_FLOAT_EQ(style.WindowPadding.y, 14.0f);
-    EXPECT_FLOAT_EQ(style.FramePadding.x, 10.0f);
-    EXPECT_FLOAT_EQ(style.FramePadding.y, 8.0f);
-    EXPECT_FLOAT_EQ(style.ItemSpacing.x, 10.0f);
-    EXPECT_FLOAT_EQ(style.ItemSpacing.y, 8.0f);
+    EXPECT_FLOAT_EQ(style.ScrollbarRounding, 8.0f);
+    EXPECT_FLOAT_EQ(style.GrabRounding, 6.0f);
+    EXPECT_FLOAT_EQ(style.WindowPadding.x, 12.0f);
+    EXPECT_FLOAT_EQ(style.WindowPadding.y, 12.0f);
+    EXPECT_FLOAT_EQ(style.FramePadding.x, 8.0f);
+    EXPECT_FLOAT_EQ(style.FramePadding.y, 6.0f);
+    EXPECT_FLOAT_EQ(style.ItemSpacing.x, 9.0f);
+    EXPECT_FLOAT_EQ(style.ItemSpacing.y, 7.0f);
     EXPECT_FLOAT_EQ(style.IndentSpacing, 18.0f);
-    EXPECT_FLOAT_EQ(style.ScrollbarSize, 15.0f);
+    EXPECT_FLOAT_EQ(style.ScrollbarSize, 13.0f);
     EXPECT_FLOAT_EQ(style.GrabMinSize, 12.0f);
     EXPECT_FLOAT_EQ(style.DisabledAlpha, 0.70f);
+    EXPECT_FLOAT_EQ(style.WindowBorderSize, 0.0f);
+    EXPECT_FLOAT_EQ(style.ChildBorderSize, 0.0f);
+    EXPECT_FLOAT_EQ(style.FrameBorderSize, 0.0f);
+    EXPECT_FLOAT_EQ(style.PopupBorderSize, 1.0f);
+    EXPECT_FLOAT_EQ(style.TabBorderSize, 0.0f);
 
-    EXPECT_FLOAT_EQ(style.Colors[ImGuiCol_WindowBg].x, 0.051f);
-    EXPECT_FLOAT_EQ(style.Colors[ImGuiCol_WindowBg].y, 0.067f);
-    EXPECT_FLOAT_EQ(style.Colors[ImGuiCol_WindowBg].z, 0.106f);
+    EXPECT_FLOAT_EQ(style.Colors[ImGuiCol_WindowBg].x, 0.039f);
+    EXPECT_FLOAT_EQ(style.Colors[ImGuiCol_WindowBg].y, 0.051f);
+    EXPECT_FLOAT_EQ(style.Colors[ImGuiCol_WindowBg].z, 0.078f);
     EXPECT_FLOAT_EQ(style.Colors[ImGuiCol_Text].x, 0.949f);
     EXPECT_FLOAT_EQ(style.Colors[ImGuiCol_Text].y, 0.965f);
     EXPECT_FLOAT_EQ(style.Colors[ImGuiCol_Text].z, 0.988f);
     EXPECT_FLOAT_EQ(style.Colors[ImGuiCol_CheckMark].x, 0.333f);
     EXPECT_FLOAT_EQ(style.Colors[ImGuiCol_CheckMark].y, 0.843f);
     EXPECT_FLOAT_EQ(style.Colors[ImGuiCol_CheckMark].z, 0.745f);
-    EXPECT_FLOAT_EQ(style.Colors[ImGuiCol_NavHighlight].x, 0.341f);
+    EXPECT_FLOAT_EQ(style.Colors[ImGuiCol_NavHighlight].x, 0.416f);
     EXPECT_FLOAT_EQ(style.Colors[ImGuiCol_NavHighlight].y, 0.682f);
     EXPECT_FLOAT_EQ(style.Colors[ImGuiCol_NavHighlight].z, 1.000f);
-    EXPECT_FLOAT_EQ(style.Colors[ImGuiCol_Header].w, 0.13f);
+    EXPECT_FLOAT_EQ(style.Colors[ImGuiCol_Header].w, 0.16f);
 }
 
 TEST(EditorUiThemeTests, FormatViewportToolbarInfoLabelIncludesZoomOnlyWhenMouseIsUnavailable)

@@ -439,7 +439,7 @@ bool IconButton(const char* const strId,
 
     ImDrawList* const drawList = ImGui::GetWindowDrawList();
     const bool active = enabled && ImGui::IsItemActive();
-    if (sizeOverride <= 0.0f || hovered || active)
+    if (hovered || active)
     {
         const ImGuiCol backgroundColor = active ? ImGuiCol_ButtonActive
                                                 : hovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button;

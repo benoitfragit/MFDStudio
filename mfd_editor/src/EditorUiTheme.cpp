@@ -45,6 +45,7 @@ constexpr float kInspectorLabelWidthRatio = 0.40f;
  * once at startup and clears it at shutdown, keeping the section helper call sites terse.
  */
 std::map<std::string, bool>* g_inspectorSectionStateStore = nullptr;
+ImFont* g_headingFont = nullptr;
 
 float SanitizeDisplayScale(const float displayScale) noexcept
 {
@@ -56,8 +57,13 @@ float SanitizeDisplayScale(const float displayScale) noexcept
     return std::clamp(displayScale, kMinimumDisplayScale, kMaximumDisplayScale);
 }
 
-std::filesystem::path ResolveSegoeUiPath()
+std::filesystem::path ResolveWindowsFontPath(const wchar_t* const fileName)
 {
+    if (fileName == nullptr || fileName[0] == L'\0')
+    {
+        return {};
+    }
+
 #if defined(_WIN32)
     std::array<wchar_t, MAX_PATH + 1U> windowsDirectory {};
     const UINT length = GetWindowsDirectoryW(windowsDirectory.data(), static_cast<UINT>(windowsDirectory.size()));
@@ -67,7 +73,7 @@ std::filesystem::path ResolveSegoeUiPath()
     }
 
     const std::filesystem::path fontPath =
-        std::filesystem::path(std::wstring(windowsDirectory.data(), length)) / "Fonts" / "segoeui.ttf";
+        std::filesystem::path(std::wstring(windowsDirectory.data(), length)) / "Fonts" / fileName;
     std::error_code error;
     return std::filesystem::is_regular_file(fontPath, error) && !error ? fontPath : std::filesystem::path {};
 #else
@@ -77,23 +83,14 @@ std::filesystem::path ResolveSegoeUiPath()
 
 bool DrawSectionHeader(const char* const label, const ImGuiTreeNodeFlags flags)
 {
-    const ImVec4 surface = ImGui::GetStyleColorVec4(ImGuiCol_FrameBg);
     const ImVec4 accent = ImGui::GetStyleColorVec4(ImGuiCol_NavHighlight);
-    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(surface.x, surface.y, surface.z, 0.72f));
-    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(accent.x, accent.y, accent.z, 0.20f));
-    ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(accent.x, accent.y, accent.z, 0.30f));
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(9.0f, 7.0f));
+    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(accent.x, accent.y, accent.z, 0.11f));
+    ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(accent.x, accent.y, accent.z, 0.18f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4.0f, 5.0f));
     const bool open = ImGui::CollapsingHeader(label, flags);
     ImGui::PopStyleVar();
     ImGui::PopStyleColor(3);
-
-    const ImVec2 headerMin = ImGui::GetItemRectMin();
-    const ImVec2 headerMax = ImGui::GetItemRectMax();
-    const ImU32 markerColor = ImGui::GetColorU32(
-        open ? ImGui::GetStyleColorVec4(ImGuiCol_CheckMark) : ImVec4(accent.x, accent.y, accent.z, 0.48f));
-    ImGui::GetWindowDrawList()->AddRectFilled(
-        headerMin, ImVec2(headerMin.x + 3.0f, headerMax.y), markerColor, ImGui::GetStyle().FrameRounding,
-        ImDrawFlags_RoundCornersLeft);
     return open;
 }
 } // namespace
@@ -113,7 +110,7 @@ bool ConfigureEditorFont(const float displayScale)
     configuration.RasterizerMultiply = 1.0f;
 
     ImFont* editorFont = nullptr;
-    const std::filesystem::path systemFontPath = ResolveSegoeUiPath();
+    const std::filesystem::path systemFontPath = ResolveWindowsFontPath(L"segoeui.ttf");
     if (!systemFontPath.empty())
     {
         const std::string path = systemFontPath.string();
@@ -132,35 +129,56 @@ bool ConfigureEditorFont(const float displayScale)
     {
         io.FontDefault = editorFont;
     }
+
+    g_headingFont = editorFont;
+    const std::filesystem::path headingFontPath = ResolveWindowsFontPath(L"seguisb.ttf");
+    if (!headingFontPath.empty())
+    {
+        ImFontConfig headingConfiguration = configuration;
+        const std::string path = headingFontPath.string();
+        if (ImFont* const headingFont = io.Fonts->AddFontFromFileTTF(
+                path.c_str(),
+                std::ceil(EditorFontPixelSize(displayScale) * 1.12f),
+                &headingConfiguration,
+                io.Fonts->GetGlyphRangesDefault()))
+        {
+            g_headingFont = headingFont;
+        }
+    }
     return loadedSystemFont;
 }
 
 void ApplyEditorTheme()
 {
     ImGuiStyle& style = ImGui::GetStyle();
-    style.WindowRounding = 10.0f;
-    style.ChildRounding = 10.0f;
-    style.FrameRounding = 8.0f;
+    style.WindowRounding = 8.0f;
+    style.ChildRounding = 8.0f;
+    style.FrameRounding = 6.0f;
     style.PopupRounding = 8.0f;
-    style.ScrollbarRounding = 10.0f;
-    style.GrabRounding = 8.0f;
-    style.WindowPadding = ImVec2(14.0f, 14.0f);
-    style.FramePadding = ImVec2(10.0f, 8.0f);
-    style.ItemSpacing = ImVec2(10.0f, 8.0f);
-    style.ItemInnerSpacing = ImVec2(8.0f, 6.0f);
+    style.ScrollbarRounding = 8.0f;
+    style.GrabRounding = 6.0f;
+    style.WindowPadding = ImVec2(12.0f, 12.0f);
+    style.FramePadding = ImVec2(8.0f, 6.0f);
+    style.ItemSpacing = ImVec2(9.0f, 7.0f);
+    style.ItemInnerSpacing = ImVec2(7.0f, 5.0f);
     style.IndentSpacing = 18.0f;
-    style.ScrollbarSize = 15.0f;
+    style.ScrollbarSize = 13.0f;
     style.GrabMinSize = 12.0f;
     style.DisabledAlpha = 0.70f;
+    style.WindowBorderSize = 0.0f;
+    style.ChildBorderSize = 0.0f;
+    style.FrameBorderSize = 0.0f;
+    style.PopupBorderSize = 1.0f;
+    style.TabBorderSize = 0.0f;
     style.AntiAliasedLines = true;
     style.AntiAliasedFill = true;
 
     ImVec4* colors = style.Colors;
-    const ImVec4 background(0.051f, 0.067f, 0.106f, 1.00f);
-    const ImVec4 panel(0.086f, 0.118f, 0.173f, 1.00f);
-    const ImVec4 raisedSurface(0.125f, 0.169f, 0.235f, 1.00f);
-    const ImVec4 border(0.204f, 0.255f, 0.333f, 1.00f);
-    const ImVec4 primary(0.341f, 0.682f, 1.000f, 1.00f);
+    const ImVec4 background(0.039f, 0.051f, 0.078f, 1.00f);
+    const ImVec4 panel(0.066f, 0.086f, 0.125f, 1.00f);
+    const ImVec4 raisedSurface(0.098f, 0.129f, 0.180f, 1.00f);
+    const ImVec4 border(0.196f, 0.239f, 0.306f, 0.48f);
+    const ImVec4 primary(0.416f, 0.682f, 1.000f, 1.00f);
     const ImVec4 secondary(0.333f, 0.843f, 0.745f, 1.00f);
 
     colors[ImGuiCol_Text] = ImVec4(0.949f, 0.965f, 0.988f, 1.00f);
@@ -171,8 +189,8 @@ void ApplyEditorTheme()
     colors[ImGuiCol_Border] = border;
     colors[ImGuiCol_BorderShadow] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
     colors[ImGuiCol_FrameBg] = raisedSurface;
-    colors[ImGuiCol_FrameBgHovered] = ImVec4(primary.x, primary.y, primary.z, 0.34f);
-    colors[ImGuiCol_FrameBgActive] = ImVec4(primary.x, primary.y, primary.z, 0.48f);
+    colors[ImGuiCol_FrameBgHovered] = ImVec4(primary.x, primary.y, primary.z, 0.22f);
+    colors[ImGuiCol_FrameBgActive] = ImVec4(primary.x, primary.y, primary.z, 0.30f);
     colors[ImGuiCol_TitleBg] = background;
     colors[ImGuiCol_TitleBgActive] = panel;
     colors[ImGuiCol_TitleBgCollapsed] = background;
@@ -185,11 +203,11 @@ void ApplyEditorTheme()
     colors[ImGuiCol_SliderGrab] = primary;
     colors[ImGuiCol_SliderGrabActive] = secondary;
     colors[ImGuiCol_Button] = raisedSurface;
-    colors[ImGuiCol_ButtonHovered] = ImVec4(primary.x, primary.y, primary.z, 0.42f);
-    colors[ImGuiCol_ButtonActive] = ImVec4(primary.x, primary.y, primary.z, 0.60f);
-    colors[ImGuiCol_Header] = ImVec4(primary.x, primary.y, primary.z, 0.13f);
-    colors[ImGuiCol_HeaderHovered] = ImVec4(primary.x, primary.y, primary.z, 0.25f);
-    colors[ImGuiCol_HeaderActive] = ImVec4(primary.x, primary.y, primary.z, 0.36f);
+    colors[ImGuiCol_ButtonHovered] = ImVec4(primary.x, primary.y, primary.z, 0.24f);
+    colors[ImGuiCol_ButtonActive] = ImVec4(primary.x, primary.y, primary.z, 0.34f);
+    colors[ImGuiCol_Header] = ImVec4(primary.x, primary.y, primary.z, 0.16f);
+    colors[ImGuiCol_HeaderHovered] = ImVec4(primary.x, primary.y, primary.z, 0.22f);
+    colors[ImGuiCol_HeaderActive] = ImVec4(primary.x, primary.y, primary.z, 0.28f);
     colors[ImGuiCol_Separator] = border;
     colors[ImGuiCol_SeparatorHovered] = primary;
     colors[ImGuiCol_SeparatorActive] = secondary;
@@ -222,13 +240,15 @@ void DrawInspectorHeading(const char* const title, const char* const description
         return;
     }
 
-    const ImVec2 cursor = ImGui::GetCursorScreenPos();
-    const float titleHeight = ImGui::GetTextLineHeight();
-    const ImVec4 accent = ImGui::GetStyleColorVec4(ImGuiCol_CheckMark);
-    ImGui::GetWindowDrawList()->AddRectFilled(
-        cursor, ImVec2(cursor.x + 3.0f, cursor.y + titleHeight), ImGui::GetColorU32(accent), 2.0f);
-    ImGui::SetCursorScreenPos(ImVec2(cursor.x + 11.0f, cursor.y));
+    if (g_headingFont != nullptr)
+    {
+        ImGui::PushFont(g_headingFont);
+    }
     ImGui::TextUnformatted(title);
+    if (g_headingFont != nullptr)
+    {
+        ImGui::PopFont();
+    }
     if (description != nullptr && description[0] != '\0')
     {
         DisabledTextWrapped(description);
@@ -283,7 +303,7 @@ bool DrawVerticalSplitter(const char* id, const float height)
                                ? ImVec4(0.33f, 0.86f, 0.78f, 0.95f)
                                : hovered
                                    ? ImVec4(0.24f, 0.72f, 0.83f, 0.70f)
-                                   : ImVec4(0.16f, 0.28f, 0.34f, 0.75f));
+                                   : ImVec4(0.16f, 0.28f, 0.34f, 0.16f));
     const float centerX = std::floor((min.x + max.x) * 0.5f) + 0.5f;
     drawList->AddLine(ImVec2(centerX, min.y + 4.0f), ImVec2(centerX, max.y - 4.0f), color, active ? 2.0f : 1.5f);
 
@@ -309,7 +329,7 @@ bool DrawHorizontalSplitter(const char* id, const float width, const float thick
                                ? ImVec4(0.33f, 0.86f, 0.78f, 0.95f)
                                : hovered
                                    ? ImVec4(0.24f, 0.72f, 0.83f, 0.70f)
-                                   : ImVec4(0.16f, 0.28f, 0.34f, 0.75f));
+                                   : ImVec4(0.16f, 0.28f, 0.34f, 0.16f));
     const float centerY = std::floor((min.y + max.y) * 0.5f) + 0.5f;
     drawList->AddLine(ImVec2(min.x + 4.0f, centerY), ImVec2(max.x - 4.0f, centerY), color, active ? 2.0f : 1.5f);
 

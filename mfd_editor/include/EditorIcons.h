@@ -56,8 +56,8 @@ enum class EditorIcon
  *        height so the button lines up with adjacent standard widgets. Pass the
  *        value returned by BeginRowIconStrip to fit a compact tree row.
  * @return `true` when the button is clicked this frame while enabled.
- * @note Standard toolbar buttons keep a quiet resting surface. Compact tree-row buttons
- *       passed through `sizeOverride` remain transparent until hovered.
+ * @note Buttons remain transparent at rest and reveal a compact interaction surface only
+ *       while hovered or active.
  */
 bool IconButton(const char* strId, EditorIcon icon, const char* tooltip, bool enabled = true, float sizeOverride = 0.0f);
 

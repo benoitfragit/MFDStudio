@@ -141,7 +141,9 @@ void DrawPickerPopup(float* color, ImGuiStorage& storage, const ImGuiID editingI
 ColorPickerInteraction DrawColorPicker(const char* label, float* color)
 {
     ColorPickerInteraction result;
-    ImGui::PushID(label);
+    const char* const safeLabel = label != nullptr ? label : "";
+    const bool showLabel = safeLabel[0] != '\0' && !(safeLabel[0] == '#' && safeLabel[1] == '#');
+    ImGui::PushID(safeLabel);
     ImGui::BeginGroup();
     ImGuiStorage& storage = *ImGui::GetStateStorage();
     const ImGuiID editingId = ImGui::GetID("colorEditing");
@@ -152,9 +154,12 @@ ColorPickerInteraction DrawColorPicker(const char* label, float* color)
         ImGui::OpenPopup("Color selector");
         result.popupOpened = true;
     }
-    ShowColorTooltip(label, ImVec4(color[0], color[1], color[2], color[3]));
-    ImGui::SameLine();
-    ImGui::TextUnformatted(label);
+    ShowColorTooltip(showLabel ? safeLabel : "Color", ImVec4(color[0], color[1], color[2], color[3]));
+    if (showLabel)
+    {
+        ImGui::SameLine();
+        ImGui::TextUnformatted(safeLabel);
+    }
     DrawPickerPopup(color, storage, editingId, result);
     result.popupVisible = ImGui::IsPopupOpen("Color selector");
     ImGui::EndGroup();

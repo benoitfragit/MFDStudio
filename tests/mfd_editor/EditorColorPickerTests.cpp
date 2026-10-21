@@ -48,7 +48,8 @@ protected:
         origin_ = ImGui::GetCursorScreenPos();
         ImGui::BeginDisabled(disabled);
         const auto before = color_;
-        const auto result = editor::ui::DrawColorPicker("Stroke", color_.data());
+        const auto result = editor::ui::DrawColorPicker(hiddenLabel_ ? "##value" : "Stroke", color_.data());
+        colorPickerWidth_ = ImGui::GetItemRectSize().x;
         if (result.changed && result.beganEdit)
         {
             history_.Record(before);
@@ -99,12 +100,25 @@ protected:
     std::array<float, 4> otherColor_ {{0.2f, 0.4f, 0.6f, 0.8f}};
     editor::ui::ColorPickerInteraction otherInteraction_;
     editor::UndoHistory<std::array<float, 4>> history_;
+    bool hiddenLabel_ = false;
+    float colorPickerWidth_ = 0.0f;
 
 private:
     ImGuiContext* context_ = nullptr;
     ImVec2 origin_ {};
 };
 } // namespace
+
+TEST_F(ColorPickerFrame, HiddenIdentifierDoesNotLeakIntoAlignedForms)
+{
+    Frame();
+    const float labeledWidth = colorPickerWidth_;
+    hiddenLabel_ = true;
+    Frame();
+
+    EXPECT_LT(colorPickerWidth_, labeledWidth);
+    EXPECT_FLOAT_EQ(colorPickerWidth_, ImGui::GetFrameHeight());
+}
 
 TEST_F(ColorPickerFrame, CurrentColorButtonOpensAndClosesWithoutMutation)
 {

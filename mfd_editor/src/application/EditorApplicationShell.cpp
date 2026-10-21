@@ -565,7 +565,7 @@ void EditorApplication::DrawRootLayout()
         // can spill a few pixels and raise a spurious outer scrollbar over the two inner ones.
         ImGui::BeginChild("Sidebar",
                           ImVec2(std::floor(layout.sidebar.width), 0.0f),
-                          true,
+                          false,
                           ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
         DrawSidebar(sidebarProblems);
         ImGui::EndChild();
@@ -582,7 +582,11 @@ void EditorApplication::DrawRootLayout()
         ImGui::SameLine();
     }
 
-    ImGui::BeginChild("Workspace", ImVec2(std::floor(std::max(0.0f, layout.workspaceWidth)), 0.0f), true);
+    // The center owns a nested viewport surface, so remove the shell-level padding here.
+    // This leaves one intentional canvas gutter instead of the former double inset.
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    ImGui::BeginChild("Workspace", ImVec2(std::floor(std::max(0.0f, layout.workspaceWidth)), 0.0f), false);
+    ImGui::PopStyleVar();
     DrawWorkspace(pagePreviewProblems);
     ImGui::EndChild();
 
@@ -599,7 +603,7 @@ void EditorApplication::DrawRootLayout()
 
         ImGui::SameLine();
         const float inspectorPanelWidth = std::max(0.0f, std::floor(ImGui::GetContentRegionAvail().x));
-        ImGui::BeginChild("Inspector", ImVec2(inspectorPanelWidth, 0.0f), true);
+        ImGui::BeginChild("Inspector", ImVec2(inspectorPanelWidth, 0.0f), false);
         DrawInspector();
         ImGui::EndChild();
     }
@@ -1180,7 +1184,7 @@ void EditorApplication::DrawPagePreviewWorkspace(const std::vector<editor::PageP
 
     if (layout.leadingPanel.IsVisible())
     {
-        ImGui::BeginChild(layersChildId, ImVec2(layout.leadingPanel.width, layout.leadingPanel.height), true);
+        ImGui::BeginChild(layersChildId, ImVec2(layout.leadingPanel.width, layout.leadingPanel.height), false);
         if (activePage != nullptr)
         {
             DrawLayerInspectorPanel(*activePage);
@@ -1197,7 +1201,7 @@ void EditorApplication::DrawPagePreviewWorkspace(const std::vector<editor::PageP
     ImGui::BeginGroup();
     if (layout.previewPanel.IsVisible())
     {
-        ImGui::BeginChild(previewChildId, ImVec2(layout.previewPanel.width, layout.previewPanel.height), true);
+        ImGui::BeginChild(previewChildId, ImVec2(layout.previewPanel.width, layout.previewPanel.height), false);
 
         ViewportState pageViewport;
         pageViewport.origin = ImGui::GetCursorScreenPos();
@@ -1245,7 +1249,7 @@ void EditorApplication::DrawPagePreviewWorkspace(const std::vector<editor::PageP
 
     if (layout.bottomPanel.IsVisible())
     {
-        ImGui::BeginChild(problemsChildId, ImVec2(layout.bottomPanel.width, layout.bottomPanel.height), true);
+        ImGui::BeginChild(problemsChildId, ImVec2(layout.bottomPanel.width, layout.bottomPanel.height), false);
         DrawProblemsPanel(pagePreviewProblems);
         ImGui::EndChild();
     }
@@ -1255,7 +1259,7 @@ void EditorApplication::DrawPagePreviewWorkspace(const std::vector<editor::PageP
 void EditorApplication::DrawReticleStudioPanel(const float width)
 {
     const float panelWidth = width > 0.0f ? width : std::max(0.0f, std::floor(ImGui::GetContentRegionAvail().x));
-    ImGui::BeginChild("ReticleStudioPanel", ImVec2(panelWidth, 0.0f), true);
+    ImGui::BeginChild("ReticleStudioPanel", ImVec2(panelWidth, 0.0f), false);
     // The reticle studio no longer opens with a "Reticle studio" header banner: the title and the
     // primitive-editing hint only consumed vertical space above the canvas. The tutorial coach still
     // renders inline when a guided step is active.
@@ -1439,9 +1443,13 @@ void EditorApplication::DrawInspector()
         contextLabel = "Library > Reticle > Primitive";
         break;
     }
-    ImGui::TextColored(ImVec4(0.55f, 0.62f, 0.70f, 1.0f), "%s", contextLabel);
-    ImGui::Separator();
-    ImGui::Spacing();
+    const bool showBreadcrumb = documentState_.selection.kind != SelectionKind::Window &&
+                                documentState_.selection.kind != SelectionKind::Page;
+    if (showBreadcrumb)
+    {
+        ImGui::TextDisabled("%s", contextLabel);
+        ImGui::Spacing();
+    }
 
     switch (documentState_.selection.kind)
     {
