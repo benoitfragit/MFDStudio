@@ -160,11 +160,47 @@ TEST(PageImportServiceTests, ImportsSimplePageWithoutReticleDependency)
     ASSERT_TRUE(service.Execute(plan, loaded, files, &result, &error)) << error;
     ASSERT_EQ(loaded.document.pages.size(), 2U);
     EXPECT_EQ(loaded.document.pages.back().name, "Support");
+    EXPECT_EQ(loaded.window.apiLevel, mfd::ApiLevel::Legacy);
     ASSERT_EQ(files.pageFiles.size(), 2U);
     EXPECT_EQ(result.importedPageIndex, 1);
 
     ASSERT_TRUE(editor::SaveEditorDocument(loaded, files, &error)) << error;
     EXPECT_TRUE(std::filesystem::exists(plan.targetPageFile));
+}
+
+TEST(PageImportServiceTests, RejectsUnsupportedDestinationApiLevelBeforeMutation)
+{
+    ScopedTempDir tempDir;
+    auto [loaded, files] = MakeCurrentWindowFixture(tempDir.Path());
+    loaded.window.apiLevel = static_cast<mfd::ApiLevel>(1U);
+
+    const std::filesystem::path sourcePageFile =
+        tempDir.Path() / "source" / "assets" / "pages" / "support.json";
+    WriteTextFile(sourcePageFile,
+                  R"json({
+  "name": "Support",
+  "layers": [{ "id": "layer" }],
+  "staticReticles": []
+})json");
+
+    const std::size_t originalPageCount = loaded.document.pages.size();
+    const std::size_t originalPageFileCount = files.pageFiles.size();
+    editor::PageImportService service;
+    const editor::PageImportPlan plan =
+        service.BuildPlan(loaded, files, MakeImportRequest(loaded, sourcePageFile));
+
+    EXPECT_FALSE(plan.canExecute);
+    EXPECT_NE(plan.error.find("API LEVEL 0"), std::string::npos);
+    EXPECT_EQ(loaded.document.pages.size(), originalPageCount);
+    EXPECT_EQ(files.pageFiles.size(), originalPageFileCount);
+
+    editor::PageImportPlan forgedPlan;
+    forgedPlan.canExecute = true;
+    std::string error;
+    EXPECT_FALSE(service.Execute(forgedPlan, loaded, files, nullptr, &error));
+    EXPECT_NE(error.find("API LEVEL 0"), std::string::npos);
+    EXPECT_EQ(loaded.document.pages.size(), originalPageCount);
+    EXPECT_EQ(files.pageFiles.size(), originalPageFileCount);
 }
 
 TEST(PageImportServiceTests, ImportsPageWithReticleDependencyIntoCurrentLibrary)

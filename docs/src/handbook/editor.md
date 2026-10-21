@@ -63,6 +63,13 @@ render at runtime. It keeps one shared editor-only visible grid, snap toggle,
 and logical grid step across the page preview and reticle studio **without**
 serializing those preferences into the authored JSON.
 
+The **API LEVEL** selector is available both in **Create new window** and in the
+Window inspector. This release exposes only `0 — Legacy`, described in the UI
+as the existing feature set and behavior. Older Window files with no
+`apiLevel` load identically; saving writes `apiLevel: 0` explicitly. Unsupported
+or malformed levels are rejected before the document can be edited. The level
+is part of the Window snapshot used by the existing Undo/Redo workflow.
+
 ## Responsive shell
 
 The central workspace keeps priority. Narrowing the window first compresses,

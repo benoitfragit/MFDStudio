@@ -13,6 +13,7 @@
 #include <array>
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -51,6 +52,7 @@ PageStrobeDefinition ParsePageStrobe(const json& node,
 PageViewState ParsePageViewState(const json& node);
 WindowCommandTransportConfig ParseWindowCommandTransportConfig(const json& root);
 WindowFeedbackTransportConfig ParseWindowFeedbackTransportConfig(const json& root);
+ApiLevel ParseApiLevel(const json& root);
 void ApplyReticleTextOverrides(const json& node, ReticleGroup& group);
 bool ResolveReticleBlinkState(const PageDefinition& page, ReticleGroup& reticle);
 void ValidateGeneratedTransportMapAgainstDocument(const GeneratedTransportMap& map,
@@ -112,6 +114,32 @@ using json_loader_detail::TrimAsciiWhitespace;
 
 using runtime_validation::kMaxPrimitivePoints;
 using runtime_validation::kMaxWindowExtent;
+
+ApiLevel ParseApiLevel(const json& root)
+{
+    if (!root.contains("apiLevel"))
+    {
+        return ApiLevel::Legacy;
+    }
+
+    const json& value = root.at("apiLevel");
+    if (!value.is_number_integer() && !value.is_number_unsigned())
+    {
+        throw std::runtime_error("Window apiLevel must be the integer 0 (Legacy).");
+    }
+
+    const bool isLegacy = value.is_number_unsigned()
+                              ? value.get<std::uint64_t>() == 0U
+                              : value.get<std::int64_t>() == 0;
+    if (!isLegacy)
+    {
+        throw std::runtime_error(
+            "Unsupported Window apiLevel " + value.dump() +
+            ". This build supports only API LEVEL 0 (Legacy).");
+    }
+
+    return ApiLevel::Legacy;
+}
 
 float ParseFiniteFloat(const json& value, const char* fieldName)
 {
@@ -2481,6 +2509,7 @@ WindowAssetDefinition ParseWindowAssetDefinition(const json& root,
 {
     WindowAssetDefinition window;
     window.sourceFile = windowFile;
+    window.apiLevel = ParseApiLevel(root);
     window.title = root.value("title", window.title);
 
     if (const json* size = FindField(root, {"size", "dimensions", "windowSize"}))

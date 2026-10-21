@@ -81,6 +81,7 @@ assets when you use **File > Open window asset...**.
 In **Create new window**, set:
 - **Window file** (for example `examples/demo/assets/windows/my_window.json`)
 - **Window title**
+- **API LEVEL** (`0 — Legacy`; the only supported level in this release)
 - **Size (px)** (`width`, `height`)
 - **Position (px)** (`x`, `y`)
 - **Font file (optional)** (for example `examples/demo/assets/fonts/ShareTechMono-Regular.ttf`)
@@ -131,8 +132,8 @@ versus unchanged heartbeat snapshots.
 
 Once the window already exists, reopen the same window-level inspector from
 **Window > Window settings**. That menu sits before **Page** in the menu bar
-and lets you retune transports, title, size, and feedback cadence without
-switching page context.
+and lets you review the API LEVEL or retune transports, title, size, and
+feedback cadence without switching page context.
 
 ## Step 4 - Create the initial page
 

@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -92,6 +93,78 @@ TEST(JsonLoaderTests, AcceptsJsonFileAtByteBudgetAndRejectsBoundaryPlusOne)
     json.push_back(' ');
     WriteTextFile(pagesFile, json);
     EXPECT_THROW(loader.LoadDocument(pagesFile), std::runtime_error);
+}
+
+TEST(JsonLoaderTests, WindowApiLevelDefaultsToLegacyAndAcceptsExplicitZero)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pageFile = workspace.Path() / "page.json";
+    const std::filesystem::path implicitWindowFile = workspace.Path() / "implicit_window.json";
+    const std::filesystem::path explicitWindowFile = workspace.Path() / "explicit_window.json";
+    std::filesystem::create_directories(workspace.Path() / "reticles");
+
+    WriteTextFile(pageFile,
+                  R"json({
+  "name": "Main",
+  "layers": [{ "id": "default" }],
+  "staticReticles": []
+})json");
+    WriteTextFile(
+        implicitWindowFile,
+        R"json({ "reticleLibraryFolder": "reticles", "pages": ["page.json"] })json");
+    WriteTextFile(
+        explicitWindowFile,
+        R"json({ "apiLevel": 0, "reticleLibraryFolder": "reticles", "pages": ["page.json"] })json");
+
+    mfd::JsonLoader loader;
+    const mfd::LoadedWindowConfiguration implicitLevel =
+        loader.LoadWindowConfiguration(implicitWindowFile);
+    const mfd::LoadedWindowConfiguration explicitLevel =
+        loader.LoadWindowConfiguration(explicitWindowFile);
+
+    EXPECT_EQ(implicitLevel.window.apiLevel, mfd::ApiLevel::Legacy);
+    EXPECT_EQ(explicitLevel.window.apiLevel, mfd::ApiLevel::Legacy);
+}
+
+TEST(JsonLoaderTests, WindowApiLevelRejectsUnsupportedAndMalformedValues)
+{
+    TemporaryFolder workspace;
+    const std::filesystem::path pageFile = workspace.Path() / "page.json";
+    WriteTextFile(pageFile,
+                  R"json({
+  "name": "Main",
+  "layers": [{ "id": "default" }],
+  "staticReticles": []
+})json");
+
+    const std::array<std::string_view, 6> invalidValues {{
+        "1",
+        "-1",
+        "0.5",
+        "\"0\"",
+        "true",
+        "null",
+    }};
+
+    mfd::JsonLoader loader;
+    for (std::size_t index = 0; index < invalidValues.size(); ++index)
+    {
+        const std::filesystem::path windowFile =
+            workspace.Path() / ("invalid_window_" + std::to_string(index) + ".json");
+        WriteTextFile(windowFile,
+                      "{ \"apiLevel\": " + std::string(invalidValues[index]) +
+                          ", \"pages\": [\"page.json\"] }");
+
+        try
+        {
+            loader.LoadWindowConfiguration(windowFile);
+            FAIL() << "Expected apiLevel value to be rejected: " << invalidValues[index];
+        }
+        catch (const std::runtime_error& exception)
+        {
+            EXPECT_NE(std::string(exception.what()).find("apiLevel"), std::string::npos);
+        }
+    }
 }
 
 TEST(JsonLoaderTests, LoadWindowConfigurationResolvesRelativeAssetsAndBlinkDefaults)

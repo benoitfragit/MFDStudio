@@ -207,6 +207,20 @@ def load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def validate_api_level(window_root: dict) -> None:
+    if "apiLevel" not in window_root:
+        return
+
+    api_level = window_root["apiLevel"]
+    if type(api_level) is not int:
+        raise RuntimeError("Window apiLevel must be the integer 0 (Legacy)")
+    if api_level != 0:
+        raise RuntimeError(
+            f"Unsupported Window apiLevel {api_level}. "
+            "This generator supports only API LEVEL 0 (Legacy)"
+        )
+
+
 def resolve_path(base: Path, raw_path: str) -> Path:
     path = Path(raw_path)
     if path.is_absolute():
@@ -2372,6 +2386,7 @@ def emit_map(document: dict) -> str:
 
 def collect_input_paths(window_path: Path) -> list[Path]:
     window_root = load_json(window_path)
+    validate_api_level(window_root)
     input_paths: set[Path] = {window_path}
 
     for page_entry in page_entries(window_root):
@@ -2399,6 +2414,7 @@ def main() -> int:
         return 0
 
     window_root = load_json(window_path)
+    validate_api_level(window_root)
     validate_cpp_namespace(args.namespace)
     page_specs, template_specs = build_page_specs(window_root, window_path, args.page_class_suffix)
     if not page_specs:

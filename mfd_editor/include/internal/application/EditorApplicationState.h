@@ -177,6 +177,7 @@ struct NewWindowDraft
 {
     std::array<char, kPathTextCapacity> windowFile {};
     std::array<char, 64> title {};
+    mfd::ApiLevel apiLevel = mfd::ApiLevel::Legacy;
     int width = 640;
     int height = 480;
     int positionX = 120;

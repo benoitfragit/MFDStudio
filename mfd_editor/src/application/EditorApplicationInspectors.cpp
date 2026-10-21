@@ -328,6 +328,18 @@ void EditorApplication::DrawWindowInspector()
         documentState_.loaded.window.title = title.data();
     }
 
+    if (ImGui::BeginCombo("API LEVEL", u8"0 \u2014 Legacy"))
+    {
+        if (ImGui::Selectable(u8"0 \u2014 Legacy", true) &&
+            documentState_.loaded.window.apiLevel != mfd::ApiLevel::Legacy)
+        {
+            PushUndoSnapshot();
+            documentState_.loaded.window.apiLevel = mfd::ApiLevel::Legacy;
+        }
+        ImGui::EndCombo();
+    }
+    ShowItemTooltip(u8"Legacy API \u2014 existing features and behavior.");
+
     int windowSize[2] {documentState_.loaded.window.width, documentState_.loaded.window.height};
     const bool sizeChanged = ImGui::InputInt2("Size (px)", windowSize);
     ShowItemTooltip("Initial native window size in pixels.");

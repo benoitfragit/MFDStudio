@@ -111,6 +111,7 @@ install(FILES
     DESTINATION include/mfd/ipc
     COMPONENT ${MFD_COMPONENT_CLIENT_API_DEVELOPMENT})
 install(FILES
+    ${MFD_ROOT_DIR}/mfd_common_api/include/mfd/model/ApiLevel.h
     ${MFD_ROOT_DIR}/mfd_common_api/include/mfd/model/PageDefinition.h
     ${MFD_ROOT_DIR}/mfd_common_api/include/mfd/model/PageName.h
     ${MFD_ROOT_DIR}/mfd_common_api/include/mfd/model/ExternalStreamTypes.h

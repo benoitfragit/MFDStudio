@@ -14,6 +14,7 @@
 #include "mfd/model/RuntimeBudgets.h"
 
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -1176,6 +1177,7 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemov
     std::ifstream windowStream(windowFile);
     ASSERT_TRUE(windowStream.is_open());
     const auto windowJson = nlohmann::json::parse(windowStream);
+    EXPECT_EQ(windowJson.at("apiLevel").get<std::uint32_t>(), 0U);
     EXPECT_EQ(windowJson.at("title").get<std::string>(), "Demo");
     EXPECT_EQ(windowJson.at("pages").at(0).get<std::string>(), "radar_page.json");
     EXPECT_EQ(windowJson.at("defaultPage").get<std::string>(), "Radar");
@@ -1216,6 +1218,18 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemov
     const auto templateJson = nlohmann::json::parse(templateStream);
     EXPECT_EQ(templateJson.at("id").get<std::string>(), "radar_track");
     ASSERT_EQ(templateJson.at("elements").size(), 1U);
+
+    mfd::JsonLoader loader;
+    const mfd::LoadedWindowConfiguration reloaded = loader.LoadWindowConfiguration(windowFile);
+    EXPECT_EQ(reloaded.window.apiLevel, mfd::ApiLevel::Legacy);
+}
+
+TEST(EditorDocumentSerializerTests, SerializeWindowRejectsUnsupportedApiLevel)
+{
+    mfd::WindowAssetDefinition window;
+    window.apiLevel = static_cast<mfd::ApiLevel>(1U);
+
+    EXPECT_THROW(editor::SerializeWindowToJsonString(window, {}, {}), std::runtime_error);
 }
 
 TEST(EditorDocumentSerializerTests, SaveEditorDocumentSerializesPageTitleDisplayChrome)

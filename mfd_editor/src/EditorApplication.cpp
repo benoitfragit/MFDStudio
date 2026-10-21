@@ -8608,6 +8608,15 @@ void EditorApplication::DrawPopups()
             BrowseNewWindowFile();
         }
         ImGui::InputText("Window title", workflowState_.newWindowDraft.title.data(), workflowState_.newWindowDraft.title.size());
+        if (ImGui::BeginCombo("API LEVEL", u8"0 \u2014 Legacy"))
+        {
+            if (ImGui::Selectable(u8"0 \u2014 Legacy", true))
+            {
+                workflowState_.newWindowDraft.apiLevel = mfd::ApiLevel::Legacy;
+            }
+            ImGui::EndCombo();
+        }
+        ShowItemTooltip(u8"Legacy API \u2014 existing features and behavior.");
         int windowSize[2] {workflowState_.newWindowDraft.width, workflowState_.newWindowDraft.height};
         if (ImGui::InputInt2("Size (px)", windowSize))
         {
@@ -8875,6 +8884,8 @@ void EditorApplication::DrawPopups()
 
 void EditorApplication::SeedNewWindowAssetDraftPaths()
 {
+    workflowState_.newWindowDraft.apiLevel = mfd::ApiLevel::Legacy;
+
     const std::filesystem::path windowFile = std::filesystem::path(workflowState_.newWindowDraft.windowFile.data()).lexically_normal();
     if (windowFile.empty() || !windowFile.is_absolute() || editor::EditorAssetPathService::IsExecStagingPath(windowFile))
     {

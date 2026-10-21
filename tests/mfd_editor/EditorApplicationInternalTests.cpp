@@ -17,6 +17,12 @@
 
 #include <vector>
 
+TEST(EditorApplicationInternalTests, NewWindowDraftDefaultsToLegacyApiLevel)
+{
+    const editor::app::NewWindowDraft draft;
+    EXPECT_EQ(draft.apiLevel, mfd::ApiLevel::Legacy);
+}
+
 TEST(EditorApplicationInternalTests, NewStreamsHaveDistinctValidIdentifiersAcrossOwnersAndPrimitives)
 {
     mfd::Primitive first;

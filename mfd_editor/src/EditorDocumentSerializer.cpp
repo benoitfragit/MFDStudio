@@ -17,6 +17,7 @@
 #include <cctype>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <fstream>
 #include <iomanip>
 #include <optional>
@@ -65,6 +66,12 @@ void ValidatePageRuntimeBudgets(const mfd::PageDefinition& page)
 
 void ValidateWindowRuntimeBudgets(const mfd::WindowAssetDefinition& window)
 {
+    if (window.apiLevel != mfd::ApiLevel::Legacy)
+    {
+        throw std::runtime_error(
+            "Cannot save the Window: this editor supports only API LEVEL 0 (Legacy).");
+    }
+
     if (!mfd::runtime_validation::IsValidWindowExtent(window.width) ||
         !mfd::runtime_validation::IsValidWindowExtent(window.height))
     {
@@ -1315,6 +1322,7 @@ json SerializeWindow(const mfd::WindowAssetDefinition& window,
     const std::filesystem::path baseFolder = window.sourceFile.parent_path();
 
     json node = json::object();
+    node["apiLevel"] = static_cast<std::uint32_t>(window.apiLevel);
     node["title"] = window.title;
     node["size"] = json::array({window.width, window.height});
     node["position"] = json::array({window.positionX, window.positionY});

@@ -18,6 +18,7 @@
 #include "mfd/control/CommandTransport.h"
 #include "mfd/control/FeedbackTransport.h"
 #include "mfd/MfdExport.h"
+#include "mfd/model/ApiLevel.h"
 #include "mfd/model/PageDefinition.h"
 #include "mfd/runtime/GeneratedTransportMap.h"
 
@@ -58,6 +59,8 @@ struct WindowAssetDefinition
     float feedbackFastIntervalSeconds = 0.020f;
     /** @brief Minimum seconds between unchanged runtime feedback heartbeat bursts. */
     float feedbackHeartbeatIntervalSeconds = 0.350f;
+    /** @brief Highest API capability level available to this window. */
+    ApiLevel apiLevel = ApiLevel::Legacy;
 };
 
 /**

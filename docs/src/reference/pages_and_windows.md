@@ -24,6 +24,7 @@ of primitives.
 
 ```json
 {
+  "apiLevel": 0,
   "title": "Tutorial Window",
   "size": [1280, 800],
   "position": [80, 60],
@@ -44,6 +45,7 @@ of primitives.
 
 | Field | Required | Description |
 | --- | --- | --- |
+| `apiLevel` | no | Window capability ceiling. Missing and `0` both mean LEVEL 0 (Legacy). |
 | `title` | no | Window title. |
 | `size` (`[w,h]` or `{width,height}`) | recommended | Window pixel size. |
 | `position` (`[x,y]` or `{x,y}`) | no | Initial screen position. |
@@ -57,6 +59,25 @@ of primitives.
 | `pages` | yes | Page JSON files (strings or `{file/path/json}` objects). |
 
 Numeric fields must be finite; pixel integers must fit a signed 32-bit int.
+
+### API LEVEL
+
+This release supports only **API LEVEL 0 (Legacy)**. The optional root-level
+`apiLevel` field belongs to the Window; Pages and Reticles do not carry their
+own level. Existing Window files can omit it and continue to load as LEVEL 0.
+The editor writes `"apiLevel": 0` explicitly when it saves a Window.
+
+Only the integer `0` is valid. Unsupported positive levels and malformed values
+such as negative numbers, fractions, strings, booleans, or `null` are rejected
+by the editor, runtime loader, and generated-API tool instead of being coerced
+or silently downgraded.
+
+Page-import compatibility is based on the Page's actual content and recursively
+referenced assets, not merely on the source Window's selected level. At LEVEL 0,
+the existing Page and Reticle feature set requires LEVEL 0 and imports preserve
+the destination Window level. Future levels will apply the same recursive rule
+to Containers and Widgets; those features and scanners are not implemented in
+this release. A standalone Page JSON therefore has no `apiLevel` field.
 
 ## Transports
 

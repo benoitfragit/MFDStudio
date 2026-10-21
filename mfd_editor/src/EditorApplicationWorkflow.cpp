@@ -1999,11 +1999,18 @@ bool EditorApplication::CreateNewWindow()
         return false;
     }
 
+    if (workflowState_.newWindowDraft.apiLevel != mfd::ApiLevel::Legacy)
+    {
+        RebuildStatus("This editor supports only API LEVEL 0 (Legacy).", true);
+        return false;
+    }
+
     const std::filesystem::path windowBaseFolder = windowFile.parent_path();
 
     mfd::LoadedWindowConfiguration next {};
     next.window.sourceFile = windowFile;
     next.window.title = windowTitle;
+    next.window.apiLevel = workflowState_.newWindowDraft.apiLevel;
     next.window.width =
         std::clamp(workflowState_.newWindowDraft.width, 1, mfd::runtime_validation::kMaxWindowExtent);
     next.window.height =

@@ -35,6 +35,16 @@ Treat those three outputs as one contract:
   templates with numeric ids from that generated contract
 - if the generated C++ and the map drift apart, generated batches are rejected
 
+The generator validates the Window's optional `apiLevel` before generation.
+This release accepts only an omitted level or integer `0`, both representing
+LEVEL 0 (Legacy); any unsupported or malformed value fails with an explicit
+diagnostic. Adding `"apiLevel": 0` to an otherwise identical legacy Window does
+not alter the generated header, source, transport IDs, map, or `mappingHash`.
+The level is intentionally absent from the generated transport map and hash.
+LEVEL 0 requires no extension DLL, additional runtime dependency, or client-code
+migration. The shared `ApiLevel` header ships with the existing client API
+development component.
+
 There is no name-based compatibility path for feedback identity. Regenerate and
 ship the generated C++ and map together whenever authored identifiers change.
 Only display/business payloads such as capture `label`, `category`, and

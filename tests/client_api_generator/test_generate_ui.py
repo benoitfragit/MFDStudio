@@ -26,6 +26,104 @@ class GenerateUiTests(unittest.TestCase):
         self.generator = GENERATOR_PATH
         self.assertTrue(self.generator.exists(), f"Generator script not found: {self.generator}")
 
+    def test_api_level_zero_is_byte_identical_to_an_omitted_level(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            page = root / "page.json"
+            window = root / "window.json"
+            (root / "reticles").mkdir()
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Main",
+                        "layers": [{"id": "default"}],
+                        "staticReticles": [
+                            {
+                                "id": "marker",
+                                "layerId": "default",
+                                "elements": [{"id": "label", "type": "text", "exposed": True}],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            legacy_window = {
+                "title": "Legacy",
+                "reticleLibraryFolder": "reticles",
+                "pages": [page.name],
+            }
+            window.write_text(json.dumps(legacy_window), encoding="utf-8")
+            outputs = [root / "GeneratedUi.h", root / "GeneratedUi.cpp", root / "GeneratedUi.generated.map"]
+            command = [
+                sys.executable,
+                str(self.generator),
+                "--window-json",
+                str(window),
+                "--output-header",
+                str(outputs[0]),
+                "--output-source",
+                str(outputs[1]),
+                "--output-map",
+                str(outputs[2]),
+                "--namespace",
+                "generated_ui",
+                "--header-include",
+                "GeneratedUi.h",
+                "--force-overwrite",
+            ]
+
+            subprocess.run(command, check=True)
+            implicit_outputs = [output.read_bytes() for output in outputs]
+            implicit_map = json.loads(implicit_outputs[2].decode("utf-8"))
+
+            explicit_window = dict(legacy_window)
+            explicit_window["apiLevel"] = 0
+            window.write_text(json.dumps(explicit_window), encoding="utf-8")
+            subprocess.run(command, check=True)
+            explicit_outputs = [output.read_bytes() for output in outputs]
+            explicit_map = json.loads(explicit_outputs[2].decode("utf-8"))
+
+            self.assertEqual(explicit_outputs, implicit_outputs)
+            self.assertEqual(explicit_map["mappingHash"], implicit_map["mappingHash"])
+            self.assertEqual(explicit_map["pages"], implicit_map["pages"])
+            self.assertEqual(explicit_map["reticles"], implicit_map["reticles"])
+            self.assertEqual(explicit_map["primitives"], implicit_map["primitives"])
+            self.assertNotIn("apiLevel", explicit_map)
+
+    def test_rejects_unsupported_and_malformed_api_levels(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            page = root / "page.json"
+            window = root / "window.json"
+            page.write_text(
+                json.dumps({"name": "Main", "layers": [{"id": "default"}], "staticReticles": []}),
+                encoding="utf-8",
+            )
+            command = [
+                sys.executable,
+                str(self.generator),
+                "--window-json",
+                str(window),
+                "--output-header",
+                str(root / "GeneratedUi.h"),
+                "--output-source",
+                str(root / "GeneratedUi.cpp"),
+                "--output-map",
+                str(root / "GeneratedUi.generated.map"),
+                "--force-overwrite",
+            ]
+
+            for api_level in (1, -1, 0.5, "0", True, None):
+                window.write_text(
+                    json.dumps({"apiLevel": api_level, "pages": [page.name]}),
+                    encoding="utf-8",
+                )
+                result = subprocess.run(command, capture_output=True, text=True, check=False)
+                self.assertNotEqual(result.returncode, 0, api_level)
+                self.assertIn("apiLevel", result.stderr)
+
     def test_generates_header_and_source_covering_full_ui_api(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

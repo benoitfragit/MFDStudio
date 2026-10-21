@@ -101,6 +101,17 @@ std::filesystem::path NormalizePath(std::filesystem::path path)
     return path.lexically_normal();
 }
 
+std::optional<std::string> DestinationApiLevelError(const mfd::ApiLevel apiLevel)
+{
+    if (apiLevel == mfd::ApiLevel::Legacy)
+    {
+        return std::nullopt;
+    }
+
+    return "Page import rejected: the destination Window uses an unsupported API LEVEL. "
+           "This editor supports only API LEVEL 0 (Legacy).";
+}
+
 bool PathExists(const std::filesystem::path& path)
 {
     if (path.empty())
@@ -576,6 +587,13 @@ PageImportPlan PageImportService::BuildPlan(const mfd::LoadedWindowConfiguration
 
     try
     {
+        if (const std::optional<std::string> levelError = DestinationApiLevelError(loaded.window.apiLevel);
+            levelError.has_value())
+        {
+            plan.error = *levelError;
+            return plan;
+        }
+
         if (plan.sourcePageFile.empty())
         {
             plan.error = "Choose one page JSON file to import.";
@@ -852,6 +870,16 @@ bool PageImportService::Execute(const PageImportPlan& plan,
         if (error != nullptr)
         {
             *error = plan.error.empty() ? "The page import plan cannot execute." : plan.error;
+        }
+        return false;
+    }
+
+    if (const std::optional<std::string> levelError = DestinationApiLevelError(loaded.window.apiLevel);
+        levelError.has_value())
+    {
+        if (error != nullptr)
+        {
+            *error = *levelError;
         }
         return false;
     }
