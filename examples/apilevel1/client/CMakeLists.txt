@@ -41,6 +41,13 @@ mfd_stage_runtime(
     WITH_RUNTIME_DLLS)
 
 if(MFD_BUILD_TESTS)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    add_test(NAME apilevel1_containers_client_startup_udp
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_startup.py"
+                --client "$<TARGET_FILE:apilevel1_containers_client>"
+                --assets "${MFD_APILEVEL1_EXAMPLE_ASSET_DIR}")
+    set_tests_properties(apilevel1_containers_client_startup_udp PROPERTIES
+        TIMEOUT 20 LABELS "examples;apilevel1;runtime")
     mfd_add_runtime_layout_smoke_test(
         apilevel1_containers_client
         VERIFY_ASSETS

@@ -14,5 +14,9 @@ cmake --build --preset debug-win32
 ```
 
 The script launches the mixed LEVEL 0/LEVEL 1 Window on its visible Containers
-Page and starts the generated client. The client publishes visibility, enabled
-state and scroll offset through the strongly typed `MainPanel()` handle.
+Page and starts the generated client. The client explicitly activates the Page
+and sends its view using `SendStartup`, even when the `MainPanel()` handle's
+visibility, enabled state and scroll offset are unchanged from authored defaults.
+It then exits; it is not an interactive control panel. UDP send success is not
+an acknowledgement from the Window. If only the Window was launched, run
+`apilevel1_containers_client.exe` from `_Exec/v142/win32/Debug` afterwards.

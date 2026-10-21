@@ -28,11 +28,14 @@ int main()
         ui.Containers().MainPanel().SetVisible(true);
         ui.Containers().MainPanel().SetEnabled(true);
         ui.Containers().MainPanel().SetScrollOffset({0.0f, 0.0f});
-        if (!client.SendBatch(ui.BuildBatch(), 1U))
+        // Explicit startup activates the Page even when all authored values are
+        // unchanged and BuildBatch() would therefore contain no commands.
+        if (!ui.SendStartup(client, mfd::PageViewState {}, {}))
         {
             throw std::runtime_error(client.LastError());
         }
-        std::cout << "Container state sent to the API LEVEL 1 example Window.\n";
+        std::cout << "Startup commands sent via UDP to the API LEVEL 1 example Window "
+                     "(delivery is not acknowledged).\n";
         return 0;
     }
     catch (const std::exception& exception)
