@@ -51,8 +51,12 @@ constexpr float kMinWorkspaceWidth = 360.0f;
 constexpr float kLayerInspectorDockWidth = 248.0f;
 constexpr float kPreviewProblemsDockHeight = 176.0f;
 constexpr float kSidebarSectionMinVisibleRows = 3.0f;
-constexpr ImU32 kBrandSurfaceColor = IM_COL32(247, 245, 240, 255);
-constexpr ImU32 kBrandMonogramColor = IM_COL32(32, 35, 39, 255);
+constexpr float kAppBarBrandNameMinWidth = 900.0f;
+constexpr float kAppBarProjectMinWidth = 780.0f;
+constexpr float kAppBarProjectFileMinWidth = 1180.0f;
+constexpr float kAppBarStatusMinWidth = 1400.0f;
+constexpr ImU32 kBrandSurfaceColor = IM_COL32(109, 183, 255, 255);
+constexpr ImU32 kBrandMonogramColor = IM_COL32(10, 18, 30, 255);
 
 void DrawEditorBrandMark(const ImVec2 topLeft, const float side)
 {
@@ -87,6 +91,37 @@ void DrawEditorBrandMark(const ImVec2 topLeft, const float side)
         geometry.monogramStrokeWidth);
 }
 
+/**
+ * @brief Draws a compact, non-interactive tonal chip inside the horizontal application bar.
+ * @param id Stable ImGui identifier for hover and tooltip tracking.
+ * @param label Visible chip label.
+ * @param background Chip fill color.
+ * @param foreground Chip text color.
+ */
+void DrawMenuBarChip(const char* const id,
+                     const std::string& label,
+                     const ImVec4& background,
+                     const ImVec4& foreground)
+{
+    const ImVec2 textSize = ImGui::CalcTextSize(label.c_str());
+    const ImVec2 padding(9.0f, 3.0f);
+    const ImVec2 chipSize(textSize.x + padding.x * 2.0f, textSize.y + padding.y * 2.0f);
+    const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+
+    ImGui::PushID(id);
+    ImGui::InvisibleButton("##chip", chipSize);
+    ImGui::PopID();
+
+    ImDrawList* const drawList = ImGui::GetWindowDrawList();
+    drawList->AddRectFilled(topLeft,
+                            ImVec2(topLeft.x + chipSize.x, topLeft.y + chipSize.y),
+                            ImGui::GetColorU32(background),
+                            chipSize.y * 0.5f);
+    drawList->AddText(ImVec2(topLeft.x + padding.x, topLeft.y + padding.y),
+                      ImGui::GetColorU32(foreground),
+                      label.c_str());
+}
+
 void DrawRuntimeErrorBanner(const std::string& runtimeError)
 {
     if (runtimeError.empty())
@@ -107,10 +142,24 @@ void EditorApplication::DrawMenuBar()
     using editor::tutorial::TutorialStepId;
     const bool hasOpenWindow = HasOpenWindow();
 
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10.0f, 8.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(9.0f, 8.0f));
     if (!ImGui::BeginMainMenuBar())
     {
+        ImGui::PopStyleVar(2);
         return;
     }
+
+    const float appBarWidth = ImGui::GetMainViewport()->WorkSize.x;
+    const float brandSide = ImGui::GetTextLineHeight() + 2.0f;
+    const ImVec2 brandTopLeft = ImGui::GetCursorScreenPos();
+    DrawEditorBrandMark(brandTopLeft, brandSide);
+    ImGui::Dummy(ImVec2(brandSide, brandSide));
+    if (appBarWidth >= kAppBarBrandNameMinWidth)
+    {
+        ImGui::TextColored(ImGui::GetStyleColorVec4(ImGuiCol_Text), "MFD Studio");
+    }
+    ImGui::Dummy(ImVec2(5.0f, 0.0f));
 
     const bool fileMenuOpen = ImGui::BeginMenu("File");
     tutorial_->DrawHalo("menu_file", "Click File", "Open the top-level document actions used by this tutorial step.");
@@ -462,48 +511,63 @@ void EditorApplication::DrawMenuBar()
         ImGui::EndMenu();
     }
 
-    ImGui::TextDisabled("|");
     const char* titleLabel = hasOpenWindow && !documentState_.loaded.window.title.empty() ? documentState_.loaded.window.title.c_str() : "No asset open";
     const bool showDirtyMarker = hasOpenWindow && workflowState_.documentDirty;
-    ImGui::Text("%s%s", showDirtyMarker ? "* " : "", titleLabel);
-    if (showDirtyMarker)
+    std::string projectLabel = showDirtyMarker ? "* " : "";
+    projectLabel += titleLabel;
+    if (hasOpenWindow && appBarWidth >= kAppBarProjectFileMinWidth)
     {
+        projectLabel += "  ·  ";
+        projectLabel += documentState_.windowFile.filename().string();
+    }
+    if (appBarWidth >= kAppBarProjectMinWidth)
+    {
+        ImGui::Dummy(ImVec2(5.0f, 0.0f));
+        DrawMenuBarChip("project", projectLabel, ImGui::GetStyleColorVec4(ImGuiCol_FrameBg),
+                        ImGui::GetStyleColorVec4(ImGuiCol_Text));
+        if (showDirtyMarker)
+        {
+            ShowItemTooltip("This window has unsaved changes. Save with Ctrl+S.");
+        }
+    }
+    else if (showDirtyMarker)
+    {
+        ImGui::TextColored(ImGui::GetStyleColorVec4(ImGuiCol_CheckMark), "*");
         ShowItemTooltip("This window has unsaved changes. Save with Ctrl+S.");
     }
-    if (hasOpenWindow)
+    if (!workflowState_.statusMessage.empty() && appBarWidth >= kAppBarStatusMinWidth)
     {
-        ImGui::SameLine();
-        ImGui::TextDisabled("[%s]", documentState_.windowFile.filename().string().c_str());
-    }
-    if (!workflowState_.statusMessage.empty())
-    {
-        ImGui::SameLine();
         if (workflowState_.statusIsError)
         {
             ImGui::TextColored(
-                ImVec4(0.95f, 0.42f, 0.42f, 1.0f),
-                "%s %s",
+                ImVec4(1.00f, 0.47f, 0.54f, 1.0f),
+                "● %s %s",
                 editor::detail::FooterStatusSeverityLabel(true),
                 workflowState_.statusMessage.c_str());
         }
         else
         {
-            ImGui::TextDisabled("%s", workflowState_.statusMessage.c_str());
+            ImGui::TextColored(ImGui::GetStyleColorVec4(ImGuiCol_CheckMark),
+                               "● %s",
+                               workflowState_.statusMessage.c_str());
         }
     }
 
     if (layoutState_.shellLayoutMode != editor::ShellLayoutMode::Wide)
     {
-        ImGui::SameLine();
         const char* layoutModeLabel =
             layoutState_.shellLayoutMode == editor::ShellLayoutMode::Compact ? "Compact layout" : "Focus layout";
-        ImGui::TextColored(ImVec4(0.40f, 0.74f, 0.95f, 1.0f), "[%s]", layoutModeLabel);
+        DrawMenuBarChip("layout_mode",
+                        layoutModeLabel,
+                        ImVec4(0.20f, 0.48f, 0.75f, 0.38f),
+                        ImGui::GetStyleColorVec4(ImGuiCol_Text));
         ShowItemTooltip(
             "The window is narrow: auxiliary panels auto-collapse to protect the workspace. "
             "Use the View menu or widen the window to restore them.");
     }
 
     ImGui::EndMainMenuBar();
+    ImGui::PopStyleVar(2);
 }
 
 void EditorApplication::DrawRootLayout()

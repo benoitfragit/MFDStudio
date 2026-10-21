@@ -81,15 +81,19 @@ std::filesystem::path ResolveWindowsFontPath(const wchar_t* const fileName)
 #endif
 }
 
-bool DrawSectionHeader(const char* const label, const ImGuiTreeNodeFlags flags)
+bool DrawSectionHeader(const char* const label, const ImGuiTreeNodeFlags flags, const bool tonalSurface)
 {
     const ImVec4 accent = ImGui::GetStyleColorVec4(ImGuiCol_NavHighlight);
-    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(accent.x, accent.y, accent.z, 0.11f));
-    ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(accent.x, accent.y, accent.z, 0.18f));
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4.0f, 5.0f));
+    const ImVec4 surface = ImGui::GetStyleColorVec4(ImGuiCol_FrameBg);
+    const ImVec4 restingColor =
+        tonalSurface ? ImVec4(surface.x, surface.y, surface.z, 0.76f) : ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+    ImGui::PushStyleColor(ImGuiCol_Header, restingColor);
+    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(accent.x, accent.y, accent.z, tonalSurface ? 0.18f : 0.12f));
+    ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(accent.x, accent.y, accent.z, tonalSurface ? 0.26f : 0.20f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, tonalSurface ? ImVec2(9.0f, 7.0f) : ImVec2(5.0f, 6.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tonalSurface ? 9.0f : 7.0f);
     const bool open = ImGui::CollapsingHeader(label, flags);
-    ImGui::PopStyleVar();
+    ImGui::PopStyleVar(2);
     ImGui::PopStyleColor(3);
     return open;
 }
@@ -151,20 +155,20 @@ bool ConfigureEditorFont(const float displayScale)
 void ApplyEditorTheme()
 {
     ImGuiStyle& style = ImGui::GetStyle();
-    style.WindowRounding = 8.0f;
-    style.ChildRounding = 8.0f;
-    style.FrameRounding = 6.0f;
-    style.PopupRounding = 8.0f;
-    style.ScrollbarRounding = 8.0f;
-    style.GrabRounding = 6.0f;
-    style.WindowPadding = ImVec2(12.0f, 12.0f);
-    style.FramePadding = ImVec2(8.0f, 6.0f);
-    style.ItemSpacing = ImVec2(9.0f, 7.0f);
-    style.ItemInnerSpacing = ImVec2(7.0f, 5.0f);
-    style.IndentSpacing = 18.0f;
-    style.ScrollbarSize = 13.0f;
-    style.GrabMinSize = 12.0f;
-    style.DisabledAlpha = 0.70f;
+    style.WindowRounding = 12.0f;
+    style.ChildRounding = 12.0f;
+    style.FrameRounding = 9.0f;
+    style.PopupRounding = 12.0f;
+    style.ScrollbarRounding = 10.0f;
+    style.GrabRounding = 9.0f;
+    style.WindowPadding = ImVec2(14.0f, 14.0f);
+    style.FramePadding = ImVec2(10.0f, 7.0f);
+    style.ItemSpacing = ImVec2(10.0f, 8.0f);
+    style.ItemInnerSpacing = ImVec2(8.0f, 6.0f);
+    style.IndentSpacing = 20.0f;
+    style.ScrollbarSize = 11.0f;
+    style.GrabMinSize = 14.0f;
+    style.DisabledAlpha = 0.62f;
     style.WindowBorderSize = 0.0f;
     style.ChildBorderSize = 0.0f;
     style.FrameBorderSize = 0.0f;
@@ -174,40 +178,41 @@ void ApplyEditorTheme()
     style.AntiAliasedFill = true;
 
     ImVec4* colors = style.Colors;
-    const ImVec4 background(0.039f, 0.051f, 0.078f, 1.00f);
-    const ImVec4 panel(0.066f, 0.086f, 0.125f, 1.00f);
-    const ImVec4 raisedSurface(0.098f, 0.129f, 0.180f, 1.00f);
-    const ImVec4 border(0.196f, 0.239f, 0.306f, 0.48f);
-    const ImVec4 primary(0.416f, 0.682f, 1.000f, 1.00f);
-    const ImVec4 secondary(0.333f, 0.843f, 0.745f, 1.00f);
+    // Material-inspired dark surfaces: hierarchy comes from tone and elevation, not outlines.
+    const ImVec4 background(0.027f, 0.039f, 0.063f, 1.00f);
+    const ImVec4 panel(0.055f, 0.075f, 0.110f, 1.00f);
+    const ImVec4 raisedSurface(0.094f, 0.125f, 0.173f, 1.00f);
+    const ImVec4 border(0.337f, 0.400f, 0.494f, 0.28f);
+    const ImVec4 primary(0.427f, 0.718f, 1.000f, 1.00f);
+    const ImVec4 secondary(0.384f, 0.875f, 0.792f, 1.00f);
 
-    colors[ImGuiCol_Text] = ImVec4(0.949f, 0.965f, 0.988f, 1.00f);
-    colors[ImGuiCol_TextDisabled] = ImVec4(0.718f, 0.776f, 0.851f, 1.00f);
+    colors[ImGuiCol_Text] = ImVec4(0.925f, 0.953f, 0.992f, 1.00f);
+    colors[ImGuiCol_TextDisabled] = ImVec4(0.650f, 0.714f, 0.804f, 1.00f);
     colors[ImGuiCol_WindowBg] = background;
     colors[ImGuiCol_ChildBg] = panel;
     colors[ImGuiCol_PopupBg] = ImVec4(panel.x, panel.y, panel.z, 0.98f);
     colors[ImGuiCol_Border] = border;
     colors[ImGuiCol_BorderShadow] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
     colors[ImGuiCol_FrameBg] = raisedSurface;
-    colors[ImGuiCol_FrameBgHovered] = ImVec4(primary.x, primary.y, primary.z, 0.22f);
-    colors[ImGuiCol_FrameBgActive] = ImVec4(primary.x, primary.y, primary.z, 0.30f);
+    colors[ImGuiCol_FrameBgHovered] = ImVec4(primary.x, primary.y, primary.z, 0.18f);
+    colors[ImGuiCol_FrameBgActive] = ImVec4(primary.x, primary.y, primary.z, 0.27f);
     colors[ImGuiCol_TitleBg] = background;
     colors[ImGuiCol_TitleBgActive] = panel;
     colors[ImGuiCol_TitleBgCollapsed] = background;
     colors[ImGuiCol_MenuBarBg] = background;
-    colors[ImGuiCol_ScrollbarBg] = background;
-    colors[ImGuiCol_ScrollbarGrab] = border;
-    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(primary.x, primary.y, primary.z, 0.58f);
+    colors[ImGuiCol_ScrollbarBg] = ImVec4(background.x, background.y, background.z, 0.18f);
+    colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.337f, 0.400f, 0.494f, 0.42f);
+    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(primary.x, primary.y, primary.z, 0.50f);
     colors[ImGuiCol_ScrollbarGrabActive] = primary;
     colors[ImGuiCol_CheckMark] = secondary;
     colors[ImGuiCol_SliderGrab] = primary;
     colors[ImGuiCol_SliderGrabActive] = secondary;
     colors[ImGuiCol_Button] = raisedSurface;
-    colors[ImGuiCol_ButtonHovered] = ImVec4(primary.x, primary.y, primary.z, 0.24f);
-    colors[ImGuiCol_ButtonActive] = ImVec4(primary.x, primary.y, primary.z, 0.34f);
-    colors[ImGuiCol_Header] = ImVec4(primary.x, primary.y, primary.z, 0.16f);
-    colors[ImGuiCol_HeaderHovered] = ImVec4(primary.x, primary.y, primary.z, 0.22f);
-    colors[ImGuiCol_HeaderActive] = ImVec4(primary.x, primary.y, primary.z, 0.28f);
+    colors[ImGuiCol_ButtonHovered] = ImVec4(primary.x, primary.y, primary.z, 0.20f);
+    colors[ImGuiCol_ButtonActive] = ImVec4(primary.x, primary.y, primary.z, 0.30f);
+    colors[ImGuiCol_Header] = ImVec4(primary.x, primary.y, primary.z, 0.20f);
+    colors[ImGuiCol_HeaderHovered] = ImVec4(primary.x, primary.y, primary.z, 0.26f);
+    colors[ImGuiCol_HeaderActive] = ImVec4(primary.x, primary.y, primary.z, 0.34f);
     colors[ImGuiCol_Separator] = border;
     colors[ImGuiCol_SeparatorHovered] = primary;
     colors[ImGuiCol_SeparatorActive] = secondary;
@@ -215,18 +220,20 @@ void ApplyEditorTheme()
     colors[ImGuiCol_ResizeGripHovered] = ImVec4(primary.x, primary.y, primary.z, 0.62f);
     colors[ImGuiCol_ResizeGripActive] = primary;
     colors[ImGuiCol_Tab] = panel;
-    colors[ImGuiCol_TabHovered] = ImVec4(primary.x, primary.y, primary.z, 0.45f);
+    colors[ImGuiCol_TabHovered] = ImVec4(primary.x, primary.y, primary.z, 0.34f);
     colors[ImGuiCol_TabActive] = raisedSurface;
     colors[ImGuiCol_PlotLinesHovered] = ImVec4(1.000f, 0.471f, 0.537f, 1.00f);
-    colors[ImGuiCol_TextSelectedBg] = ImVec4(primary.x, primary.y, primary.z, 0.35f);
+    colors[ImGuiCol_TextSelectedBg] = ImVec4(primary.x, primary.y, primary.z, 0.30f);
     colors[ImGuiCol_NavHighlight] = primary;
+    colors[ImGuiCol_DragDropTarget] = ImVec4(0.957f, 0.765f, 0.420f, 0.92f);
+    colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.58f);
 }
 
 bool AccentButton(const char* label)
 {
-    const ImVec4 accent = ImGui::GetStyleColorVec4(ImGuiCol_CheckMark);
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(accent.x * 0.62f, accent.y * 0.62f, accent.z * 0.62f, 1.00f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(accent.x * 0.80f, accent.y * 0.80f, accent.z * 0.80f, 1.00f));
+    const ImVec4 accent = ImGui::GetStyleColorVec4(ImGuiCol_NavHighlight);
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(accent.x * 0.72f, accent.y * 0.72f, accent.z * 0.72f, 1.00f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(accent.x * 0.88f, accent.y * 0.88f, accent.z * 0.88f, 1.00f));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, accent);
     const bool pressed = ImGui::Button(label);
     ImGui::PopStyleColor(3);
@@ -381,7 +388,7 @@ bool BeginInspectorSection(const char* strId, const char* label, const bool defa
     // Push a stable id so the persistent open/closed state is keyed on the caller-provided id
     // rather than the visible caption, which several inspectors reuse.
     ImGui::PushID(strId);
-    const bool open = DrawSectionHeader(label != nullptr ? label : strId, ImGuiTreeNodeFlags_None);
+    const bool open = DrawSectionHeader(label != nullptr ? label : strId, ImGuiTreeNodeFlags_None, true);
     ImGui::PopID();
 
     // Mirror live changes back into the store, but never while force-opened so the tutorial does not
@@ -408,7 +415,7 @@ bool BeginNavigationSection(const char* const label, const bool forceOpen)
     {
         ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
     }
-    return DrawSectionHeader(label != nullptr ? label : "", ImGuiTreeNodeFlags_None);
+    return DrawSectionHeader(label != nullptr ? label : "", ImGuiTreeNodeFlags_None, false);
 }
 
 void SetInspectorSectionStateStore(std::map<std::string, bool>* const store) noexcept

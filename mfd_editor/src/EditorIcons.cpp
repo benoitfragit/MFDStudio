@@ -21,8 +21,8 @@ namespace editor::ui
 {
 namespace
 {
-/// Neutral white used for the resting glyph color, matched to the theme text tone.
-constexpr ImU32 kGlyphRest = IM_COL32(236, 244, 250, 255);
+/// Quiet blue-white used for resting glyphs so primary state colors remain meaningful.
+constexpr ImU32 kGlyphRest = IM_COL32(211, 225, 242, 255);
 
 /// Half-turn in radians, used to lay out the arc-based glyphs without the imgui_internal header.
 constexpr float kPi = 3.14159265358979323846f;
@@ -443,10 +443,9 @@ bool IconButton(const char* const strId,
     {
         const ImGuiCol backgroundColor = active ? ImGuiCol_ButtonActive
                                                 : hovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button;
-        drawList->AddRectFilled(topLeft,
-                                ImVec2(topLeft.x + size, topLeft.y + size),
-                                ImGui::GetColorU32(backgroundColor),
-                                ImGui::GetStyle().FrameRounding);
+        drawList->AddCircleFilled(ImVec2(topLeft.x + size * 0.5f, topLeft.y + size * 0.5f),
+                                  size * 0.5f,
+                                  ImGui::GetColorU32(backgroundColor));
     }
 
     const ImVec4 accent = ImGui::GetStyleColorVec4(ImGuiCol_CheckMark);

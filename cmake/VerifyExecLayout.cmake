@@ -18,7 +18,8 @@ set(exec_stage_required_files
     "${config_root}/mfd_containers_api1.dll"
     "${config_root}/mfd_editor_containers_api1.dll"
     "${config_root}/apilevel1_containers_client.exe"
-    "${config_root}/assets/windows/containers_window.json")
+    "${config_root}/assets/windows/containers_window.json"
+    "${config_root}/tests/client_api_tests.exe")
 set(exec_stage_needs_refresh OFF)
 foreach(required_file IN LISTS exec_stage_required_files)
     if(NOT EXISTS "${required_file}")

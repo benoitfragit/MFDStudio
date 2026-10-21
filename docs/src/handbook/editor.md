@@ -15,12 +15,12 @@ surfaces visible at the same time:
 - page preview: the main authoring canvas for selection, zoom, and layout work
 - right inspector: the editable properties of the current page, reticle, or primitive
 
-The shell uses one restrained dark design system throughout the executable and
-the API LEVEL 1 extension: Segoe UI on Windows (with a readable fallback),
-aligned label/value rows, borderless sections, turquoise state accents and blue
-interaction accents. The same compact ghost icon buttons, spacing and focus
-states are used in sidebars, viewport tools and inspectors; extension code never
-creates a second visual theme.
+The shell uses one Material-inspired dark design system throughout the executable
+and the API LEVEL 1 extension: Segoe UI on Windows (with a readable fallback),
+tonal elevation instead of stacked outlines, aligned label/value rows, turquoise
+state accents and blue interaction accents. Rounded project chips, circular ghost
+icon buttons, spacing and focus states are shared by the app bar, sidebars,
+viewport tools and inspectors; extension code never creates a second visual theme.
 
 ## Start
 
@@ -90,11 +90,11 @@ Auto-collapse is temporary and never changes saved panel widths; use the **View*
 menu or widen the window to bring panels back.
 
 Inspector fields keep labels in a stable left column and controls in a flexible
-right column. Collapsible groups stay transparent until interaction, so selection
-and active-tool colors remain meaningful instead of turning every section into a
-saturated banner. The preview toolbar floats on one quiet borderless surface above
-the canvas and retains a visible armed state for one-shot tools. Sidebar, workspace
-and inspector panes use spacing rather than nested outlines to establish hierarchy.
+right column. Collapsible groups use quiet rounded tonal headers, while selected
+content and active tools use brighter state layers. The preview toolbar floats as
+an elevated borderless pill above the canvas and uses a filled circular state for
+armed one-shot tools. Sidebar, workspace and inspector panes use surface tone and
+spacing rather than nested outlines to establish hierarchy.
 
 In the fully loaded workspace, the left sidebar exposes pages and reticles, the
 center keeps the preview tools visible, and the right inspector follows the

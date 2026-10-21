@@ -1226,10 +1226,15 @@ void DrawViewportToolbarSurface(const ViewportToolbarLayout& layout)
 {
     ImDrawList* const drawList = ImGui::GetWindowDrawList();
     const ImVec4 panel = ImGui::GetStyleColorVec4(ImGuiCol_FrameBg);
+    const float cornerRadius = (layout.toolbarMax.y - layout.toolbarMin.y) * 0.34f;
+    drawList->AddRectFilled(ImVec2(layout.toolbarMin.x, layout.toolbarMin.y + 3.0f),
+                            ImVec2(layout.toolbarMax.x, layout.toolbarMax.y + 3.0f),
+                            IM_COL32(0, 0, 0, 72),
+                            cornerRadius);
     drawList->AddRectFilled(layout.toolbarMin,
                             layout.toolbarMax,
-                            ImGui::GetColorU32(ImVec4(panel.x, panel.y, panel.z, 0.92f)),
-                            ImGui::GetStyle().FrameRounding + 2.0f);
+                            ImGui::GetColorU32(ImVec4(panel.x, panel.y, panel.z, 0.96f)),
+                            cornerRadius);
 }
 
 /**
@@ -1245,6 +1250,17 @@ ViewportToolAction DrawViewportLeadingTools(const ViewportToolbarLayout& layout,
     ViewportToolAction action = ViewportToolAction::None;
 
     const ImVec2 zoomBoxPos = layout.leadingToolsPos;
+    const ImVec2 smartSelectPos(zoomBoxPos.x + stride, zoomBoxPos.y);
+    if (armedTool != editor::app::PreviewTool::None)
+    {
+        const ImVec2 armedPos = armedTool == editor::app::PreviewTool::ZoomBox ? zoomBoxPos : smartSelectPos;
+        const ImVec4 accent = ImGui::GetStyleColorVec4(ImGuiCol_NavHighlight);
+        ImGui::GetWindowDrawList()->AddCircleFilled(
+            ImVec2(armedPos.x + layout.buttonSize.x * 0.5f, armedPos.y + layout.buttonSize.y * 0.5f),
+            layout.buttonSize.x * 0.5f,
+            ImGui::GetColorU32(ImVec4(accent.x, accent.y, accent.z, 0.28f)));
+    }
+
     ImGui::SetCursorScreenPos(zoomBoxPos);
     if (IconButton("##PagePreviewZoomBox",
                    editor::ui::EditorIcon::ZoomBox,
@@ -1253,7 +1269,6 @@ ViewportToolAction DrawViewportLeadingTools(const ViewportToolbarLayout& layout,
         action = ViewportToolAction::ZoomBox;
     }
 
-    const ImVec2 smartSelectPos(zoomBoxPos.x + stride, zoomBoxPos.y);
     ImGui::SetCursorScreenPos(smartSelectPos);
     if (IconButton("##PagePreviewSmartSelect",
                    editor::ui::EditorIcon::SmartSelect,
@@ -1270,19 +1285,6 @@ ViewportToolAction DrawViewportLeadingTools(const ViewportToolbarLayout& layout,
                    "Fit to page: scale and recenter the drawn reticles to fill the page border. Undoable with Ctrl+Z."))
     {
         action = ViewportToolAction::FitToPage;
-    }
-
-    // Outline the armed marquee tool so the one-shot mode stays visible while the user lines up a drag.
-    if (armedTool != editor::app::PreviewTool::None)
-    {
-        const ImVec2 armedPos = armedTool == editor::app::PreviewTool::ZoomBox ? zoomBoxPos : smartSelectPos;
-        ImGui::GetWindowDrawList()->AddRect(
-            armedPos,
-            ImVec2(armedPos.x + layout.buttonSize.x, armedPos.y + layout.buttonSize.y),
-            ImGui::GetColorU32(ImGuiCol_CheckMark),
-            ImGui::GetStyle().FrameRounding,
-            0,
-            2.0f);
     }
 
     return action;
