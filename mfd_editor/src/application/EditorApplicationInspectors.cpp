@@ -90,6 +90,66 @@ using editor::app::SummarizeDynamicLayerBindings;
 using editor::app::SupportsPrimitiveLineStyle;
 }
 
+namespace
+{
+class ContainerInspectorRollback final
+{
+public:
+    ContainerInspectorRollback(mfd::api1::ContainerDefinition& live,
+                               mfd::api1::ContainerChildPlacement* placement,
+                               mfd::api1::ContainerInspectorEdit& edit) noexcept
+        : live_(live), placement_(placement), edit_(edit)
+    {
+        Swap();
+    }
+    ~ContainerInspectorRollback() { if (applied_ && !committed_) Swap(); }
+    void RestoreOriginal() noexcept { Swap(); applied_ = false; }
+    void ReapplyDraft() noexcept { Swap(); applied_ = true; }
+    void Commit() noexcept { committed_ = true; }
+    ContainerInspectorRollback(const ContainerInspectorRollback&) = delete;
+    ContainerInspectorRollback& operator=(const ContainerInspectorRollback&) = delete;
+private:
+    void Swap() noexcept
+    {
+        std::swap(live_, edit_.container);
+        if (placement_ != nullptr && edit_.placement.has_value()) std::swap(*placement_, *edit_.placement);
+    }
+    mfd::api1::ContainerDefinition& live_;
+    mfd::api1::ContainerChildPlacement* placement_;
+    mfd::api1::ContainerInspectorEdit& edit_;
+    bool committed_ = false;
+    bool applied_ = true;
+};
+}
+
+void EditorApplication::ApplyContainerInspectorEdit(mfd::api1::ContainerInspectorEdit edit,
+                                                    mfd::PageDefinition& page,
+                                                    mfd::api1::ContainerDefinition& container,
+                                                    mfd::api1::ContainerChildPlacement* placement)
+{
+    const bool firstChange = edit.gesture == 0U || edit.gesture != lastContainerInspectorGesture_;
+    ContainerInspectorRollback rollback(container, placement, edit);
+    std::string error;
+    std::vector<mfd::api1::ContainerLayoutNode> layouts;
+    if (!mfd::api1::ContainerLayoutEngine {}.Evaluate(page.containers, layouts, error))
+    {
+        RebuildStatus(std::move(error), true);
+        return;
+    }
+    if (firstChange)
+    {
+        rollback.RestoreOriginal();
+        UndoSnapshot before = CaptureCurrentSnapshot();
+        rollback.ReapplyDraft();
+        PushUndoSnapshot(std::move(before));
+    }
+    lastContainerInspectorGesture_ = edit.gesture;
+    workflowState_.documentDirty = true;
+    InvalidateReticleUsageHighlightCache();
+    InvalidateLayerPreviewThumbnails();
+    rollback.Commit();
+}
+
 void EditorApplication::DrawContainerInspector()
 {
     mfd::PageDefinition* page = ActivePage();
@@ -160,20 +220,10 @@ void EditorApplication::DrawContainerInspector()
         return;
     }
 
-    const UndoSnapshot beforeExtension = CaptureCurrentSnapshot();
-    if (containerEditorHost_.DrawInspector(*container, parentPlacement, parentContainer))
+    auto edit = containerEditorHost_.DrawInspectorDraft(*container, parentPlacement, parentContainer);
+    if (edit.has_value())
     {
-        std::string error;
-        std::vector<mfd::api1::ContainerLayoutNode> layouts;
-        if (mfd::api1::ContainerLayoutEngine {}.Evaluate(page->containers, layouts, error))
-        {
-            PushUndoSnapshot(beforeExtension);
-        }
-        else
-        {
-            *page = beforeExtension.loaded.document.pages[static_cast<std::size_t>(documentState_.selection.pageIndex)];
-            RebuildStatus(std::move(error), true);
-        }
+        ApplyContainerInspectorEdit(std::move(*edit), *page, *container, parentPlacement);
     }
     ImGui::Separator();
     ImGui::TextDisabled("Child placement is parent-owned; drag tree entries to reparent them.");

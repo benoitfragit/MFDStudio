@@ -1694,6 +1694,7 @@ bool EditorApplication::LoadWindowConfiguration(const std::filesystem::path& pat
         SelectPage(DefaultPageIndex(documentState_.loaded.document.pages));
         ResetLibraryPreviewView();
         documentState_.history.Clear();
+        lastContainerInspectorGesture_ = 0U;
         InvalidateReticleUsageHighlightCache();
         InvalidateLayerPreviewThumbnails();
         documentState_.windowFile = path;
@@ -1885,6 +1886,7 @@ EditorApplication::UndoSnapshot EditorApplication::CaptureCurrentSnapshot() cons
 
 void EditorApplication::RestoreSnapshot(UndoSnapshot snapshot)
 {
+    lastContainerInspectorGesture_ = 0U;
     documentState_.loaded = std::move(snapshot.loaded);
     documentState_.files = std::move(snapshot.files);
     documentState_.selection = std::move(snapshot.selection);
@@ -1912,6 +1914,7 @@ void EditorApplication::PushUndoSnapshot()
 
 void EditorApplication::PushUndoSnapshot(UndoSnapshot snapshot)
 {
+    lastContainerInspectorGesture_ = 0U;
     documentState_.history.Record(std::move(snapshot));
     workflowState_.documentDirty = true;
     InvalidateReticleUsageHighlightCache();
@@ -6902,6 +6905,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
 
 void EditorApplication::SelectPage(const int pageIndex, const bool resetPreviewView)
 {
+    lastContainerInspectorGesture_ = 0U;
     const int previousPageIndex = documentState_.selection.pageIndex;
     documentState_.selection.kind = SelectionKind::Page;
     documentState_.selection.pageIndex = std::clamp(pageIndex, 0, std::max(0, static_cast<int>(documentState_.loaded.document.pages.size()) - 1));
@@ -7043,6 +7047,7 @@ void EditorApplication::SelectPageStrobe(const int pageIndex, const int strobeIn
 
 void EditorApplication::SelectContainer(const int pageIndex, std::string containerId)
 {
+    lastContainerInspectorGesture_ = 0U;
     if (pageIndex < 0 || pageIndex >= static_cast<int>(documentState_.loaded.document.pages.size())) return;
     mfd::PageDefinition& page = documentState_.loaded.document.pages[static_cast<std::size_t>(pageIndex)];
     if (mfd::api1::FindContainer(page.containers, containerId) == nullptr) return;

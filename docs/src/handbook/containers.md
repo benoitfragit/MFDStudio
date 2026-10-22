@@ -110,7 +110,11 @@ below **Reticles**. The tree is the Page hierarchy itself and supports root/chil
 creation, rename, duplicate, delete, and reparenting. Tree and canvas selection
 share one selection state. The inspector edits geometry, layout, appearance,
 scrolling, visibility, enabled state, generated-API exposure, and all four size
-modes. Both sidebar separators are draggable and their proportions persist.
+modes. One continuous inspector drag creates one Undo entry; releasing and
+starting another drag creates a separate entry. Keyboard edits, checkboxes and
+selection changes retain separate gestures. Values are prepared outside the
+live document and validated before an Undo snapshot is recorded. Idle frames
+and rejected edits do not copy a full document snapshot. Both sidebar separators are draggable and their proportions persist.
 
 Selecting a container displays the existing preview-style outline and corner gizmo. A resize
 captures authored geometry once, creates one undo snapshot, and applies the final

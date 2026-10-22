@@ -671,3 +671,18 @@ stay connected in one logical path.
 ## Use the shared color selector
 
 Background, title, reticle and primitive colors share the [current-color button and RGBA selector](../src/reference/colors.md#editor), with eight shortcuts on the right. Changes apply immediately, and RGBA editing retains alpha unless you change it; built-in presets are opaque. In the integrated tutorial, select fill_bar, enable Exposed, open Stroke & fill, click the current Fill color button, then choose Yellow on the right and observe the preview. Explore RGBA and alpha, then click outside or press Escape to close and continue. Existing tutorial stages and saved step indices are retained.
+
+## Check LEVEL 1 edits and save failures
+
+For a Window using API LEVEL 1, select a container and drag one geometry or
+scrolling field continuously. Release, then press **Ctrl+Z** once: the whole
+gesture is undone. **Ctrl+Y** restores it. A second drag is a separate Undo
+operation. If a change would invalidate the hierarchy/layout, the last valid
+values remain and no Undo entry is added for that rejected change.
+
+Save uses the same verified transaction writer as global renames. If the editor
+reports a rollback failure, preserve the listed `.mfd_backup_*` files and restore
+the listed originals before reopening the assets. **Assets committed** with a
+cleanup diagnostic means the new files were saved but temporary cleanup failed;
+inspect those paths before removing them. These are handled-failure guarantees,
+not protection against power loss or concurrent external writers.

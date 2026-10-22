@@ -9,12 +9,21 @@
 
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "mfd/apilevel1/ContainerTypes.h"
 
 namespace mfd::api1
 {
+/** @brief Changed host-owned values, prepared without mutating the live document. */
+struct ContainerInspectorEdit
+{
+    ContainerDefinition container;
+    std::optional<ContainerChildPlacement> placement;
+    std::uint64_t gesture = 0U;
+};
+
 /** @brief Owns extension registration and bounded host-ImGui facade callbacks. */
 class ContainerEditorHost final
 {
@@ -42,6 +51,16 @@ public:
     [[nodiscard]] bool DrawInspector(ContainerDefinition& container,
                                      ContainerChildPlacement* placement,
                                      const ContainerDefinition* parent) const;
+
+    /** @brief Returns a draft only for a real edit; idle frames allocate no document snapshot.
+     * @param container Current selected definition, left unchanged.
+     * @param placement Optional current parent-owned placement, left unchanged.
+     * @param parent Optional parent providing layout context.
+     * @return Changed values with one identity per continuous host UI gesture.
+     */
+    [[nodiscard]] std::optional<ContainerInspectorEdit> DrawInspectorDraft(
+        const ContainerDefinition& container, const ContainerChildPlacement* placement,
+        const ContainerDefinition* parent) const;
 
 private:
     class Impl;

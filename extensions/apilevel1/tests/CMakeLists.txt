@@ -97,3 +97,11 @@ target_include_directories(mfd_container_decoration_tests PRIVATE
 target_link_libraries(mfd_container_decoration_tests PRIVATE mfd::model GTest::gtest_main)
 mfd_enable_target_warnings(mfd_container_decoration_tests)
 gtest_discover_tests(mfd_container_decoration_tests)
+
+add_executable(mfd_container_inspector_gesture_tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/ContainerInspectorGestureTests.cpp
+    ${MFD_APILEVEL1_ROOT_DIR}/editor/src/ContainerInspectorGesture.cpp)
+target_compile_features(mfd_container_inspector_gesture_tests PRIVATE cxx_std_17)
+target_include_directories(mfd_container_inspector_gesture_tests PRIVATE ${MFD_APILEVEL1_ROOT_DIR}/editor/src)
+target_link_libraries(mfd_container_inspector_gesture_tests PRIVATE GTest::gtest_main)
+gtest_discover_tests(mfd_container_inspector_gesture_tests)

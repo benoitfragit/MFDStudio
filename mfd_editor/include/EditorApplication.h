@@ -273,6 +273,10 @@ private:
     void DrawPageInspector();
     /** @brief Draws editor-DLL-provided controls for the selected container. */
     void DrawContainerInspector();
+    void ApplyContainerInspectorEdit(mfd::api1::ContainerInspectorEdit edit,
+                                     mfd::PageDefinition& page,
+                                     mfd::api1::ContainerDefinition& container,
+                                     mfd::api1::ContainerChildPlacement* placement);
     /** @brief Draws the page-level strobe selector and its basic configuration. */
     void DrawPageStrobeInspector(mfd::PageDefinition& page);
     /** @brief Draws the editor-only layer manager for the active page. */
@@ -759,5 +763,6 @@ private:
     editor::app::LayoutState layoutState_ {};
     /** @brief Optional LEVEL 1 editor/runtime DLL owner; never loaded for LEVEL 0 Windows. */
     mfd::api1::ContainerEditorHost containerEditorHost_ {};
+    std::uint64_t lastContainerInspectorGesture_ = 0U;
 };
 

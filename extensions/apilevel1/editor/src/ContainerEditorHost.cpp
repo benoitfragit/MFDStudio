@@ -11,6 +11,7 @@
 #include <cmath>
 
 #include <imgui.h>
+#include "ContainerInspectorGesture.h"
 
 #include "EditorUiTheme.h"
 #include "mfd/apilevel1/ContainerEditorAbi.h"
@@ -27,6 +28,22 @@ namespace mfd::api1
 {
 namespace
 {
+struct InspectorInteraction
+{
+    unsigned int activeKey = 0U;
+    unsigned int changedKey = 0U;
+    bool activated = false;
+};
+
+void ObserveItem(void* context, const char* label, const bool changed)
+{
+    auto& interaction = *static_cast<InspectorInteraction*>(context);
+    const unsigned int key = ImGui::GetID(label);
+    if (ImGui::IsItemActive()) interaction.activeKey = key;
+    if (changed) interaction.changedKey = key;
+    interaction.activated = interaction.activated || ImGui::IsItemActivated();
+}
+
 std::filesystem::path ExecutableDirectory()
 {
 #if defined(_WIN32)
@@ -57,18 +74,19 @@ std::uint8_t MFD_CONTAINER_EDITOR_CALL BeginSection(void*,
     return editor::ui::BeginInspectorSection(sectionId, label, defaultOpen != 0U, false) ? 1U : 0U;
 }
 
-std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawCheckbox(void*, const char* const label, std::uint8_t* const value)
+std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawCheckbox(void* context, const char* const label, std::uint8_t* const value)
 {
     if (value == nullptr) return 0U;
     bool checked = *value != 0U;
     editor::ui::BeginInspectorField(label);
     const bool changed = ImGui::Checkbox("##value", &checked);
+    ObserveItem(context, label, changed);
     editor::ui::EndInspectorField();
     *value = checked ? 1U : 0U;
     return changed ? 1U : 0U;
 }
 
-std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawFloat(void*, const char* const label, float* const value,
+std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawFloat(void* context, const char* const label, float* const value,
                                                 const float speed, const float minimum, const float maximum)
 {
     if (value == nullptr) return 0U;
@@ -76,13 +94,14 @@ std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawFloat(void*, const char* const label,
     editor::ui::BeginInspectorField(label);
     const bool changed =
         ImGui::DragFloat("##value", value, speed, minimum, maximum, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+    ObserveItem(context, label, changed);
     editor::ui::EndInspectorField();
     if (!changed) return 0U;
     *value = std::isfinite(*value) ? std::clamp(*value, minimum, maximum) : previous;
     return *value != previous ? 1U : 0U;
 }
 
-std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawFloat2(void*, const char* const label, float* const values,
+std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawFloat2(void* context, const char* const label, float* const values,
                                                  const float speed, const float minimum, const float maximum)
 {
     if (values == nullptr) return 0U;
@@ -90,6 +109,7 @@ std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawFloat2(void*, const char* const label
     editor::ui::BeginInspectorField(label);
     const bool changed =
         ImGui::DragFloat2("##value", values, speed, minimum, maximum, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+    ObserveItem(context, label, changed);
     editor::ui::EndInspectorField();
     if (!changed) return 0U;
     for (std::size_t axis = 0U; axis < previous.size(); ++axis)
@@ -99,7 +119,7 @@ std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawFloat2(void*, const char* const label
     return values[0] != previous[0] || values[1] != previous[1] ? 1U : 0U;
 }
 
-std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawCombo(void*, const char* const label, std::int32_t* const current,
+std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawCombo(void* context, const char* const label, std::int32_t* const current,
                                                 const char* const* const labels, const std::size_t labelCount)
 {
     if (current == nullptr || labels == nullptr || labelCount == 0U) return 0U;
@@ -119,15 +139,17 @@ std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawCombo(void*, const char* const label,
         }
         ImGui::EndCombo();
     }
+    ObserveItem(context, label, changed);
     editor::ui::EndInspectorField();
     return changed ? 1U : 0U;
 }
 
-std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawColor(void*, const char* const label, float* const rgba)
+std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawColor(void* context, const char* const label, float* const rgba)
 {
     if (rgba == nullptr) return 0U;
     editor::ui::BeginInspectorField(label);
     const bool changed = ImGui::ColorEdit4("##value", rgba);
+    ObserveItem(context, label, changed);
     editor::ui::EndInspectorField();
     return changed ? 1U : 0U;
 }
@@ -159,6 +181,7 @@ public:
     ContainerRuntimeHost runtime {};
     std::string diagnostic {};
     bool attempted = false;
+    detail::ContainerInspectorGesture gesture;
 };
 
 ContainerEditorHost::ContainerEditorHost() : impl_(std::make_unique<Impl>()) {}
@@ -230,7 +253,18 @@ bool ContainerEditorHost::DrawInspector(ContainerDefinition& container,
                                         ContainerChildPlacement* const placement,
                                         const ContainerDefinition* const parent) const
 {
-    if (!IsAvailable()) return false;
+    auto edit = DrawInspectorDraft(container, placement, parent);
+    if (!edit.has_value()) return false;
+    container = std::move(edit->container);
+    if (placement != nullptr && edit->placement.has_value()) *placement = std::move(*edit->placement);
+    return true;
+}
+
+std::optional<ContainerInspectorEdit> ContainerEditorHost::DrawInspectorDraft(
+    const ContainerDefinition& container, const ContainerChildPlacement* const placement,
+    const ContainerDefinition* const parent) const
+{
+    if (!IsAvailable()) return std::nullopt;
     std::uint32_t type = static_cast<std::uint32_t>(container.type);
     std::uint32_t sizeMode = static_cast<std::uint32_t>(container.sizeMode);
     std::uint32_t orientation = static_cast<std::uint32_t>(container.orientation);
@@ -268,59 +302,83 @@ bool ContainerEditorHost::DrawInspector(ContainerDefinition& container,
     ToFloatColor(container.scrolling.appearance.thumbHoverColor, hover);
     ToFloatColor(container.scrolling.appearance.thumbActiveColor, active);
 
+    float spacing = container.spacing;
+    std::uint32_t rows = container.rows;
+    std::uint32_t columns = container.columns;
+    float thickness = container.scrolling.appearance.thickness;
+    float minimumThumb = container.scrolling.appearance.minimumThumbSize;
+    float borderThickness = container.appearance.borderThickness;
+    float cornerRadius = container.appearance.cornerRadius;
+    float scrollbarRadius = container.scrolling.appearance.cornerRadius;
+    InspectorInteraction interaction;
     MfdContainerEditorUiFacadeV1 ui {sizeof(MfdContainerEditorUiFacadeV1),
-        MFD_CONTAINER_EDITOR_UI_FACADE_VERSION, nullptr, &DrawText, &DrawCheckbox,
+        MFD_CONTAINER_EDITOR_UI_FACADE_VERSION, &interaction, &DrawText, &DrawCheckbox,
         &DrawFloat, &DrawFloat2, &DrawCombo, &DrawColor, &BeginSection};
     const char* const parentId = parent == nullptr ? "" : parent->id.c_str();
     const std::uint32_t parentType =
         parent == nullptr ? 0U : static_cast<std::uint32_t>(parent->type);
     MfdContainerEditorSelectionV1 selection {sizeof(MfdContainerEditorSelectionV1), container.id.c_str(),
-        &type, &sizeMode, position, size, minimum, &visible, &enabled, &exposed, padding, &container.spacing,
-        &orientation, &alignment, &container.rows, &container.columns, &horizontalScroll, &verticalScroll,
-        offset, &container.scrolling.appearance.thickness, &container.scrolling.appearance.minimumThumbSize,
+        &type, &sizeMode, position, size, minimum, &visible, &enabled, &exposed, padding, &spacing,
+        &orientation, &alignment, &rows, &columns, &horizontalScroll, &verticalScroll,
+        offset, &thickness, &minimumThumb,
         &clipContent, &backgroundVisible, &borderVisible, background, border, track, thumb, hover, active,
-        &container.appearance.borderThickness, &container.appearance.cornerRadius,
-        &container.scrolling.appearance.cornerRadius, margins,
+        &borderThickness, &cornerRadius,
+        &scrollbarRadius, margins,
         parentId, placement == nullptr ? 0U : 1U, parentType,
         &childResizeMode, &childHorizontalAlignment, &childVerticalAlignment,
         &childRow, &childColumn, &childRowSpan, &childColumnSpan, &childRenderOrder};
-    if (impl_->api.draw_inspector(&ui, &selection) == 0U) return false;
+    const bool changed = impl_->api.draw_inspector(&ui, &selection) != 0U;
+    const std::uint64_t gesture = impl_->gesture.Update(ImGui::GetFrameCount(),
+        interaction.activeKey, interaction.changedKey, interaction.activated);
+    if (!changed) return std::nullopt;
 
-    container.type = static_cast<ContainerType>(type);
-    container.sizeMode = static_cast<ContainerSizeMode>(sizeMode);
-    container.geometry.center = {position[0], position[1]};
-    container.geometry.size = {std::max(size[0], minimum[0]), std::max(size[1], minimum[1])};
-    container.minimumSize = {minimum[0], minimum[1]};
-    container.visible = visible != 0U;
-    container.enabled = enabled != 0U;
-    container.exposed = exposed != 0U;
-    container.padding = {padding[0], padding[1], padding[2], padding[3]};
-    container.orientation = static_cast<LinearOrientation>(orientation);
-    container.alignment = static_cast<ContainerAlignment>(alignment);
-    container.scrolling.horizontal = static_cast<ScrollMode>(horizontalScroll);
-    container.scrolling.vertical = static_cast<ScrollMode>(verticalScroll);
-    container.scrolling.offset = {offset[0], offset[1]};
-    container.scrolling.clipContent = clipContent != 0U;
-    container.appearance.backgroundVisible = backgroundVisible != 0U;
-    container.appearance.borderVisible = borderVisible != 0U;
-    container.appearance.backgroundColor = FromFloatColor(background);
-    container.appearance.borderColor = FromFloatColor(border);
-    container.scrolling.appearance.trackColor = FromFloatColor(track);
-    container.scrolling.appearance.thumbColor = FromFloatColor(thumb);
-    container.scrolling.appearance.thumbHoverColor = FromFloatColor(hover);
-    container.scrolling.appearance.thumbActiveColor = FromFloatColor(active);
-    container.scrolling.appearance.margins = {margins[0], margins[1], margins[2], margins[3]};
+    ContainerInspectorEdit edit {container, std::nullopt, gesture};
+    if (placement != nullptr) edit.placement = *placement;
+    ContainerDefinition& draft = edit.container;
+    draft.spacing = spacing;
+    draft.rows = rows;
+    draft.columns = columns;
+    draft.scrolling.appearance.thickness = thickness;
+    draft.scrolling.appearance.minimumThumbSize = minimumThumb;
+    draft.appearance.borderThickness = borderThickness;
+    draft.appearance.cornerRadius = cornerRadius;
+    draft.scrolling.appearance.cornerRadius = scrollbarRadius;
+
+    draft.type = static_cast<ContainerType>(type);
+    draft.sizeMode = static_cast<ContainerSizeMode>(sizeMode);
+    draft.geometry.center = {position[0], position[1]};
+    draft.geometry.size = {std::max(size[0], minimum[0]), std::max(size[1], minimum[1])};
+    draft.minimumSize = {minimum[0], minimum[1]};
+    draft.visible = visible != 0U;
+    draft.enabled = enabled != 0U;
+    draft.exposed = exposed != 0U;
+    draft.padding = {padding[0], padding[1], padding[2], padding[3]};
+    draft.orientation = static_cast<LinearOrientation>(orientation);
+    draft.alignment = static_cast<ContainerAlignment>(alignment);
+    draft.scrolling.horizontal = static_cast<ScrollMode>(horizontalScroll);
+    draft.scrolling.vertical = static_cast<ScrollMode>(verticalScroll);
+    draft.scrolling.offset = {offset[0], offset[1]};
+    draft.scrolling.clipContent = clipContent != 0U;
+    draft.appearance.backgroundVisible = backgroundVisible != 0U;
+    draft.appearance.borderVisible = borderVisible != 0U;
+    draft.appearance.backgroundColor = FromFloatColor(background);
+    draft.appearance.borderColor = FromFloatColor(border);
+    draft.scrolling.appearance.trackColor = FromFloatColor(track);
+    draft.scrolling.appearance.thumbColor = FromFloatColor(thumb);
+    draft.scrolling.appearance.thumbHoverColor = FromFloatColor(hover);
+    draft.scrolling.appearance.thumbActiveColor = FromFloatColor(active);
+    draft.scrolling.appearance.margins = {margins[0], margins[1], margins[2], margins[3]};
     if (placement != nullptr)
     {
-        placement->resizeMode = static_cast<ChildResizeMode>(childResizeMode);
-        placement->horizontalAlignment = static_cast<ContainerAlignment>(childHorizontalAlignment);
-        placement->verticalAlignment = static_cast<ContainerAlignment>(childVerticalAlignment);
-        placement->row = childRow;
-        placement->column = childColumn;
-        placement->rowSpan = childRowSpan;
-        placement->columnSpan = childColumnSpan;
-        placement->renderOrder = childRenderOrder;
+        edit.placement->resizeMode = static_cast<ChildResizeMode>(childResizeMode);
+        edit.placement->horizontalAlignment = static_cast<ContainerAlignment>(childHorizontalAlignment);
+        edit.placement->verticalAlignment = static_cast<ContainerAlignment>(childVerticalAlignment);
+        edit.placement->row = childRow;
+        edit.placement->column = childColumn;
+        edit.placement->rowSpan = childRowSpan;
+        edit.placement->columnSpan = childColumnSpan;
+        edit.placement->renderOrder = childRenderOrder;
     }
-    return true;
+    return edit;
 }
 } // namespace mfd::api1
