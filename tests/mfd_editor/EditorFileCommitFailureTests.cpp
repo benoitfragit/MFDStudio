@@ -13,10 +13,8 @@
 
 namespace
 {
-using editor::internal::AssetFileWrite;
 using editor::internal::CommitAssetFiles;
 using editor::internal::FileCommitPoint;
-using editor::internal::WriteRecoveryFile;
 
 class EditorFileCommitFailureTests : public testing::Test
 {
@@ -31,6 +29,7 @@ protected:
     {
         std::error_code error;
         std::filesystem::remove_all(root, error);
+        EXPECT_FALSE(error) << error.message();
     }
     static void Write(const std::filesystem::path& path, const std::string& content)
     {

@@ -19,8 +19,11 @@ namespace mfd::api1
 /** @brief Changed host-owned values, prepared without mutating the live document. */
 struct ContainerInspectorEdit
 {
+    /** @brief Proposed selected-container definition; owns its data. */
     ContainerDefinition container;
+    /** @brief Proposed parent-owned placement, absent for a root container. */
     std::optional<ContainerChildPlacement> placement;
+    /** @brief Host-local gesture identity; zero means an ungrouped edit. */
     std::uint64_t gesture = 0U;
 };
 
@@ -56,7 +59,10 @@ public:
      * @param container Current selected definition, left unchanged.
      * @param placement Optional current parent-owned placement, left unchanged.
      * @param parent Optional parent providing layout context.
-     * @return Changed values with one identity per continuous host UI gesture.
+     * @return Changed values with one identity per continuous host UI gesture,
+     *         or nullopt if unchanged or the extension is unavailable.
+     * @pre Called while the host's ImGui frame is active.
+     * @note Draft preparation does not validate the resulting page layout.
      */
     [[nodiscard]] std::optional<ContainerInspectorEdit> DrawInspectorDraft(
         const ContainerDefinition& container, const ContainerChildPlacement* placement,

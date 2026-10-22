@@ -120,6 +120,28 @@ and headless tests do not constitute a completed visual smoke test.
 
 ## Compatibility and documentation
 
+### Follow-up AGENTS.md review
+
+The complete PR diff was reread against the root rules, covering the inspector
+draft/rollback lifecycle, allocation boundaries, rendering loops and conversions,
+pointer indexing, shared save transactions, generator identity checks, CMake,
+regression tests and updated documentation. The readability-pattern checks were
+reviewed on added C++ lines: no new broad captures, function-local classes,
+type-trait tricks, artificial unused-value suppression, unsafe casts or mutable
+caches were introduced. The only raw allocation is the documented, isolated
+test allocator. Its MSVC STL dependency is confined to the guarded Debug test
+branch and does not affect production or DLL ABI.
+
+The follow-up removes two unused test aliases, checks fixture cleanup errors,
+documents the new host draft fields and method preconditions, and applies the
+repository warning policy to the gesture test target. Business mutation remains
+in a named application helper with scoped rollback; no UI callback records
+history or changes the live document. This review is scoped to the PR and its
+direct integration points, not an audit of unrelated legacy code. Interactive
+Undo/Redo, GPU checks and the full local graphical CTest remain unverified.
+
+### Preserved contracts
+
 No changes to either versioned C DLL ABI, Protobuf definitions, JSON fields or
 defaults, generated transport key/hash algorithms, CMake generator entry points,
 LEVEL 0 behavior, or window sizing. Existing generated LEVEL 0 byte-equality tests
