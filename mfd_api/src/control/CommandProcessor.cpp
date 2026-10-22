@@ -1580,7 +1580,7 @@ CommandProcessor::CommandResult CommandProcessor::OnUpdateWidget(
             pageRef->normalizedName, command.target.widgetId, command.patch))
     {
         return CommandResult::Failure(
-            "Unable to update exposed widget '" + command.target.widgetId +
+            "Unable to update widget '" + command.target.widgetId +
             "' on page '" + command.target.page + "'");
     }
     return CommandResult::Success();

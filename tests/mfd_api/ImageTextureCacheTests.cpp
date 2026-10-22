@@ -6,6 +6,7 @@
 #include "ImageTextureCache.h"
 
 #include <gtest/gtest.h>
+#include <array>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -44,6 +45,15 @@ void UnloadTexture(const Texture2D texture)
     EXPECT_EQ(textureState.live.erase(texture.id), 1U);
     textureState.released.push_back(texture.id);
 }
+Image LoadImageFromMemory(const char*, const unsigned char*, const int size)
+{
+    static std::array<unsigned char, 16> pixels {};
+    return size > 0 ? Image {pixels.data(), 2, 2, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8} : Image {};
+}
+Image LoadImage(const char*) { return LoadImageFromMemory("png", nullptr, 1); }
+Color GetImageColor(Image, const int x, const int y) { return Color {255,255,255, static_cast<unsigned char>(x == 0 && y == 0 ? 0 : 255)}; }
+void UnloadImage(Image) {}
+Texture2D LoadTextureFromImage(Image) { return LoadTexture("staged"); }
 void SetTextureFilter(Texture2D, int) {}
 int GetPixelDataSize(int width, int height, int) { return width * height * 4; }
 
@@ -143,4 +153,35 @@ TEST_F(ImageTextureCacheTests, AssignmentAfterContextShutdownDoesNotCallGpuRelea
     destination = std::move(source);
     destination.Clear();
     EXPECT_TRUE(textureState.released.empty());
+}
+
+TEST_F(ImageTextureCacheTests, StagedResourceLoadsOnceAndTransfersOwnershipNormally)
+{
+    mfd::ImageTextureCache cache;
+    cache.Preload("staged.png", "encoded image");
+    ASSERT_EQ(textureState.live.size(), 1U);
+    const auto id = cache.Resolve("staged.png")->id;
+    cache.Preload("staged.png", "replacement bytes");
+    EXPECT_EQ(cache.Resolve("staged.png")->id, id);
+    EXPECT_EQ(textureState.live.size(), 1U);
+    cache.Clear();
+    EXPECT_EQ(textureState.released.size(), 1U);
+}
+TEST_F(ImageTextureCacheTests, StagedResourceRequiresContextAndNonEmptyBytes)
+{
+    mfd::ImageTextureCache cache;
+    cache.Preload("empty.png", "");
+    textureState.windowReady = false;
+    cache.Preload("no-context.png", "bytes");
+    EXPECT_TRUE(textureState.live.empty());
+}
+
+TEST_F(ImageTextureCacheTests, StagedAlphaHolePassesPointerAndBilinearOpaquePixelBlocks)
+{
+    mfd::ImageTextureCache cache;
+    cache.Preload("alpha.png", "encoded");
+    EXPECT_FALSE(cache.ContainsOpaquePixel("alpha.png", 0.25f, 0.25f));
+    EXPECT_TRUE(cache.ContainsOpaquePixel("alpha.png", 0.75f, 0.75f));
+    EXPECT_TRUE(cache.ContainsOpaquePixel("alpha.png", 0.5f, 0.5f));
+    EXPECT_FALSE(cache.ContainsOpaquePixel("alpha.png", -1.0f, 0.5f));
 }

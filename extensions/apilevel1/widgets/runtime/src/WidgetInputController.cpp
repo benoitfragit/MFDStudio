@@ -138,10 +138,18 @@ bool WidgetInputController::Update(SceneRegistry& scene, const WidgetRuntimeHost
         if (!runtime.Evaluate(input,output))
         {
             scene.SetActiveWidgetInteraction(widget.id, false, false, false, state.requestId);
-            if (ownsCapture) captured_.clear();
+            if (ownsCapture)
+            {
+                Emit(scene, captureSnapshot_.pageId, captureSnapshot_.widgetId, captureSnapshot_.requestId,
+                    WidgetEvent::Cancelled, false, state.confirmed.checked, state.confirmed.value);
+                captured_.clear();
+            }
             pendingAges_.erase(widget.id);
             continue;
         }
+        if (ownsCapture && cancelInput && output.event_count == 0U)
+            Emit(scene, captureSnapshot_.pageId, captureSnapshot_.widgetId, captureSnapshot_.requestId,
+                WidgetEvent::Cancelled, false, state.confirmed.checked, state.confirmed.value);
         std::uint64_t requestId = state.requestId;
         for (std::uint32_t eventIndex = 0; eventIndex < output.event_count; ++eventIndex)
             if (output.events[eventIndex] >= 2U && output.events[eventIndex] <= 5U)
@@ -152,8 +160,13 @@ bool WidgetInputController::Update(SceneRegistry& scene, const WidgetRuntimeHost
         scene.SetActiveWidgetInteraction(widget.id,input.hovered != 0U,output.pressed != 0U,output.pending != 0U,requestId);
         const auto route = scene.ActiveWidgetTransportId(widget.id);
         for (std::uint32_t eventIndex = 0; eventIndex < output.event_count; ++eventIndex)
-            Emit(scene,scene.ActivePageTransportId(),route,requestId,static_cast<WidgetEvent>(output.events[eventIndex]),
-                 output.pressed != 0U,output.proposed_checked != 0U,output.proposed_value);
+        {
+            const auto event = static_cast<WidgetEvent>(output.events[eventIndex]);
+            const bool pressed = event == WidgetEvent::Pressed || event == WidgetEvent::DragBegin ||
+                (event != WidgetEvent::Released && event != WidgetEvent::DragEnd && event != WidgetEvent::Cancelled && output.pressed != 0U);
+            Emit(scene,scene.ActivePageTransportId(),route,requestId,event,
+                 pressed,output.proposed_checked != 0U,output.proposed_value);
+        }
         if (ownsCapture)
         {
             captureSnapshot_ = {session_, sequence_, scene.ActivePageTransportId(), route, requestId,

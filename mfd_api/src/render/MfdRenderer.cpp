@@ -34,6 +34,7 @@
 #include "ExternalStreamRegistry.h"
 #include "RenderWorkBudget.h"
 #include "RenderTextureUtils.h"
+#include "OpenGlCompat.h"
 #include "TextLayoutCache.h"
 #include "mfd/apilevel1/ContainerRuntimeHost.h"
 #include "mfd/apilevel1/ContainerInputRouter.h"
@@ -194,6 +195,13 @@ bool Contains(const Rectangle rectangle, const Vector2 point) noexcept
  * currently clipping, whether to keep the historical flat-background restore or to additionally
  * repaint the visible reticles of strictly earlier layers.
  */
+bool SampleWidgetOcclusionImage(void* context, const ImageGeometry& image, const Vec2 uv) noexcept
+{
+    auto* cache = static_cast<ImageTextureCache*>(context);
+    try { return cache->ContainsOpaquePixel(image.file, uv.x, uv.y); }
+    catch (const std::exception&) { return true; }
+}
+
 struct LayerLocalRestoreContext
 {
     const Canvas2D* canvas = nullptr;
@@ -732,9 +740,24 @@ void MfdRenderer::HandleContainerInput(SceneRegistry& scene,
     if (hasWidgets)
     {
         scene.CollectActiveReticleViews(impl_->activeReticlesScratch);
+        bool earlierLayerPaint = false, currentLayerPaint = false;
+        std::size_t currentLayer = 0;
         for (const auto& reticle : impl_->activeReticlesScratch)
-            if (reticle.visible && reticle.group && api1::ReticleOccludesWidgetPointer(*reticle.group, pointer))
-            { widgetPointerBlocked = true; break; }
+        {
+            if (!reticle.visible || !reticle.group) continue;
+            if (reticle.layerOrder != currentLayer)
+            {
+                earlierLayerPaint = earlierLayerPaint || currentLayerPaint;
+                currentLayerPaint = false;
+                currentLayer = reticle.layerOrder;
+            }
+            if (detail::OpenGlStencilApiAvailable() && api1::ReticleErasesWidgetOcclusion(*reticle.group, pointer))
+                widgetPointerBlocked = reticle.group->clipping.eraseLayerOnly && earlierLayerPaint;
+            const bool painted = api1::ReticleOccludesWidgetPointer(*reticle.group, pointer,
+                SampleWidgetOcclusionImage, &impl_->imageCache);
+            currentLayerPaint = currentLayerPaint || painted;
+            widgetPointerBlocked = widgetPointerBlocked || painted;
+        }
         if (const auto summary = scene.ActivePageSummary())
             widgetPointerBlocked = widgetPointerBlocked || api1::ReticleOccludesWidgetPointer(impl_->ResolveTitleReticle(*summary), pointer);
     }

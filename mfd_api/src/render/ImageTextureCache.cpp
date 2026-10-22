@@ -11,6 +11,9 @@
 #include "ImageTextureCache.h"
 
 #include <chrono>
+#include <algorithm>
+#include <cmath>
+#include <vector>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -25,6 +28,11 @@ namespace
 // A failed load is retried at most once per interval so a file that appears on disk after a first miss
 // is eventually picked up, without re-hitting the filesystem every frame for a genuinely missing file.
 constexpr std::chrono::seconds kImageRetryInterval {2};
+struct ScopedImage
+{
+    Image image {};
+    ~ScopedImage() { if (image.data) UnloadImage(image); }
+};
 constexpr std::size_t kMaximumCacheEntries = 256;
 constexpr std::size_t kMaximumTextureBytes = 256U * 1024U * 1024U;
 
@@ -63,11 +71,30 @@ struct ImageTextureCache::Impl
         std::chrono::steady_clock::time_point lastAttempt {};
         std::size_t textureBytes = 0;
         std::uint64_t lastAccess = 0;
+        bool alphaAttempted = false;
+        int alphaWidth = 0, alphaHeight = 0;
+        std::vector<unsigned char> alpha;
     };
 
     std::unordered_map<std::string, Entry> entries {};
     std::size_t textureBytes = 0;
     std::uint64_t accessSequence = 0;
+
+    void CaptureAlpha(Entry& entry, const Image& image)
+    {
+        entry.alphaAttempted = true;
+        // Bound decode sampling and mask memory independently from texture dimensions.
+        if (!image.data || image.width <= 0 || image.height <= 0 || image.width > 4096 || image.height > 4096) return;
+        const auto count = static_cast<std::size_t>(image.width) * static_cast<std::size_t>(image.height);
+        if (entry.textureBytes > kMaximumTextureBytes - count) return;
+        entry.alpha.resize(count);
+        for (int y = 0; y < image.height; ++y)
+            for (int x = 0; x < image.width; ++x)
+                entry.alpha[static_cast<std::size_t>(y) * image.width + x] = GetImageColor(image, x, y).a;
+        entry.alphaWidth = image.width; entry.alphaHeight = image.height;
+        entry.textureBytes += count;
+        textureBytes += count;
+    }
 
     void Touch(Entry& entry) noexcept
     {
@@ -208,19 +235,28 @@ void ImageTextureCache::Preload(const std::filesystem::path& file, const std::st
     entry.attempted = true;
     entry.lastAttempt = std::chrono::steady_clock::now();
     // raylib consumes unsigned encoded bytes; no ownership transfer or alignment requirement.
-    Image image = LoadImageFromMemory(file.extension().string().c_str(),
-        reinterpret_cast<const unsigned char*>(encodedBytes.data()), static_cast<int>(encodedBytes.size()));
+    ScopedImage loaded {LoadImageFromMemory(file.extension().string().c_str(),
+        reinterpret_cast<const unsigned char*>(encodedBytes.data()), static_cast<int>(encodedBytes.size()))};
+    const auto& image = loaded.image;
     if (image.data)
     {
         const auto bytes = GetPixelDataSize(image.width, image.height, image.format);
-        if (bytes > 0 && static_cast<std::size_t>(bytes) <= kMaximumTextureBytes) entry.texture = LoadTextureFromImage(image);
-        UnloadImage(image);
+        if (bytes > 0 && static_cast<std::size_t>(bytes) <= kMaximumTextureBytes)
+        {
+            entry.texture = LoadTextureFromImage(image);
+            if (entry.texture.id)
+            {
+                entry.ready = true;
+                entry.textureBytes = EstimateTextureBytes(entry.texture);
+                impl_->textureBytes += entry.textureBytes;
+                impl_->CaptureAlpha(entry, image);
+            }
+        }
     }
     if (entry.texture.id)
     {
         entry.ready = true;
-        entry.textureBytes = EstimateTextureBytes(entry.texture);
-        impl_->textureBytes += entry.textureBytes;
+
         SetTextureFilter(entry.texture, TEXTURE_FILTER_BILINEAR);
     }
     impl_->Touch(entry);
@@ -242,5 +278,36 @@ void ImageTextureCache::Clear() noexcept
 
     impl_->entries.clear();
     impl_->textureBytes = 0;
+}
+bool ImageTextureCache::ContainsOpaquePixel(const std::filesystem::path& file, const float u, const float v)
+{
+    if (!std::isfinite(u) || !std::isfinite(v) || u < 0 || u > 1 || v < 0 || v > 1 || !Resolve(file)) return false;
+    const auto key = file.lexically_normal().generic_string();
+    auto& entry = impl_->entries.at(key);
+    if (!entry.alphaAttempted)
+    {
+        entry.alphaAttempted = true;
+        std::error_code error;
+        const auto bytes = std::filesystem::file_size(file, error);
+        if (!error && bytes <= 16U * 1024U * 1024U)
+        {
+            ScopedImage loaded {LoadImage(file.string().c_str())};
+            impl_->CaptureAlpha(entry, loaded.image);
+            impl_->TrimToBudget(key);
+        }
+    }
+    if (entry.alpha.empty()) return true;
+    const float x = u * entry.alphaWidth - 0.5f, y = v * entry.alphaHeight - 0.5f;
+    const int left = static_cast<int>(std::floor(x)), top = static_cast<int>(std::floor(y));
+    const float dx = x - left, dy = y - top;
+    float alpha = 0;
+    for (int row = 0; row < 2; ++row)
+        for (int column = 0; column < 2; ++column)
+        {
+            const auto offset = static_cast<std::size_t>(std::clamp(top + row, 0, entry.alphaHeight - 1)) * entry.alphaWidth +
+                std::clamp(left + column, 0, entry.alphaWidth - 1);
+            alpha += entry.alpha[offset] * (column ? dx : 1 - dx) * (row ? dy : 1 - dy);
+        }
+    return alpha > 0;
 }
 } // namespace mfd

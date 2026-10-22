@@ -198,3 +198,38 @@ TEST(WidgetOcclusion, InvisibleAndFullyTransparentReticlesDoNotBlockInput)
     reticle.visible = false;
     EXPECT_FALSE(mfd::api1::ReticleOccludesWidgetPointer(reticle, {0,0}));
 }
+
+namespace
+{
+bool SampleOpaqueRightHalf(void*, const mfd::ImageGeometry&, const mfd::Vec2 uv) noexcept { return uv.x >= 0.5f; }
+}
+TEST(WidgetOcclusion, TransparentImagePixelsAndUnfilledShapeInteriorsPassThrough)
+{
+    mfd::ReticleGroup reticle; mfd::Primitive shape;
+    shape.type = mfd::PrimitiveType::Rectangle; shape.geometry = mfd::RectangleGeometry {1,1};
+    shape.style.filled = false; shape.style.thickness = 0.01f;
+    reticle.primitives.push_back(shape);
+    EXPECT_FALSE(mfd::api1::ReticleOccludesWidgetPointer(reticle, {0,0}));
+    EXPECT_TRUE(mfd::api1::ReticleOccludesWidgetPointer(reticle, {0.5f,0}));
+    reticle.primitives[0].geometry = mfd::CircleGeometry {0.5f};
+    EXPECT_FALSE(mfd::api1::ReticleOccludesWidgetPointer(reticle, {0,0}));
+    EXPECT_TRUE(mfd::api1::ReticleOccludesWidgetPointer(reticle, {0.5f,0}));
+    reticle.primitives[0].type = mfd::PrimitiveType::Image;
+    reticle.primitives[0].geometry = mfd::ImageGeometry {"alpha.png",1,1};
+    EXPECT_FALSE(mfd::api1::ReticleOccludesWidgetPointer(reticle, {-0.25f,0}, SampleOpaqueRightHalf));
+    EXPECT_TRUE(mfd::api1::ReticleOccludesWidgetPointer(reticle, {0.25f,0}, SampleOpaqueRightHalf));
+}
+
+TEST(WidgetOcclusion, ClipRestorationUsesMaskGeometryEvenWhenMaskPrimitiveIsHidden)
+{
+    mfd::ReticleGroup reticle; mfd::Primitive mask;
+    mask.id = "Mask"; mask.type = mfd::PrimitiveType::Circle;
+    mask.geometry = mfd::CircleGeometry {0.5f}; mask.style.visible = false;
+    reticle.primitives.push_back(mask);
+    reticle.clipping.mode = mfd::ReticleClipMode::Inner; reticle.clipping.primitiveId = "Mask";
+    EXPECT_TRUE(mfd::api1::ReticleErasesWidgetOcclusion(reticle, {0,0}));
+    EXPECT_FALSE(mfd::api1::ReticleErasesWidgetOcclusion(reticle, {1,0}));
+    reticle.clipping.mode = mfd::ReticleClipMode::Outer;
+    EXPECT_FALSE(mfd::api1::ReticleErasesWidgetOcclusion(reticle, {0,0}));
+    EXPECT_TRUE(mfd::api1::ReticleErasesWidgetOcclusion(reticle, {1,0}));
+}

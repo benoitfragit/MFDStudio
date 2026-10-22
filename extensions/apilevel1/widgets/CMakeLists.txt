@@ -36,6 +36,10 @@ install(DIRECTORY runtime/include/ DESTINATION include COMPONENT ${MFD_COMPONENT
 install(FILES generator/generate_widgets.py DESTINATION tools/extensions/apilevel1/widgets/generator COMPONENT ${MFD_COMPONENT_CLIENT_API_DEVELOPMENT})
 if(MFD_BUILD_TESTS)
     add_executable(mfd_widgets_tests tests/WidgetModelTests.cpp tests/WidgetCommandTests.cpp)
+    target_sources(mfd_widgets_tests PRIVATE tests/WidgetInputTests.cpp
+        runtime/src/WidgetRuntimeHost.cpp runtime/src/WidgetInputController.cpp
+        ${MFD_APILEVEL1_ROOT_DIR}/runtime/src/ContainerInputRouter.cpp)
+    target_include_directories(mfd_widgets_tests PRIVATE ${MFD_APILEVEL1_ROOT_DIR}/runtime/src)
     mfd_configure_test_runtime_output(mfd_widgets_tests)
     target_link_libraries(mfd_widgets_tests PRIVATE mfd::client mfd_widgets_api1 EnTT::EnTT nlohmann_json::nlohmann_json GTest::gtest_main)
     target_compile_features(mfd_widgets_tests PRIVATE cxx_std_17)

@@ -71,9 +71,11 @@ Widget visuals are drawn within their ancestor scissor. Legacy Page reticles
 remain above the container/widget layer, and layer-local background restoration
 redraws the mixed layer. Page-erasure reticle clipping inside a widget definition
 is rejected: use container viewport clipping for widget-local clipping.
-Current pointer occlusion for higher legacy primitives uses transformed geometry
-bounds and skips invisible/fully transparent primitives. It is conservative for
-text, outlines and alpha image holes; it is not a pixel-accurate picking mask.
+Pointer occlusion skips invisible/fully transparent primitives, samples cached
+image alpha (including staged imports) and respects rectangle/circle/ring outline
+interiors. Image masks share the bounded texture cache; masks above 4096 × 4096
+or unavailable CPU data conservatively block. Text, complex curves and external
+streams currently use transformed bounds, rather than glyph/stream pixel masks.
 
 ## Client authority and bounded recovery
 

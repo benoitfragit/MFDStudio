@@ -43,6 +43,8 @@ public:
      * @brief Releases every cached texture.
      */
     void Clear() noexcept;
+    /** @brief Samples cached image alpha using normalized top-left coordinates; unavailable masks conservatively block. */
+    bool ContainsOpaquePixel(const std::filesystem::path& file, float u, float v);
     /** @brief Seeds a staged image once, with the same entry/texture budgets as disk loads. */
     void Preload(const std::filesystem::path& file, std::string_view encodedBytes);
 
