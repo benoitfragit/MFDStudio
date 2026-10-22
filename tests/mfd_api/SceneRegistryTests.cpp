@@ -1952,3 +1952,27 @@ TEST(SceneRegistryTests, LoadDocumentRejectsProgrammaticBezierAboveCpuBudget)
     EXPECT_THROW(registry.LoadDocument(std::move(document)), std::runtime_error);
     EXPECT_TRUE(registry.Document().pages.empty());
 }
+
+TEST(SceneRegistryTests, ContainerScrollUpdatesRetainNoexceptAndRejectInvalidState)
+{
+    static_assert(noexcept(std::declval<mfd::SceneRegistry&>().SetActiveContainerScrollOffset("panel", {})),
+                  "The public noexcept contract must remain stable");
+    mfd::MfdDocument document;
+    mfd::PageDefinition page;
+    page.name = "Containers";
+    mfd::api1::ContainerDefinition container;
+    container.id = std::string(128U, 'p'); // Exercise allocated identity/key storage.
+    page.containers.push_back(container);
+    document.pages.push_back(page);
+    mfd::SceneRegistry registry(std::move(document));
+    ASSERT_TRUE(registry.SetActiveContainerScrollOffset(container.id, {0.2f, 0.4f}));
+    EXPECT_FALSE(registry.SetActiveContainerScrollOffset(container.id, {-1.0f, 0.0f}));
+    EXPECT_FALSE(registry.SetActiveContainerScrollOffset(container.id,
+        {std::numeric_limits<float>::infinity(), 0.0f}));
+    EXPECT_FALSE(registry.SetActiveContainerScrollOffset("missing", {}));
+    std::vector<mfd::api1::ContainerDefinition> resolved;
+    registry.CollectActiveContainerDefinitions(resolved);
+    ASSERT_EQ(resolved.size(), 1U);
+    EXPECT_FLOAT_EQ(resolved.front().scrolling.offset.x, 0.2f);
+    EXPECT_FLOAT_EQ(resolved.front().scrolling.offset.y, 0.4f);
+}

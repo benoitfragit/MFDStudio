@@ -19,6 +19,7 @@
 #include "mfd/runtime/DocumentSemanticValidator.h"
 
 #include <algorithm>
+#include <new>
 #include <chrono>
 #include <cmath>
 #include <limits>
@@ -1507,6 +1508,7 @@ const std::string* SceneRegistry::ResolveContainerId(const TransportId pageId,
 bool SceneRegistry::ApplyContainerPatchByKey(const std::string_view normalizedPageName,
                                              const std::string_view containerId,
                                              const api1::ContainerStatePatch& patch) noexcept
+try
 {
     const PageDefinition* page = FindPageDefinition(document_, normalizedPageName);
     const api1::ContainerDefinition* authored =
@@ -1535,6 +1537,12 @@ bool SceneRegistry::ApplyContainerPatchByKey(const std::string_view normalizedPa
     if (patch.enabled.has_value()) state.enabled = *patch.enabled;
     if (patch.scrollOffset.has_value()) state.scrollOffset = *patch.scrollOffset;
     return true;
+}
+catch (const std::bad_alloc&)
+{
+    // State insertion has the strong guarantee; all patch writes happen only
+    // after allocation succeeds. Preserve the public noexcept/false contract.
+    return false;
 }
 
 const std::string* SceneRegistry::ResolvePrimitiveIdForReticle(const TransportId reticleId,
@@ -1713,6 +1721,7 @@ void SceneRegistry::CollectActiveContainerDefinitions(
 
 bool SceneRegistry::SetActiveContainerScrollOffset(const std::string_view containerId,
                                                    const Vec2 offset) noexcept
+try
 {
     if (!std::isfinite(offset.x) || !std::isfinite(offset.y) || offset.x < 0.0f || offset.y < 0.0f)
     {
@@ -1742,6 +1751,12 @@ bool SceneRegistry::SetActiveContainerScrollOffset(const std::string_view contai
     }
     stateIterator->second.scrollOffset = offset;
     return true;
+}
+catch (const std::bad_alloc&)
+{
+    // State insertion has the strong guarantee; all patch writes happen only
+    // after allocation succeeds. Preserve the public noexcept/false contract.
+    return false;
 }
 
 std::optional<StrobeSummary> SceneRegistry::StrobeForPage(const std::string_view pageName) const
