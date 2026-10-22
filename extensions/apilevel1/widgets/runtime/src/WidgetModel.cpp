@@ -80,7 +80,8 @@ bool ValidateWidgetDefinition(const WidgetDefinition& definition, std::string& e
     {
         const auto state = static_cast<std::uint32_t>(visual.state);
         if (state > 6U || !states.insert(state).second || visual.composition.primitives.size() > 256U ||
-            visual.bindings.size() > 64U || !runtime_validation::internal::IsValidReticle(visual.composition))
+            visual.bindings.size() > 64U || !runtime_validation::internal::IsValidReticle(visual.composition) ||
+            visual.composition.clipping.mode != ReticleClipMode::None)
         {
             error = "Invalid or duplicate widget visual state or over-budget visual.";
             return false;
@@ -150,6 +151,13 @@ bool ValidatePageWidgets(const std::vector<ContainerDefinition>& containers,
     {
         error = "Mixed page exceeds the container/widget count limit.";
         return false;
+    }
+    std::size_t edgeCount = 0;
+    for (const auto& container : containers)
+    {
+        if (container.children.size() > kMaximumContainerCount + kMaximumWidgetCount - edgeCount)
+        { error = "Mixed page exceeds the 8192 ownership-edge budget."; return false; }
+        edgeCount += container.children.size();
     }
     std::unordered_set<std::string> ids;
     std::unordered_set<std::string> widgetIds;

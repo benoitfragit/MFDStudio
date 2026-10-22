@@ -1177,6 +1177,7 @@ void SceneRegistry::LoadDocument(MfdDocument document, std::optional<GeneratedTr
     transportStrobes_.clear();
     transportContainers_.clear();
     transportWidgets_.clear();
+    widgetEventIds_.clear();
     containerRuntimeStates_.clear();
     widgetRuntimeStates_.clear();
     widgetFeedback_.clear();
@@ -1331,6 +1332,7 @@ void SceneRegistry::RebuildTransportIndexes()
     transportStrobes_.clear();
     transportContainers_.clear();
     transportWidgets_.clear();
+    widgetEventIds_.clear();
 
     for (const auto& [normalizedPageName, entity] : pageEntities_)
     {
@@ -1444,6 +1446,7 @@ void SceneRegistry::RebuildTransportIndexes()
         transportWidgets_.emplace(
             widget.id,
             TransportWidgetLookup {widget.pageId, widget.widgetId});
+        widgetEventIds_[widget.pageId].emplace(widget.widgetId, widget.id);
     }
 }
 
@@ -1597,17 +1600,12 @@ try
     return true;
 }
 catch (const std::bad_alloc&) { return false; }
-TransportId SceneRegistry::ActiveWidgetTransportId(const std::string_view id) const noexcept
+TransportId SceneRegistry::ActiveWidgetTransportId(const std::string& id) const noexcept
 {
-    if (!transportMap_) return 0U;
-    const auto* page = FindPageDefinition(document_, activePage_);
-    if (page == nullptr) return 0U;
-    for (const auto& widget : transportMap_->widgets)
-    {
-        const std::string* pageName = ResolvePageName(widget.pageId);
-        if (widget.widgetId == id && pageName != nullptr && PageNamesEqual(*pageName, page->name)) return widget.id;
-    }
-    return 0U;
+    const auto page = widgetEventIds_.find(ActivePageTransportId());
+    if (page == widgetEventIds_.end()) return 0U;
+    const auto widget = page->second.find(id);
+    return widget == page->second.end() ? 0U : widget->second;
 }
 void SceneRegistry::QueueWidgetFeedback(api1::WidgetFeedback feedback)
 {

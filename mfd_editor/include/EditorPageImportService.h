@@ -16,6 +16,7 @@
 
 #include "EditorAssetReferenceIndexService.h"
 #include "EditorDocumentSerializer.h"
+#include "mfd/apilevel1/widgets/WidgetAssetService.h"
 #include "mfd/io/JsonLoader.h"
 
 namespace editor
@@ -91,6 +92,8 @@ struct PageImportPlan
     mfd::ApiLevel requiredApiLevel = mfd::ApiLevel::Legacy;
     /** @brief Reticle-template dependencies imported or reused by this plan. */
     std::vector<ReticleImportPlan> reticles;
+    bool containsWidgets = false;
+    WidgetSourceSnapshot widgetSourceSnapshot;
     /** @brief Validation error explaining why the plan cannot execute. */
     std::string error;
 };
@@ -118,6 +121,8 @@ struct PageImportResult
 class PageImportService
 {
 public:
+    PageImportService();
+    explicit PageImportService(WidgetCapabilityProbe widgetProbe);
     /**
      * @brief Builds one read-only plan for importing a page JSON and its reticle dependencies.
      * @param loaded Current authored window and document state.
@@ -146,5 +151,6 @@ public:
 
 private:
     AssetReferenceIndexService referenceIndexService_ {};
+    WidgetCapabilityProbe widgetProbe_;
 };
 } // namespace editor

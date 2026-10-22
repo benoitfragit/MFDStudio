@@ -7,6 +7,7 @@
 
 #include "EditorApplication.h"
 #include "mfd/apilevel1/ContainerLayoutEngine.h"
+#include "mfd/apilevel1/widgets/WidgetVisuals.h"
 #include "mfd/apilevel1/ContainerGizmoAdapter.h"
 #include "internal/EditorFileCommit.h"
 
@@ -1491,6 +1492,8 @@ EditorApplication::EditorApplication(std::filesystem::path assetDirectory)
     {
         layoutState_.sidebarPagesSplitFraction = std::clamp(*uiState.sidebarPagesSplitFraction, 0.0f, 1.0f);
     }
+    if (uiState.sidebarWidgetsSplitFraction.has_value())
+        layoutState_.sidebarWidgetsSplitFraction = *uiState.sidebarWidgetsSplitFraction;
     if (uiState.sidebarContainersHeightFraction.has_value())
     {
         layoutState_.sidebarContainersHeightFraction =
@@ -1526,6 +1529,7 @@ EditorApplication::~EditorApplication()
     uiState.gridStepLogical = SharedGridStepLogical(layoutState_.pagePreviewViewOptions);
     uiState.sidebarPagesSplitFraction = layoutState_.sidebarPagesSplitFraction;
     uiState.sidebarContainersHeightFraction = layoutState_.sidebarContainersHeightFraction;
+    uiState.sidebarWidgetsSplitFraction = layoutState_.sidebarWidgetsSplitFraction;
     uiState.sectionOpen = layoutState_.inspectorSectionOpen;
     editor::SaveEditorUiState(documentState_.assetPaths.DefaultAssetPath(kUiStateFileName), uiState);
 
@@ -1674,7 +1678,12 @@ bool EditorApplication::LoadWindowConfiguration(const std::filesystem::path& pat
 {
     try
     {
-        documentState_.loaded = documentState_.loader.LoadWindowConfigurationForAuthoring(path);
+        auto candidate = documentState_.loader.LoadWindowConfigurationForAuthoring(path);
+        const bool requiresWidgets = std::any_of(candidate.document.pages.begin(), candidate.document.pages.end(),
+            [](const mfd::PageDefinition& page) { return !page.widgets.empty(); });
+        if (requiresWidgets && !widgetEditorHost_.EnsureLoaded(candidate.window.sourceFile))
+            throw std::runtime_error(widgetEditorHost_.Diagnostic());
+        documentState_.loaded = std::move(candidate);
         for (auto& page : documentState_.loaded.document.pages)
         {
             BootstrapEditorLayersForPage(page);
@@ -2118,6 +2127,7 @@ void EditorApplication::HandleShortcuts()
 
 void EditorApplication::DeleteSelection()
 {
+    if (documentState_.selection.kind == SelectionKind::Widget) { DeleteWidget(); return; }
     if (documentState_.selection.kind == SelectionKind::Page)
     {
         OpenPageManagementPopup(PageManagementAction::DeleteAsset, documentState_.selection.pageIndex);
@@ -3104,6 +3114,7 @@ const RenderTexture2D* EditorApplication::RenderLayerPreviewThumbnail(const std:
                              restoreThumbnailBackground);
         canvasForRestore = &canvas;
 
+
         for (const int reticleIndex : orderedIndices)
         {
             const mfd::ReticleGroup& reticle = page.staticReticles[static_cast<std::size_t>(reticleIndex)];
@@ -3603,6 +3614,8 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         return;
     }
 
+    for (const auto& resource : documentState_.files.stagedResources)
+        previewState_.previewImageCache.Preload(resource.first, resource.second);
     previewState_.externalStreams.BeginFrame();
     for (const auto& reticle : page->staticReticles)
         previewState_.externalStreams.Observe(reticle, IsReticleVisibleInEditor(*page, reticle));
@@ -3616,22 +3629,32 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
     {
         std::vector<mfd::api1::ContainerLayoutNode> containerLayouts;
         std::string containerLayoutError;
-        if (!page->containers.empty())
+        auto previewNodes = page->containers;
+        std::vector<mfd::ReticleGroup> widgetVisuals(page->widgets.size());
+        if (page->widgets.empty())
         {
-            mfd::api1::ContainerLayoutEngine layoutEngine;
-            if (!layoutEngine.Evaluate(page->containers, containerLayouts, containerLayoutError))
+            if (!mfd::api1::ContainerLayoutEngine {}.Evaluate(page->containers, containerLayouts, containerLayoutError)) containerLayouts.clear();
+        }
+        else if (mfd::api1::EvaluateWidgetLayout(page->containers, page->widgets, containerLayouts, containerLayoutError))
+        {
+            previewNodes = mfd::api1::ProjectWidgetLayoutNodes(page->containers, page->widgets);
+            for (const auto& layout : containerLayouts)
             {
-                containerLayouts.clear();
+                if (layout.sourceIndex < page->containers.size()) continue;
+                const auto index = layout.sourceIndex - page->containers.size();
+                auto state = mfd::api1::InitialWidgetState(page->widgets[index]);
+                state.visible = layout.effectiveVisible; state.enabled = layout.effectiveEnabled;
+                if (documentState_.selection.kind == SelectionKind::Widget &&
+                    documentState_.selection.widgetId == page->widgets[index].id && widgetDraft_.edit_definition)
+                {
+                    state.hovered = widgetDraft_.visual_state == 1; state.pressed = widgetDraft_.visual_state == 2;
+                    state.confirmed.checked = widgetDraft_.visual_state == 3; state.enabled = widgetDraft_.visual_state != 4;
+                    state.confirmed.warning = widgetDraft_.visual_state == 5; state.pending = widgetDraft_.visual_state == 6;
+                }
+                widgetVisuals[index] = mfd::api1::BuildWidgetVisual(page->widgets[index], state, layout.bounds);
             }
         }
-
         DrawPagePreviewBackgroundGuides(viewport, *page);
-        mfd::detail::DrawContainerDecorations(
-            page->containers,
-            containerLayouts,
-            viewport.view,
-            previewState_.previewTexture.texture.width,
-            previewState_.previewTexture.texture.height);
 
         EnsurePreviewFont();
         ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
@@ -3642,22 +3665,26 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         std::size_t restoreLayerOrder = 0;
         bool restoreEraseLayerOnly = false;
         mfd::Canvas2D* canvasForRestore = nullptr;
+        const auto drawWidgetLeaf = [&canvasForRestore, &widgetVisuals, first = page->containers.size()](const std::size_t source)
+        {
+            if (canvasForRestore && source >= first && source - first < widgetVisuals.size())
+                canvasForRestore->DrawReticleWithoutClipping(widgetVisuals[source - first], widgetVisuals[source - first].visible);
+        };
         const auto restoreClippedPreviewBackground =
             [this,
              page,
              &viewport,
              &containerLayouts,
+             &previewNodes,
+             &drawWidgetLeaf,
              &restoreLayerOrder,
              &restoreEraseLayerOnly,
              &canvasForRestore]()
         {
             DrawPagePreviewBackgroundGuides(viewport, *page);
             mfd::detail::DrawContainerDecorations(
-                page->containers,
-                containerLayouts,
-                viewport.view,
-                previewState_.previewTexture.texture.width,
-                previewState_.previewTexture.texture.height);
+                previewNodes, containerLayouts, viewport.view,
+                previewState_.previewTexture.texture.width, previewState_.previewTexture.texture.height, {}, drawWidgetLeaf);
             if (restoreEraseLayerOnly && canvasForRestore != nullptr)
             {
                 RedrawEarlierLayerReticlesForClipRestore(*page, *canvasForRestore, restoreLayerOrder);
@@ -3676,6 +3703,8 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
             &previewState_.previewTextLayoutCache,
             restoreClippedPreviewBackground, mfd::detail::kMaxCanvasDrawWorkUnits, &previewState_.externalStreams);
         canvasForRestore = &canvas;
+        mfd::detail::DrawContainerDecorations(previewNodes, containerLayouts, viewport.view,
+            previewState_.previewTexture.texture.width, previewState_.previewTexture.texture.height, {}, drawWidgetLeaf);
         services_.pagePreviewDrawOrder.CollectStaticReticleDrawOrder(*page, previewState_.orderedStaticReticleIndices);
         for (const int reticleIndex : previewState_.orderedStaticReticleIndices)
         {
@@ -3741,6 +3770,11 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
 
         if (ImGui::BeginDragDropTarget())
     {
+        if (const ImGuiPayload* widgetPayload = ImGui::AcceptDragDropPayload("MFD_WIDGET_DEFINITION"))
+        {
+            if (widgetPayload->DataSize == sizeof(std::size_t))
+                InsertWidgetDefinition(*static_cast<const std::size_t*>(widgetPayload->Data));
+        }
         if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("MFD_LIBRARY_RETICLE"))
         {
             const char* templateId = static_cast<const char*>(payload->Data);
@@ -3824,6 +3858,8 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
 
     const Color libraryPreviewBackground {10, 18, 24, 255};
 
+    for (const auto& resource : documentState_.files.stagedResources)
+        previewState_.previewImageCache.Preload(resource.first, resource.second);
     previewState_.externalStreams.BeginFrame();
     previewState_.externalStreams.Observe(*reticle, reticle->visible);
     previewState_.externalStreams.Update();
@@ -5115,12 +5151,12 @@ std::string EditorApplication::ActiveInsertionLayerId(const mfd::PageDefinition&
 
 void EditorApplication::DrawPagePreviewGizmos(const ViewportState& viewport, const mfd::PageDefinition& page)
 {
+    if (documentState_.selection.kind == SelectionKind::Widget) { DrawWidgetPreviewGizmo(viewport, page); return; }
     if (documentState_.selection.kind == SelectionKind::Container)
     {
-        mfd::api1::ContainerLayoutEngine layoutEngine;
         std::vector<mfd::api1::ContainerLayoutNode> layouts;
         std::string layoutError;
-        if (!layoutEngine.Evaluate(page.containers, layouts, layoutError)) return;
+        if (!mfd::api1::EvaluateContainersWithWidgets(page.containers, page.widgets, layouts, layoutError)) return;
         const auto selectedLayout = std::find_if(
             layouts.begin(),
             layouts.end(),
@@ -5787,6 +5823,7 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         interactionState_.startReticleTransforms.clear();
     }
 
+    if (UpdateWidgetPreviewGesture(interactiveViewport)) return;
     if (interactionState_.mode != InteractionMode::None)
     {
         ApplyMouseTransform(interactiveViewport);
@@ -5806,12 +5843,12 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
 
     const bool additiveSelection = ImGui::GetIO().KeyCtrl;
     const std::optional<int> clickedReticleIndex = FindNearestPageReticle(viewport, mouse);
+    if (!additiveSelection && !clickedReticleIndex && BeginWidgetPreviewGesture(interactiveViewport, mouse)) return;
     if (!additiveSelection && layoutState_.pagePreviewViewOptions.showGizmos)
     {
-        mfd::api1::ContainerLayoutEngine layoutEngine;
         std::vector<mfd::api1::ContainerLayoutNode> containerLayouts;
         std::string layoutError;
-        if (layoutEngine.Evaluate(page->containers, containerLayouts, layoutError))
+        if (mfd::api1::EvaluateContainersWithWidgets(page->containers, page->widgets, containerLayouts, layoutError))
         {
             const mfd::api1::ContainerLayoutNode* selectedLayout = nullptr;
             if (documentState_.selection.kind == SelectionKind::Container)
@@ -7167,14 +7204,16 @@ void EditorApplication::DowngradeWindowToLegacyRemovingContainers()
     for (mfd::PageDefinition& page : documentState_.loaded.document.pages)
     {
         page.containers.clear();
+        page.widgets.clear();
     }
     documentState_.loaded.window.apiLevel = mfd::ApiLevel::Legacy;
-    if (documentState_.selection.kind == SelectionKind::Container)
+    if (documentState_.selection.kind == SelectionKind::Container || documentState_.selection.kind == SelectionKind::Widget)
     {
         SelectPage(documentState_.selection.pageIndex, false);
     }
     containerEditorHost_.Unload();
-    RebuildStatus("All containers were removed and the Window was downgraded to API LEVEL 0.", false);
+    widgetEditorHost_.Unload();
+    RebuildStatus("Containers and widget instances were removed. Shared definitions are retained. Window is API LEVEL 0.", false);
 }
 
 void EditorApplication::TogglePageReticleSelection(const int pageIndex, const int reticleIndex)

@@ -49,6 +49,8 @@
 #include "TextLayoutCache.h"
 #include "mfd/apilevel1/ContainerEditorHost.h"
 #include "mfd/apilevel1/ContainerEditorModel.h"
+#include "mfd/apilevel1/widgets/WidgetEditorHost.h"
+#include "mfd/apilevel1/widgets/WidgetEditorModel.h"
 
 class EditorTutorialController;
 
@@ -273,6 +275,24 @@ private:
     void DrawPageInspector();
     /** @brief Draws editor-DLL-provided controls for the selected container. */
     void DrawContainerInspector();
+    void DrawSidebarWidgetsSection(float height);
+    void DrawWidgetInspector();
+    void DrawWidgetLibrary();
+    void SelectWidget(int pageIndex, std::string id);
+    void AddWidgetDefinition(bool duplicate);
+    void InsertWidgetDefinition(std::size_t index);
+    void DuplicateWidget();
+    void DeleteWidget();
+    void ScanWidgetLibrary();
+    void EditWidgetVisual();
+    void ApplyWidgetVisual();
+    void ApplyWidgetInspector(std::uint32_t actions);
+    void ImportWidgetDefinition();
+    void ExportWidgetDefinition();
+    mfd::api1::WidgetInstance* SelectedWidget() noexcept;
+    bool BeginWidgetPreviewGesture(const ViewportState& viewport, ImVec2 mouse);
+    bool UpdateWidgetPreviewGesture(const ViewportState& viewport);
+    void DrawWidgetPreviewGizmo(const ViewportState& viewport, const mfd::PageDefinition& page);
     void ApplyContainerInspectorEdit(mfd::api1::ContainerInspectorEdit edit,
                                      mfd::PageDefinition& page,
                                      mfd::api1::ContainerDefinition& container,
@@ -763,6 +783,20 @@ private:
     editor::app::LayoutState layoutState_ {};
     /** @brief Optional LEVEL 1 editor/runtime DLL owner; never loaded for LEVEL 0 Windows. */
     mfd::api1::ContainerEditorHost containerEditorHost_ {};
+    mfd::api1::WidgetEditorHost widgetEditorHost_ {};
+    bool widgetLibraryOpen_ = false;
+    std::size_t widgetLibrarySelected_ = 0;
+    std::array<char, 256> widgetLibraryFilter_ {};
+    MfdWidgetEditorDraftV1 widgetDraft_ {};
+    std::optional<UndoSnapshot> widgetGestureBefore_;
+    mfd::api1::WidgetInstance widgetGestureStart_;
+    mfd::Vec2 widgetGesturePointer_ {};
+    mfd::Vec2 widgetGestureResolvedSize_ {};
+    bool widgetGestureResize_ = false;
+    bool widgetGestureChanged_ = false;
+    std::string widgetVisualTemplate_;
+    std::filesystem::path widgetVisualDefinition_;
+    mfd::api1::WidgetVisualState widgetVisualState_ = mfd::api1::WidgetVisualState::Normal;
     std::uint64_t lastContainerInspectorGesture_ = 0U;
 };
 

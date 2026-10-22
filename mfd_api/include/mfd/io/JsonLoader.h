@@ -114,6 +114,14 @@ public:
      * @note Numeric JSON fields must be finite. Pixel-oriented integer fields
      * are rounded from JSON numbers and must fit in a signed 32-bit integer.
      */
+    /** @brief Loads one reusable widget definition through the existing reticle parser. */
+    std::shared_ptr<const api1::WidgetDefinition> LoadWidgetAsset(const std::filesystem::path& file,
+        const std::filesystem::path& assetRoot, const ReticleLibrary& library) const;
+
+    /** @brief Loads a single source Page and its reticles for a content-based authoring import. */
+    MfdDocument LoadPageAsset(const std::filesystem::path& file, const std::filesystem::path& assetRoot,
+                             const std::filesystem::path& reticleFolder) const;
+
     MfdDocument LoadDocument(const std::filesystem::path& pagesFile) const;
 };
 } // namespace mfd

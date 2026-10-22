@@ -12,6 +12,7 @@
 
 #include "mfd/apilevel1/ContainerLayoutEngine.h"
 #include "mfd/model/PageName.h"
+#include "mfd/apilevel1/widgets/WidgetEditorModel.h"
 
 namespace mfd::api1
 {
@@ -19,17 +20,7 @@ namespace
 {
 std::string UniqueId(const PageDefinition& page, const std::string_view base)
 {
-    std::string candidate(base.empty() ? "Container" : base);
-    std::size_t suffix = 2U;
-    while (std::any_of(page.containers.begin(), page.containers.end(),
-                       [&candidate](const ContainerDefinition& value)
-                       {
-                           return PageNamesEqual(value.id, candidate);
-                       }))
-    {
-        candidate = std::string(base.empty() ? "Container" : base) + std::to_string(suffix++);
-    }
-    return candidate;
+    return WidgetEditorModel::UniqueId(page, base.empty() ? "Container" : base);
 }
 
 ContainerDefinition MakeContainer(const PageDefinition& page, const ContainerType type)
@@ -80,13 +71,15 @@ bool IsDescendant(const std::vector<ContainerDefinition>& containers,
     if (ancestor == nullptr) return false;
     std::vector<std::string> pending;
     pending.reserve(containers.size());
-    for (const ContainerChildPlacement& child : ancestor->children) pending.push_back(child.childId);
+    for (const ContainerChildPlacement& child : ancestor->children)
+        if (child.kind == ContainerChildKind::Container) pending.push_back(child.childId);
     for (std::size_t index = 0U; index < pending.size() && index < containers.size(); ++index)
     {
         if (pending[index] == candidateId) return true;
         const ContainerDefinition* current = FindContainer(containers, pending[index]);
         if (current != nullptr)
-            for (const ContainerChildPlacement& child : current->children) pending.push_back(child.childId);
+            for (const ContainerChildPlacement& child : current->children)
+                if (child.kind == ContainerChildKind::Container) pending.push_back(child.childId);
     }
     return false;
 }
@@ -128,7 +121,7 @@ std::string ContainerEditorModel::AddChild(PageDefinition& page,
     const std::string id = created.id;
     page.containers.push_back(std::move(created));
     FindContainer(page.containers, parentStableId)->children.push_back(ContainerChildPlacement {id});
-    if (!ContainerLayoutEngine {}.Validate(page.containers, error))
+    if (!ValidatePageWidgets(page.containers, page.widgets, error))
     {
         FindContainer(page.containers, parentStableId)->children.pop_back();
         page.containers.pop_back();
@@ -156,7 +149,8 @@ bool ContainerEditorModel::Rename(PageDefinition& page,
         {
             return PageNamesEqual(candidate.id, newId);
         });
-    if (collision != page.containers.end() && &*collision != container)
+    if ((collision != page.containers.end() && &*collision != container) ||
+        std::any_of(page.widgets.begin(), page.widgets.end(), [&newId](const WidgetInstance& widget) { return PageNamesEqual(widget.id, newId); }))
     {
         error = "Another container already uses identifier '" + newId + "'.";
         return false;
@@ -175,7 +169,7 @@ std::string ContainerEditorModel::Duplicate(PageDefinition& page,
                                             const std::string_view containerId,
                                             std::string& error)
 {
-    if (!ContainerLayoutEngine {}.Validate(page.containers, error)) return {};
+    if (!ValidatePageWidgets(page.containers, page.widgets, error)) return {};
     const ContainerDefinition* source = FindContainer(page.containers, containerId);
     if (source == nullptr)
     {
@@ -184,13 +178,13 @@ std::string ContainerEditorModel::Duplicate(PageDefinition& page,
     }
     const std::string sourceId = source->id;
     std::vector<std::string> subtree {sourceId};
-    for (std::size_t index = 0U; index < subtree.size() && index < page.containers.size(); ++index)
+    for (std::size_t index = 0U; index < subtree.size() && index < page.containers.size() + page.widgets.size(); ++index)
     {
         const ContainerDefinition* current = FindContainer(page.containers, subtree[index]);
         if (current != nullptr)
             for (const ContainerChildPlacement& child : current->children) subtree.push_back(child.childId);
     }
-    if (subtree.size() > kMaximumContainerCount - page.containers.size())
+    if (subtree.size() > kMaximumContainerCount + kMaximumWidgetCount)
     {
         error = "Duplicating this subtree would exceed the Page's container limit.";
         return {};
@@ -202,10 +196,20 @@ std::string ContainerEditorModel::Duplicate(PageDefinition& page,
     {
         const std::string duplicateId = UniqueId(scratch, id + "Copy");
         renamed.emplace(id, duplicateId);
-        ContainerDefinition copy = *FindContainer(page.containers, id);
-        copy.id = duplicateId;
-        copy.name = duplicateId;
-        scratch.containers.push_back(std::move(copy));
+        const auto* sourceContainer = FindContainer(page.containers, id);
+        if (sourceContainer)
+        {
+            ContainerDefinition copy = *sourceContainer;
+            copy.id = duplicateId;
+            copy.name = duplicateId;
+            scratch.containers.push_back(std::move(copy));
+        }
+        else
+        {
+            WidgetInstance copy = *WidgetEditorModel::Find(page, id);
+            copy.id = duplicateId;
+            scratch.widgets.push_back(std::move(copy));
+        }
     }
     for (std::size_t index = page.containers.size(); index < scratch.containers.size(); ++index)
         for (ContainerChildPlacement& child : scratch.containers[index].children)
@@ -227,7 +231,7 @@ std::string ContainerEditorModel::Duplicate(PageDefinition& page,
         }
     }
     std::string validationError;
-    if (!ContainerLayoutEngine {}.Validate(scratch.containers, validationError))
+    if (!ValidatePageWidgets(scratch.containers, scratch.widgets, validationError))
     {
         error = validationError;
         return {};
@@ -255,6 +259,8 @@ bool ContainerEditorModel::Delete(PageDefinition& page,
                 for (const ContainerChildPlacement& child : candidate.children) removed.insert(child.childId);
         if (removed.size() == before) break;
     }
+    page.widgets.erase(std::remove_if(page.widgets.begin(), page.widgets.end(),
+        [&removed](const WidgetInstance& widget) { return removed.count(widget.id) != 0U; }), page.widgets.end());
     RemoveOwnershipEdge(page.containers, containerId);
     page.containers.erase(std::remove_if(page.containers.begin(), page.containers.end(),
                                         [&removed](const ContainerDefinition& candidate)
@@ -294,7 +300,7 @@ bool ContainerEditorModel::Reparent(PageDefinition& page,
     if (!newParentId.empty())
         FindContainer(candidate.containers, newParentId)->children.push_back(
             ContainerChildPlacement {std::string(containerId)});
-    if (!ContainerLayoutEngine {}.Validate(candidate.containers, error)) return false;
+    if (!ValidatePageWidgets(candidate.containers, candidate.widgets, error)) return false;
     page = std::move(candidate);
     error.clear();
     return true;

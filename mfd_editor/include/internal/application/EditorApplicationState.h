@@ -62,7 +62,8 @@ enum class SelectionKind
     PageStrobe,
     Container,
     LibraryReticle,
-    LibraryPrimitive
+    LibraryPrimitive,
+    Widget
 };
 
 /** @brief Current direct-manipulation mode active in one preview viewport. */
@@ -111,6 +112,7 @@ struct Selection
     std::string containerId {};
     std::string libraryBrowserReticleId {};
     int primitiveIndex = -1;
+    std::string widgetId {};
 };
 
 /**
@@ -506,7 +508,8 @@ struct LayoutState
     /** @brief User-chosen fraction (0..1) of the sidebar body given to the Pages section; 0.5 = even split. */
     float sidebarPagesSplitFraction = 0.5f;
     /** @brief User-chosen fraction (0..1) of the LEVEL 1 sidebar body given to Containers. */
-    float sidebarContainersHeightFraction = 0.34f;
+    float sidebarContainersHeightFraction = 0.50f;
+    float sidebarWidgetsSplitFraction = 0.50f;
     std::map<std::string, bool> inspectorSectionOpen {};
     bool libraryStudioShowPrimitiveLabels = true;
     bool libraryStudioShowGizmos = true;

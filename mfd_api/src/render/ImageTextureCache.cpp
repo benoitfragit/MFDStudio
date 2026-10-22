@@ -199,6 +199,34 @@ const Texture2D* ImageTextureCache::Resolve(const std::filesystem::path& file)
     return &entry.texture;
 }
 
+void ImageTextureCache::Preload(const std::filesystem::path& file, const std::string_view encodedBytes)
+{
+    if (!impl_ || encodedBytes.empty() || encodedBytes.size() > 16U * 1024U * 1024U || !IsWindowReady()) return;
+    const auto key = file.lexically_normal().generic_string();
+    if (impl_->entries.count(key)) return;
+    auto& entry = impl_->entries[key];
+    entry.attempted = true;
+    entry.lastAttempt = std::chrono::steady_clock::now();
+    // raylib consumes unsigned encoded bytes; no ownership transfer or alignment requirement.
+    Image image = LoadImageFromMemory(file.extension().string().c_str(),
+        reinterpret_cast<const unsigned char*>(encodedBytes.data()), static_cast<int>(encodedBytes.size()));
+    if (image.data)
+    {
+        const auto bytes = GetPixelDataSize(image.width, image.height, image.format);
+        if (bytes > 0 && static_cast<std::size_t>(bytes) <= kMaximumTextureBytes) entry.texture = LoadTextureFromImage(image);
+        UnloadImage(image);
+    }
+    if (entry.texture.id)
+    {
+        entry.ready = true;
+        entry.textureBytes = EstimateTextureBytes(entry.texture);
+        impl_->textureBytes += entry.textureBytes;
+        SetTextureFilter(entry.texture, TEXTURE_FILTER_BILINEAR);
+    }
+    impl_->Touch(entry);
+    impl_->TrimToBudget(key);
+}
+
 void ImageTextureCache::Clear() noexcept
 {
     if (impl_ == nullptr)

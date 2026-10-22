@@ -3,6 +3,7 @@
 #include "mfd/apilevel1/widgets/WidgetTypes.h"
 #include "mfd/apilevel1/widgets/WidgetCommands.h"
 #include <string>
+#include <unordered_map>
 namespace mfd { class SceneRegistry; }
 namespace mfd::api1
 {
@@ -11,10 +12,11 @@ class WidgetInputController final
 {
 public:
     WidgetInputController();
+    bool NeedsUpdate(const std::string& page) const noexcept;
     bool Update(SceneRegistry& scene, const WidgetRuntimeHost& runtime,
         const std::vector<ContainerDefinition>& nodes, const std::vector<ContainerLayoutNode>& layouts,
         const std::vector<WidgetInstance>& widgets, const std::vector<WidgetState>& states,
-        Vec2 pointer, bool down, bool began, bool released, bool cancel, float elapsed);
+        Vec2 pointer, bool down, bool began, bool released, bool cancel, float elapsed, bool pointerBlocked = false);
 private:
     void Emit(SceneRegistry& scene, TransportId pageId, TransportId widgetId, std::uint64_t requestId,
               WidgetEvent event, bool pressed, bool checked, double value);
@@ -25,7 +27,7 @@ private:
     std::uint64_t sequence_ = 0;
     std::uint64_t request_ = 0;
     float capturedSeconds_ = 0;
-    float pendingSeconds_ = 0;
+    std::unordered_map<std::string, float> pendingAges_;
     float snapshotSeconds_ = 0;
     std::size_t snapshotIndex_ = 0;
 };

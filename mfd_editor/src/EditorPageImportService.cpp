@@ -4,6 +4,7 @@
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
 #include "EditorPageImportService.h"
+#include "mfd/apilevel1/widgets/WidgetJson.h"
 
 /**
  * @file
@@ -36,6 +37,7 @@ struct PageSourceMetadata
     std::string pageName;
     std::vector<std::string> templateIds;
     bool usesPageWrapper = false;
+    bool containsWidgets = false;
     mfd::ApiLevel requiredApiLevel = mfd::ApiLevel::Legacy;
 };
 
@@ -111,7 +113,7 @@ std::optional<std::string> DestinationApiLevelError(const mfd::ApiLevel apiLevel
     }
 
     return "Page import rejected: the destination Window uses an unsupported API LEVEL. "
-           "This editor supports API LEVEL 0 (Legacy) and LEVEL 1 (Containers).";
+           "This editor supports API LEVEL 0 (Legacy) and LEVEL 1 (Containers and Widgets).";
 }
 
 std::optional<std::string> PageCompatibilityError(const mfd::ApiLevel destination,
@@ -121,7 +123,7 @@ std::optional<std::string> PageCompatibilityError(const mfd::ApiLevel destinatio
     {
         return std::nullopt;
     }
-    return "Page import rejected before modification: the Page contains LEVEL 1 containers, "
+    return "Page import rejected before modification: the Page contains LEVEL 1 containers/widgets, "
            "but the destination Window is API LEVEL 0 (Legacy).";
 }
 
@@ -278,6 +280,14 @@ PageSourceMetadata ParsePageSourceMetadata(const std::filesystem::path& sourcePa
         {
             metadata.requiredApiLevel = mfd::ApiLevel::Level1;
         }
+    }
+
+    if (pageNode.contains("widgets"))
+    {
+        if (!pageNode.at("widgets").is_array() || pageNode.at("widgets").size() > mfd::api1::kMaximumWidgetCount)
+            throw std::runtime_error("Page widgets must be a bounded array.");
+        metadata.containsWidgets = !pageNode.at("widgets").empty();
+        if (metadata.containsWidgets) metadata.requiredApiLevel = mfd::ApiLevel::Level1;
     }
 
     std::unordered_set<std::string, mfd::TransparentStringHash, mfd::TransparentStringEqual> seenTemplateIds;
@@ -570,6 +580,13 @@ void RemovePathIfPresent(std::vector<std::filesystem::path>& paths, const std::f
 
 mfd::LoadedWindowConfiguration LoadSourceConfigurationForImport(const PageImportPlan& plan)
 {
+    if (plan.containsWidgets)
+    {
+        mfd::LoadedWindowConfiguration source;
+        const auto reticleFolder = plan.sourceReticleLibraryFolder.empty() ? plan.sourceAssetsRoot / "reticles" : plan.sourceReticleLibraryFolder;
+        source.document = mfd::JsonLoader {}.LoadPageAsset(plan.sourcePageFile, plan.sourceAssetsRoot, reticleFolder);
+        return source;
+    }
     ScopedImportWorkspace workspace;
     const std::filesystem::path windowFile = workspace.Root() / "page_import_window.json";
     const std::filesystem::path emptyReticleFolder = workspace.Root() / "reticles";
@@ -603,6 +620,9 @@ mfd::LoadedWindowConfiguration LoadSourceConfigurationForImport(const PageImport
     return loader.LoadWindowConfiguration(windowFile);
 }
 } // namespace
+
+PageImportService::PageImportService() : widgetProbe_(ProbeWidgetEditor) {}
+PageImportService::PageImportService(WidgetCapabilityProbe widgetProbe) : widgetProbe_(std::move(widgetProbe)) {}
 
 PageImportPlan PageImportService::BuildPlan(const mfd::LoadedWindowConfiguration& loaded,
                                             const EditorFileLayout& files,
@@ -657,6 +677,8 @@ PageImportPlan PageImportService::BuildPlan(const mfd::LoadedWindowConfiguration
         plan.targetPageName = sourceMetadata.pageName;
         plan.sourceUsesPageWrapper = sourceMetadata.usesPageWrapper;
         plan.requiredApiLevel = sourceMetadata.requiredApiLevel;
+        plan.containsWidgets = sourceMetadata.containsWidgets;
+        if (plan.containsWidgets && (!widgetProbe_ || !widgetProbe_(loaded.window.sourceFile, plan.error))) return plan;
         if (const std::optional<std::string> compatibilityError =
                 PageCompatibilityError(loaded.window.apiLevel, plan.requiredApiLevel);
             compatibilityError.has_value())
@@ -875,6 +897,11 @@ PageImportPlan PageImportService::BuildPlan(const mfd::LoadedWindowConfiguration
         }
 
         plan.reticles = std::move(reticlePlans);
+        if (plan.containsWidgets)
+        {
+            const auto source = LoadSourceConfigurationForImport(plan);
+            plan.widgetSourceSnapshot = WidgetAssetService::Snapshot(source.document, plan.sourcePageFile, plan.sourceAssetsRoot);
+        }
         plan.canExecute = true;
         return plan;
     }
@@ -932,6 +959,19 @@ bool PageImportService::Execute(const PageImportPlan& plan,
 
     try
     {
+        const auto currentMetadata = ParsePageSourceMetadata(plan.sourcePageFile);
+        if (currentMetadata.containsWidgets != plan.containsWidgets)
+            throw std::runtime_error("Page widget content changed after preflight; rebuild the import plan.");
+        if (plan.containsWidgets)
+        {
+            std::string capabilityError;
+            if (!widgetProbe_ || !widgetProbe_(loaded.window.sourceFile, capabilityError)) throw std::runtime_error(capabilityError);
+            const auto fresh = BuildPlan(loaded, files,
+                {plan.sourcePageFile, plan.targetPageFolder, plan.targetReticleLibraryFolder});
+            if (!fresh.canExecute || fresh.widgetSourceSnapshot != plan.widgetSourceSnapshot ||
+                fresh.targetPageName != plan.targetPageName || fresh.targetPageFile != plan.targetPageFile)
+                throw std::runtime_error("Widget import plan is stale: source, destination or capability changed. " + fresh.error);
+        }
         mfd::LoadedWindowConfiguration importedConfiguration = LoadSourceConfigurationForImport(plan);
         if (importedConfiguration.document.pages.size() != 1U)
         {
@@ -939,7 +979,7 @@ bool PageImportService::Execute(const PageImportPlan& plan,
         }
 
         mfd::PageDefinition importedPage = importedConfiguration.document.pages.front();
-        const mfd::ApiLevel actualRequiredLevel = importedPage.containers.empty()
+        const mfd::ApiLevel actualRequiredLevel = importedPage.containers.empty() && importedPage.widgets.empty()
                                                       ? mfd::ApiLevel::Legacy
                                                       : mfd::ApiLevel::Level1;
         if (const std::optional<std::string> compatibilityError =
@@ -950,6 +990,27 @@ bool PageImportService::Execute(const PageImportPlan& plan,
         }
         mfd::LoadedWindowConfiguration stagedLoaded = loaded;
         EditorFileLayout stagedFileLayout = files;
+        if (plan.containsWidgets)
+        {
+            const auto targetRoot = mfd::api1::WidgetAssetRoot(loaded.window.sourceFile);
+            std::map<std::filesystem::path, std::shared_ptr<const mfd::api1::WidgetDefinition>> remapped;
+            for (auto& widget : importedPage.widgets)
+            {
+                auto found = remapped.find(widget.definition->sourceFile);
+                if (found == remapped.end())
+                    found = remapped.emplace(widget.definition->sourceFile, WidgetAssetService::Stage(*widget.definition,
+                        plan.sourceAssetsRoot, targetRoot, stagedLoaded.document, stagedFileLayout)).first;
+                widget.definition = found->second;
+                widget.definitionFile = std::filesystem::relative(widget.definition->sourceFile, plan.targetPageFile.parent_path()).generic_string();
+            }
+            for (auto& reticle : importedPage.staticReticles)
+                WidgetAssetService::StageReticle(reticle, plan.sourceAssetsRoot, targetRoot, stagedFileLayout);
+            for (auto& strobe : importedPage.strobes)
+                WidgetAssetService::StageReticle(strobe.reticle, plan.sourceAssetsRoot, targetRoot, stagedFileLayout);
+            std::string widgetError;
+            if (!mfd::api1::ValidatePageWidgets(importedPage.containers, importedPage.widgets, widgetError))
+                throw std::runtime_error(widgetError);
+        }
 
         std::unordered_map<std::string, std::string, mfd::TransparentStringHash, mfd::TransparentStringEqual> templateIdRemap;
         templateIdRemap.reserve(plan.reticles.size());
@@ -985,6 +1046,8 @@ bool PageImportService::Execute(const PageImportPlan& plan,
 
             mfd::ReticleGroup importedTemplate = sourceTemplateIterator->second;
             RenameImportedTemplate(importedTemplate, reticlePlan.targetTemplateId);
+            if (plan.containsWidgets) WidgetAssetService::StageReticle(importedTemplate, plan.sourceAssetsRoot,
+                mfd::api1::WidgetAssetRoot(loaded.window.sourceFile), stagedFileLayout);
 
             stagedLoaded.document.reticleLibrary[reticlePlan.targetTemplateId] = std::move(importedTemplate);
             stagedFileLayout.templateFiles[reticlePlan.targetTemplateId] = NormalizePath(reticlePlan.targetFile);

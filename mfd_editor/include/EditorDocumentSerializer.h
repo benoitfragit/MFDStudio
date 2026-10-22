@@ -11,6 +11,7 @@
  */
 
 #include <filesystem>
+#include <map>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -31,6 +32,8 @@ struct EditorFileLayout
     std::unordered_map<std::string, std::filesystem::path, mfd::TransparentStringHash, mfd::TransparentStringEqual>
         templateFiles;
     std::vector<std::filesystem::path> removedTemplateFiles;
+    /** @brief Imported binary dependencies staged in memory until the multi-file save transaction. */
+    std::map<std::filesystem::path, std::string> stagedResources;
 };
 
 /** @brief Returns the default page JSON path for a new page authored from a window file. */

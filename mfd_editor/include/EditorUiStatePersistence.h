@@ -47,6 +47,7 @@ struct EditorUiPersistentState
     std::optional<float> sidebarPagesSplitFraction {};
     /** @brief Persisted fraction (0..1) of the LEVEL 1 sidebar body given to Containers. */
     std::optional<float> sidebarContainersHeightFraction {};
+    std::optional<float> sidebarWidgetsSplitFraction {};
     /** @brief Persisted open-state map for inspector sections keyed by their stable id. */
     std::map<std::string, bool> sectionOpen {};
 };

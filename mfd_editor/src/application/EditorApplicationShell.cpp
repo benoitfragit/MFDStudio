@@ -826,7 +826,17 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
             }
             ShowItemTooltip("Drag to resize the Reticle library and Containers sections.");
         }
-        DrawSidebarContainersSection(outerLayout.reticlesHeight);
+        const float lowerHeight = outerLayout.reticlesHeight;
+        const auto lowerLayout = editor::app::ComputeSidebarSectionLayout(
+            {lowerHeight, splitterThickness, lowerHeight * layoutState_.sidebarWidgetsSplitFraction,
+             minSectionHeight, minSectionHeight});
+        DrawSidebarContainersSection(lowerLayout.pagesHeight);
+        if (lowerLayout.sectionSpacing > 0.0f && editor::ui::DrawHorizontalSplitter(
+                "##SidebarWidgetsSplitter", sidebarBodyWidth, lowerLayout.sectionSpacing))
+            layoutState_.sidebarWidgetsSplitFraction = editor::app::ResolveSidebarPagesFraction(
+                lowerLayout.pagesHeight, ImGui::GetIO().MouseDelta.y, std::max(0.0f, lowerHeight - splitterThickness));
+        DrawSidebarWidgetsSection(lowerLayout.reticlesHeight);
+        DrawWidgetLibrary();
     }
 }
 
@@ -1041,6 +1051,13 @@ bool EditorApplication::DrawContainerTreeNode(const mfd::PageDefinition& page,
     {
         for (const mfd::api1::ContainerChildPlacement& child : container.children)
         {
+            if (child.kind == mfd::api1::ContainerChildKind::Widget)
+            {
+                if (ImGui::Selectable((child.childId + " (widget)").c_str(),
+                    documentState_.selection.kind == SelectionKind::Widget && documentState_.selection.widgetId == child.childId))
+                    SelectWidget(documentState_.selection.pageIndex, child.childId);
+                continue;
+            }
             const mfd::api1::ContainerDefinition* definition =
                 mfd::api1::FindContainer(page.containers, child.childId);
             if (definition != nullptr && DrawContainerTreeNode(page, *definition, depth + 1U))
@@ -1497,6 +1514,9 @@ void EditorApplication::DrawInspector()
     case SelectionKind::PageStrobe:
         contextLabel = "Page > Strobe";
         break;
+    case SelectionKind::Widget:
+        contextLabel = "Page > Widget";
+        break;
     case SelectionKind::Container:
         contextLabel = "Page > Container";
         break;
@@ -1531,6 +1551,9 @@ void EditorApplication::DrawInspector()
         break;
     case SelectionKind::PageStrobe:
         DrawSelectedPageStrobeInspector();
+        break;
+    case SelectionKind::Widget:
+        DrawWidgetInspector();
         break;
     case SelectionKind::Container:
         DrawContainerInspector();

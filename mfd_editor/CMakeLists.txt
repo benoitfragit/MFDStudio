@@ -86,6 +86,10 @@ if(WIN32)
 endif()
 
 add_executable(mfd_editor
+    ${MFD_WIDGETS_ROOT_DIR}/editor/src/WidgetEditorHost.cpp
+    ${MFD_WIDGETS_ROOT_DIR}/editor/src/WidgetEditorModel.cpp
+    ${MFD_WIDGETS_ROOT_DIR}/editor/src/WidgetEditorIntegration.cpp
+    ${MFD_WIDGETS_ROOT_DIR}/editor/src/WidgetAssetService.cpp
     ${MFD_APILEVEL1_EDITOR_INCLUDE_DIR}/mfd/apilevel1/ContainerGizmoAdapter.h
     ${MFD_APILEVEL1_ROOT_DIR}/editor/src/ContainerGizmoAdapter.cpp
     ${MFD_APILEVEL1_EDITOR_INCLUDE_DIR}/mfd/apilevel1/ContainerEditorHost.h
@@ -103,7 +107,8 @@ target_include_directories(mfd_editor
         ${MFD_ROOT_DIR}/mfd_api/src/render
         ${MFD_APILEVEL1_RUNTIME_INCLUDE_DIR}
         ${MFD_APILEVEL1_ROOT_DIR}/runtime/src
-        ${MFD_APILEVEL1_EDITOR_INCLUDE_DIR})
+        ${MFD_APILEVEL1_EDITOR_INCLUDE_DIR}
+        ${MFD_WIDGETS_ROOT_DIR}/editor/include)
 
 target_link_libraries(mfd_editor
     PRIVATE

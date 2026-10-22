@@ -14,6 +14,7 @@ add_executable(mfd_apilevel1_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/ContainerRuntimeAbiTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ContainerRuntimeSessionTests.cpp
     ${MFD_APILEVEL1_ROOT_DIR}/editor/src/ContainerEditorModel.cpp
+    ${MFD_WIDGETS_ROOT_DIR}/editor/src/WidgetEditorModel.cpp
     ${MFD_APILEVEL1_ROOT_DIR}/editor/src/ContainerGizmoAdapter.cpp
     ${MFD_APILEVEL1_ROOT_DIR}/runtime/src/ContainerInputRouter.cpp)
 
@@ -21,7 +22,8 @@ mfd_configure_test_runtime_output(mfd_apilevel1_tests)
 target_compile_features(mfd_apilevel1_tests PRIVATE cxx_std_17)
 target_include_directories(mfd_apilevel1_tests PRIVATE
     ${MFD_APILEVEL1_RUNTIME_INCLUDE_DIR}
-    ${MFD_APILEVEL1_EDITOR_INCLUDE_DIR})
+    ${MFD_APILEVEL1_EDITOR_INCLUDE_DIR}
+    ${MFD_WIDGETS_ROOT_DIR}/editor/include)
 target_link_libraries(mfd_apilevel1_tests PRIVATE
     mfd::api
     mfd::io_json

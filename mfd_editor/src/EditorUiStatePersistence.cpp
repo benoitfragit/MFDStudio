@@ -120,6 +120,7 @@ EditorUiPersistentState LoadEditorUiState(const std::filesystem::path& file)
         ReadOptionalGridStep(root, "gridStepLogical", state.gridStepLogical);
         ReadOptionalFraction(root, "sidebarPagesSplitFraction", state.sidebarPagesSplitFraction);
         ReadOptionalFraction(root, "sidebarContainersHeightFraction", state.sidebarContainersHeightFraction);
+        ReadOptionalFraction(root, "sidebarWidgetsSplitFraction", state.sidebarWidgetsSplitFraction);
 
         if (root.contains("sections") && root.at("sections").is_object())
         {
@@ -181,6 +182,8 @@ void SaveEditorUiState(const std::filesystem::path& file, const EditorUiPersiste
         {
             root["sidebarPagesSplitFraction"] = std::clamp(*state.sidebarPagesSplitFraction, 0.0f, 1.0f);
         }
+        if (state.sidebarWidgetsSplitFraction.has_value())
+            root["sidebarWidgetsSplitFraction"] = std::clamp(*state.sidebarWidgetsSplitFraction, 0.0f, 1.0f);
         if (state.sidebarContainersHeightFraction.has_value())
         {
             root["sidebarContainersHeightFraction"] =

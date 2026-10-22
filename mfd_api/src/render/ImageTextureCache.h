@@ -12,6 +12,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <string_view>
 
 #include <raylib.h>
 
@@ -42,6 +43,8 @@ public:
      * @brief Releases every cached texture.
      */
     void Clear() noexcept;
+    /** @brief Seeds a staged image once, with the same entry/texture budgets as disk loads. */
+    void Preload(const std::filesystem::path& file, std::string_view encodedBytes);
 
 private:
     struct Impl;

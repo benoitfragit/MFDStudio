@@ -274,6 +274,8 @@ struct MfdDocument
     ReticleLibrary reticleLibrary;
     /** @brief Pages available in the document. */
     std::vector<PageDefinition> pages;
+    /** @brief Referenced or authored reusable widget definitions; unused assets do not raise API level. */
+    std::vector<std::shared_ptr<const api1::WidgetDefinition>> widgetLibrary;
 };
 
 /**

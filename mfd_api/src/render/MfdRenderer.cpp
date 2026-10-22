@@ -694,7 +694,7 @@ void MfdRenderer::HandleContainerInput(SceneRegistry& scene,
     const Vector2 wheel = GetMouseWheelMoveV();
     const auto* activePage = FindPageDefinition(scene.Document(), scene.ActivePageName());
     const bool hasWidgets = activePage != nullptr && !activePage->widgets.empty();
-    if (!hasWidgets && !impl_->thumbDrag.active && !IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
+    if (!hasWidgets && !impl_->widgetInput.NeedsUpdate(scene.ActivePageName()) && !impl_->thumbDrag.active && !IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
         wheel.x == 0.0f && wheel.y == 0.0f)
     {
         return;
@@ -707,6 +707,8 @@ void MfdRenderer::HandleContainerInput(SceneRegistry& scene,
     if (impl_->containerLayoutsScratch.empty())
     {
         impl_->thumbDrag.active = false;
+        impl_->widgetInput.Update(scene, impl_->widgetRuntime, impl_->containerDefinitionsScratch,
+            impl_->containerLayoutsScratch, impl_->widgets, impl_->widgetStates, {}, false, false, false, true, GetFrameTime());
         return;
     }
 

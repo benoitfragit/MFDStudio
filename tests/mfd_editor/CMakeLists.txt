@@ -59,6 +59,7 @@ mfd_private_library(mfd_editor_tests imgui)
 target_include_directories(mfd_editor_tests
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${MFD_WIDGETS_ROOT_DIR}/editor/include
         ${MFD_ROOT_DIR}/mfd_editor/include
         ${MFD_ROOT_DIR}/mfd_editor/src
         ${MFD_ROOT_DIR}/mfd_common_api/include
@@ -67,6 +68,7 @@ target_include_directories(mfd_editor_tests
 
 target_sources(mfd_editor_tests
     PRIVATE
+        ${MFD_WIDGETS_ROOT_DIR}/editor/src/WidgetAssetService.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorAssetReferenceIndexService.h
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorAssetReferenceIndexService.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorAssetPathService.h

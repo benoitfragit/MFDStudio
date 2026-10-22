@@ -250,7 +250,7 @@ public:
      */
     void CollectActiveWidgets(std::vector<api1::WidgetInstance>& instances, std::vector<api1::WidgetState>& states) const;
     bool SetActiveWidgetInteraction(std::string_view id, bool hovered, bool pressed, bool pending, std::uint64_t requestId) noexcept;
-    TransportId ActiveWidgetTransportId(std::string_view id) const noexcept;
+    TransportId ActiveWidgetTransportId(const std::string& id) const noexcept;
     void QueueWidgetFeedback(api1::WidgetFeedback feedback);
     std::vector<api1::WidgetFeedback> TakeWidgetFeedback();
 
@@ -903,6 +903,7 @@ private:
     /** @brief Generated API LEVEL 1 container lookup indexed by transport id. */
     std::unordered_map<TransportId, TransportContainerLookup> transportContainers_ {};
     std::unordered_map<TransportId, TransportWidgetLookup> transportWidgets_;
+    std::unordered_map<TransportId, std::unordered_map<std::string, TransportId, TransparentStringHash, TransparentStringEqual>> widgetEventIds_;
     std::unordered_map<std::string, RuntimeSnapshot::WidgetState> widgetRuntimeStates_;
     std::vector<api1::WidgetFeedback> widgetFeedback_;
     /** @brief Runtime container overrides keyed by normalized page and container ids. */

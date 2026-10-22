@@ -1554,6 +1554,12 @@ void ValidateSaveTargets(const mfd::LoadedWindowConfiguration& loaded,
             throw std::runtime_error("Multiple assets resolve to the same save target: " + entry.first.string());
         }
     }
+    for (const auto& resource : layout.stagedResources)
+    {
+        if (!IsPathWithinRoot(resource.first, assetRoot) ||
+            !targets.insert(Lowercase(std::filesystem::weakly_canonical(resource.first).generic_string())).second)
+            throw std::runtime_error("Unsafe or duplicate widget resource save path: " + resource.first.string());
+    }
     for (const std::filesystem::path& removed : layout.removedPageFiles)
     {
         if (!removed.empty() && !IsPathWithinRoot(removed, assetRoot))
@@ -1571,13 +1577,32 @@ void ValidateSaveTargets(const mfd::LoadedWindowConfiguration& loaded,
 }
 
 void SaveFilesTransactionally(const std::vector<std::pair<std::filesystem::path, json>>& files,
-                              const std::vector<std::filesystem::path>& removedFiles)
+                              const std::vector<std::filesystem::path>& removedFiles,
+                              const std::map<std::filesystem::path, std::string>& resources = {})
 {
     std::vector<internal::AssetFileWrite> writes;
     writes.reserve(files.size());
     for (const auto& file : files)
     {
         writes.push_back({file.first, JsonToString(file.second), true});
+    }
+    std::size_t resourceBytes = 0;
+    if (resources.size() > 512) throw std::runtime_error("Too many staged widget resources.");
+    for (const auto& resource : resources)
+    {
+        if (resource.second.size() > 16U * 1024U * 1024U || resourceBytes > 64U * 1024U * 1024U - resource.second.size())
+            throw std::runtime_error("Widget resource budget exceeded.");
+        resourceBytes += resource.second.size();
+        if (std::filesystem::exists(resource.first))
+        {
+            if (std::filesystem::file_size(resource.first) != resource.second.size())
+                throw std::runtime_error("Imported resource changed at destination: " + resource.first.string());
+            std::ifstream input(resource.first, std::ios::binary);
+            const std::string existing((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+            if (!input.eof() && input.fail()) throw std::runtime_error("Unable to read destination resource.");
+            if (existing != resource.second) throw std::runtime_error("Imported resource conflicts with destination: " + resource.first.string());
+        }
+        else writes.push_back({resource.first, resource.second, false});
     }
     // Serialization and path validation finish before any live asset is changed.
     for (const internal::AssetFileWrite& write : writes)
@@ -1670,6 +1695,16 @@ std::vector<std::pair<std::filesystem::path, json>> CollectEditorDocumentFiles(
             if (!entry.second && entry.first->second != definition)
                 throw std::runtime_error("Conflicting shared widget definitions: " + path.string());
         }
+    }
+    for (const auto& definition : loaded.document.widgetLibrary)
+    {
+        if (!definition) throw std::runtime_error("Missing widget library definition.");
+        const auto root = mfd::api1::WidgetAssetRoot(loaded.window.sourceFile);
+        const auto relative = std::filesystem::relative(definition->sourceFile, root).generic_string();
+        const auto path = mfd::api1::ResolveWidgetAsset(root, root, relative);
+        const json serialized = mfd::api1::SerializeWidgetDefinition(*definition, SerializeInlineReticle);
+        const auto entry = widgetFiles.emplace(path.generic_string(), serialized);
+        if (!entry.second && entry.first->second != serialized) throw std::runtime_error("Conflicting widget library definition.");
     }
     for (const auto& entry : widgetFiles) files.emplace_back(entry.first, entry.second);
 
@@ -1832,7 +1867,7 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
             }
         }
 
-        SaveFilesTransactionally(files, removedFiles);
+        SaveFilesTransactionally(files, removedFiles, layout.stagedResources);
 
         if (error != nullptr)
         {
@@ -1849,6 +1884,33 @@ bool SaveEditorDocument(const mfd::LoadedWindowConfiguration& loaded,
         }
         return false;
     }
+}
+
+namespace
+{
+std::string EncodeResource(const std::string& bytes)
+{
+    constexpr char digits[] = "0123456789abcdef";
+    std::string hex;
+    hex.reserve(bytes.size() * 2);
+    for (const unsigned char byte : bytes) { hex += digits[byte >> 4U]; hex += digits[byte & 15U]; }
+    return hex;
+}
+unsigned int DecodeResourceDigit(const char digit)
+{
+    if (digit >= '0' && digit <= '9') return static_cast<unsigned int>(digit - '0');
+    if (digit >= 'a' && digit <= 'f') return static_cast<unsigned int>(digit - 'a' + 10);
+    throw std::runtime_error("Malformed recovery resource encoding.");
+}
+std::string DecodeResource(const std::string& hex)
+{
+    if (hex.size() % 2 || hex.size() > 32U * 1024U * 1024U) throw std::runtime_error("Oversized recovery resource.");
+    std::string bytes;
+    bytes.reserve(hex.size() / 2);
+    for (std::size_t offset = 0; offset < hex.size(); offset += 2)
+        bytes += static_cast<char>((DecodeResourceDigit(hex[offset]) << 4U) | DecodeResourceDigit(hex[offset + 1]));
+    return bytes;
+}
 }
 
 std::string SerializeRecoveryBundleToJsonString(const mfd::LoadedWindowConfiguration& loaded,
@@ -1869,6 +1931,20 @@ std::string SerializeRecoveryBundleToJsonString(const mfd::LoadedWindowConfigura
         fileArray.push_back(std::move(entry));
     }
     bundle["files"] = std::move(fileArray);
+    if (!layout.stagedResources.empty())
+    {
+        ValidateSaveTargets(loaded, layout, files);
+        bundle["schemaVersion"] = 2;
+        bundle["resources"] = json::array();
+        std::size_t total = 0;
+        for (const auto& resource : layout.stagedResources)
+        {
+            total += resource.second.size();
+            if (layout.stagedResources.size() > 512 || total > 64U * 1024U * 1024U)
+                throw std::runtime_error("Recovery resource budget exceeded.");
+            bundle["resources"].push_back({{"path", resource.first.generic_string()}, {"hex", EncodeResource(resource.second)}});
+        }
+    }
 
     return bundle.dump(2);
 }
@@ -1927,7 +2003,26 @@ bool RestoreRecoveryBundle(const std::string& bundleJson,
             targets.emplace_back(std::move(target), entry.at("document"));
         }
 
-        SaveFilesTransactionally(targets, {});
+        std::map<std::filesystem::path, std::string> resources;
+        if (bundle.contains("resources"))
+        {
+            const auto& entries = bundle.at("resources");
+            if (!entries.is_array() || entries.size() > 512) throw std::runtime_error("Invalid recovery resources.");
+            std::size_t total = 0;
+            for (const auto& entry : entries)
+            {
+                const auto path = std::filesystem::path(entry.at("path").get<std::string>());
+                const auto target = path.is_absolute() ? path : assetRoot / path;
+                if (!IsPathWithinRoot(target, assetRoot) ||
+                    !targetKeys.insert(Lowercase(std::filesystem::weakly_canonical(target).generic_string())).second)
+                    throw std::runtime_error("Unsafe recovery resource path.");
+                auto bytes = DecodeResource(entry.at("hex").get<std::string>());
+                total += bytes.size();
+                if (total > 64U * 1024U * 1024U) throw std::runtime_error("Recovery resource budget exceeded.");
+                resources.emplace(target, std::move(bytes));
+            }
+        }
+        SaveFilesTransactionally(targets, {}, resources);
 
         windowFile = recoveredWindowFile;
         if (error != nullptr)

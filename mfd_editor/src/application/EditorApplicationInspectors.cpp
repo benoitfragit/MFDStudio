@@ -131,7 +131,7 @@ void EditorApplication::ApplyContainerInspectorEdit(mfd::api1::ContainerInspecto
     ContainerInspectorRollback rollback(container, placement, edit);
     std::string error;
     std::vector<mfd::api1::ContainerLayoutNode> layouts;
-    if (!mfd::api1::ContainerLayoutEngine {}.Evaluate(page.containers, layouts, error))
+    if (!mfd::api1::EvaluateContainersWithWidgets(page.containers, page.widgets, layouts, error))
     {
         RebuildStatus(std::move(error), true);
         return;
@@ -482,7 +482,7 @@ void EditorApplication::DrawWindowInspector()
         {
             const bool hasContainers = std::any_of(
                 documentState_.loaded.document.pages.begin(), documentState_.loaded.document.pages.end(),
-                [](const mfd::PageDefinition& page) { return !page.containers.empty(); });
+                [](const mfd::PageDefinition& page) { return !page.containers.empty() || !page.widgets.empty(); });
             if (hasContainers)
                 ImGui::OpenPopup("Downgrade to API LEVEL 0##confirm");
             else
@@ -511,8 +511,8 @@ void EditorApplication::DrawWindowInspector()
     ShowItemTooltip("The Window level is a capability ceiling. LEVEL 1 requires compatible runtime and editor extensions.");
     if (ImGui::BeginPopupModal("Downgrade to API LEVEL 0##confirm", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
     {
-        ImGui::TextUnformatted("This Window contains API LEVEL 1 containers.");
-        ImGui::TextWrapped("Downgrading requires deleting every container from every Page. "
+        ImGui::TextUnformatted("This Window contains API LEVEL 1 containers and/or widgets.");
+        ImGui::TextWrapped("Downgrading removes all containers, widget instances, ownership edges and their page visuals. Shared definition files are retained. "
                            "The operation is recorded as one undo step.");
         ImGui::Spacing();
         if (ImGui::Button("Cancel"))
@@ -520,7 +520,7 @@ void EditorApplication::DrawWindowInspector()
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Delete containers and downgrade"))
+        if (ImGui::Button("Delete instances and downgrade"))
         {
             DowngradeWindowToLegacyRemovingContainers();
             ImGui::CloseCurrentPopup();

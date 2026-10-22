@@ -3401,6 +3401,13 @@ LoadedWindowConfiguration LoadWindowConfigurationImpl(const std::filesystem::pat
             throw std::runtime_error("Duplicate page name in window JSON: " + page.name);
         }
 
+        for (auto& widget : page.widgets)
+        {
+            const auto existing = std::find_if(loaded.document.widgetLibrary.begin(), loaded.document.widgetLibrary.end(),
+                [&widget](const auto& definition) { return definition->sourceFile == widget.definition->sourceFile; });
+            if (existing == loaded.document.widgetLibrary.end()) loaded.document.widgetLibrary.push_back(widget.definition);
+            else widget.definition = *existing;
+        }
         loaded.document.pages.push_back(std::move(page));
     }
 
@@ -3430,6 +3437,9 @@ LoadedWindowConfiguration LoadWindowConfigurationImpl(const std::filesystem::pat
             throw std::runtime_error(generatedMapError);
         }
 
+        if (!loaded.generatedTransportMap && std::any_of(loaded.document.pages.begin(), loaded.document.pages.end(),
+            [](const PageDefinition& page) { return !page.widgets.empty(); }))
+            throw std::runtime_error("Widget runtime requires a generated transport map. Run client_api_generate_ui for this Window.");
         if (loaded.generatedTransportMap.has_value())
         {
             ValidateGeneratedTransportMapAgainstDocument(*loaded.generatedTransportMap,
@@ -3453,6 +3463,26 @@ LoadedWindowConfiguration JsonLoader::LoadWindowConfigurationForAuthoring(
     const std::filesystem::path& windowFile) const
 {
     return LoadWindowConfigurationImpl(windowFile, false);
+}
+
+std::shared_ptr<const api1::WidgetDefinition> JsonLoader::LoadWidgetAsset(const std::filesystem::path& file,
+    const std::filesystem::path& assetRoot, const ReticleLibrary& library) const
+{
+    return api1::LoadWidgetDefinition(file, assetRoot,
+        [&library](const json& visual, const std::filesystem::path& folder) { return ParseReticle(visual, library, folder); });
+}
+
+MfdDocument JsonLoader::LoadPageAsset(const std::filesystem::path& file, const std::filesystem::path& assetRoot,
+                                     const std::filesystem::path& reticleFolder) const
+{
+    MfdDocument document;
+    document.sourceFile = file;
+    document.reticleLibraryFolder = reticleFolder;
+    if (!reticleFolder.empty() && std::filesystem::exists(reticleFolder)) document.reticleLibrary = LoadReticleLibrary(reticleFolder);
+    const json root = LoadJsonFile(file);
+    document.pages.push_back(ParsePage(*FindPageNode(root), document.reticleLibrary, file.parent_path(), assetRoot));
+    for (const auto& widget : document.pages.front().widgets) document.widgetLibrary.push_back(widget.definition);
+    return document;
 }
 
 MfdDocument JsonLoader::LoadDocument(const std::filesystem::path& pagesFile) const
