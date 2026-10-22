@@ -123,6 +123,7 @@ std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawCombo(void* context, const char* cons
                                                 const char* const* const labels, const std::size_t labelCount)
 {
     if (current == nullptr || labels == nullptr || labelCount == 0U) return 0U;
+    const std::int32_t previous = *current;
     bool changed = false;
     const std::size_t selected = static_cast<std::size_t>(std::clamp<std::int32_t>(
         *current, 0, static_cast<std::int32_t>(labelCount - 1U)));
@@ -134,7 +135,7 @@ std::uint8_t MFD_CONTAINER_EDITOR_CALL DrawCombo(void* context, const char* cons
             if (ImGui::Selectable(labels[index], index == selected))
             {
                 *current = static_cast<std::int32_t>(index);
-                changed = true;
+                changed = *current != previous;
             }
         }
         ImGui::EndCombo();

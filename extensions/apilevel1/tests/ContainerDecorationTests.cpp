@@ -122,3 +122,27 @@ TEST_F(ContainerDecorationTests, HiddenGrandchildrenDoNotCloseVisibleAncestor)
     // Parent, visible child, child's border, parent's border, next root + border.
     EXPECT_EQ(drawOrder, (std::vector<int> {1, 4, 14, 11, 5, 15}));
 }
+
+TEST_F(ContainerDecorationTests, FractionalNestedClipsStayWithinIntegerMaximumViewport)
+{
+    std::vector<mfd::api1::ContainerDefinition> definitions(2);
+    std::vector<mfd::api1::ContainerLayoutNode> layouts(2);
+    layouts[0].sourceIndex = 0U;
+    layouts[1].sourceIndex = 1U;
+    layouts[1].parentSourceIndex = 0U;
+    layouts[0].effectiveVisible = layouts[1].effectiveVisible = true;
+    const int maximum = std::numeric_limits<int>::max();
+    for (const float position : {-1.0f, -0.1234f, 0.0f, 0.1234f, 1.0f})
+    {
+        clips.clear();
+        layouts[0].viewport = {{position, position}, {1.1f, 1.7f}};
+        mfd::detail::DrawContainerDecorations(definitions, layouts, {}, maximum, maximum, {});
+        for (const auto& clip : clips)
+        {
+            EXPECT_GE(clip[0], 0); EXPECT_GE(clip[1], 0);
+            EXPECT_GE(clip[2], 0); EXPECT_GE(clip[3], 0);
+            EXPECT_LE(static_cast<std::int64_t>(clip[0]) + clip[2], maximum);
+            EXPECT_LE(static_cast<std::int64_t>(clip[1]) + clip[3], maximum);
+        }
+    }
+}

@@ -239,8 +239,10 @@ std::string Rollback(std::vector<CommitEntry>& entries, const FileCommitCheckpoi
         }
         catch (const std::exception& exception)
         {
-            failures += "\nRollback failed for " + entry.target.string() + ": " + exception.what() +
-                        "; retained backup: " + entry.backup.string();
+            failures += "\nRollback failed for " + entry.target.string() + ": " + exception.what();
+            failures += entry.backup.empty()
+                            ? "; newly created target retained."
+                            : "; retained backup: " + entry.backup.string();
         }
         CleanupTransactionFile(entry.staged, checkpoint, failures);
     }
