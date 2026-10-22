@@ -99,7 +99,9 @@ def collect_container_specs(page_name: str, page_root: dict, seen_ids: set[int])
             if not isinstance(child, dict) or not isinstance(child.get("id"), str):
                 raise RuntimeError(f"Container '{raw['id']}' has an invalid child placement")
             child_normalized = _normalize(child["id"])
-            if child_normalized not in nodes:
+            # Authored edges are exact identities, like runtime/editor lookup.
+            # Normalization is reserved for collision checks and transport keys.
+            if child_normalized not in nodes or nodes[child_normalized]["id"] != child["id"]:
                 raise RuntimeError(f"Container '{raw['id']}' references unknown child '{child['id']}'")
             if child_normalized in child_owners:
                 raise RuntimeError(f"Container '{child['id']}' has more than one parent")

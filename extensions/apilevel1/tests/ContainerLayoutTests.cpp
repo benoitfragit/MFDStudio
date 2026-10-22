@@ -376,3 +376,20 @@ TEST(ContainerLayoutTests, RejectsRgbaBeforeNarrowing)
     EXPECT_EQ(containers.front().appearance.backgroundColor.g, 255U);
     EXPECT_NO_THROW(mfd::api1::SerializePageContainers(containers));
 }
+
+TEST(ContainerLayoutTests, ChildReferencesUseExactAuthoredSpelling)
+{
+    ContainerDefinition parent = MakeContainer("Parent", ContainerType::Canvas, {}, {1.0f, 1.0f});
+    const ContainerDefinition child = MakeContainer("Child", ContainerType::Canvas, {}, {0.2f, 0.2f});
+    std::string error;
+    for (const std::string reference : {"child", " Child", "Child ", "unknown"})
+    {
+        parent.children = {ContainerChildPlacement {reference}};
+        EXPECT_FALSE(ContainerLayoutEngine {}.Validate({parent, child}, error)) << reference;
+    }
+    parent.children = {ContainerChildPlacement {"Child"}};
+    std::vector<ContainerLayoutNode> layouts;
+    EXPECT_TRUE(ContainerLayoutEngine {}.Evaluate({parent, child}, layouts, error)) << error;
+    EXPECT_NO_THROW(mfd::api1::ParsePageContainers(
+        nlohmann::json {{"containers", mfd::api1::SerializePageContainers({parent, child})}}));
+}

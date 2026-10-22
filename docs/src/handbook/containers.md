@@ -31,7 +31,11 @@ kept as silently ignored data.
 Each Page may contain a flat `containers` catalog. Stable `children[].id` edges
 form the hierarchy and have exactly one owner. Cycles, duplicate ownership,
 unknown IDs, non-finite geometry, more than 4096 definitions, and depth beyond 64
-are rejected. Grid row and column counts are bounded to 1–4096.
+are rejected. Each child reference must match its definition's ID exactly,
+including case and whitespace, in the generator as well as the runtime/editor.
+Trimmed, case-insensitive identities are used only to reject collisions and to
+compute the existing stable transport keys; references are never silently renamed.
+Grid row and column counts are bounded to 1–4096.
 
 Common container fields are:
 

@@ -26,6 +26,25 @@ class GenerateUiTests(unittest.TestCase):
         self.generator = GENERATOR_PATH
         self.assertTrue(self.generator.exists(), f"Generator script not found: {self.generator}")
 
+    def test_container_child_identity_matches_runtime(self) -> None:
+        import importlib.util
+        module_path = Path(__file__).resolve().parents[2] / "extensions/apilevel1/generator/generate_containers.py"
+        spec = importlib.util.spec_from_file_location("container_identity_test", module_path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        for reference in ("child", " Child", "Child ", "unknown"):
+            with self.subTest(reference=reference), self.assertRaisesRegex(RuntimeError, "unknown child"):
+                module.collect_container_specs("Main", {"containers": [
+                    {"id": "Parent", "children": [{"id": reference}]}, {"id": "Child"}]}, set())
+        for duplicate in ("child", " Child "):
+            with self.subTest(duplicate=duplicate), self.assertRaisesRegex(RuntimeError, "duplicate"):
+                module.collect_container_specs("Main", {"containers": [{"id": "Child"}, {"id": duplicate}]}, set())
+        specs = module.collect_container_specs("Main", {"containers": [
+            {"id": "Parent", "children": [{"id": "Child"}]}, {"id": "Child", "exposed": True}]}, set())
+        self.assertEqual(specs[0].canonical_key, "page/main/container/child")
+        self.assertEqual(specs[0].container_id, "Child")
+
     def test_api_level_zero_is_byte_identical_to_an_omitted_level(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
