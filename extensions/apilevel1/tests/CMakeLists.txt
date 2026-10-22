@@ -78,6 +78,20 @@ gtest_discover_tests(mfd_apilevel1_extension_availability_tests
     DISCOVERY_TIMEOUT 60)
 
 if(WIN32)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    add_test(NAME apilevel1_installed_extensions
+        COMMAND ${CMAKE_COMMAND}
+            "-DBUILD_DIRECTORY=${CMAKE_BINARY_DIR}"
+            "-DBUILD_CONFIG=$<CONFIG>"
+            "-DSOURCE_DIRECTORY=${MFD_ROOT_DIR}"
+            "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/installed_extensions/$<CONFIG>"
+            "-DPYTHON_EXECUTABLE=${Python3_EXECUTABLE}"
+            "-DGENERATOR=${CMAKE_GENERATOR}"
+            "-DGENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}"
+            "-DGENERATOR_TOOLSET=${CMAKE_GENERATOR_TOOLSET}"
+            "-DMSVC_RUNTIME=${CMAKE_MSVC_RUNTIME_LIBRARY}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyInstalledExtensions.cmake")
+    set_tests_properties(apilevel1_installed_extensions PROPERTIES LABELS "smoke;runtime" TIMEOUT 180)
     add_test(NAME apilevel1_host_deployment
         COMMAND ${CMAKE_COMMAND}
             "-DRUNTIME_DLL=$<TARGET_FILE:mfd_containers_api1>"
