@@ -270,6 +270,7 @@ private:
     };
     std::unordered_map<std::string, StreamObservation> streams_;
     std::uint64_t widgetSession_ = 0;
+    std::uint64_t widgetSequenceFloor_ = 0;
     std::unordered_map<TransportId, std::uint64_t> widgetSequences_;
     std::vector<mfd::api1::WidgetFeedback> widgetEvents_;
     struct PageCaptureState

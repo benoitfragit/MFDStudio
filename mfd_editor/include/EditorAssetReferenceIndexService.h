@@ -26,7 +26,9 @@ enum class ReticleReferenceKind
     PageDynamicTemplate,
     ReticleImageAsset,
     WindowFontAsset,
-    WindowIconAsset
+    WindowIconAsset,
+    PageWidgetDefinition,
+    WidgetReticleTemplate
 };
 
 /**
@@ -38,7 +40,8 @@ enum class MissingAssetKind
     ReticleTemplate,
     ImageFile,
     FontFile,
-    IconFile
+    IconFile,
+    WidgetDefinition
 };
 
 /**

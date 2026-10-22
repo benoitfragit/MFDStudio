@@ -771,11 +771,13 @@ void MergePendingBatchPreservingUndeliveredDeltas(std::optional<mfd::CommandBatc
         carriedOperations.push_back(mfd::UserCommand {std::move(pendingUpdate)});
     }
 
-    if (!pendingHasReset)
-    {
-        for (const auto& command : pendingBatch->commands)
-            if (std::holds_alternative<mfd::api1::UpdateWidgetCommand>(command)) carriedOperations.push_back(command);
-    }
+    std::size_t widgetStart = 0;
+    if (pendingHasReset)
+        for (std::size_t index = 0; index < pendingBatch->commands.size(); ++index)
+            if (std::holds_alternative<mfd::ResetWindowCommand>(pendingBatch->commands[index])) widgetStart = index + 1;
+    for (std::size_t index = widgetStart; index < pendingBatch->commands.size(); ++index)
+        if (std::holds_alternative<mfd::api1::UpdateWidgetCommand>(pendingBatch->commands[index]))
+            carriedOperations.push_back(pendingBatch->commands[index]);
     if (carriedOperations.empty())
     {
         if (pendingHasReset)

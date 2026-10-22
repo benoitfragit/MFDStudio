@@ -26,6 +26,7 @@
 #include "ContainerDecorationRenderer.h"
 #include "ContainerPointerQuery.h"
 #include "mfd/apilevel1/widgets/WidgetModel.h"
+#include "mfd/apilevel1/widgets/WidgetOcclusion.h"
 #include "mfd/apilevel1/widgets/WidgetVisuals.h"
 #include "mfd/apilevel1/widgets/WidgetRuntimeHost.h"
 #include "mfd/apilevel1/widgets/WidgetInputController.h"
@@ -727,11 +728,21 @@ void MfdRenderer::HandleContainerInput(SceneRegistry& scene,
         (mouse.x - static_cast<float>(viewportWidth) * 0.5f) / logicalScale / zoom + view.center.x,
         -(mouse.y - static_cast<float>(viewportHeight) * 0.5f) / logicalScale / zoom + view.center.y};
 
+    bool widgetPointerBlocked = false;
+    if (hasWidgets)
+    {
+        scene.CollectActiveReticleViews(impl_->activeReticlesScratch);
+        for (const auto& reticle : impl_->activeReticlesScratch)
+            if (reticle.visible && reticle.group && api1::ReticleOccludesWidgetPointer(*reticle.group, pointer))
+            { widgetPointerBlocked = true; break; }
+        if (const auto summary = scene.ActivePageSummary())
+            widgetPointerBlocked = widgetPointerBlocked || api1::ReticleOccludesWidgetPointer(impl_->ResolveTitleReticle(*summary), pointer);
+    }
     const bool widgetOwnsPointer = impl_->widgetInput.Update(scene, impl_->widgetRuntime,
         impl_->containerDefinitionsScratch, impl_->containerLayoutsScratch, impl_->widgets, impl_->widgetStates,
         pointer, IsMouseButtonDown(MOUSE_BUTTON_LEFT), IsMouseButtonPressed(MOUSE_BUTTON_LEFT),
         IsMouseButtonReleased(MOUSE_BUTTON_LEFT), impl_->thumbDrag.active || !IsWindowFocused() || scene.WindowDisplay().disabled,
-        GetFrameTime());
+        GetFrameTime(), widgetPointerBlocked);
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !widgetOwnsPointer)
     {
         const api1::detail::ContainerPointerQuery pointerQuery(
@@ -886,7 +897,7 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
         activeReticles = &fallbackActiveReticles;
     }
 
-    ExternalStreamFrame streamFrame(impl_->externalStreams, *activeReticles, !display.disabled);
+    ExternalStreamFrame streamFrame(impl_->externalStreams, *activeReticles, !display.disabled, &impl_->widgetVisuals);
     if (display.disabled)
     {
         DrawRectangle(0, 0, viewportWidth, viewportHeight, BLACK);

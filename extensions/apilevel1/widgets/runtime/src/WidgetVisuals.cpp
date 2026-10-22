@@ -1,5 +1,6 @@
 #include "mfd/apilevel1/widgets/WidgetVisuals.h"
 #include "mfd/apilevel1/widgets/WidgetModel.h"
+#include "mfd/model/internal/RuntimeModelValidation.h"
 #include <algorithm>
 #include <iomanip>
 #include <locale>
@@ -64,6 +65,7 @@ ReticleGroup BuildWidgetVisual(const WidgetInstance& widget, const WidgetState& 
     result.transform.position = {bounds.center.x + result.transform.position.x * scale.x,
                                  bounds.center.y + result.transform.position.y * scale.y};
     result.transform.scale = {result.transform.scale.x * scale.x, result.transform.scale.y * scale.y};
+    if (!runtime_validation::internal::IsValidReticle(result)) return {};
     result.visible = result.visible && state.visible;
     return result;
 }

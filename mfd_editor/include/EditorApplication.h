@@ -276,7 +276,8 @@ private:
     /** @brief Draws editor-DLL-provided controls for the selected container. */
     void DrawContainerInspector();
     void DrawSidebarWidgetsSection(float height);
-    void DrawWidgetInspector();
+    void DrawWidgetInspector(bool definitionOnly = false);
+    std::shared_ptr<const mfd::api1::WidgetDefinition> SelectedWidgetDefinition(bool definitionOnly);
     void DrawWidgetLibrary();
     void SelectWidget(int pageIndex, std::string id);
     void AddWidgetDefinition(bool duplicate);
@@ -284,9 +285,10 @@ private:
     void DuplicateWidget();
     void DeleteWidget();
     void ScanWidgetLibrary();
-    void EditWidgetVisual();
+    void EditWidgetVisual(bool definitionOnly = false);
     void ApplyWidgetVisual();
-    void ApplyWidgetInspector(std::uint32_t actions);
+    void ApplyWidgetInspector(std::uint32_t actions, bool definitionOnly);
+    void ApplyWidgetBinding(bool remove, bool definitionOnly);
     void ImportWidgetDefinition();
     void ExportWidgetDefinition();
     mfd::api1::WidgetInstance* SelectedWidget() noexcept;

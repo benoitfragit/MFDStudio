@@ -292,6 +292,13 @@ constexpr std::array<TutorialStepDefinition, static_cast<std::size_t>(TutorialSt
      "",
      "docs/tutorials/README.md",
      "Continue with the demo client, the generated client API tutorial, then the generated-client standard and architecture notes.",
+     "Next"},
+    {TutorialStepKind::ReferenceDocument,
+     "Author and drive API LEVEL 1 Widgets",
+     "Open the widget walkthrough: create a shared visual definition, insert independent instances, place them in containers and confirm input with the generated client.",
+     "",
+     "docs/tutorials/16_author_and_drive_widgets.md",
+     "Widgets and Containers share LEVEL 1. The guide covers the four sidebar sections, visual authoring, instance overrides, import/export, downgrade and typed feedback.",
      "Finish"},
 }};
 } // namespace

@@ -1,0 +1,295 @@
+{
+  "name": "Widgets",
+  "title": "API LEVEL 1 Widgets",
+  "bg": "#070F18FF",
+  "layers": [
+    {
+      "id": "main"
+    }
+  ],
+  "containers": [
+    {
+      "id": "Panel",
+      "type": "canvas",
+      "size": [
+        1.8,
+        1.4
+      ],
+      "position": [
+        0,
+        -0.08
+      ],
+      "children": [
+        {
+          "id": "Grid"
+        }
+      ],
+      "appearance": {
+        "backgroundVisible": true,
+        "backgroundColor": [
+          12,
+          27,
+          40,
+          255
+        ],
+        "borderVisible": true
+      }
+    },
+    {
+      "id": "Grid",
+      "type": "grid",
+      "size": [
+        1.72,
+        1.3
+      ],
+      "padding": 0.04,
+      "spacing": 0.04,
+      "grid": {
+        "rows": 4,
+        "columns": 3
+      },
+      "children": [
+        {
+          "id": "CellCanvas",
+          "row": 0,
+          "column": 0,
+          "horizontalAlignment": "stretch",
+          "verticalAlignment": "stretch"
+        },
+        {
+          "id": "ToggleB",
+          "kind": "widget",
+          "row": 0,
+          "column": 1,
+          "horizontalAlignment": "center",
+          "verticalAlignment": "center"
+        },
+        {
+          "id": "PrivateButton",
+          "kind": "widget",
+          "row": 0,
+          "column": 2,
+          "horizontalAlignment": "center",
+          "verticalAlignment": "center"
+        },
+        {
+          "id": "Checkbox",
+          "kind": "widget",
+          "row": 1,
+          "column": 0,
+          "horizontalAlignment": "center",
+          "verticalAlignment": "center"
+        },
+        {
+          "id": "Radio",
+          "kind": "widget",
+          "row": 1,
+          "column": 1,
+          "horizontalAlignment": "center",
+          "verticalAlignment": "center"
+        },
+        {
+          "id": "Slider",
+          "kind": "widget",
+          "row": 1,
+          "column": 2,
+          "horizontalAlignment": "center",
+          "verticalAlignment": "center"
+        },
+        {
+          "id": "Knob",
+          "kind": "widget",
+          "row": 2,
+          "column": 0,
+          "horizontalAlignment": "center",
+          "verticalAlignment": "center"
+        },
+        {
+          "id": "Gauge",
+          "kind": "widget",
+          "row": 2,
+          "column": 1,
+          "horizontalAlignment": "center",
+          "verticalAlignment": "center"
+        },
+        {
+          "id": "ProgressBar",
+          "kind": "widget",
+          "row": 2,
+          "column": 2,
+          "horizontalAlignment": "center",
+          "verticalAlignment": "center"
+        },
+        {
+          "id": "Indicator",
+          "kind": "widget",
+          "row": 3,
+          "column": 0,
+          "horizontalAlignment": "center",
+          "verticalAlignment": "center"
+        },
+        {
+          "id": "NumericDisplay",
+          "kind": "widget",
+          "row": 3,
+          "column": 1,
+          "horizontalAlignment": "center",
+          "verticalAlignment": "center"
+        },
+        {
+          "id": "Label",
+          "kind": "widget",
+          "row": 3,
+          "column": 2,
+          "horizontalAlignment": "center",
+          "verticalAlignment": "center"
+        }
+      ]
+    },
+    {
+      "id": "CellCanvas",
+      "type": "canvas",
+      "size": [
+        0.48,
+        0.25
+      ],
+      "children": [
+        {
+          "id": "ScrollLinear",
+          "resizeMode": "stretch"
+        }
+      ]
+    },
+    {
+      "id": "ScrollLinear",
+      "type": "linear",
+      "size": [
+        0.48,
+        0.22
+      ],
+      "orientation": "vertical",
+      "spacing": 0.04,
+      "scrolling": {
+        "vertical": "automatic",
+        "clipContent": true
+      },
+      "children": [
+        {
+          "id": "ToggleA",
+          "kind": "widget"
+        },
+        {
+          "id": "ScrollLabel",
+          "kind": "widget"
+        }
+      ]
+    }
+  ],
+  "widgets": [
+    {
+      "id": "RootAction",
+      "definition": "../widgets/button.json",
+      "position": [
+        -0.45,
+        0.82
+      ],
+      "exposed": true,
+      "overrides": {
+        "text": "Root button"
+      }
+    },
+    {
+      "id": "ToggleA",
+      "definition": "../widgets/toggle.json",
+      "exposed": true,
+      "overrides": {
+        "text": "Toggle A"
+      }
+    },
+    {
+      "id": "ToggleB",
+      "definition": "../widgets/toggle.json",
+      "exposed": true,
+      "overrides": {
+        "text": "Toggle B",
+        "checked": true
+      }
+    },
+    {
+      "id": "PrivateButton",
+      "definition": "../widgets/button.json",
+      "overrides": {
+        "text": "Private event ID"
+      }
+    },
+    {
+      "id": "Checkbox",
+      "definition": "../widgets/checkbox.json",
+      "exposed": true
+    },
+    {
+      "id": "Radio",
+      "definition": "../widgets/radio.json",
+      "exposed": true
+    },
+    {
+      "id": "Slider",
+      "definition": "../widgets/slider.json",
+      "exposed": true
+    },
+    {
+      "id": "Knob",
+      "definition": "../widgets/knob.json",
+      "exposed": true
+    },
+    {
+      "id": "Gauge",
+      "definition": "../widgets/gauge.json",
+      "exposed": true
+    },
+    {
+      "id": "ProgressBar",
+      "definition": "../widgets/progressBar.json",
+      "exposed": true
+    },
+    {
+      "id": "Indicator",
+      "definition": "../widgets/indicator.json",
+      "exposed": true
+    },
+    {
+      "id": "NumericDisplay",
+      "definition": "../widgets/numericDisplay.json",
+      "exposed": true
+    },
+    {
+      "id": "Label",
+      "definition": "../widgets/label.json",
+      "exposed": true
+    },
+    {
+      "id": "RootToggle",
+      "definition": "../widgets/toggle.json",
+      "position": [
+        0.45,
+        0.82
+      ],
+      "exposed": true,
+      "overrides": {
+        "text": "Root toggle",
+        "checked": true
+      }
+    },
+    {
+      "id": "ScrollLabel",
+      "definition": "../widgets/label.json",
+      "overrides": {
+        "text": "Scroll content"
+      },
+      "size": [
+        0.4,
+        0.25
+      ]
+    }
+  ]
+}

@@ -2,8 +2,8 @@
 
 API LEVEL 1 adds an optional recursive layout layer while preserving the complete
 LEVEL 0 page, reticle, primitive, transport, and generated-client contract. Set
-`"apiLevel": 1` on the Window to enable it. A LEVEL 0 Window never loads either
-LEVEL 1 DLL.
+`"apiLevel": 1` on the Window to enable it. A LEVEL 0 Window loads no LEVEL 1 DLL.
+[Widgets](./widgets.md) share this same level and extend the same layout kernel.
 
 ## Compatibility and transitions
 
@@ -13,7 +13,7 @@ minimum requirement is inferred from actual content:
 | Page content | LEVEL 0 Window | LEVEL 1 Window |
 | --- | --- | --- |
 | Legacy reticles/primitives only | Supported | Supported |
-| One or more containers | Rejected before mutation | Supported |
+| One or more containers or widget instances | Rejected before mutation | Supported with the corresponding DLLs |
 
 Import therefore ignores the source Window's declared level. A legacy-only Page
 exported from a LEVEL 1 Window can be imported into LEVEL 0. A Page containing
@@ -22,8 +22,8 @@ failure leaves the document and files unchanged.
 
 Changing a Window from LEVEL 1 to LEVEL 0 is immediate when all Pages are legacy.
 If any Page contains containers, the editor opens a destructive confirmation:
-**Cancel** preserves everything; **Delete containers and downgrade** removes all
-containers and changes the level as one undoable operation. Containers are never
+**Cancel** preserves everything; **Delete instances and downgrade** removes all
+containers, widget instances and ownership edges (shared definitions are retained) and changes the level as one undoable operation. Containers are never
 kept as silently ignored data.
 
 ## Document model
@@ -75,7 +75,8 @@ repositioned or included with a fit mode.
 
 The ownership edge is intentionally separate from the container definition so
 future graphical nodes can use the same transform, clipping, and input contract.
-In LEVEL 1, only child containers participate in container hierarchy ownership.
+In LEVEL 1, widget leaves use `children[].kind: "widget"`; an omitted kind still
+means a child container. Widget preferred sizes contribute to fit and scroll bounds.
 Legacy reticles and primitives keep their existing Page/layer ownership and APIs.
 
 ## Rendering and input

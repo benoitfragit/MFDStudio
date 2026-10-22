@@ -66,7 +66,7 @@ def resolve_asset(base, root, reference):
         raise RuntimeError("Widget dependency escapes the asset root")
     return path
 
-def definition(path, root):
+def definition(path, root, templates=None, template_folder=None):
     if path.suffix != '.json' or not path.is_file() or path.stat().st_size > 1048576:
         raise RuntimeError(f"Missing, oversized or invalid widget asset: {path}")
     node = json.loads(path.read_text(encoding='utf-8'))
@@ -101,15 +101,42 @@ def definition(path, root):
         states.add(state)
         if not isinstance(visual.get('reticle'),dict):
             raise RuntimeError("Widget visual requires a reticle composition")
+        composition = dict(visual['reticle'])
+        visual_base = path.parent
+        if 'template' in composition:
+            template_id = composition['template']
+            if templates is None or template_id not in templates:
+                raise RuntimeError(f"Missing widget visual reticle template: {template_id}")
+            merged = dict(templates[template_id])
+            merged.update(composition)
+            if 'elements' not in composition:
+                visual_base = template_folder
+            composition = merged
+        clipping = composition.get('clipping', {})
+        if clipping and (not isinstance(clipping, dict) or clipping.get('mode', 'none') != 'none'):
+            raise RuntimeError("Widget visuals cannot erase Page layers; use container clipping")
+        elements = composition.get('elements', [])
+        if not isinstance(elements, list) or len(elements) > 256:
+            raise RuntimeError("Widget visual primitive budget exceeded")
+        primitive_types = {}
+        for primitive in elements:
+            if not isinstance(primitive, dict):
+                raise RuntimeError("Widget primitive must be an object")
+            primitive_id = identifier(primitive.get('id'))
+            if primitive_id in primitive_types:
+                raise RuntimeError("Duplicate widget visual primitive ID")
+            primitive_types[primitive_id] = primitive.get('type', 'line')
         bindings=visual.get('bindings',[])
         if not isinstance(bindings,list) or len(bindings)>64:
             raise RuntimeError("Invalid widget bindings")
         for binding in bindings:
             fields(binding,('primitive','target','from','to'))
-            identifier(binding.get('primitive'))
+            primitive = identifier(binding.get('primitive'))
+            if primitive not in primitive_types or (binding.get('target') == 'text' and primitive_types[primitive] != 'text'):
+                raise RuntimeError("Invalid widget binding primitive reference or text target")
             if binding.get('target') not in TARGETS or abs(number(binding.get('from',0)))>10000 or abs(number(binding.get('to',1)))>10000:
                 raise RuntimeError("Invalid widget binding")
-        stack=[(visual['reticle'],0)]
+        stack=[(composition,0)]
         visited=0
         while stack:
             value,depth=stack.pop()
@@ -119,7 +146,7 @@ def definition(path, root):
             if isinstance(value,dict):
                 for key,child in value.items():
                     if key == 'file' and isinstance(child,str):
-                        dependency=resolve_asset(path.parent,root,child)
+                        dependency=resolve_asset(visual_base,root,child)
                         if not dependency.is_file():
                             raise RuntimeError(f"Missing widget resource: {dependency}")
                         dependencies.add(dependency)
@@ -132,7 +159,16 @@ def definition(path, root):
         raise RuntimeError("Widget requires a normal visual")
     return node,minimum,maximum,dependencies
 
-def collect_widget_specs(page_name, page_root, page_path, asset_root, seen_ids):
+def validate_values(values, minimum, maximum):
+    if type(values['checked']) is not bool or type(values['warning']) is not bool:
+        raise RuntimeError("Widget state flags must be booleans")
+    if not minimum <= number(values['value']) <= maximum:
+        raise RuntimeError("Widget value outside range")
+    text = values['text']
+    if not isinstance(text, str) or len(text.encode('utf-8')) > 4096 or "\0" in text:
+        raise RuntimeError("Invalid widget text")
+
+def collect_widget_specs(page_name, page_root, page_path, asset_root, seen_ids, templates=None, template_folder=None):
     raw=page_root.get('widgets',[])
     if not isinstance(raw,list) or len(raw)>4096:
         raise RuntimeError("Page widgets must be a bounded array")
@@ -149,7 +185,7 @@ def collect_widget_specs(page_name, page_root, page_path, asset_root, seen_ids):
         ids.add(name.strip().lower())
         exact.add(name)
         path=resolve_asset(page_path.parent,asset_root,instance.get('definition'))
-        node,minimum,maximum,dependencies=definition(path,asset_root)
+        node,minimum,maximum,dependencies=definition(path,asset_root,templates,template_folder)
         vector(instance.get('position',[0,0]))
         if 'size' in instance:
             vector(instance['size'],True)
@@ -159,7 +195,9 @@ def collect_widget_specs(page_name, page_root, page_path, asset_root, seen_ids):
         fields(overrides,('checked','warning','value','text'))
         values={'checked':False,'warning':False,'value':minimum,'text':''}
         values.update(defaults)
+        validate_values(values, minimum, maximum)
         values.update(overrides)
+        validate_values(values, minimum, maximum)
         for flag in ('visible','enabled','exposed'):
             if type(instance.get(flag,False if flag=='exposed' else True)) is not bool:
                 raise RuntimeError("Widget flags must be booleans")
@@ -185,6 +223,8 @@ def collect_widget_specs(page_name, page_root, page_path, asset_root, seen_ids):
             instance.get('exposed',False),cpp_type,instance.get('visible',True),instance.get('enabled',True),
             values['checked'],values['warning'],value,text,minimum,maximum))
     owned=set()
+    if sum(len(c.get('children', [])) for c in page_root.get('containers', [])) > 8192:
+        raise RuntimeError('Mixed ownership-edge budget exceeded')
     for container in page_root.get('containers',[]):
         for child in container.get('children',[]):
             if child.get('kind','container') not in ('container','widget'):
@@ -195,10 +235,10 @@ def collect_widget_specs(page_name, page_root, page_path, asset_root, seen_ids):
                 owned.add(child['id'])
     return result
 
-def input_paths(page_root,page_path,asset_root):
+def input_paths(page_root,page_path,asset_root,templates=None,template_folder=None):
     paths=set()
     for instance in page_root.get('widgets',[]):
         path=resolve_asset(page_path.parent,asset_root,instance.get('definition'))
-        node,minimum,maximum,dependencies=definition(path,asset_root)
+        node,minimum,maximum,dependencies=definition(path,asset_root,templates,template_folder)
         paths.update(dependencies)
     return paths

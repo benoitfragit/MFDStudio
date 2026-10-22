@@ -43,7 +43,7 @@ class ExternalStreamFrame
 {
 public:
     ExternalStreamFrame(ExternalStreamRegistry& registry, const std::vector<ReticleRenderView>& reticles,
-                        bool visible = true);
+                        bool visible = true, const std::vector<ReticleGroup>* widgetVisuals = nullptr);
     ~ExternalStreamFrame();
     ExternalStreamFrame(const ExternalStreamFrame&) = delete;
     ExternalStreamFrame& operator=(const ExternalStreamFrame&) = delete;

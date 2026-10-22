@@ -110,6 +110,6 @@ std::uint32_t WidgetEditorHost::Draw(MfdWidgetEditorDraftV1& draft) const
 {
     if (!IsLoaded()) return 0;
     const MfdWidgetEditorUiV1 ui {sizeof(ui), 1U, nullptr, Text, Input, Checkbox, Number, Combo, Button};
-    return impl_->api.draw(&ui, &draft) & 31U;
+    return impl_->api.draw(&ui, &draft) & 127U;
 }
 }

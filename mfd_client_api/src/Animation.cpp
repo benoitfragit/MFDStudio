@@ -562,12 +562,21 @@ bool RuntimeFeedbackState::Apply(const mfd::api1::WidgetFeedback& feedback)
     if (feedback.session > widgetSession_)
     {
         widgetSequences_.clear();
+        widgetSequenceFloor_ = 0;
         widgetEvents_.clear();
         widgetSession_ = feedback.session;
     }
+    if (feedback.sequence <= widgetSequenceFloor_) return false;
     auto found = widgetSequences_.find(feedback.widgetId);
     if (found != widgetSequences_.end() && feedback.sequence <= found->second) return false;
-    if (found == widgetSequences_.end() && widgetSequences_.size() >= 4096U) return false;
+    if (found == widgetSequences_.end() && widgetSequences_.size() >= 4096U)
+    {
+        const auto oldest = std::min_element(widgetSequences_.begin(), widgetSequences_.end(),
+            [](const auto& left, const auto& right) { return left.second < right.second; });
+        if (feedback.sequence <= oldest->second) return false;
+        widgetSequenceFloor_ = oldest->second;
+        widgetSequences_.erase(oldest);
+    }
     // Reserve before committing either sequence or event so an allocation failure permits retry.
     widgetEvents_.reserve(1024U);
     if (found == widgetSequences_.end()) found = widgetSequences_.emplace(feedback.widgetId, 0U).first;
@@ -816,6 +825,7 @@ void RuntimeFeedbackState::Reset() noexcept
     streams_.clear();
     widgetSession_ = 0U;
     widgetSequences_.clear();
+    widgetSequenceFloor_ = 0;
     widgetEvents_.clear();
     pageCaptureById_.clear();
     pageCaptureAccessOrdinal_ = 0;

@@ -62,6 +62,7 @@ enum class TutorialStepId : int
     InspectDesignExportWorkflow,
     OpenTutorialFollowUpGuide,
     ReviewDocumentationPath,
+    AuthorApiLevel1Widgets,
     Count
 };
 

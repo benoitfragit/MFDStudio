@@ -43,10 +43,16 @@ typedef struct MfdWidgetEditorDraftV1
     double x, y, width, height, value;
     int32_t resize_mode, horizontal_alignment, vertical_alignment;
     double row, column, row_span, column_span, render_order;
-    uint8_t edit_definition;
+    uint8_t edit_definition, definition_only;
     char definition_id[257];
     int32_t type, visual_state;
     double minimum, maximum, step, decimals, hit_x, hit_y, hit_width, hit_height;
+    double preferred_width, preferred_height, default_value;
+    uint8_t default_checked, default_warning;
+    char default_text[4097];
+    char binding_primitive[257];
+    int32_t binding_target;
+    double binding_from, binding_to;
 } MfdWidgetEditorDraftV1;
 /** @brief Result flags: 1 instance edit, 2 definition edit, 4 edit visual, 8 apply visual, 16 reset overrides. */
 typedef struct MfdWidgetEditorApiV1

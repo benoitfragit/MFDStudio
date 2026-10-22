@@ -1,0 +1,36 @@
+{
+  "apiLevel": 1,
+  "title": "MFD Widgets API LEVEL 1",
+  "size": [
+    1000,
+    850
+  ],
+  "position": [
+    100,
+    80
+  ],
+  "targetFps": 60,
+  "reticleLibraryFolder": "../reticles",
+  "pages": [
+    "../pages/widgets.json"
+  ],
+  "defaultPage": "Widgets",
+  "commands": {
+    "udp": {
+      "enabled": true,
+      "address": "127.0.0.1",
+      "port": 47330,
+      "maxPacketSize": 16384
+    }
+  },
+  "feedback": {
+    "udp": {
+      "enabled": true,
+      "address": "127.0.0.1",
+      "port": 47331,
+      "maxPacketSize": 4096
+    },
+    "fastIntervalMs": 20,
+    "heartbeatIntervalMs": 350
+  }
+}

@@ -119,6 +119,8 @@ public:
         const std::filesystem::path& assetRoot, const ReticleLibrary& library) const;
 
     /** @brief Loads a single source Page and its reticles for a content-based authoring import. */
+    /** @brief Loads the existing flat reticle library for reusable-asset authoring. */
+    ReticleLibrary LoadReticleAssets(const std::filesystem::path& folder) const;
     MfdDocument LoadPageAsset(const std::filesystem::path& file, const std::filesystem::path& assetRoot,
                              const std::filesystem::path& reticleFolder) const;
 

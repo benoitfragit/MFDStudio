@@ -473,7 +473,7 @@ void EditorApplication::DrawWindowInspector()
     }
 
     const bool level1Selected = documentState_.loaded.window.apiLevel == mfd::ApiLevel::Level1;
-    const char* apiLevelPreview = level1Selected ? u8"1 \u2014 Containers" : u8"0 \u2014 Legacy";
+    const char* apiLevelPreview = level1Selected ? u8"1 \u2014 Containers + Widgets" : u8"0 \u2014 Legacy";
     BeginInspectorField("API LEVEL");
     if (ImGui::BeginCombo("##value", apiLevelPreview))
     {
@@ -492,7 +492,7 @@ void EditorApplication::DrawWindowInspector()
                 containerEditorHost_.Unload();
             }
         }
-        if (ImGui::Selectable(u8"1 \u2014 Containers", level1Selected) && !level1Selected)
+        if (ImGui::Selectable(u8"1 \u2014 Containers + Widgets", level1Selected) && !level1Selected)
         {
             if (containerEditorHost_.EnsureLoaded(documentState_.loaded.window.sourceFile))
             {
@@ -514,6 +514,14 @@ void EditorApplication::DrawWindowInspector()
         ImGui::TextUnformatted("This Window contains API LEVEL 1 containers and/or widgets.");
         ImGui::TextWrapped("Downgrading removes all containers, widget instances, ownership edges and their page visuals. Shared definition files are retained. "
                            "The operation is recorded as one undo step.");
+        for (const auto& page : documentState_.loaded.document.pages)
+        {
+            std::size_t edges = 0;
+            for (const auto& container : page.containers) edges += container.children.size();
+            if (!page.containers.empty() || !page.widgets.empty())
+                ImGui::BulletText("%s: %zu containers, %zu widget instances, %zu child edges",
+                    page.name.c_str(), page.containers.size(), page.widgets.size(), edges);
+        }
         ImGui::Spacing();
         if (ImGui::Button("Cancel"))
         {

@@ -33,7 +33,7 @@ install(TARGETS mfd_widgets_api1
     RUNTIME DESTINATION . COMPONENT ${MFD_COMPONENT_API_RUNTIME})
 install(DIRECTORY runtime/include/ DESTINATION include COMPONENT ${MFD_COMPONENT_API_DEVELOPMENT})
 install(DIRECTORY runtime/include/ DESTINATION include COMPONENT ${MFD_COMPONENT_CLIENT_API_DEVELOPMENT})
-install(FILES generator/generate_widgets.py DESTINATION extensions/apilevel1/widgets/generator COMPONENT ${MFD_COMPONENT_CLIENT_API_DEVELOPMENT})
+install(FILES generator/generate_widgets.py DESTINATION tools/extensions/apilevel1/widgets/generator COMPONENT ${MFD_COMPONENT_CLIENT_API_DEVELOPMENT})
 if(MFD_BUILD_TESTS)
     add_executable(mfd_widgets_tests tests/WidgetModelTests.cpp tests/WidgetCommandTests.cpp)
     mfd_configure_test_runtime_output(mfd_widgets_tests)

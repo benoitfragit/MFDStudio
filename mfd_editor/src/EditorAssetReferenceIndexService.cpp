@@ -4,6 +4,7 @@
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
 #include "EditorAssetReferenceIndexService.h"
+#include "mfd/apilevel1/widgets/WidgetJson.h"
 
 /**
  * @file
@@ -35,7 +36,8 @@ enum class ParsedAssetKind
     Unknown,
     Window,
     Page,
-    TemplateAsset
+    TemplateAsset,
+    WidgetAsset
 };
 
 struct ParsedAssetFile
@@ -154,6 +156,7 @@ ParsedAssetKind ClassifyDocument(const json& document)
         return ParsedAssetKind::Window;
     }
 
+    if (document.contains("schemaVersion") && document.contains("visuals")) return ParsedAssetKind::WidgetAsset;
     if (document.contains("elements") && document.at("elements").is_array())
     {
         return ParsedAssetKind::TemplateAsset;
@@ -457,6 +460,24 @@ void ProcessPageDocument(const ParsedAssetFile& asset,
         asset.document.contains("page") && asset.document.at("page").is_object() ? asset.document.at("page")
                                                                                   : asset.document;
 
+    if (const json* widgets = FindField(pageNode, {"widgets"}); widgets != nullptr)
+    {
+        if (!widgets->is_array() || widgets->size() > 4096) AddScanError(index, asset.file, "Invalid widgets array");
+        else for (const auto& widget : *widgets)
+        {
+            try
+            {
+                const auto target = mfd::api1::ResolveWidgetAsset(asset.file.parent_path(),
+                    mfd::api1::WidgetAssetRoot(asset.file), widget.at("definition").get<std::string>());
+                AddReference(index, ReticleReferenceKind::PageWidgetDefinition, asset.file, target,
+                    asset.pageName, widget.value("id", ""));
+                if (!std::filesystem::is_regular_file(target))
+                    AddMissingAsset(index, MissingAssetKind::WidgetDefinition, asset.file, target,
+                        asset.pageName, widget.value("id", ""), {}, {}, "Widget definition does not exist");
+            }
+            catch (const std::exception& failure) { AddScanError(index, asset.file, failure.what()); }
+        }
+    }
     if (const json* staticReticles = FindField(pageNode, {"staticReticles"}); staticReticles != nullptr)
     {
         if (!staticReticles->is_array())
@@ -818,6 +839,15 @@ AssetReferenceIndex AssetReferenceIndexService::BuildIndex(const AssetReferenceI
             break;
         case ParsedAssetKind::TemplateAsset:
             ProcessTemplateDocument(asset, index);
+            break;
+        case ParsedAssetKind::WidgetAsset:
+            if (!asset.document.at("visuals").is_array() || asset.document.at("visuals").size() > 7)
+                AddScanError(index, asset.file, "Invalid widget visuals array");
+            else for (const auto& visual : asset.document.at("visuals"))
+            {
+                if (visual.contains("reticle")) ScanReticleNode(visual.at("reticle"), asset.file, {},
+                    ReticleReferenceKind::WidgetReticleTemplate, templateFilesById, index);
+            }
             break;
         case ParsedAssetKind::Unknown:
         default:

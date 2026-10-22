@@ -131,6 +131,8 @@ void EditorApplication::DrawWidgetLibrary()
         if (ImGui::Button("Duplicate definition")) AddWidgetDefinition(true);
         ImGui::SameLine();
         if (ImGui::Button("Export definition and resources")) ExportWidgetDefinition();
+        if (ImGui::Button("Save library and document")) SaveAll();
+        if (ImGui::CollapsingHeader("Edit / rename definition", ImGuiTreeNodeFlags_DefaultOpen)) DrawWidgetInspector(true);
     }
     if (!widgetVisualTemplate_.empty() && ImGui::Button("Apply edited visual")) ApplyWidgetVisual();
     ImGui::End();
@@ -167,7 +169,7 @@ void EditorApplication::AddWidgetDefinition(const bool duplicate)
         widgetLibrarySelected_ = document.widgetLibrary.size() - 1;
         PushUndoSnapshot(std::move(before));
         widgetLibraryOpen_ = true;
-        RebuildStatus("Widget definition created. Insert it into the Page to edit its visuals and properties.", false);
+        RebuildStatus("Widget definition created. Edit its properties and visuals in the library, then insert independent instances.", false);
     }
     catch (const std::exception& error) { RebuildStatus(error.what(), true); }
 }
@@ -208,9 +210,23 @@ void EditorApplication::DeleteWidget()
     PushUndoSnapshot(before);
     SelectPage(documentState_.selection.pageIndex, false);
 }
-void EditorApplication::DrawWidgetInspector()
+std::shared_ptr<const mfd::api1::WidgetDefinition> EditorApplication::SelectedWidgetDefinition(const bool definitionOnly)
 {
+    if (definitionOnly)
+    {
+        const auto& library = documentState_.loaded.document.widgetLibrary;
+        return widgetLibrarySelected_ < library.size() ? library[widgetLibrarySelected_] : nullptr;
+    }
     const auto* widget = SelectedWidget();
+    return widget ? widget->definition : nullptr;
+}
+void EditorApplication::DrawWidgetInspector(const bool definitionOnly)
+{
+    mfd::api1::WidgetInstance preview;
+    preview.definition = SelectedWidgetDefinition(definitionOnly);
+    if (!preview.definition) return;
+    preview.id = preview.definition->id;
+    const auto* widget = definitionOnly ? &preview : SelectedWidget();
     const auto* page = ActivePage();
     if (!widget || !page) return;
     if (!widgetEditorHost_.EnsureLoaded(documentState_.loaded.window.sourceFile))
@@ -219,6 +235,7 @@ void EditorApplication::DrawWidgetInspector()
     const auto& definition = *widget->definition;
     const auto value = mfd::api1::InitialWidgetState(*widget).confirmed;
     draft.struct_size = sizeof(draft);
+    draft.definition_only = definitionOnly;
     CopyWidgetText(draft.id, sizeof(draft.id), widget->id);
     CopyWidgetText(draft.parent, sizeof(draft.parent), WidgetParent(*page, widget->id));
     CopyWidgetText(draft.text, sizeof(draft.text), value.text);
@@ -231,6 +248,10 @@ void EditorApplication::DrawWidgetInspector()
     draft.override_size = widget->size.has_value();
     const auto size = widget->size.value_or(definition.preferredSize);
     draft.width = size.x; draft.height = size.y;
+    draft.preferred_width = definition.preferredSize.x; draft.preferred_height = definition.preferredSize.y;
+    draft.default_checked = definition.defaults.checked; draft.default_warning = definition.defaults.warning;
+    draft.default_value = definition.defaults.value;
+    CopyWidgetText(draft.default_text, sizeof(draft.default_text), definition.defaults.text);
     draft.minimum = definition.range.minimum; draft.maximum = definition.range.maximum;
     draft.step = definition.range.step; draft.decimals = definition.range.decimals;
     draft.type = static_cast<int>(definition.type);
@@ -247,13 +268,21 @@ void EditorApplication::DrawWidgetInspector()
                 draft.render_order = edge.renderOrder;
             }
     const auto actions = widgetEditorHost_.Draw(draft);
-    if (actions & 19U) ApplyWidgetInspector(actions);
-    if (actions & 4U) EditWidgetVisual();
+    if (actions & 19U) ApplyWidgetInspector(actions, definitionOnly);
+    if (actions & 4U) EditWidgetVisual(definitionOnly);
     if (actions & 8U) ApplyWidgetVisual();
+    if (actions & 32U) ApplyWidgetBinding(false, definitionOnly);
+    if (actions & 64U) ApplyWidgetBinding(true, definitionOnly);
 }
-void EditorApplication::ApplyWidgetInspector(const std::uint32_t actions)
+void EditorApplication::ApplyWidgetInspector(const std::uint32_t actions, const bool definitionOnly)
 {
-    auto* page = ActivePage(); const auto* widget = SelectedWidget(); if (!page || !widget) return;
+    mfd::api1::WidgetInstance preview;
+    preview.definition = SelectedWidgetDefinition(definitionOnly);
+    if (!preview.definition) return;
+    preview.id = preview.definition->id;
+    auto* page = ActivePage();
+    const auto* widget = definitionOnly ? &preview : SelectedWidget();
+    if (!page || !widget) return;
     const auto before = CaptureCurrentSnapshot();
     auto candidate = documentState_.loaded.document;
     auto& candidatePage = candidate.pages[documentState_.selection.pageIndex];
@@ -292,12 +321,14 @@ void EditorApplication::ApplyWidgetInspector(const std::uint32_t actions)
     edge.row = static_cast<std::uint32_t>(draft.row); edge.column = static_cast<std::uint32_t>(draft.column);
     edge.rowSpan = std::max(1U, static_cast<std::uint32_t>(draft.row_span)); edge.columnSpan = std::max(1U, static_cast<std::uint32_t>(draft.column_span));
     edge.renderOrder = static_cast<int>(draft.render_order);
-    if (!mfd::api1::WidgetEditorModel::Replace(candidatePage, previousId, replacement, draft.parent, &edge, error))
+    if (!definitionOnly && !mfd::api1::WidgetEditorModel::Replace(candidatePage, previousId, replacement, draft.parent, &edge, error))
     { RebuildStatus(error, true); return; }
     if (actions & 2U)
     {
         auto definition = std::make_shared<mfd::api1::WidgetDefinition>(*replacement.definition);
         definition->id = draft.definition_id; definition->type = static_cast<mfd::api1::WidgetType>(draft.type);
+        definition->preferredSize = {static_cast<float>(draft.preferred_width), static_cast<float>(draft.preferred_height)};
+        definition->defaults = {draft.default_checked != 0, draft.default_warning != 0, draft.default_value, draft.default_text};
         definition->range = {draft.minimum, draft.maximum, draft.step, static_cast<std::uint32_t>(draft.decimals)};
         definition->hitRegion = {{static_cast<float>(draft.hit_x), static_cast<float>(draft.hit_y)},
                                  {static_cast<float>(draft.hit_width), static_cast<float>(draft.hit_height)}};
@@ -306,12 +337,12 @@ void EditorApplication::ApplyWidgetInspector(const std::uint32_t actions)
     }
     documentState_.loaded.document = std::move(candidate);
     PushUndoSnapshot(before);
-    SelectWidget(documentState_.selection.pageIndex, replacement.id);
+    if (!definitionOnly) SelectWidget(documentState_.selection.pageIndex, replacement.id);
 }
-void EditorApplication::EditWidgetVisual()
+void EditorApplication::EditWidgetVisual(const bool definitionOnly)
 {
-    const auto* widget = SelectedWidget(); if (!widget) return;
-    const auto& definition = *widget->definition;
+    const auto selected = SelectedWidgetDefinition(definitionOnly); if (!selected) return;
+    const auto& definition = *selected;
     const auto state = static_cast<mfd::api1::WidgetVisualState>(widgetDraft_.visual_state);
     const auto visual = std::find_if(definition.visuals.begin(), definition.visuals.end(),
         [state](const auto& value) { return value.state == state; });
@@ -362,7 +393,7 @@ void EditorApplication::ImportWidgetDefinition()
     try
     {
         const auto sourceRoot = mfd::api1::WidgetAssetRoot(*file);
-        auto library = documentState_.loaded.document.reticleLibrary;
+        const auto library = documentState_.loader.LoadReticleAssets(sourceRoot / "reticles");
         const auto definition = documentState_.loader.LoadWidgetAsset(*file, sourceRoot, library);
         auto candidate = documentState_.loaded.document;
         auto files = documentState_.files;
@@ -460,7 +491,14 @@ bool EditorApplication::UpdateWidgetPreviewGesture(const ViewportState& viewport
         return true;
     }
     auto* page = ActivePage(); auto* live = SelectedWidget();
-    if (!page || !live || live->id != widgetGestureStart_.id) { widgetGestureBefore_.reset(); return true; }
+    if (!page || !live || live->id != widgetGestureStart_.id ||
+        documentState_.selection.pageIndex != widgetGestureBefore_->selection.pageIndex)
+    {
+        const auto snapshot = std::move(*widgetGestureBefore_);
+        widgetGestureBefore_.reset();
+        RestoreSnapshot(snapshot);
+        return true;
+    }
     auto replacement = widgetGestureStart_;
     const auto pointer = viewport.ToLogical(ImGui::GetMousePos());
     const mfd::Vec2 delta {pointer.x - widgetGesturePointer_.x, pointer.y - widgetGesturePointer_.y};
@@ -481,4 +519,27 @@ bool EditorApplication::UpdateWidgetPreviewGesture(const ViewportState& viewport
     if (mfd::api1::WidgetEditorModel::Replace(*page, live->id, replacement, parent, &placement, error)) widgetGestureChanged_ = true;
     else RebuildStatus(error, true);
     return true;
+}
+
+void EditorApplication::ApplyWidgetBinding(const bool remove, const bool definitionOnly)
+{
+    const auto selected = SelectedWidgetDefinition(definitionOnly); if (!selected) return;
+    auto definition = std::make_shared<mfd::api1::WidgetDefinition>(*selected);
+    const auto state = static_cast<mfd::api1::WidgetVisualState>(widgetDraft_.visual_state);
+    auto visual = std::find_if(definition->visuals.begin(), definition->visuals.end(),
+        [state](const auto& value) { return value.state == state; });
+    if (visual == definition->visuals.end())
+    { RebuildStatus("Author this state visual before adding its bindings.", true); return; }
+    const mfd::api1::WidgetBinding binding {widgetDraft_.binding_primitive,
+        static_cast<mfd::api1::WidgetBindingTarget>(widgetDraft_.binding_target), widgetDraft_.binding_from, widgetDraft_.binding_to};
+    const auto previous = std::find_if(visual->bindings.begin(), visual->bindings.end(),
+        [&binding](const auto& value) { return value.primitiveId == binding.primitiveId && value.target == binding.target; });
+    if (remove)
+    { if (previous == visual->bindings.end()) return; visual->bindings.erase(previous); }
+    else if (previous != visual->bindings.end()) *previous = binding;
+    else visual->bindings.push_back(binding);
+    const auto before = CaptureCurrentSnapshot(); std::string error;
+    if (!mfd::api1::WidgetEditorModel::ReplaceDefinition(documentState_.loaded.document, definition, error))
+    { RebuildStatus(error, true); return; }
+    PushUndoSnapshot(before);
 }

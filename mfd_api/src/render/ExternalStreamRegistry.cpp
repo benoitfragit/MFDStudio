@@ -86,12 +86,14 @@ Texture2D ExternalStreamRegistry::Resolve(const ExternalStreamGeometry& geometry
     return {};
 }
 ExternalStreamFrame::ExternalStreamFrame(ExternalStreamRegistry& registry,
-                                       const std::vector<ReticleRenderView>& reticles, const bool visible)
+                                       const std::vector<ReticleRenderView>& reticles, const bool visible,
+                                       const std::vector<ReticleGroup>* widgetVisuals)
     : registry_(registry)
 {
     registry_.BeginFrame();
     for (const auto& reticle : reticles)
         if (reticle.group) registry_.Observe(*reticle.group, visible && reticle.visible);
+    if (widgetVisuals) for (const auto& visual : *widgetVisuals) registry_.Observe(visual, visible && visual.visible);
     registry_.Update();
 }
 ExternalStreamFrame::~ExternalStreamFrame() { registry_.EndFrame(); }

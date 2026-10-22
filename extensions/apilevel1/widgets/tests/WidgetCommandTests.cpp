@@ -134,3 +134,57 @@ TEST(WidgetClient, TypedSettersAndAcknowledgementShareOneCommand)
     EXPECT_FALSE(widget.AppendCommands(commands));
     EXPECT_THROW(widget.SetValue(11),std::invalid_argument);
 }
+
+TEST(WidgetFeedback, BoundedIdentityHistoryAllowsNewPagesAndRejectsEvictedStaleEvents)
+{
+    mfd::client::RuntimeFeedbackState state;
+    mfd::api1::WidgetFeedback feedback {100,1,10,20,0,mfd::api1::WidgetEvent::Snapshot,false,false,0};
+    for (std::uint64_t index = 1; index <= 5000; ++index)
+    {
+        feedback.sequence = index; feedback.widgetId = index;
+        ASSERT_TRUE(state.Apply(feedback));
+    }
+    EXPECT_LE(state.TakeWidgetEvents().size(), 1024U);
+    feedback.sequence = 1; feedback.widgetId = 1;
+    EXPECT_FALSE(state.Apply(feedback));
+    feedback.sequence = 5001;
+    EXPECT_TRUE(state.Apply(feedback));
+}
+
+TEST(WidgetScene, IndependentConfirmedStatePendingAcknowledgementAndTransactionalRollback)
+{
+    auto definition = std::make_shared<mfd::api1::WidgetDefinition>();
+    definition->id = "Shared"; definition->type = mfd::api1::WidgetType::Toggle;
+    definition->visuals.push_back({});
+    mfd::api1::WidgetInstance first; first.id = "First"; first.definition = definition;
+    auto second = first; second.id = "Second";
+    mfd::PageDefinition page; page.name = "Main"; page.normalizedName = "main";
+    page.layers.push_back({"default"}); page.widgets = {first,second};
+    mfd::MfdDocument document; document.pages.push_back(page);
+    auto nextPage = page; nextPage.name = "Other"; nextPage.normalizedName = "other";
+    document.pages.push_back(nextPage);
+    mfd::SceneRegistry scene(std::move(document));
+    mfd::CommandProcessor processor(scene);
+    ASSERT_TRUE(scene.SetActiveWidgetInteraction("First", true, true, true, 42));
+    mfd::api1::UpdateWidgetCommand command; command.target = {"Main", "First"};
+    command.patch.checked = true; command.patch.requestId = 41;
+    EXPECT_FALSE(processor.Submit(command));
+    command.patch.requestId = 42;
+    ASSERT_TRUE(processor.Submit(command)) << processor.LastError();
+    std::vector<mfd::api1::WidgetInstance> instances;
+    std::vector<mfd::api1::WidgetState> states;
+    scene.CollectActiveWidgets(instances, states);
+    ASSERT_EQ(states.size(), 2U);
+    EXPECT_TRUE(states[0].confirmed.checked); EXPECT_FALSE(states[0].pending);
+    EXPECT_TRUE(states[0].pressed); EXPECT_FALSE(states[1].confirmed.checked);
+    command.patch = {}; command.patch.checked = false;
+    auto invalid = command; invalid.patch.value = 2;
+    mfd::CommandBatch batch; batch.commands = {command, invalid};
+    EXPECT_FALSE(processor.Submit(batch));
+    scene.CollectActiveWidgets(instances, states);
+    EXPECT_TRUE(states[0].confirmed.checked);
+    scene.SetActivePage("Other"); scene.CollectActiveWidgets(instances, states);
+    EXPECT_FALSE(states[0].confirmed.checked);
+    scene.SetActivePage("Main"); scene.CollectActiveWidgets(instances, states);
+    EXPECT_TRUE(states[0].confirmed.checked); EXPECT_FALSE(states[0].pressed);
+}

@@ -37,7 +37,7 @@ Treat those three outputs as one contract:
 
 The generator validates the Window's optional `apiLevel` before generation.
 This release accepts an omitted level or integer `0` as LEVEL 0, and integer `1`
-as LEVEL 1 Containers; any unsupported or malformed value fails with an explicit
+as LEVEL 1 Containers and Widgets; any unsupported or malformed value fails with an explicit
 diagnostic. Adding `"apiLevel": 0` to an otherwise identical legacy Window does
 not alter the generated header, source, transport IDs, map, or `mappingHash`.
 The level is intentionally absent from the generated transport map and hash.
@@ -307,3 +307,13 @@ Destroy the publisher outside its callbacks, after all other API callers have
 finished. Destruction from a worker callback is a lifetime-contract violation
 and terminates the process rather than detaching a worker using freed state.
 `Flush()` must also be called outside send/error callbacks.
+
+## Widget handles and feedback
+
+[LEVEL 1 widgets](./widgets.md) use the existing generator and command channel.
+Exposed instances generate Page-scoped `Widget`, `CheckedWidget` or
+`NumericWidget` handles; every instance has a numeric event route, including
+private instances. `RuntimeFeedbackState::TakeWidgetEvents()` yields typed
+requests. Confirm with the appropriate setter and `Acknowledge(requestId)`;
+acknowledge alone to reject. Setters represent outgoing intent, not remote state
+getters. Generate and ship the C++, map and referenced widget assets together.

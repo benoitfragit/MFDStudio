@@ -4,6 +4,8 @@
 #include "mfd/apilevel1/internal/ContainerCatalogJson.h"
 #include <nlohmann/json.hpp>
 #include <limits>
+#include "mfd/apilevel1/widgets/WidgetVisuals.h"
+#include "mfd/apilevel1/widgets/WidgetOcclusion.h"
 
 namespace
 {
@@ -132,4 +134,67 @@ TEST(WidgetVisual, HasDeterministicPriority)
     state.enabled = false;
     EXPECT_EQ(mfd::api1::ResolveWidgetVisualState(state), mfd::api1::WidgetVisualState::Disabled);
 }
+}
+
+TEST(WidgetLayoutModes, TypedLeavesUseEveryLayoutAndInheritVisibility)
+{
+    for (const auto type : {mfd::api1::ContainerType::Canvas, mfd::api1::ContainerType::Linear,
+                           mfd::api1::ContainerType::Grid, mfd::api1::ContainerType::Overlay})
+    {
+        mfd::api1::ContainerDefinition parent; parent.id = "parent"; parent.type = type;
+        parent.children.push_back({"widget"}); parent.children.back().kind = mfd::api1::ContainerChildKind::Widget;
+        parent.visible = false; parent.enabled = false;
+        std::vector<mfd::api1::ContainerLayoutNode> layouts; std::string error;
+        ASSERT_TRUE(mfd::api1::EvaluateWidgetLayout({parent}, {Button("widget")}, layouts, error)) << error;
+        ASSERT_EQ(layouts.size(), 2U);
+        EXPECT_FALSE(layouts[1].effectiveVisible); EXPECT_FALSE(layouts[1].effectiveEnabled);
+        EXPECT_GT(layouts[1].bounds.size.x, 0); EXPECT_GT(layouts[1].bounds.size.y, 0);
+    }
+}
+TEST(WidgetLayoutModes, Accepts64ContainerLevelsWithLeafButRejects65)
+{
+    std::vector<mfd::api1::ContainerDefinition> containers(64);
+    for (std::size_t index = 0; index < containers.size(); ++index)
+    {
+        containers[index].id = "c" + std::to_string(index);
+        if (index + 1 < containers.size()) containers[index].children.push_back({"c" + std::to_string(index + 1)});
+    }
+    containers.back().children.push_back({"widget"});
+    containers.back().children.back().kind = mfd::api1::ContainerChildKind::Widget;
+    std::string error;
+    EXPECT_TRUE(mfd::api1::ValidatePageWidgets(containers, {Button("widget")}, error)) << error;
+    mfd::api1::ContainerDefinition root; root.id = "root"; root.children.push_back({"c0"});
+    containers.push_back(root);
+    EXPECT_FALSE(mfd::api1::ValidatePageWidgets(containers, {Button("widget")}, error));
+}
+TEST(WidgetVisualBinding, FormatsValueAndAppliesParentTransformOnce)
+{
+    auto widget = Button("value");
+    auto definition = std::make_shared<mfd::api1::WidgetDefinition>(*widget.definition);
+    definition->type = mfd::api1::WidgetType::NumericDisplay;
+    mfd::Primitive label; label.id = "text"; label.type = mfd::PrimitiveType::Text;
+    label.geometry = mfd::TextGeometry {};
+    definition->visuals[0].composition.id = "Visual";
+    definition->visuals[0].composition.primitives.push_back(label);
+    definition->visuals[0].bindings.push_back({"text", mfd::api1::WidgetBindingTarget::Text});
+    widget.definition = definition;
+    auto state = mfd::api1::InitialWidgetState(widget); state.confirmed.value = 0.375;
+    const auto visual = mfd::api1::BuildWidgetVisual(widget, state, {{0.5f,0.4f},{0.8f,0.4f}});
+    ASSERT_EQ(visual.primitives.size(), 1U);
+    EXPECT_EQ(std::get<mfd::TextGeometry>(visual.primitives[0].geometry).text, "0.38");
+    EXPECT_FLOAT_EQ(visual.transform.position.x, 0.5f);
+    EXPECT_FLOAT_EQ(visual.transform.scale.x, 2.0f);
+}
+TEST(WidgetOcclusion, InvisibleAndFullyTransparentReticlesDoNotBlockInput)
+{
+    mfd::ReticleGroup reticle; mfd::Primitive shape;
+    shape.type = mfd::PrimitiveType::Rectangle; shape.geometry = mfd::RectangleGeometry {1,1};
+    shape.style.filled = true; shape.style.color.a = 0; shape.style.fillColor.a = 0;
+    reticle.primitives.push_back(shape);
+    EXPECT_FALSE(mfd::api1::ReticleOccludesWidgetPointer(reticle, {0,0}));
+    reticle.primitives[0].style.fillColor.a = 255;
+    EXPECT_TRUE(mfd::api1::ReticleOccludesWidgetPointer(reticle, {0,0}));
+    EXPECT_FALSE(mfd::api1::ReticleOccludesWidgetPointer(reticle, {2,2}));
+    reticle.visible = false;
+    EXPECT_FALSE(mfd::api1::ReticleOccludesWidgetPointer(reticle, {0,0}));
 }

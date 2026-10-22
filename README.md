@@ -34,6 +34,7 @@ release, while `Release Workflow` reflects the most recent `release.yml` run:
 | 2. End-to-end walkthrough | [Getting Started Tutorial](https://benoitfragit.github.io/MFDStudio/getting-started.html) |
 | 3. The JSON model | [Concepts](https://benoitfragit.github.io/MFDStudio/concepts.html) |
 | 4. Drive from typed C++ | [Generated Client API](https://benoitfragit.github.io/MFDStudio/handbook/generated_api.html) |
+| 4b. Author reusable controls | [API LEVEL 1 Widgets](./docs/src/handbook/widgets.md) |
 | 4a. Author nested layouts | [API LEVEL 1 Containers](./docs/src/handbook/containers.md) |
 | 5. Run the runtime | [Runtime](https://benoitfragit.github.io/MFDStudio/handbook/runtime.html) |
 | 6. Explore the HUD | [HUD](https://benoitfragit.github.io/MFDStudio/handbook/hud.html) |
@@ -76,8 +77,8 @@ See the
 [Build page](https://benoitfragit.github.io/MFDStudio/dev/build.html) for presets
 and options.
 
-Building `mfd_editor` also builds and stages the API LEVEL 1 container runtime
-and editor extension DLLs. No separate ImGui or font installation is required:
+Building `mfd_editor` also builds and stages the API LEVEL 1 container and widget
+runtime/editor extension DLLs. Widget DLLs are required only for widget content. No separate ImGui or font installation is required:
 the editor uses Segoe UI when available on Windows and keeps a readable bundled
 fallback.
 

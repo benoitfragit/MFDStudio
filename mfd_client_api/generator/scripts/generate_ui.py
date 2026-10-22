@@ -1362,13 +1362,19 @@ def build_page_specs(window_root: dict,
                 raise RuntimeError("Widgets require API LEVEL 1")
             if widget_generator is None:
                 widget_generator = load_widget_generator()
-            widgets = widget_generator.collect_widget_specs(page_name, page_root, page_path, widget_generator.asset_root(window_path), seen_ids)
+            widgets = widget_generator.collect_widget_specs(page_name, page_root, page_path, widget_generator.asset_root(window_path), seen_ids,
+                template_library, resolve_path(window_path.parent, window_root.get("reticleLibraryFolder") or window_root.get("reticles") or window_root.get("reticleFolder") or "."))
         elif any(child.get("kind") == "widget" for c in raw_containers for child in c.get("children", [])):
             raise RuntimeError("Container references a missing widget")
         generated_names = {c.accessor_name for c in containers}
         generated_names.update(r.member_name for r in reticles)
+        generated_names.update(c.member_name for c in containers)
+        generated_names.update(strobe.member_name for strobe in strobe_specs)
+        generated_names.update(strobe.reticle_member_name for strobe in strobe_specs)
+        generated_names.update(blink.member_name for blink in blink_members)
+        generated_names.update({"Name", "IsActive", "Initialize", "Run", "AppendCommands", "SetStatusCaption", "strobe"})
         for widget in widgets:
-            if widget.exposed and widget.accessor_name in generated_names:
+            if widget.exposed and (widget.accessor_name in generated_names or widget.member_name in generated_names):
                 raise RuntimeError("Widget generated member collision")
             generated_names.add(widget.accessor_name)
 
@@ -2583,7 +2589,11 @@ def collect_input_paths(window_path: Path) -> list[Path]:
         if widgets:
             extension = load_widget_generator()
             input_paths.add(Path(extension.__file__).resolve())
-            input_paths.update(extension.input_paths(page_root, page_path, extension.asset_root(window_path)))
+            if window_root.get("apiLevel", 0) != 1:
+                raise RuntimeError("Widgets require API LEVEL 1")
+            input_paths.update(extension.input_paths(page_root, page_path, extension.asset_root(window_path),
+                load_reticle_library(window_root, window_path),
+                resolve_path(window_path.parent, window_root.get("reticleLibraryFolder") or window_root.get("reticles") or window_root.get("reticleFolder") or ".")))
         if page_root.get("containers"):
             uses_containers = True
     if uses_containers:

@@ -1836,6 +1836,16 @@ std::vector<std::filesystem::path> EditorApplication::CollectWatchedAssetFiles()
         files.push_back(entry.second);
     }
 
+    for (const auto& definition : documentState_.loaded.document.widgetLibrary)
+    {
+        files.push_back(definition->sourceFile);
+        for (const auto& visual : definition->visuals)
+            for (const auto& primitive : visual.composition.primitives)
+                if (const auto* image = std::get_if<mfd::ImageGeometry>(&primitive.geometry))
+                    if (!image->file.empty()) files.push_back(image->file);
+    }
+    std::sort(files.begin(), files.end());
+    files.erase(std::unique(files.begin(), files.end()), files.end());
     return files;
 }
 
@@ -3621,7 +3631,6 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         previewState_.externalStreams.Observe(reticle, IsReticleVisibleInEditor(*page, reticle));
     for (const auto& strobe : page->strobes)
         previewState_.externalStreams.Observe(strobe.reticle, IsPageStrobeVisibleInEditor(*page, strobe));
-    previewState_.externalStreams.Update();
 
     BeginTextureMode(previewState_.previewTexture);
     ClearBackground(ToRayColor(page->backgroundColor));
@@ -3648,12 +3657,14 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
                     documentState_.selection.widgetId == page->widgets[index].id && widgetDraft_.edit_definition)
                 {
                     state.hovered = widgetDraft_.visual_state == 1; state.pressed = widgetDraft_.visual_state == 2;
-                    state.confirmed.checked = widgetDraft_.visual_state == 3; state.enabled = widgetDraft_.visual_state != 4;
+                    state.confirmed.checked = widgetDraft_.visual_state == 3; state.enabled = layout.effectiveEnabled && widgetDraft_.visual_state != 4;
                     state.confirmed.warning = widgetDraft_.visual_state == 5; state.pending = widgetDraft_.visual_state == 6;
                 }
                 widgetVisuals[index] = mfd::api1::BuildWidgetVisual(page->widgets[index], state, layout.bounds);
             }
         }
+        for (const auto& visual : widgetVisuals) previewState_.externalStreams.Observe(visual, visual.visible);
+        previewState_.externalStreams.Update();
         DrawPagePreviewBackgroundGuides(viewport, *page);
 
         EnsurePreviewFont();
@@ -9024,13 +9035,13 @@ void EditorApplication::DrawPopups()
         }
         ImGui::InputText("Window title", workflowState_.newWindowDraft.title.data(), workflowState_.newWindowDraft.title.size());
         const bool newLevel1 = workflowState_.newWindowDraft.apiLevel == mfd::ApiLevel::Level1;
-        if (ImGui::BeginCombo("API LEVEL", newLevel1 ? u8"1 \u2014 Containers" : u8"0 \u2014 Legacy"))
+        if (ImGui::BeginCombo("API LEVEL", newLevel1 ? u8"1 \u2014 Containers + Widgets" : u8"0 \u2014 Legacy"))
         {
             if (ImGui::Selectable(u8"0 \u2014 Legacy", !newLevel1))
             {
                 workflowState_.newWindowDraft.apiLevel = mfd::ApiLevel::Legacy;
             }
-            if (ImGui::Selectable(u8"1 \u2014 Containers", newLevel1))
+            if (ImGui::Selectable(u8"1 \u2014 Containers + Widgets", newLevel1))
             {
                 workflowState_.newWindowDraft.apiLevel = mfd::ApiLevel::Level1;
             }

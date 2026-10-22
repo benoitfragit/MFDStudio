@@ -20,3 +20,8 @@ visibility, enabled state and scroll offset are unchanged from authored defaults
 It then exits; it is not an interactive control panel. UDP send success is not
 an acknowledgement from the Window. If only the Window was launched, run
 `apilevel1_containers_client.exe` from `_Exec/v142/win32/Debug` afterwards.
+
+## Widget sibling
+
+[widgets/](./widgets/README.md) adds the independent LEVEL 1 Widgets demonstrator
+and generated client without changing these container assets or their mappings.

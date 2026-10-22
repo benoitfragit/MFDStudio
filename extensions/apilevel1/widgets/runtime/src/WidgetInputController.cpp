@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cmath>
 #include <limits>
+#include <unordered_set>
 namespace mfd::api1
 {
 namespace
@@ -94,9 +95,12 @@ bool WidgetInputController::Update(SceneRegistry& scene, const WidgetRuntimeHost
     }
     const bool consumed = hovered != noTarget || !captured_.empty();
     capturedSeconds_ += dt;
+    std::unordered_set<std::string_view> activeIds;
+    activeIds.reserve(widgets.size());
+    for (const auto& widget : widgets) activeIds.insert(widget.id);
     for (auto age = pendingAges_.begin(); age != pendingAges_.end();)
     {
-        if (std::none_of(widgets.begin(), widgets.end(), [&age](const WidgetInstance& widget) { return widget.id == age->first; }))
+        if (activeIds.count(age->first) == 0)
             age = pendingAges_.erase(age);
         else { age->second += dt; ++age; }
     }

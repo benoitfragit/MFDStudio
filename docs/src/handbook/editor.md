@@ -71,15 +71,17 @@ and logical grid step across the page preview and reticle studio **without**
 serializing those preferences into the authored JSON.
 
 The **API LEVEL** selector is available both in **Create new window** and in the
-Window inspector. It exposes `0 — Legacy` and `1 — Containers`. Older Window files with no
+Window inspector. It exposes `0 — Legacy` and `1 — Containers + Widgets`. Older Window files with no
 `apiLevel` load identically; saving writes `apiLevel: 0` explicitly. Unsupported
 or malformed levels are rejected before the document can be edited. The level
 is part of the Window snapshot used by the existing Undo/Redo workflow.
 
 At LEVEL 1, **Containers** is the third collapsible left-sidebar section, below
-Pages and Reticles. If the editor extension is missing or incompatible, the
+Pages and Reticles; **Widgets** is the fourth section. Both remain visible on
+empty LEVEL 1 Pages. The [widget library](./widgets.md) supports shared definition
+authoring, import/export and independent instances. If the container editor extension is missing or incompatible, the
 section is read-only and explains the problem. Downgrading a Window that owns
-containers requires explicit confirmation; deletion and the level change form
+containers or widgets requires explicit, counted confirmation; deletion and the level change form
 one undoable operation. See [API LEVEL 1 containers](./containers.md).
 
 ## Responsive shell

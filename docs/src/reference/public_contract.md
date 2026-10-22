@@ -153,3 +153,15 @@ the review bar.
 ## Color command compatibility
 
 The additive optional preset fields preserve all existing RGBA field numbers. Updated Windows accept legacy RGBA-only clients; preset-only commands require an updated Window. External implementations must preserve explicit Custom zero presence and reject invalid enum/RGBA combinations. See the [wire contract](colors.md#protobuf-and-external-clients).
+
+## API LEVEL 1 widget compatibility
+
+Containers and Widgets both use LEVEL 1. Widget-bearing content adds a required
+widget runtime DLL (and widget editor DLL when editing); LEVEL 1 still requires
+the existing container module. New C ABI tables are versioned and sized.
+`MfdContainerChildV1` and existing protobuf tags remain unchanged.
+`UserCommand.update_widget` uses tag 13; `FeedbackEnvelope.widget` uses tag 5.
+The shared SDK must be rebuilt to use widget C++ types. Existing assets keep
+their generated IDs/hash; adding widgets changes the matching map contract.
+See [Widgets](../handbook/widgets.md) for private routing, loss-aware migration
+and old-editor write limitations.

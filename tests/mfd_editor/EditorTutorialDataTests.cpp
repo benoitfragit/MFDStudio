@@ -28,7 +28,7 @@ TEST(EditorTutorialDataTests, StepCountMatchesExposedSpanSize)
 {
     const auto steps = editor::tutorial::Steps();
     ASSERT_EQ(static_cast<int>(steps.size()), editor::tutorial::StepCount());
-    ASSERT_EQ(editor::tutorial::StepCount(), 39);
+    ASSERT_EQ(editor::tutorial::StepCount(), 40);
 }
 
 TEST(EditorTutorialDataTests, StepsExposeNonEmptyCoreFields)
@@ -226,4 +226,12 @@ TEST(EditorTutorialDataTests, HaloWrapWidthFitsNarrowAndWideViewports)
     EXPECT_FLOAT_EQ(editor::tutorial::TutorialHaloWrapWidth(
                         std::numeric_limits<float>::quiet_NaN()),
                     180.0f);
+}
+
+TEST(EditorTutorialDataTests, WidgetFollowUpCoversSharedDefinitionAndClientAuthority)
+{
+    const auto& step = Step(editor::tutorial::TutorialStepId::AuthorApiLevel1Widgets);
+    EXPECT_STREQ(step.filePath, "docs/tutorials/16_author_and_drive_widgets.md");
+    EXPECT_NE(std::string_view(step.instruction).find("shared visual definition"), std::string_view::npos);
+    EXPECT_NE(std::string_view(step.instruction).find("confirm input"), std::string_view::npos);
 }

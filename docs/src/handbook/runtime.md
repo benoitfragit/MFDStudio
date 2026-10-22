@@ -108,3 +108,10 @@ releases PBO/fence resources, and switches that capture instance to synchronous
 readback. Failed synchronous capture produces no frame. Resizing recreates the
 capture instance; cleanup occurs before closing the GL context. Pixel formats
 and the framebuffer plugin ABI are unchanged.
+
+## Optional LEVEL 1 widget module
+
+Widget content requires `mfd_widgets_api1.dll` alongside the existing container
+runtime. A missing or incompatible module rejects candidate activation before
+live-state replacement. Editor DLLs are never runtime dependencies. See
+[Widgets](./widgets.md) for input capture, authority and bounded recovery.

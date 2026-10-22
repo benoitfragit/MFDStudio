@@ -3472,6 +3472,9 @@ std::shared_ptr<const api1::WidgetDefinition> JsonLoader::LoadWidgetAsset(const 
         [&library](const json& visual, const std::filesystem::path& folder) { return ParseReticle(visual, library, folder); });
 }
 
+ReticleLibrary JsonLoader::LoadReticleAssets(const std::filesystem::path& folder) const
+{ return std::filesystem::exists(folder) ? LoadReticleLibrary(folder) : ReticleLibrary {}; }
+
 MfdDocument JsonLoader::LoadPageAsset(const std::filesystem::path& file, const std::filesystem::path& assetRoot,
                                      const std::filesystem::path& reticleFolder) const
 {
