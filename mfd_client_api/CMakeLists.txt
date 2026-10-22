@@ -31,6 +31,7 @@ target_include_directories(mfd_client_api
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
         "$<BUILD_INTERFACE:${MFD_APILEVEL1_ROOT_DIR}/generator/include>"
         "$<BUILD_INTERFACE:${MFD_APILEVEL1_RUNTIME_INCLUDE_DIR}>"
+        "$<BUILD_INTERFACE:${MFD_WIDGETS_INCLUDE_DIR}>"
         "$<BUILD_INTERFACE:${MFD_COMMON_API_PUBLIC_INCLUDE_DIR}>"
         "$<BUILD_INTERFACE:${MFD_API_PUBLIC_INCLUDE_DIR}>"
         "$<INSTALL_INTERFACE:include>")

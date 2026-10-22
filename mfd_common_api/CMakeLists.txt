@@ -60,7 +60,7 @@ function(mfd_configure_component target_name)
     # API LEVEL 1 model and command declarations are header-only host contracts.
     # Keeping this include path centralized avoids scattering extension paths
     # across every existing component target.
-    list(APPEND MFD_COMPONENT_PUBLIC_INCLUDE_DIRS "${MFD_APILEVEL1_RUNTIME_INCLUDE_DIR}")
+    list(APPEND MFD_COMPONENT_PUBLIC_INCLUDE_DIRS "${MFD_APILEVEL1_RUNTIME_INCLUDE_DIR}" "${MFD_WIDGETS_INCLUDE_DIR}")
 
     set(mfd_component_build_include_dirs)
     foreach(mfd_component_include_dir IN LISTS MFD_COMPONENT_PUBLIC_INCLUDE_DIRS)

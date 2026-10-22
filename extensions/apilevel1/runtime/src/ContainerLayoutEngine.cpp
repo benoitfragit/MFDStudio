@@ -5,6 +5,7 @@
  */
 
 #include "mfd/apilevel1/ContainerLayoutEngine.h"
+#include "mfd/apilevel1/internal/LayoutKernel.h"
 
 #include <algorithm>
 #include <cmath>
@@ -53,7 +54,8 @@ bool HasKnownEnumValues(const ContainerDefinition& container) noexcept
 
 bool HasKnownEnumValues(const ContainerChildPlacement& placement) noexcept
 {
-    return static_cast<std::uint32_t>(placement.resizeMode) <=
+    return placement.kind == ContainerChildKind::Container &&
+           static_cast<std::uint32_t>(placement.resizeMode) <=
                static_cast<std::uint32_t>(ChildResizeMode::Stretch) &&
            static_cast<std::uint32_t>(placement.horizontalAlignment) <=
                static_cast<std::uint32_t>(ContainerAlignment::Stretch) &&
@@ -350,8 +352,9 @@ class HierarchyValidator final
 public:
     HierarchyValidator(const std::vector<ContainerDefinition>& containers,
                        const ContainerIndex& index,
+                       std::size_t maximumDepth,
                        std::string& error)
-        : containers_(containers), index_(index), error_(error), states_(containers.size(), VisitState::Unvisited),
+        : containers_(containers), index_(index), error_(error), maximumDepth_(maximumDepth), states_(containers.size(), VisitState::Unvisited),
           subtreeDepths_(containers.size(), 1U)
     {
     }
@@ -371,10 +374,10 @@ public:
 private:
     bool Visit(const std::size_t position, const std::size_t depth)
     {
-        if (depth > kMaximumContainerDepth)
+        if (depth > maximumDepth_)
         {
             error_ = "Container hierarchy exceeds the supported depth of " +
-                     std::to_string(kMaximumContainerDepth) + ".";
+                     std::to_string(maximumDepth_) + ".";
             return false;
         }
         if (states_[position] == VisitState::Visiting)
@@ -396,7 +399,7 @@ private:
                 return false;
             }
             subtreeDepths_[position] = std::max(subtreeDepths_[position], subtreeDepths_[childIndex] + 1U);
-            if (subtreeDepths_[position] > kMaximumContainerDepth)
+            if (subtreeDepths_[position] > maximumDepth_)
             {
                 error_ = "Container hierarchy exceeds the supported depth.";
                 return false;
@@ -409,6 +412,7 @@ private:
     const std::vector<ContainerDefinition>& containers_;
     const ContainerIndex& index_;
     std::string& error_;
+    std::size_t maximumDepth_;
     std::vector<VisitState> states_;
     std::vector<std::size_t> subtreeDepths_;
 };
@@ -717,13 +721,14 @@ ContainerDefinition* FindContainer(std::vector<ContainerDefinition>& containers,
     return iterator == containers.end() ? nullptr : &*iterator;
 }
 
-bool ContainerLayoutEngine::Validate(const std::vector<ContainerDefinition>& containers,
-                                     std::string& error) const
+bool detail::ValidateLayoutNodes(const std::vector<ContainerDefinition>& containers,
+                                 const std::size_t maximumCount, const std::size_t maximumDepth,
+                                 std::string& error)
 {
     error.clear();
-    if (containers.size() > kMaximumContainerCount)
+    if (containers.size() > maximumCount)
     {
-        error = "Container count exceeds the supported limit of " + std::to_string(kMaximumContainerCount) + ".";
+        error = "Container count exceeds the supported limit of " + std::to_string(maximumCount) + ".";
         return false;
     }
 
@@ -791,16 +796,16 @@ bool ContainerLayoutEngine::Validate(const std::vector<ContainerDefinition>& con
         }
     }
 
-    HierarchyValidator validator(containers, index, error);
+    HierarchyValidator validator(containers, index, maximumDepth, error);
     return validator.ValidateAll();
 }
 
-bool ContainerLayoutEngine::Evaluate(const std::vector<ContainerDefinition>& containers,
-                                     std::vector<ContainerLayoutNode>& output,
-                                     std::string& error) const
+bool detail::EvaluateLayoutNodes(const std::vector<ContainerDefinition>& containers,
+                                 const std::size_t maximumCount, const std::size_t maximumDepth,
+                                 std::vector<ContainerLayoutNode>& output, std::string& error)
 {
     output.clear();
-    if (!Validate(containers, error))
+    if (!ValidateLayoutNodes(containers, maximumCount, maximumDepth, error))
     {
         return false;
     }
@@ -846,5 +851,14 @@ bool ContainerLayoutEngine::Evaluate(const std::vector<ContainerDefinition>& con
         }
     }
     return true;
+}
+bool ContainerLayoutEngine::Validate(const std::vector<ContainerDefinition>& containers, std::string& error) const
+{
+    return detail::ValidateLayoutNodes(containers, kMaximumContainerCount, kMaximumContainerDepth, error);
+}
+bool ContainerLayoutEngine::Evaluate(const std::vector<ContainerDefinition>& containers,
+                                    std::vector<ContainerLayoutNode>& output, std::string& error) const
+{
+    return detail::EvaluateLayoutNodes(containers, kMaximumContainerCount, kMaximumContainerDepth, output, error);
 }
 } // namespace mfd::api1

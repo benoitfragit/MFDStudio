@@ -133,6 +133,8 @@ struct ContainerScrolling
  * child itself; grid coordinates and resize behavior belong to this edge so
  * future graphical child nodes can reuse the same placement contract.
  */
+enum class ContainerChildKind : std::uint32_t { Container = 0, Widget = 1 };
+
 struct ContainerChildPlacement
 {
     std::string childId;
@@ -144,6 +146,7 @@ struct ContainerChildPlacement
     std::uint32_t rowSpan = 1U;
     std::uint32_t columnSpan = 1U;
     int renderOrder = 0;
+    ContainerChildKind kind = ContainerChildKind::Container;
 };
 
 /** @brief Complete authored definition of one page-local container. */

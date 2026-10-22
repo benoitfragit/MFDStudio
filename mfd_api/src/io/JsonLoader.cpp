@@ -11,6 +11,8 @@
 #include "mfd/io/JsonLoader.h"
 
 #include "mfd/apilevel1/ContainerJson.h"
+#include "mfd/apilevel1/internal/ContainerCatalogJson.h"
+#include "mfd/apilevel1/widgets/WidgetJson.h"
 #include "mfd/apilevel1/ContainerLayoutEngine.h"
 
 #include <array>
@@ -2591,7 +2593,8 @@ WindowAssetDefinition ParseWindowAssetDefinition(const json& root,
 
 PageDefinition ParsePage(const json& node,
                          const ReticleLibrary& library,
-                         const std::filesystem::path& baseFolder)
+                         const std::filesystem::path& baseFolder,
+                         const std::filesystem::path& assetRoot)
 {
     std::string pageName;
     if (node.contains("name"))
@@ -2633,7 +2636,11 @@ PageDefinition ParsePage(const json& node,
     page.layers = ParsePageLayerDefinitions(node);
     page.editor = ParsePageEditorState(node);
     page.dynamicReticleBindings = ParseDynamicReticleLayerBindings(node);
-    page.containers = api1::ParsePageContainers(node);
+    page.widgets = api1::ParsePageWidgets(node, baseFolder, assetRoot,
+        [&library](const json& visual, const std::filesystem::path& folder) { return ParseReticle(visual, library, folder); });
+    page.containers = page.widgets.empty() ? api1::ParsePageContainers(node) : api1::detail::ParseContainerCatalog(node);
+    std::string widgetError;
+    if (!api1::ValidatePageWidgets(page.containers, page.widgets, widgetError)) throw std::runtime_error(widgetError);
 
     if (page.layers.empty())
     {
@@ -3366,7 +3373,7 @@ LoadedWindowConfiguration LoadWindowConfigurationImpl(const std::filesystem::pat
         try
         {
             const json pageRoot = LoadJsonFile(pageFile);
-            page = ParsePage(*FindPageNode(pageRoot), loaded.document.reticleLibrary, pageFile.parent_path());
+            page = ParsePage(*FindPageNode(pageRoot), loaded.document.reticleLibrary, pageFile.parent_path(), resolvedWindowFile.parent_path());
         }
         catch (const std::exception& exception)
         {
@@ -3386,13 +3393,13 @@ LoadedWindowConfiguration LoadWindowConfigurationImpl(const std::filesystem::pat
         const auto incompatiblePage = std::find_if(
             loaded.document.pages.begin(), loaded.document.pages.end(), [](const PageDefinition& page)
             {
-                return !page.containers.empty();
+                return !page.containers.empty() || !page.widgets.empty();
             });
         if (incompatiblePage != loaded.document.pages.end())
         {
             throw std::runtime_error(
                 "Page '" + incompatiblePage->name +
-                "' requires API LEVEL 1 (Containers), but the destination Window is LEVEL 0 (Legacy).");
+                "' requires API LEVEL 1 (Containers/Widgets), but the destination Window is LEVEL 0 (Legacy).");
         }
     }
 
@@ -3470,7 +3477,7 @@ MfdDocument JsonLoader::LoadDocument(const std::filesystem::path& pagesFile) con
 
     for (const auto& pageNode : root.at("pages"))
     {
-        PageDefinition page = ParsePage(pageNode, document.reticleLibrary, pagesFile.parent_path());
+        PageDefinition page = ParsePage(pageNode, document.reticleLibrary, pagesFile.parent_path(), resolvedPagesFile.parent_path());
         if (!pageNames.insert(page.normalizedName).second)
         {
             throw std::runtime_error("Duplicate page name in pages JSON: " + page.name);

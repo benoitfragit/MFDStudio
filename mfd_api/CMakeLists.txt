@@ -70,6 +70,8 @@ set(MFD_IO_JSON_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/io/JsonLoader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonNumberParsing.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonValueHelpers.cpp
+    ${MFD_WIDGETS_ROOT_DIR}/runtime/src/WidgetModel.cpp
+    ${MFD_WIDGETS_ROOT_DIR}/runtime/src/WidgetJson.cpp
     ${MFD_APILEVEL1_ROOT_DIR}/runtime/src/ContainerJson.cpp
     ${MFD_APILEVEL1_ROOT_DIR}/runtime/src/ContainerLayoutEngine.cpp)
 

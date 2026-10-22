@@ -7,6 +7,8 @@
 #include "internal/EditorFileCommit.h"
 
 #include "mfd/apilevel1/ContainerJson.h"
+#include "mfd/apilevel1/internal/ContainerCatalogJson.h"
+#include "mfd/apilevel1/widgets/WidgetJson.h"
 
 #include "mfd/core/internal/JsonAssetDiscovery.h"
 
@@ -1255,6 +1257,8 @@ json SerializePage(const mfd::PageDefinition& page,
                    const std::filesystem::path& baseFolder)
 {
     ValidatePageBlinkCatalog(page);
+    std::string widgetError;
+    if (!mfd::api1::ValidatePageWidgets(page.containers, page.widgets, widgetError)) throw std::runtime_error(widgetError);
     const SerializedPageLayerState pageLayers = SerializePageLayers(page);
     ValidateStaticReticleLayers(page, library, pageLayers.normalizedLayerIds);
     ValidatePageStrobes(page, library);
@@ -1304,6 +1308,8 @@ json SerializePage(const mfd::PageDefinition& page,
         node["dynamicReticleBindings"] = *bindings;
     }
 
+    if (!page.widgets.empty()) node["widgets"] = mfd::api1::SerializePageWidgets(page.widgets);
+
     if (const auto editorState = SerializePageEditorState(page); editorState.has_value())
     {
         node["_editor"] = *editorState;
@@ -1317,7 +1323,8 @@ json SerializePage(const mfd::PageDefinition& page,
     node["staticReticles"] = std::move(reticles);
     if (!page.containers.empty())
     {
-        node["containers"] = mfd::api1::SerializePageContainers(page.containers);
+        node["containers"] = page.widgets.empty() ? mfd::api1::SerializePageContainers(page.containers)
+            : mfd::api1::detail::SerializeContainerCatalog(page.containers);
     }
     return node;
 }
@@ -1625,13 +1632,13 @@ std::vector<std::pair<std::filesystem::path, json>> CollectEditorDocumentFiles(
         const auto incompatiblePage = std::find_if(
             loaded.document.pages.begin(), loaded.document.pages.end(), [](const mfd::PageDefinition& page)
             {
-                return !page.containers.empty();
+                return !page.containers.empty() || !page.widgets.empty();
             });
         if (incompatiblePage != loaded.document.pages.end())
         {
             throw std::runtime_error(
                 "Cannot save page '" + incompatiblePage->name +
-                "': containers require API LEVEL 1 on the Window.");
+                "': containers/widgets require API LEVEL 1 on the Window.");
         }
     }
 
@@ -1648,6 +1655,23 @@ std::vector<std::pair<std::filesystem::path, json>> CollectEditorDocumentFiles(
                           loaded.document.reticleLibrary,
                           layout.pageFiles[index].parent_path()));
     }
+
+    std::unordered_map<std::string, json> widgetFiles;
+    for (std::size_t pageIndex = 0; pageIndex < loaded.document.pages.size(); ++pageIndex)
+    {
+        for (const auto& widget : loaded.document.pages[pageIndex].widgets)
+        {
+            const auto path = mfd::api1::ResolveWidgetAsset(layout.pageFiles[pageIndex].parent_path(),
+                loaded.window.sourceFile.parent_path(), widget.definitionFile);
+            if (path != std::filesystem::weakly_canonical(widget.definition->sourceFile))
+                throw std::runtime_error("Widget definition path does not match its loaded identity: " + widget.id);
+            const json definition = mfd::api1::SerializeWidgetDefinition(*widget.definition, SerializeInlineReticle);
+            const auto entry = widgetFiles.emplace(path.generic_string(), definition);
+            if (!entry.second && entry.first->second != definition)
+                throw std::runtime_error("Conflicting shared widget definitions: " + path.string());
+        }
+    }
+    for (const auto& entry : widgetFiles) files.emplace_back(entry.first, entry.second);
 
     std::vector<std::string> templateIds;
     templateIds.reserve(loaded.document.reticleLibrary.size());

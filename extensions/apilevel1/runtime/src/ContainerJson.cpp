@@ -5,6 +5,7 @@
  */
 
 #include "mfd/apilevel1/ContainerJson.h"
+#include "mfd/apilevel1/internal/ContainerCatalogJson.h"
 
 #include <array>
 #include <cmath>
@@ -154,6 +155,10 @@ ContainerChildPlacement ParseChild(const json& node)
     }
     ContainerChildPlacement result;
     result.childId = node.at("id").get<std::string>();
+    if (node.contains("kind"))
+    {
+        result.kind = static_cast<ContainerChildKind>(ParseEnumIndex(node.at("kind"), {"container", "widget"}, "child kind"));
+    }
     if (node.contains("resizeMode"))
     {
         result.resizeMode = static_cast<ChildResizeMode>(ParseEnumIndex(
@@ -320,7 +325,7 @@ ContainerDefinition ParseContainer(const json& node)
     if (node.contains("children"))
     {
         const json& children = node.at("children");
-        if (!children.is_array()) throw std::runtime_error("Container children must be an array.");
+        if (!children.is_array() || children.size() > 8192U) throw std::runtime_error("Container children must be a bounded array.");
         result.children.reserve(children.size());
         for (const json& child : children) result.children.push_back(ParseChild(child));
     }
@@ -401,7 +406,7 @@ const char* ScrollModeName(const ScrollMode value) noexcept
 }
 } // namespace
 
-std::vector<ContainerDefinition> ParsePageContainers(const nlohmann::json& pageNode)
+std::vector<ContainerDefinition> detail::ParseContainerCatalog(const nlohmann::json& pageNode)
 {
     if (!pageNode.contains("containers"))
     {
@@ -422,21 +427,11 @@ std::vector<ContainerDefinition> ParsePageContainers(const nlohmann::json& pageN
     {
         result.push_back(ParseContainer(node));
     }
-    std::string error;
-    if (!ContainerLayoutEngine {}.Validate(result, error))
-    {
-        throw std::runtime_error(error);
-    }
     return result;
 }
 
-nlohmann::json SerializePageContainers(const std::vector<ContainerDefinition>& containers)
+nlohmann::json detail::SerializeContainerCatalog(const std::vector<ContainerDefinition>& containers)
 {
-    std::string error;
-    if (!ContainerLayoutEngine {}.Validate(containers, error))
-    {
-        throw std::runtime_error(error);
-    }
     json output = json::array();
     for (const ContainerDefinition& container : containers)
     {
@@ -491,9 +486,23 @@ nlohmann::json SerializePageContainers(const std::vector<ContainerDefinition>& c
                 {"rowSpan", child.rowSpan},
                 {"columnSpan", child.columnSpan},
                 {"renderOrder", child.renderOrder}});
+            if (child.kind == ContainerChildKind::Widget) node["children"].back()["kind"] = "widget";
         }
         output.push_back(std::move(node));
     }
     return output;
+}
+std::vector<ContainerDefinition> ParsePageContainers(const nlohmann::json& pageNode)
+{
+    auto containers = detail::ParseContainerCatalog(pageNode);
+    std::string error;
+    if (!ContainerLayoutEngine {}.Validate(containers, error)) throw std::runtime_error(error);
+    return containers;
+}
+nlohmann::json SerializePageContainers(const std::vector<ContainerDefinition>& containers)
+{
+    std::string error;
+    if (!ContainerLayoutEngine {}.Validate(containers, error)) throw std::runtime_error(error);
+    return detail::SerializeContainerCatalog(containers);
 }
 } // namespace mfd::api1

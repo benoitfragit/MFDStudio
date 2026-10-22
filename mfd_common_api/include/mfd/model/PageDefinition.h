@@ -20,6 +20,7 @@
 #include "mfd/model/PageName.h"
 #include "mfd/model/Reticle.h"
 #include "mfd/apilevel1/ContainerTypes.h"
+#include "mfd/apilevel1/widgets/WidgetTypes.h"
 
 namespace mfd
 {
@@ -250,6 +251,8 @@ struct PageDefinition
     std::vector<DynamicReticleLayerBinding> dynamicReticleBindings;
     /** @brief API LEVEL 1 page-local container catalog; empty for legacy pages. */
     std::vector<api1::ContainerDefinition> containers;
+    /** @brief API LEVEL 1 instances sharing immutable reusable visual assets. */
+    std::vector<api1::WidgetInstance> widgets;
     /** @brief Named strobe catalog available on the page. */
     std::vector<PageStrobeDefinition> strobes;
     /** @brief User-facing active strobe name selected when the page loads. */

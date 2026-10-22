@@ -1,0 +1,8 @@
+install(DIRECTORY runtime/include/ DESTINATION include COMPONENT ${MFD_COMPONENT_API_DEVELOPMENT})
+if(MFD_BUILD_TESTS)
+    add_executable(mfd_widgets_tests tests/WidgetModelTests.cpp)
+    target_link_libraries(mfd_widgets_tests PRIVATE mfd::api nlohmann_json::nlohmann_json GTest::gtest_main)
+    target_compile_features(mfd_widgets_tests PRIVATE cxx_std_17)
+    include(GoogleTest)
+    gtest_discover_tests(mfd_widgets_tests)
+endif()

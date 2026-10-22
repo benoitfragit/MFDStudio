@@ -9,6 +9,7 @@
  */
 
 #include "mfd/runtime/DocumentSemanticValidator.h"
+#include "mfd/apilevel1/widgets/WidgetModel.h"
 
 #include <stdexcept>
 #include <string>
@@ -156,6 +157,20 @@ DocumentResourceUsage MeasureDocumentResources(const MfdDocument& document)
 
     for (const PageDefinition& page : document.pages)
     {
+        for (const api1::WidgetInstance& widget : page.widgets)
+        {
+            CountString(usage, widget.id);
+            CountString(usage, widget.definitionFile);
+            if (widget.overrides.text) CountString(usage, *widget.overrides.text);
+            if (widget.definition)
+            {
+                for (const api1::WidgetVisual& visual : widget.definition->visuals)
+                {
+                    CountReticle(usage, visual.composition);
+                    if (ExceedsResourceBudget(usage)) return usage;
+                }
+            }
+        }
         CountString(usage, page.name);
         CountString(usage, page.normalizedName);
         CountString(usage, page.title);
@@ -397,6 +412,9 @@ void ValidatePage(const PageDefinition& page, std::vector<SemanticValidationDiag
             {},
             {});
     }
+    std::string widgetError;
+    if (!api1::ValidatePageWidgets(page.containers, page.widgets, widgetError))
+        AddDiagnostic(diagnostics, "MFD027", widgetError, page.name, {}, {});
     ValidatePageReticleIds(page, diagnostics);
 
     for (const ReticleGroup& reticle : page.staticReticles)
