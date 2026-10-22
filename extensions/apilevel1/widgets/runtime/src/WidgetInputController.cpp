@@ -104,6 +104,9 @@ bool WidgetInputController::Update(SceneRegistry& scene, const WidgetRuntimeHost
             age = pendingAges_.erase(age);
         else { age->second += dt; ++age; }
     }
+    snapshotSeconds_ += dt;
+    const std::size_t snapshotBegin = std::min(snapshotIndex_, widgets.size());
+    const std::size_t snapshotEnd = snapshotSeconds_ >= 0.5f ? std::min(widgets.size(), snapshotBegin + 64U) : snapshotBegin;
     bool captureFound = false;
     for (std::size_t index = 0; index < widgets.size(); ++index)
     {
@@ -113,7 +116,7 @@ bool WidgetInputController::Update(SceneRegistry& scene, const WidgetRuntimeHost
         const bool ownsCapture = captured_ == widget.id;
         captureFound = captureFound || ownsCapture;
         const bool unavailable = layout == nullptr || !layout->effectiveVisible || !layout->effectiveEnabled;
-        const bool cancelInput = cancel || unavailable || (ownsCapture && capturedSeconds_ >= 30.0f);
+        const bool cancelInput = cancel || unavailable || (ownsCapture && (capturedSeconds_ >= 30.0f || (!state.pressed && !began)));
         const auto& range = widget.definition->range;
         double position = 0.0;
         if (layout && layout->bounds.size.x > 0.0f)
@@ -145,6 +148,9 @@ bool WidgetInputController::Update(SceneRegistry& scene, const WidgetRuntimeHost
                 captured_.clear();
             }
             pendingAges_.erase(widget.id);
+            if (index >= snapshotBegin && index < snapshotEnd)
+                Emit(scene, scene.ActivePageTransportId(), scene.ActiveWidgetTransportId(widget.id),
+                    state.requestId, WidgetEvent::Snapshot, false, state.confirmed.checked, state.confirmed.value);
             continue;
         }
         if (ownsCapture && cancelInput && output.event_count == 0U)
@@ -167,6 +173,9 @@ bool WidgetInputController::Update(SceneRegistry& scene, const WidgetRuntimeHost
             Emit(scene,scene.ActivePageTransportId(),route,requestId,event,
                  pressed,output.proposed_checked != 0U,output.proposed_value);
         }
+        if (index >= snapshotBegin && index < snapshotEnd)
+            Emit(scene, scene.ActivePageTransportId(), route, requestId, WidgetEvent::Snapshot,
+                output.pressed != 0U, state.confirmed.checked, state.confirmed.value);
         if (ownsCapture)
         {
             captureSnapshot_ = {session_, sequence_, scene.ActivePageTransportId(), route, requestId,
@@ -180,16 +189,9 @@ bool WidgetInputController::Update(SceneRegistry& scene, const WidgetRuntimeHost
             WidgetEvent::Cancelled,false,captureSnapshot_.checked,captureSnapshot_.value);
         captured_.clear();
     }
-    snapshotSeconds_ += dt;
-    if (snapshotSeconds_ >= 0.5f && !widgets.empty())
+    if (snapshotEnd > snapshotBegin)
     {
-        const std::size_t end = std::min(widgets.size(),snapshotIndex_+64U);
-        for (; snapshotIndex_ < end; ++snapshotIndex_)
-        {
-            const auto& state = states[snapshotIndex_];
-            Emit(scene,scene.ActivePageTransportId(),scene.ActiveWidgetTransportId(widgets[snapshotIndex_].id),
-                state.requestId,WidgetEvent::Snapshot,state.pressed,state.confirmed.checked,state.confirmed.value);
-        }
+        snapshotIndex_ = snapshotEnd;
         if (snapshotIndex_ >= widgets.size()) { snapshotIndex_ = 0; snapshotSeconds_ = 0; }
     }
     return consumed;

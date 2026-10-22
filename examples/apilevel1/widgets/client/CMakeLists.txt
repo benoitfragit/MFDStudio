@@ -57,3 +57,25 @@ if(MFD_BUILD_TESTS)
     include(GoogleTest)
     gtest_discover_tests(apilevel1_widgets_client_tests DISCOVERY_TIMEOUT 60)
 endif()
+
+if(MFD_BUILD_TESTS AND WIN32)
+    add_executable(apilevel1_widget_capability_tests WidgetCapabilityTests.cpp
+        ${MFD_WIDGETS_ROOT_DIR}/runtime/src/WidgetRuntimeHost.cpp)
+    target_include_directories(apilevel1_widget_capability_tests PRIVATE ${MFD_WIDGETS_INCLUDE_DIR})
+    target_compile_definitions(apilevel1_widget_capability_tests PRIVATE
+        MFD_WIDGET_EXAMPLE_ASSETS="${MFD_WIDGETS_EXAMPLE_ASSET_DIR}"
+        MFD_WIDGET_RUNTIME_FILE="$<TARGET_FILE:mfd_widgets_api1>")
+    target_link_libraries(apilevel1_widget_capability_tests PRIVATE mfd::runtime_api nlohmann_json::nlohmann_json GTest::gtest_main)
+    set_target_properties(apilevel1_widget_capability_tests PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/without_widget_extension")
+    add_dependencies(apilevel1_widget_capability_tests apilevel1_widgets_client mfd_widgets_api1 mfd_containers_api1)
+    add_custom_command(TARGET apilevel1_widget_capability_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            "-DDEST_DIR=$<TARGET_FILE_DIR:apilevel1_widget_capability_tests>"
+            "-DRUNTIME_DLLS=$<JOIN:$<TARGET_RUNTIME_DLLS:apilevel1_widget_capability_tests>,$<SEMICOLON>>"
+            -P "${MFD_ROOT_DIR}/cmake/CopyRuntimeDependencies.cmake"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:mfd_containers_api1>
+            $<TARGET_FILE_DIR:apilevel1_widget_capability_tests>/ VERBATIM)
+    gtest_discover_tests(apilevel1_widget_capability_tests
+        WORKING_DIRECTORY "$<TARGET_FILE_DIR:apilevel1_widget_capability_tests>" DISCOVERY_TIMEOUT 60)
+endif()

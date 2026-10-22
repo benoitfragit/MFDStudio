@@ -120,7 +120,8 @@ TEST(WidgetJson, RejectsAbsoluteAndEscapingDependencies)
     const auto root = std::filesystem::temp_directory_path() / "mfd_widget_assets";
     EXPECT_THROW(mfd::api1::ResolveWidgetAsset(root, root, "../secret.json"), std::runtime_error);
     EXPECT_THROW(mfd::api1::ResolveWidgetAsset(root, root, root.string()), std::runtime_error);
-    EXPECT_EQ(mfd::api1::ResolveWidgetAsset(root / "pages", root, "../widgets/button.json"), root / "widgets/button.json");
+    EXPECT_EQ(mfd::api1::ResolveWidgetAsset(root / "pages", root, "../widgets/button.json"),
+              std::filesystem::weakly_canonical(root / "widgets/button.json"));
 }
 TEST(WidgetVisual, HasDeterministicPriority)
 {

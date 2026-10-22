@@ -82,6 +82,8 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND}
             "-DRUNTIME_DLL=$<TARGET_FILE:mfd_containers_api1>"
             "-DEDITOR_DLL=$<TARGET_FILE:mfd_editor_containers_api1>"
+            "-DWIDGET_RUNTIME_DLL=$<TARGET_FILE:mfd_widgets_api1>"
+            "-DWIDGET_EDITOR_DLL=$<TARGET_FILE:mfd_editor_widgets_api1>"
             "-DWINDOW_DIR=$<TARGET_FILE_DIR:mfd_window>"
             "-DEDITOR_DIR=$<TARGET_FILE_DIR:mfd_editor>"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyHostDeployment.cmake")

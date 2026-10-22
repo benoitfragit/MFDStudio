@@ -740,11 +740,14 @@ void MfdRenderer::HandleContainerInput(SceneRegistry& scene,
     if (hasWidgets)
     {
         scene.CollectActiveReticleViews(impl_->activeReticlesScratch);
+        detail::RenderWorkBudget pickingBudget(detail::kMaxCanvasDrawWorkUnits);
         bool earlierLayerPaint = false, currentLayerPaint = false;
         std::size_t currentLayer = 0;
         for (const auto& reticle : impl_->activeReticlesScratch)
         {
             if (!reticle.visible || !reticle.group) continue;
+            if (!pickingBudget.TryConsume(std::max<std::size_t>(1, reticle.group->primitives.size())))
+            { widgetPointerBlocked = true; break; }
             if (reticle.layerOrder != currentLayer)
             {
                 earlierLayerPaint = earlierLayerPaint || currentLayerPaint;

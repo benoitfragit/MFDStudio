@@ -9,6 +9,12 @@ set(MFD_COMMON_API_PROTO_FILES
     ${MFD_APILEVEL1_ROOT_DIR}/proto/mfd_containers.proto
     ${MFD_WIDGETS_ROOT_DIR}/proto/mfd_widgets.proto)
 
+# Ship the source schemas together so their flat protobuf imports remain resolvable.
+foreach(schema_component IN ITEMS ${MFD_COMPONENT_API_DEVELOPMENT} ${MFD_COMPONENT_CLIENT_API_DEVELOPMENT})
+    install(FILES ${MFD_COMMON_API_PROTO_FILES}
+        DESTINATION share/mfd/proto COMPONENT ${schema_component})
+endforeach()
+
 set(MFD_COMMON_API_PROTO_HEADERS)
 set(MFD_COMMON_API_PROTO_SOURCES)
 set(MFD_COMMON_API_PROTOC_ENV_ARGS

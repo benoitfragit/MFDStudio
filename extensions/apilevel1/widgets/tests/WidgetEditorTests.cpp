@@ -182,3 +182,17 @@ TEST_F(WidgetFiles, ResourceAndDefinitionRecoveryIsLosslessAndConflictFailsBefor
     EXPECT_FALSE(editor::SaveEditorDocument(loaded, files, &error));
     EXPECT_EQ(editor::WidgetAssetService::ReadBounded(loaded.window.sourceFile), windowBefore);
 }
+
+TEST_F(WidgetFiles, DefinitionRenameCannotCollideWithAnUnusedLibraryDefinition)
+{
+    auto loaded = mfd::JsonLoader {}.LoadWindowConfigurationForAuthoring(source / "windows/window.json");
+    loaded.document.widgetLibrary.push_back(mfd::api1::WidgetEditorModel::CreateDefinition(
+        source / "widgets/Other.json", "Other", mfd::api1::WidgetType::Button));
+    const auto original = loaded.document.pages.front().widgets.front().definition;
+    auto renamed = std::make_shared<mfd::api1::WidgetDefinition>(*original);
+    renamed->id = "other";
+    std::string error;
+    EXPECT_FALSE(mfd::api1::WidgetEditorModel::ReplaceDefinition(loaded.document, renamed, error));
+    EXPECT_EQ(loaded.document.pages.front().widgets.front().definition, original);
+    EXPECT_EQ(loaded.document.widgetLibrary.size(),2U);
+}

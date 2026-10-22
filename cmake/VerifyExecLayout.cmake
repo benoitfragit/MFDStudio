@@ -15,6 +15,9 @@ endforeach()
 set(config_root "${EXEC_ROOT}/${TOOLSET}/${PLATFORM}/${BUILD_CONFIG}")
 set(exec_stage_required_files
     "${config_root}/mfd_window.exe"
+    "${config_root}/mfd_widgets_api1.dll"
+    "${config_root}/mfd_editor_widgets_api1.dll"
+    "${config_root}/apilevel1_widgets_client.exe"
     "${config_root}/mfd_containers_api1.dll"
     "${config_root}/mfd_editor_containers_api1.dll"
     "${config_root}/apilevel1_containers_client.exe"
@@ -67,6 +70,12 @@ expect_exists("Exec root staged client API DLL" "${config_root}/mfd_client_api.d
 expect_exists("Exec root staged low-level API DLL" "${config_root}/mfd_api.dll")
 expect_exists("Exec root staged LEVEL 1 runtime DLL" "${config_root}/mfd_containers_api1.dll")
 expect_exists("Exec root staged LEVEL 1 editor DLL" "${config_root}/mfd_editor_containers_api1.dll")
+expect_exists("Exec root staged widget runtime DLL" "${config_root}/mfd_widgets_api1.dll")
+expect_exists("Exec root staged widget editor DLL" "${config_root}/mfd_editor_widgets_api1.dll")
+expect_exists("Exec root staged widget example" "${config_root}/apilevel1_widgets_client.exe")
+expect_exists("Exec root staged widget launcher" "${config_root}/Start-APILevel1Widgets.bat")
+expect_exists("Exec root staged widget window" "${config_root}/assets/windows/widgets_window.json")
+expect_exists("Exec root staged widget definition" "${config_root}/assets/widgets/toggle.json")
 expect_exists("Exec root staged LEVEL 1 example client" "${config_root}/apilevel1_containers_client.exe")
 expect_exists("Exec root staged launch script" "${config_root}/Start-MfdWindow.bat")
 expect_exists("Exec root staged demo launch script" "${config_root}/Start-MfdDemo.bat")

@@ -2438,3 +2438,82 @@ TEST(LatestBatchPublisherShutdownDeathTest, DestructorJoinsAfterSelfStop)
     EXPECT_EXIT({ CheckSelfStopThenDestruction(); ExitWithShutdownTestResult(); },
                 testing::ExitedWithCode(EXIT_SUCCESS), "");
 }
+
+TEST(LatestBatchPublisherTests, PreservesWidgetCommandsAfterPendingResetAndDropsEarlierOnes)
+{
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool releaseFirstSend = false;
+    std::size_t enteredSendCount = 0;
+    std::vector<mfd::CommandBatch> deliveredBatches;
+
+    mfd::client::LatestBatchPublisher publisher(
+        [&mutex, &condition, &releaseFirstSend, &enteredSendCount, &deliveredBatches](const mfd::CommandBatch& batch)
+        {
+            std::unique_lock lock(mutex);
+            ++enteredSendCount;
+            deliveredBatches.push_back(batch);
+            condition.notify_all();
+
+            if (enteredSendCount == 1U)
+            {
+                EXPECT_TRUE(condition.wait_for(lock, std::chrono::seconds {5},
+                    [&releaseFirstSend]() { return releaseFirstSend; }));
+            }
+
+            return true;
+        });
+
+    ASSERT_TRUE(publisher.IsReady());
+    ASSERT_TRUE(publisher.SubmitLatest(MakeBatch(1U)));
+
+    {
+        std::unique_lock lock(mutex);
+        ASSERT_TRUE(condition.wait_for(
+            lock,
+            std::chrono::seconds {1},
+            [&enteredSendCount]()
+            {
+                return enteredSendCount >= 1U;
+            }));
+    }
+
+    mfd::CommandBatch secondBatch;
+    secondBatch.sequence = 2U;
+    secondBatch.mappingHash = "hash-alpha";
+    mfd::api1::UpdateWidgetCommand widget;
+    widget.target = {"nav", "Toggle"};
+    widget.patch.checked = true;
+    secondBatch.commands.push_back(widget);
+    secondBatch.commands.push_back(mfd::ResetWindowCommand {});
+    widget.patch.checked = false;
+    secondBatch.commands.push_back(widget);
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(secondBatch)));
+
+    mfd::CommandBatch thirdBatch;
+    thirdBatch.sequence = 3U;
+    thirdBatch.mappingHash = "hash-alpha";
+    widget.patch.checked = true;
+    thirdBatch.commands.push_back(widget);
+    ASSERT_TRUE(publisher.SubmitLatest(std::move(thirdBatch)));
+
+    {
+        std::lock_guard lock(mutex);
+        releaseFirstSend = true;
+    }
+    condition.notify_all();
+
+    publisher.Flush();
+
+    std::lock_guard lock(mutex);
+    ASSERT_EQ(deliveredBatches.size(), 2U);
+    EXPECT_EQ(deliveredBatches[1].sequence, 3U);
+    ASSERT_EQ(deliveredBatches[1].commands.size(), 3U);
+    ASSERT_NE(std::get_if<mfd::ResetWindowCommand>(&deliveredBatches[1].commands[0]), nullptr);
+    const auto* first = std::get_if<mfd::api1::UpdateWidgetCommand>(&deliveredBatches[1].commands[1]);
+    const auto* second = std::get_if<mfd::api1::UpdateWidgetCommand>(&deliveredBatches[1].commands[2]);
+    ASSERT_NE(first, nullptr);
+    ASSERT_NE(second, nullptr);
+    EXPECT_EQ(first->patch.checked, false);
+    EXPECT_EQ(second->patch.checked, true);
+}

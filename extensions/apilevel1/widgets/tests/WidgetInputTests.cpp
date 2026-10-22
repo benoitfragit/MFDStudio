@@ -108,3 +108,33 @@ TEST_F(WidgetInputTest, OcclusionAndFocusLossNeverLeavePressedState)
     Sample({-0.5f,0},true,false,false,0.01f,true);
     EXPECT_FALSE(states[0].pressed); EXPECT_FALSE(states[0].pending);
 }
+
+TEST_F(WidgetInputTest, SnapshotUsesTheStateAfterTheCurrentPointerSample)
+{
+    Sample({-0.5f,0},true,true,false,0.5f);
+    auto events = scene.TakeWidgetFeedback();
+    ASSERT_EQ(events.size(),3U);
+    EXPECT_EQ(events[1].event,mfd::api1::WidgetEvent::Snapshot);
+    EXPECT_EQ(events[1].widgetId,10U);
+    EXPECT_TRUE(events[1].pressed);
+    Sample({-0.5f,0},false,false,true,0.5f);
+    events = scene.TakeWidgetFeedback();
+    ASSERT_GE(events.size(),3U);
+    const auto& snapshot = events[events.size()-2U];
+    EXPECT_EQ(snapshot.event,mfd::api1::WidgetEvent::Snapshot);
+    EXPECT_EQ(snapshot.widgetId,10U);
+    EXPECT_FALSE(snapshot.pressed);
+    EXPECT_EQ(snapshot.requestId,states[0].requestId);
+}
+TEST_F(WidgetInputTest, ResetCancelsTheCaptureBeforeAnotherPointerSample)
+{
+    Sample({-0.5f,0},true,true,false);
+    mfd::CommandProcessor processor(scene);
+    ASSERT_TRUE(processor.Submit(mfd::ResetWindowCommand {}));
+    Sample({-0.5f,0},true,false,false);
+    EXPECT_FALSE(states[0].pressed);
+    EXPECT_FALSE(states[0].pending);
+    const auto events = scene.TakeWidgetFeedback();
+    ASSERT_FALSE(events.empty());
+    EXPECT_EQ(events.back().event,mfd::api1::WidgetEvent::Cancelled);
+}

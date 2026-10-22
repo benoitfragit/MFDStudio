@@ -111,6 +111,9 @@ bool WidgetEditorModel::ReplaceDefinition(MfdDocument& document, std::shared_ptr
                                           std::string& error)
 {
     if (!replacement || !ValidateWidgetDefinition(*replacement, error)) return false;
+    for (const auto& definition : document.widgetLibrary)
+        if (definition && definition->sourceFile != replacement->sourceFile && PageNamesEqual(definition->id, replacement->id))
+        { error = "Another widget definition already uses this identifier."; return false; }
     MfdDocument candidate = document;
     bool found = false;
     for (auto& definition : candidate.widgetLibrary)

@@ -80,10 +80,14 @@ bool ValidateWidgetDefinition(const WidgetDefinition& definition, std::string& e
     {
         const auto state = static_cast<std::uint32_t>(visual.state);
         if (state > 6U || !states.insert(state).second || visual.composition.primitives.size() > 256U ||
-            visual.bindings.size() > 64U || !runtime_validation::internal::IsValidReticle(visual.composition) ||
-            visual.composition.clipping.mode != ReticleClipMode::None)
+            visual.bindings.size() > 64U || !runtime_validation::internal::IsValidReticle(visual.composition))
         {
             error = "Invalid or duplicate widget visual state or over-budget visual.";
+            return false;
+        }
+        if (visual.composition.clipping.mode != ReticleClipMode::None)
+        {
+            error = "Widget visuals cannot erase Page layers; use container viewport clipping.";
             return false;
         }
         std::unordered_map<std::string, PrimitiveType> primitives;
