@@ -93,8 +93,10 @@ public:
             {0.0, 0.0, static_cast<double>(width), static_cast<double>(height)}, clip);
         const int x = static_cast<int>(std::floor(bounded.x));
         const int y = static_cast<int>(std::floor(bounded.y));
-        const int right = static_cast<int>(std::ceil(bounded.x + bounded.width));
-        const int bottom = static_cast<int>(std::ceil(bounded.y + bounded.height));
+        const int right = static_cast<int>(std::min(static_cast<double>(width),
+                                                  std::ceil(bounded.x + bounded.width)));
+        const int bottom = static_cast<int>(std::min(static_cast<double>(height),
+                                                   std::ceil(bounded.y + bounded.height)));
         BeginScissorMode(x, y, right - x, bottom - y);
     }
 
