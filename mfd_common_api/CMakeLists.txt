@@ -6,7 +6,8 @@ set(MFD_COMMON_API_PROTO_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 set(MFD_COMMON_API_PROTO_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/proto/mfd_commands.proto
     ${CMAKE_CURRENT_SOURCE_DIR}/proto/mfd_feedback.proto
-    ${MFD_APILEVEL1_ROOT_DIR}/proto/mfd_containers.proto)
+    ${MFD_APILEVEL1_ROOT_DIR}/proto/mfd_containers.proto
+    ${MFD_WIDGETS_ROOT_DIR}/proto/mfd_widgets.proto)
 
 set(MFD_COMMON_API_PROTO_HEADERS)
 set(MFD_COMMON_API_PROTO_SOURCES)
@@ -34,11 +35,13 @@ foreach(MFD_COMMON_API_PROTO_FILE IN LISTS MFD_COMMON_API_PROTO_FILES)
             --cpp_out=${MFD_COMMON_API_PROTO_OUTPUT_DIR}
             --proto_path=${CMAKE_CURRENT_SOURCE_DIR}/proto
             --proto_path=${MFD_APILEVEL1_ROOT_DIR}/proto
+            --proto_path=${MFD_WIDGETS_ROOT_DIR}/proto
             ${MFD_COMMON_API_PROTO_FILE}
         DEPENDS
             ${MFD_COMMON_API_PROTO_FILE}
             ${CMAKE_CURRENT_SOURCE_DIR}/proto/mfd_commands.proto
             ${MFD_APILEVEL1_ROOT_DIR}/proto/mfd_containers.proto
+            ${MFD_WIDGETS_ROOT_DIR}/proto/mfd_widgets.proto
             ${MFD_COMMON_API_PROTO_DEPENDS}
         COMMAND_EXPAND_LISTS
         VERBATIM)

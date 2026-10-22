@@ -14,6 +14,7 @@
 
 #include "mfd/control/CommandTypes.h"
 #include "mfd/apilevel1/ContainerLayoutEngine.h"
+#include "mfd/apilevel1/widgets/WidgetModel.h"
 #include "mfd/core/internal/CompositeKey.h"
 #include "mfd/model/RuntimeBudgets.h"
 #include "mfd/runtime/DocumentSemanticValidator.h"
@@ -1175,7 +1176,10 @@ void SceneRegistry::LoadDocument(MfdDocument document, std::optional<GeneratedTr
     transportBlinks_.clear();
     transportStrobes_.clear();
     transportContainers_.clear();
+    transportWidgets_.clear();
     containerRuntimeStates_.clear();
+    widgetRuntimeStates_.clear();
+    widgetFeedback_.clear();
     nextDynamicCreationSequence_ = 1;
     activePage_.clear();
     windowDisplay_ = {};
@@ -1326,6 +1330,7 @@ void SceneRegistry::RebuildTransportIndexes()
     transportBlinks_.clear();
     transportStrobes_.clear();
     transportContainers_.clear();
+    transportWidgets_.clear();
 
     for (const auto& [normalizedPageName, entity] : pageEntities_)
     {
@@ -1433,6 +1438,13 @@ void SceneRegistry::RebuildTransportIndexes()
             container.id,
             TransportContainerLookup {container.pageId, container.containerId});
     }
+
+    for (const auto& widget : transportMap_->widgets)
+    {
+        transportWidgets_.emplace(
+            widget.id,
+            TransportWidgetLookup {widget.pageId, widget.widgetId});
+    }
 }
 
 bool SceneRegistry::HasMatchingTransportMap(const std::string_view mappingHash) const noexcept
@@ -1503,6 +1515,110 @@ const std::string* SceneRegistry::ResolveContainerId(const TransportId pageId,
         return nullptr;
     }
     return &iterator->second.containerId;
+}
+
+const std::string* SceneRegistry::ResolveWidgetId(const TransportId pageId,
+                                                     const TransportId widgetId) const noexcept
+{
+    const auto iterator = transportWidgets_.find(widgetId);
+    if (iterator == transportWidgets_.end() || iterator->second.pageId != pageId)
+    {
+        return nullptr;
+    }
+    return &iterator->second.widgetId;
+}
+
+bool SceneRegistry::ApplyWidgetPatchByKey(const std::string_view pageName, const std::string_view id,
+                                         const api1::WidgetStatePatch& patch) noexcept
+try
+{
+    const auto* page = FindPageDefinition(document_, pageName);
+    if (page == nullptr) return false;
+    const auto widget = std::find_if(page->widgets.begin(), page->widgets.end(),
+        [id](const api1::WidgetInstance& instance) { return instance.id == id; });
+    if (widget == page->widgets.end() || !widget->definition) return false;
+    const std::string key = MakeContainerStateKey(page->normalizedName, id);
+    const auto found = widgetRuntimeStates_.find(key);
+    api1::WidgetState state = found == widgetRuntimeStates_.end() ? api1::InitialWidgetState(*widget) : found->second.state;
+    if (patch.requestId && *patch.requestId != state.requestId) return false;
+    if (patch.visible) state.visible = *patch.visible;
+    if (patch.enabled) state.enabled = *patch.enabled;
+    if (patch.checked) state.confirmed.checked = *patch.checked;
+    if (patch.warning) state.confirmed.warning = *patch.warning;
+    if (patch.value) state.confirmed.value = *patch.value;
+    if (patch.text) state.confirmed.text = *patch.text;
+    const auto& range = widget->definition->range;
+    if (!std::isfinite(state.confirmed.value) || state.confirmed.value < range.minimum || state.confirmed.value > range.maximum ||
+        state.confirmed.text.size() > api1::kMaximumWidgetTextBytes || state.confirmed.text.find('\0') != std::string::npos) return false;
+    if (patch.requestId) state.pending = false;
+    if (!state.visible || !state.enabled) { state.pressed = false; state.pending = false; state.hovered = false; }
+    RuntimeSnapshot::WidgetState candidate {page->normalizedName, widget->id, std::move(state)};
+    if (found == widgetRuntimeStates_.end()) widgetRuntimeStates_.emplace(key, std::move(candidate));
+    else found->second = std::move(candidate);
+    return true;
+}
+catch (const std::bad_alloc&) { return false; }
+
+void SceneRegistry::CollectActiveWidgets(std::vector<api1::WidgetInstance>& instances,
+                                        std::vector<api1::WidgetState>& states) const
+{
+    instances.clear();
+    states.clear();
+    const auto* page = FindPageDefinition(document_, activePage_);
+    if (page == nullptr) return;
+    instances = page->widgets;
+    states.reserve(instances.size());
+    for (auto& widget : instances)
+    {
+        const auto found = widgetRuntimeStates_.find(MakeContainerStateKey(page->normalizedName, widget.id));
+        states.push_back(found == widgetRuntimeStates_.end() ? api1::InitialWidgetState(widget) : found->second.state);
+        widget.visible = states.back().visible;
+        widget.enabled = states.back().enabled;
+    }
+}
+bool SceneRegistry::SetActiveWidgetInteraction(const std::string_view id, const bool hovered, const bool pressed,
+                                              const bool pending, const std::uint64_t requestId) noexcept
+try
+{
+    const auto* page = FindPageDefinition(document_, activePage_);
+    if (page == nullptr) return false;
+    const auto widget = std::find_if(page->widgets.begin(), page->widgets.end(),
+        [id](const api1::WidgetInstance& instance) { return instance.id == id; });
+    if (widget == page->widgets.end()) return false;
+    const std::string key = MakeContainerStateKey(activePage_, id);
+    auto found = widgetRuntimeStates_.find(key);
+    if (found == widgetRuntimeStates_.end())
+        found = widgetRuntimeStates_.emplace(key, RuntimeSnapshot::WidgetState {activePage_, widget->id, api1::InitialWidgetState(*widget)}).first;
+    auto& state = found->second.state;
+    state.hovered = hovered;
+    state.pressed = pressed;
+    state.pending = pending;
+    state.requestId = requestId;
+    return true;
+}
+catch (const std::bad_alloc&) { return false; }
+TransportId SceneRegistry::ActiveWidgetTransportId(const std::string_view id) const noexcept
+{
+    if (!transportMap_) return 0U;
+    const auto* page = FindPageDefinition(document_, activePage_);
+    if (page == nullptr) return 0U;
+    for (const auto& widget : transportMap_->widgets)
+    {
+        const std::string* pageName = ResolvePageName(widget.pageId);
+        if (widget.widgetId == id && pageName != nullptr && PageNamesEqual(*pageName, page->name)) return widget.id;
+    }
+    return 0U;
+}
+void SceneRegistry::QueueWidgetFeedback(api1::WidgetFeedback feedback)
+{
+    if (widgetFeedback_.size() >= 1024U) widgetFeedback_.erase(widgetFeedback_.begin());
+    widgetFeedback_.push_back(std::move(feedback));
+}
+std::vector<api1::WidgetFeedback> SceneRegistry::TakeWidgetFeedback()
+{
+    std::vector<api1::WidgetFeedback> events;
+    events.swap(widgetFeedback_);
+    return events;
 }
 
 bool SceneRegistry::ApplyContainerPatchByKey(const std::string_view normalizedPageName,
@@ -1635,6 +1751,16 @@ void SceneRegistry::SetActivePage(const std::string_view pageName) noexcept
 
 void SceneRegistry::SetActivePageByKey(const std::string_view normalizedPageName) noexcept
 {
+    if (activePage_ != normalizedPageName)
+    {
+        for (auto& entry : widgetRuntimeStates_)
+        {
+            entry.second.state.pressed = false;
+            entry.second.state.pending = false;
+            entry.second.state.hovered = false;
+        }
+    }
+
     if (!HasNormalizedPage(normalizedPageName))
     {
         return;
@@ -1881,6 +2007,10 @@ void SceneRegistry::CapturePageStateInto(RuntimeSnapshot& snapshot, const PageCo
                 state.scrollOffset});
         }
     }
+    for (const auto& entry : widgetRuntimeStates_)
+    {
+        if (entry.second.normalizedPageName == page.normalizedName) snapshot.widgets.push_back(entry.second);
+    }
 }
 
 void SceneRegistry::CaptureReticleEntityInto(RuntimeSnapshot& snapshot,
@@ -2073,6 +2203,11 @@ void SceneRegistry::EraseDynamicTemplateOverridesForPage(const std::string_view 
             matchesPage(iterator->first) ? dynamicTemplateStrobeMagnetEnabled_.erase(iterator) : std::next(iterator);
     }
 
+    for (auto iterator = widgetRuntimeStates_.begin(); iterator != widgetRuntimeStates_.end();)
+    {
+        iterator = iterator->second.normalizedPageName == normalizedPageName
+            ? widgetRuntimeStates_.erase(iterator) : std::next(iterator);
+    }
     for (auto iterator = containerRuntimeStates_.begin(); iterator != containerRuntimeStates_.end();)
     {
         iterator = iterator->second.normalizedPageName == normalizedPageName
@@ -2159,6 +2294,10 @@ void SceneRegistry::ApplySnapshotState(const RuntimeSnapshot& snapshot)
                 containerState.visible,
                 containerState.enabled,
                 containerState.scrollOffset});
+    }
+    for (const auto& widget : snapshot.widgets)
+    {
+        widgetRuntimeStates_.insert_or_assign(MakeContainerStateKey(widget.normalizedPageName, widget.widgetId), widget);
     }
 
     for (const RuntimeSnapshot::DynamicReticleState& reticleState : snapshot.dynamicReticles)

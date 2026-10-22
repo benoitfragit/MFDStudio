@@ -71,6 +71,7 @@ set(MFD_IO_JSON_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonNumberParsing.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/io/json/JsonValueHelpers.cpp
     ${MFD_WIDGETS_ROOT_DIR}/runtime/src/WidgetModel.cpp
+    ${MFD_WIDGETS_ROOT_DIR}/runtime/src/WidgetVisuals.cpp
     ${MFD_WIDGETS_ROOT_DIR}/runtime/src/WidgetJson.cpp
     ${MFD_APILEVEL1_ROOT_DIR}/runtime/src/ContainerJson.cpp
     ${MFD_APILEVEL1_ROOT_DIR}/runtime/src/ContainerLayoutEngine.cpp)
@@ -178,6 +179,8 @@ set(MFD_RENDER_PRIVATE_HEADERS
     ${MFD_APILEVEL1_RUNTIME_INCLUDE_DIR}/mfd/apilevel1/ContainerRuntimeHost.h)
 
 set(MFD_RENDER_SOURCES
+    ${MFD_WIDGETS_ROOT_DIR}/runtime/src/WidgetRuntimeHost.cpp
+    ${MFD_WIDGETS_ROOT_DIR}/runtime/src/WidgetInputController.cpp
     ${MFD_APILEVEL1_ROOT_DIR}/runtime/src/ContainerInputRouter.cpp
     ${MFD_APILEVEL1_ROOT_DIR}/runtime/src/ContainerRuntimeHost.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ExternalStreamRegistry.cpp

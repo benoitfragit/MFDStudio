@@ -1662,7 +1662,7 @@ std::vector<std::pair<std::filesystem::path, json>> CollectEditorDocumentFiles(
         for (const auto& widget : loaded.document.pages[pageIndex].widgets)
         {
             const auto path = mfd::api1::ResolveWidgetAsset(layout.pageFiles[pageIndex].parent_path(),
-                loaded.window.sourceFile.parent_path(), widget.definitionFile);
+                mfd::api1::WidgetAssetRoot(loaded.window.sourceFile), widget.definitionFile);
             if (path != std::filesystem::weakly_canonical(widget.definition->sourceFile))
                 throw std::runtime_error("Widget definition path does not match its loaded identity: " + widget.id);
             const json definition = mfd::api1::SerializeWidgetDefinition(*widget.definition, SerializeInlineReticle);

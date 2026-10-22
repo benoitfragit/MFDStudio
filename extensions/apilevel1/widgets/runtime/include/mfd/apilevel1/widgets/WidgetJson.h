@@ -4,6 +4,8 @@
 #include <nlohmann/json_fwd.hpp>
 namespace mfd::api1
 {
+/** @brief Source asset root: nearest assets ancestor, otherwise the Window directory. */
+MFD_API std::filesystem::path WidgetAssetRoot(const std::filesystem::path& windowFile);
 using WidgetVisualParser = std::function<ReticleGroup(const nlohmann::json&, const std::filesystem::path&)>;
 using WidgetVisualSerializer = std::function<nlohmann::json(const ReticleGroup&, const std::filesystem::path&)>;
 /** @brief Canonicalize a dependency inside the authored asset root; reject escapes, including symlinks. */

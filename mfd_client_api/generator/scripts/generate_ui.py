@@ -131,6 +131,7 @@ class PageSpec:
     status_primitive_accessor_name: str | None
     strobes: list["StrobeSpec"]
     containers: list[object]
+    widgets: list[object]
 
 
 @dataclass(frozen=True)
@@ -236,6 +237,25 @@ def load_container_generator():
     module_spec = importlib.util.spec_from_file_location("mfd_generate_containers_api1", module_path)
     if module_spec is None or module_spec.loader is None:
         raise RuntimeError(f"Unable to load LEVEL 1 container generator extension: {module_path}")
+    module = importlib.util.module_from_spec(module_spec)
+    sys.modules[module_spec.name] = module
+    module_spec.loader.exec_module(module)
+    return module
+
+
+def load_widget_generator():
+    """Load the optional LEVEL 1 generator extension from source or an SDK install."""
+    script = Path(__file__).resolve()
+    candidates = (
+        script.parents[3] / "extensions" / "apilevel1" / "widgets" / "generator" / "generate_widgets.py",
+        script.parents[2] / "extensions" / "apilevel1" / "widgets" / "generator" / "generate_widgets.py",
+    )
+    module_path = next((candidate for candidate in candidates if candidate.exists()), None)
+    if module_path is None:
+        raise RuntimeError("LEVEL 1 widget generator extension is missing")
+    module_spec = importlib.util.spec_from_file_location("mfd_generate_widgets_api1", module_path)
+    if module_spec is None or module_spec.loader is None:
+        raise RuntimeError(f"Unable to load LEVEL 1 widget generator extension: {module_path}")
     module = importlib.util.module_from_spec(module_spec)
     sys.modules[module_spec.name] = module
     module_spec.loader.exec_module(module)
@@ -1241,6 +1261,7 @@ def build_page_specs(window_root: dict,
     used_dynamic_template_ids: set[str] = set()
     seen_ids: set[int] = set()
     container_generator = None
+    widget_generator = None
 
     for page_entry in page_entries(window_root):
         page_path = resolve_path(window_path.parent, page_entry.path)
@@ -1332,6 +1353,25 @@ def build_page_specs(window_root: dict,
                 container_generator = load_container_generator()
             containers = container_generator.collect_container_specs(page_name, page_root, seen_ids)
 
+        raw_widgets = page_root.get("widgets", [])
+        if not isinstance(raw_widgets, list):
+            raise RuntimeError(f"Page '{page_name}' widgets must be an array")
+        widgets: list[object] = []
+        if raw_widgets:
+            if window_root.get("apiLevel", 0) < 1:
+                raise RuntimeError("Widgets require API LEVEL 1")
+            if widget_generator is None:
+                widget_generator = load_widget_generator()
+            widgets = widget_generator.collect_widget_specs(page_name, page_root, page_path, widget_generator.asset_root(window_path), seen_ids)
+        elif any(child.get("kind") == "widget" for c in raw_containers for child in c.get("children", [])):
+            raise RuntimeError("Container references a missing widget")
+        generated_names = {c.accessor_name for c in containers}
+        generated_names.update(r.member_name for r in reticles)
+        for widget in widgets:
+            if widget.exposed and widget.accessor_name in generated_names:
+                raise RuntimeError("Widget generated member collision")
+            generated_names.add(widget.accessor_name)
+
         ensure_unique_reticle_spec_names(page_name, reticles)
         ensure_unique_strobe_spec_names(page_name, strobe_specs)
         ensure_unique_page_reticle_wrapper_names(page_name, reticles, strobe_specs)
@@ -1349,6 +1389,7 @@ def build_page_specs(window_root: dict,
             status_primitive_accessor_name=status_primitive_accessor_name,
             strobes=strobe_specs,
             containers=containers,
+            widgets=widgets,
         ))
 
     return page_specs, build_template_specs(template_library, used_dynamic_template_ids)
@@ -1454,6 +1495,8 @@ def emit_header(namespace_name: str,
         '#include "mfd/client/GeneratedUiSupport.h"',
         '#include "mfd/model/Types.h"',
     ]
+    if any(page.widgets for page in page_specs):
+        lines.append('#include "mfd/client/Widget.h"')
     if has_containers:
         lines.append('#include "mfd/client/Container.h"')
     lines.extend([
@@ -1637,7 +1680,7 @@ def emit_header(namespace_name: str,
             "",
             "    bool IsActive() const noexcept;",
             "    void Run() noexcept;",
-            "    void Initialize() noexcept;",
+            "    void Initialize();" if page.widgets else "    void Initialize() noexcept;",
             "    std::size_t AppendCommands(std::vector<mfd::UserCommand>& commands);",
             ("    std::size_t AppendShutdownCommands(std::vector<mfd::UserCommand>& commands, std::string statusText);"
              if page.status_member_name is not None
@@ -1654,6 +1697,9 @@ def emit_header(namespace_name: str,
         if page_templates:
             lines.append("")
 
+        for widget in page.widgets:
+            if widget.exposed:
+                lines.append(f"    mfd::client::{widget.cpp_type}& {widget.accessor_name}() noexcept;")
         for container in page.containers:
             lines.append(f"    mfd::client::Container& {container.accessor_name}() noexcept;")
 
@@ -1689,6 +1735,9 @@ def emit_header(namespace_name: str,
         for template in page_templates:
             lines.append(f"    {template.dynamic_set_class_name} {template.dynamic_member_name};")
 
+        for widget in page.widgets:
+            if widget.exposed:
+                lines.append(f"    mfd::client::{widget.cpp_type} {widget.member_name};")
         for container in page.containers:
             lines.append(f"    mfd::client::Container {container.member_name};")
 
@@ -1722,7 +1771,7 @@ def emit_header(namespace_name: str,
         "    std::uint64_t TotalDecodedFeedbackPackets() const noexcept;",
         "    bool WindowReportedClosing() const noexcept;",
         "    void Run() noexcept;",
-        "    void Initialize() noexcept;",
+        "    void Initialize();" if any(page.widgets for page in page_specs) else "    void Initialize() noexcept;",
         "    std::vector<mfd::UserCommand> BuildBatch();",
         "    std::vector<mfd::UserCommand> BuildResetBatch();",
         "    mfd::CommandBatch BuildCommandBatch(std::uint32_t sequence = 0);",
@@ -1735,6 +1784,10 @@ def emit_header(namespace_name: str,
         "",
         "    WindowDisplay& Window() noexcept;",
     ])
+
+    if any(page.widgets for page in page_specs):
+        lines.append("    bool ApplyFeedback(const mfd::api1::WidgetFeedback& feedback);")
+        lines.append("    std::vector<mfd::api1::WidgetFeedback> TakeWidgetEvents();")
 
     for page in page_specs:
         lines.append(f"    {page.page_class_name}& {page.accessor_name}() noexcept;")
@@ -1952,6 +2005,13 @@ def emit_source(namespace_name: str,
         for template in page_templates:
             page_ctor_initializers.append(
                 f"    {template.dynamic_member_name}(Name(), {page.transport_id}U, feedbackState)")
+        for widget in page.widgets:
+            if widget.exposed:
+                flags = ["true" if v else "false" for v in (widget.visible, widget.enabled, widget.checked, widget.warning)]
+                page_ctor_initializers.append(
+                    f'    {widget.member_name}(Name(), "{cpp_string(widget.widget_id)}", '
+                    f'{page.transport_id}U, {widget.transport_id}U, '
+                    f'{", ".join(flags)}, {repr(widget.value)}, "{cpp_string(widget.text)}", {repr(widget.minimum)}, {repr(widget.maximum)})')
         for container in page.containers:
             visible = "true" if container.visible else "false"
             enabled = "true" if container.enabled else "false"
@@ -1991,12 +2051,15 @@ def emit_source(namespace_name: str,
             lines.append(f"    {reticle.member_name}.ClearDirty();")
         for template in page_templates:
             lines.append(f"    {template.dynamic_member_name}.ClearDirty();")
+        for widget in page.widgets:
+            if widget.exposed:
+                lines.append(f"    {widget.member_name}.ClearDirty();")
         for container in page.containers:
             lines.append(f"    {container.member_name}.ClearDirty();")
         lines.extend([
             "}",
             "",
-            f"void {page.page_class_name}::Initialize() noexcept",
+            f"void {page.page_class_name}::Initialize()" + ("" if page.widgets else " noexcept"),
             "{",
             "    strobe.ResetToAuthored();",
         ])
@@ -2006,6 +2069,9 @@ def emit_source(namespace_name: str,
             lines.append(f"    {reticle.member_name}.ResetToAuthored();")
         for template in page_templates:
             lines.append(f"    {template.dynamic_member_name}.ResetToAuthored();")
+        for widget in page.widgets:
+            if widget.exposed:
+                lines.append(f"    {widget.member_name}.ResetToAuthored();")
         for container in page.containers:
             lines.append(f"    {container.member_name}.ResetToAuthored();")
         lines.extend([
@@ -2028,6 +2094,9 @@ def emit_source(namespace_name: str,
             lines.append(f"    count += {reticle.member_name}.AppendCommands(commands) ? 1U : 0U;")
         for template in page_templates:
             lines.append(f"    count += {template.dynamic_member_name}.AppendCommands(commands);")
+        for widget in page.widgets:
+            if widget.exposed:
+                lines.append(f"    count += {widget.member_name}.AppendCommands(commands) ? 1U : 0U;")
         for container in page.containers:
             lines.append(f"    count += {container.member_name}.AppendCommands(commands) ? 1U : 0U;")
         lines.extend([
@@ -2085,6 +2154,21 @@ def emit_source(namespace_name: str,
                 "}",
                 "",
             ])
+
+        for widget in page.widgets:
+            if widget.exposed:
+                lines.extend([
+                    f"mfd::client::{widget.cpp_type}& {page.page_class_name}::{widget.accessor_name}() noexcept",
+                    "{", f"    return {widget.member_name};", "}", "",
+                ])
+
+    if any(page.widgets for page in page_specs):
+        lines.extend([
+            f"bool {ui_class_name}::ApplyFeedback(const mfd::api1::WidgetFeedback& feedback)",
+            "{", "    return feedbackState_.Apply(feedback);", "}", "",
+            f"std::vector<mfd::api1::WidgetFeedback> {ui_class_name}::TakeWidgetEvents()",
+            "{", "    return feedbackState_.TakeWidgetEvents();", "}", "",
+        ])
 
     ui_ctor_initializers = [f"    {page.ui_member_name}(&feedbackState_)" for page in page_specs]
 
@@ -2170,7 +2254,7 @@ def emit_source(namespace_name: str,
     lines.extend([
         "}",
         "",
-        f"void {ui_class_name}::Initialize() noexcept",
+        f"void {ui_class_name}::Initialize()" + ("" if any(page.widgets for page in page_specs) else " noexcept"),
         "{",
         "    resetPending_ = true;",
         "    window_.ResetToAuthored();",
@@ -2404,6 +2488,13 @@ def mapping_document(window_root: dict,
                 "defaultActive": strobe.default_active,
             })
 
+    widgets = []
+    for page in sorted(page_specs, key=lambda entry: entry.canonical_key):
+        for widget in sorted(page.widgets, key=lambda entry: entry.canonical_key):
+            widgets.append({"id": widget.transport_id, "pageId": page.transport_id,
+                "widgetId": widget.widget_id, "normalizedWidgetId": normalize_lookup_name(widget.widget_id),
+                "exposed": widget.exposed})
+
     containers = []
     for page in sorted(page_specs, key=lambda entry: entry.canonical_key):
         for container in sorted(page.containers, key=lambda entry: entry.canonical_key):
@@ -2424,6 +2515,7 @@ def mapping_document(window_root: dict,
         ("blinkTypes", blink_types, "id"),
         ("strobes", strobes, "id"),
         ("containers", containers, "id"),
+        ("widgets", widgets, "id"),
     ):
         for row in rows:
             row_id = row[id_field]
@@ -2449,6 +2541,8 @@ def mapping_document(window_root: dict,
     if containers:
         mapping_without_hash["containers"] = containers
 
+    if widgets:
+        mapping_without_hash["widgets"] = widgets
     canonical_payload = json.dumps(mapping_without_hash, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
     mapping_hash = hashlib.sha256(canonical_payload.encode("utf-8")).hexdigest()
     document = {
@@ -2464,6 +2558,8 @@ def mapping_document(window_root: dict,
     }
     if containers:
         document["containers"] = containers
+    if widgets:
+        document["widgets"] = widgets
     return document
 
 
@@ -2480,7 +2576,15 @@ def collect_input_paths(window_path: Path) -> list[Path]:
     for page_entry in page_entries(window_root):
         page_path = resolve_path(window_path.parent, page_entry.path)
         input_paths.add(page_path)
-        if extract_page_node(load_json(page_path)).get("containers"):
+        page_root = extract_page_node(load_json(page_path))
+        widgets = page_root.get("widgets", [])
+        if not isinstance(widgets, list):
+            raise RuntimeError("Page widgets must be an array")
+        if widgets:
+            extension = load_widget_generator()
+            input_paths.add(Path(extension.__file__).resolve())
+            input_paths.update(extension.input_paths(page_root, page_path, extension.asset_root(window_path)))
+        if page_root.get("containers"):
             uses_containers = True
     if uses_containers:
         input_paths.add(Path(load_container_generator().__file__).resolve())

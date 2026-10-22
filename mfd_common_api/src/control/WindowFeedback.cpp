@@ -8,6 +8,7 @@
  * @brief Implementation for WindowFeedback.
  */
 
+#include <cmath>
 #include "mfd/control/WindowFeedback.h"
 
 #include <stdexcept>
@@ -46,6 +47,12 @@ WindowLifecycleState FromProtoLifecycleState(const pb::WindowLifecycleState stat
     }
 
     return WindowLifecycleState::Alive;
+}
+void ValidateWidgetFeedback(const api1::WidgetFeedback& feedback)
+{
+    if (feedback.session == 0U || feedback.sequence == 0U || feedback.pageId == 0U || feedback.widgetId == 0U ||
+        static_cast<std::uint32_t>(feedback.event) > 9U || !std::isfinite(feedback.value))
+        throw std::runtime_error("Invalid widget feedback identity, event or value");
 }
 } // namespace
 
@@ -93,6 +100,20 @@ std::string SerializeFeedbackPayload(const FeedbackPayload& feedback)
                 message->set_result(static_cast<std::uint32_t>(value.status.result));
                 message->set_consumed_frame(value.status.consumedFrame);
                 message->set_generation(value.status.generation); message->set_diagnostic(value.status.diagnostic);
+            }
+            else if constexpr (std::is_same_v<FeedbackType, api1::WidgetFeedback>)
+            {
+                ValidateWidgetFeedback(value);
+                auto* message = envelope.mutable_widget();
+                message->set_session(value.session);
+                message->set_sequence(value.sequence);
+                message->set_page_id(value.pageId);
+                message->set_widget_id(value.widgetId);
+                message->set_request_id(value.requestId);
+                message->set_event(static_cast<std::uint32_t>(value.event));
+                message->set_pressed(value.pressed);
+                message->set_checked(value.checked);
+                message->set_value(value.value);
             }
         },
         feedback);
@@ -162,6 +183,22 @@ std::optional<FeedbackPayload> DeserializeFeedbackPayload(const std::string_view
             feedback.status.consumedFrame = message.consumed_frame(); feedback.status.generation = message.generation();
             feedback.status.diagnostic = message.diagnostic();
             return FeedbackPayload {std::move(feedback)};
+        }
+        if (envelope.payload_case() == pb::FeedbackEnvelope::kWidget)
+        {
+            const auto& message = envelope.widget();
+            api1::WidgetFeedback feedback;
+            feedback.session = message.session();
+            feedback.sequence = message.sequence();
+            feedback.pageId = message.page_id();
+            feedback.widgetId = message.widget_id();
+            feedback.requestId = message.request_id();
+            feedback.event = static_cast<api1::WidgetEvent>(message.event());
+            feedback.pressed = message.pressed();
+            feedback.checked = message.checked();
+            feedback.value = message.value();
+            ValidateWidgetFeedback(feedback);
+            return FeedbackPayload {feedback};
         }
         throw std::runtime_error("Unsupported feedback payload");
     }

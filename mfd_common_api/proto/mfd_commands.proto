@@ -6,6 +6,7 @@ syntax = "proto3";
 package mfd.transport;
 
 import "mfd_containers.proto";
+import "mfd_widgets.proto";
 
 enum PrimitiveLineStyle
 {
@@ -222,6 +223,7 @@ message UserCommand
     ResetWindowCommand reset_window = 10;
     SetDynamicReticleSetStrobeMagnetEnabledCommand set_dynamic_reticle_set_strobe_magnet_enabled = 11;
     UpdateContainerCommand update_container = 12;
+    UpdateWidgetCommand update_widget = 13;
   }
 }
 

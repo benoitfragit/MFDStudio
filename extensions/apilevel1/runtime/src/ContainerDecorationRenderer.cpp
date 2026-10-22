@@ -190,7 +190,8 @@ void DrawContainerDecorations(const std::vector<api1::ContainerDefinition>& defi
                               const PageViewState& view,
                               const int width,
                               const int height,
-                              const ContainerDecorationPointerState& pointer)
+                              const ContainerDecorationPointerState& pointer,
+                              const std::function<void(std::size_t)>& drawLeaf)
 {
     if (width <= 0 || height <= 0 || definitions.empty() || layouts.empty())
     {
@@ -243,6 +244,7 @@ void DrawContainerDecorations(const std::vector<api1::ContainerDefinition>& defi
                                  logicalScale,
                                  ToRayColor(definition.appearance.backgroundColor));
         }
+        if (drawLeaf) drawLeaf(layout.sourceIndex);
     }
     while (!foregroundStack.empty())
     {

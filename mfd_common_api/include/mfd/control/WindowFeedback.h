@@ -21,6 +21,7 @@
 #include "mfd/MfdExport.h"
 #include "mfd/control/StrobeFeedback.h"
 #include "mfd/model/ExternalStreamTypes.h"
+#include "mfd/apilevel1/widgets/WidgetCommands.h"
 
 namespace mfd
 {
@@ -72,7 +73,7 @@ struct ExternalStreamFeedback
 };
 /** @brief Variant carrying one supported runtime feedback payload. */
 using FeedbackPayload = std::variant<StrobeStatusFeedback, ActivePageFeedback, WindowLifecycleFeedback,
-                                     ExternalStreamFeedback>;
+                                     ExternalStreamFeedback, api1::WidgetFeedback>;
 
 /**
  * @brief Serializes any supported runtime feedback payload to Protocol Buffers.

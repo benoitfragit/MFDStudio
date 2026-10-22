@@ -555,6 +555,34 @@ bool StrobeType::IsDefaultActive() const noexcept
     return defaultActive_;
 }
 
+bool RuntimeFeedbackState::Apply(const mfd::api1::WidgetFeedback& feedback)
+{
+    if (feedback.session == 0U || feedback.sequence == 0U || feedback.pageId == 0U || feedback.widgetId == 0U ||
+        static_cast<std::uint32_t>(feedback.event) > 9U || !std::isfinite(feedback.value) || feedback.session < widgetSession_) return false;
+    if (feedback.session > widgetSession_)
+    {
+        widgetSequences_.clear();
+        widgetEvents_.clear();
+        widgetSession_ = feedback.session;
+    }
+    auto found = widgetSequences_.find(feedback.widgetId);
+    if (found != widgetSequences_.end() && feedback.sequence <= found->second) return false;
+    if (found == widgetSequences_.end() && widgetSequences_.size() >= 4096U) return false;
+    // Reserve before committing either sequence or event so an allocation failure permits retry.
+    widgetEvents_.reserve(1024U);
+    if (found == widgetSequences_.end()) found = widgetSequences_.emplace(feedback.widgetId, 0U).first;
+    if (widgetEvents_.size() == 1024U) widgetEvents_.erase(widgetEvents_.begin());
+    widgetEvents_.push_back(feedback);
+    found->second = feedback.sequence;
+    return true;
+}
+std::vector<mfd::api1::WidgetFeedback> RuntimeFeedbackState::TakeWidgetEvents()
+{
+    std::vector<mfd::api1::WidgetFeedback> events;
+    events.swap(widgetEvents_);
+    return events;
+}
+
 bool RuntimeFeedbackState::Apply(const mfd::ExternalStreamFeedback& feedback)
 {
     if (!mfd::IsValidStreamId(feedback.streamId) || !mfd::IsValidStreamId(feedback.instance)) return false;
@@ -786,6 +814,9 @@ std::size_t RuntimeFeedbackState::Poll(mfd::IExchangeChannel& channel,
 void RuntimeFeedbackState::Reset() noexcept
 {
     streams_.clear();
+    widgetSession_ = 0U;
+    widgetSequences_.clear();
+    widgetEvents_.clear();
     pageCaptureById_.clear();
     pageCaptureAccessOrdinal_ = 0;
     activePageId_ = 0;

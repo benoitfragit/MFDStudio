@@ -11,6 +11,7 @@
  */
 
 #include <cstddef>
+#include <functional>
 #include <limits>
 #include <vector>
 
@@ -44,5 +45,6 @@ void DrawContainerDecorations(
     const PageViewState& view,
     int width,
     int height,
-    const ContainerDecorationPointerState& pointer = {});
+    const ContainerDecorationPointerState& pointer = {},
+    const std::function<void(std::size_t)>& drawLeaf = {});
 } // namespace mfd::detail

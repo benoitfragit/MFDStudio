@@ -18,6 +18,7 @@
 #include <variant>
 
 #include "mfd/apilevel1/ContainerCommands.h"
+#include "mfd/apilevel1/widgets/WidgetCommands.h"
 #include <vector>
 
 #include "mfd/MfdExport.h"
@@ -490,7 +491,8 @@ using UserCommand = std::variant<ActivatePageCommand,
                                  SetDynamicReticleSetStrobeMagnetEnabledCommand,
                                  RemoveDynamicReticleCommand,
                                  api1::UpdateContainerCommand,
-                                 ResetWindowCommand>;
+                                 ResetWindowCommand,
+                                 api1::UpdateWidgetCommand>;
 
 /**
  * @brief Session-scoped wire identity for one command batch datagram.

@@ -380,6 +380,49 @@ bool ResolveGeneratedContainer(const std::optional<GeneratedTransportMap>& trans
     return true;
 }
 
+bool ResolveGeneratedWidget(const std::optional<GeneratedTransportMap>& transportMap,
+                               std::string& lastError,
+                               api1::WidgetHandle& target)
+{
+    if (!ResolveGeneratedPage(
+            transportMap, lastError, target.page, target.pageId, "UpdateWidgetCommand"))
+    {
+        return false;
+    }
+    const GeneratedTransportMap* map = RequireTransportMap(
+        transportMap, lastError, "UpdateWidgetCommand");
+    if (map == nullptr)
+    {
+        return false;
+    }
+    const auto iterator = std::find_if(
+        map->widgets.begin(), map->widgets.end(), [&target](const TransportMapWidgetEntry& entry)
+        {
+            if (entry.pageId != target.pageId)
+            {
+                return false;
+            }
+            return target.widgetTransportId != 0U
+                     ? entry.id == target.widgetTransportId
+                     : entry.normalizedWidgetId == NormalizePageName(target.widgetId);
+        });
+    if (iterator == map->widgets.end())
+    {
+        lastError = "Unknown exposed widget '" + target.widgetId +
+                    "' while normalizing UpdateWidgetCommand";
+        return false;
+    }
+    if (!target.widgetId.empty() &&
+        NormalizePageName(target.widgetId) != iterator->normalizedWidgetId)
+    {
+        lastError = "Generated widget id does not match widget '" + target.widgetId + "'";
+        return false;
+    }
+    target.widgetId = iterator->widgetId;
+    target.widgetTransportId = iterator->id;
+    return true;
+}
+
 bool ResolveGeneratedStaticReticle(const std::optional<GeneratedTransportMap>& transportMap,
                                    std::string& lastError,
                                    StaticReticleHandle& target,
@@ -901,6 +944,11 @@ struct OversizedCommandSplitter
         return RejectUnsplittableCommand();
     }
 
+    std::optional<std::vector<UserCommand>> operator()(const api1::UpdateWidgetCommand&) const
+    {
+        return RejectUnsplittableCommand();
+    }
+
     std::optional<std::vector<UserCommand>> operator()(const ResetWindowCommand&) const
     {
         return RejectUnsplittableCommand();
@@ -1088,6 +1136,11 @@ struct CommandTransportNormalizer
     bool operator()(api1::UpdateContainerCommand& command) const
     {
         return ResolveGeneratedContainer(transportMap, lastError, command.target);
+    }
+
+    bool operator()(api1::UpdateWidgetCommand& command) const
+    {
+        return ResolveGeneratedWidget(transportMap, lastError, command.target);
     }
 
     bool operator()(ResetWindowCommand&) const noexcept

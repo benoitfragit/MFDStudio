@@ -3298,17 +3298,32 @@ void ValidateGeneratedTransportMapAgainstDocument(const GeneratedTransportMap& m
         }
     }
 
+    std::unordered_set<std::string> mappedWidgets;
+    for (const auto& entry : map.widgets)
+    {
+        const auto pageIt = pagesById.find(entry.pageId);
+        if (pageIt == pagesById.end()) throw std::runtime_error("Widget map references an unknown page");
+        const PageDefinition* page = FindPageDefinition(document, pageIt->second->name);
+        const auto widget = std::find_if(page->widgets.begin(), page->widgets.end(),
+            [&entry](const api1::WidgetInstance& value) { return value.id == entry.widgetId; });
+        if (widget == page->widgets.end() || NormalizePageName(widget->id) != entry.normalizedWidgetId ||
+            !mappedWidgets.insert(std::to_string(entry.pageId) + ":" + entry.widgetId).second)
+            throw std::runtime_error("Widget map has a missing, duplicate or mismatched instance: " + entry.widgetId);
+    }
+
     std::size_t expectedReticleCount = 0U;
     std::size_t expectedPrimitiveCount = 0U;
     std::size_t expectedBlinkTypeCount = 0U;
     std::size_t expectedStrobeCount = 0U;
     std::size_t expectedContainerCount = 0U;
+    std::size_t expectedWidgetCount = 0U;
     std::unordered_set<std::string> expectedTemplateIds;
     for (const PageDefinition& page : document.pages)
     {
         expectedReticleCount += page.staticReticles.size() + page.strobes.size();
         expectedBlinkTypeCount += page.blinkTypes.size();
         expectedStrobeCount += page.strobes.size();
+        expectedWidgetCount += page.widgets.size();
         expectedContainerCount += static_cast<std::size_t>(std::count_if(
             page.containers.begin(), page.containers.end(), [](const api1::ContainerDefinition& container)
             {
@@ -3347,6 +3362,7 @@ void ValidateGeneratedTransportMapAgainstDocument(const GeneratedTransportMap& m
     RequireGeneratedEntryCount("blinkTypes", map.blinkTypes.size(), expectedBlinkTypeCount);
     RequireGeneratedEntryCount("strobes", map.strobes.size(), expectedStrobeCount);
     RequireGeneratedEntryCount("containers", map.containers.size(), expectedContainerCount);
+    RequireGeneratedEntryCount("widgets", map.widgets.size(), expectedWidgetCount);
     if (mappedTemplateIds != expectedTemplateIds)
     {
         throw std::runtime_error("Generated transport map templates table does not match dynamic template bindings");
@@ -3373,7 +3389,7 @@ LoadedWindowConfiguration LoadWindowConfigurationImpl(const std::filesystem::pat
         try
         {
             const json pageRoot = LoadJsonFile(pageFile);
-            page = ParsePage(*FindPageNode(pageRoot), loaded.document.reticleLibrary, pageFile.parent_path(), resolvedWindowFile.parent_path());
+            page = ParsePage(*FindPageNode(pageRoot), loaded.document.reticleLibrary, pageFile.parent_path(), api1::WidgetAssetRoot(resolvedWindowFile));
         }
         catch (const std::exception& exception)
         {
@@ -3477,7 +3493,7 @@ MfdDocument JsonLoader::LoadDocument(const std::filesystem::path& pagesFile) con
 
     for (const auto& pageNode : root.at("pages"))
     {
-        PageDefinition page = ParsePage(pageNode, document.reticleLibrary, pagesFile.parent_path(), resolvedPagesFile.parent_path());
+        PageDefinition page = ParsePage(pageNode, document.reticleLibrary, pagesFile.parent_path(), api1::WidgetAssetRoot(resolvedPagesFile));
         if (!pageNames.insert(page.normalizedName).second)
         {
             throw std::runtime_error("Duplicate page name in pages JSON: " + page.name);

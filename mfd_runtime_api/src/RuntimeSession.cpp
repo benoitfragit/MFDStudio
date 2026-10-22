@@ -8,6 +8,7 @@
  * @brief Implementation of the public reusable runtime session API.
  */
 
+#include "mfd/apilevel1/widgets/WidgetRuntimeHost.h"
 #include "mfd/runtime_api/RuntimeSession.h"
 
 #include <cmath>
@@ -382,6 +383,7 @@ public:
         SceneRegistry candidateScene;
         std::unique_ptr<UdpRuntimeBridge> candidateBridge;
         api1::ContainerRuntimeHost candidateContainerRuntime;
+        api1::WidgetRuntimeHost candidateWidgetRuntime;
         WindowAssetDefinition candidateWindow;
         std::filesystem::path candidateWindowFile;
         try
@@ -391,6 +393,14 @@ public:
             {
                 return false;
             }
+            const bool usesWidgets = std::any_of(loaded.document.pages.begin(), loaded.document.pages.end(),
+                [](const PageDefinition& page) { return !page.widgets.empty(); });
+            if (usesWidgets && loaded.window.apiLevel != ApiLevel::Level1)
+            {
+                error = "Widgets require API LEVEL 1.";
+                return false;
+            }
+            if (usesWidgets && !candidateWidgetRuntime.LoadForProcess(loaded.window.sourceFile, error)) return false;
             candidateScene.LoadDocument(std::move(loaded.document), std::move(loaded.generatedTransportMap));
             if (candidateScene.HasPage(previousPage))
             {
@@ -435,6 +445,7 @@ public:
         windowDefinition_ = std::move(candidateWindow);
         runtimeBridge_ = std::move(candidateBridge);
         containerRuntime_ = std::move(candidateContainerRuntime);
+        widgetRuntime_ = std::move(candidateWidgetRuntime);
         windowFile_ = std::move(candidateWindowFile);
         ResetLoadedState();
 
@@ -547,6 +558,7 @@ public:
             return;
         }
 
+        for (auto& feedback : scene_.TakeWidgetFeedback()) runtimeBridge_->EnqueueWidgetFeedback(std::move(feedback));
         feedbackThrottle_.Advance(deltaSeconds);
         const float fastInterval = windowDefinition_.feedbackFastIntervalSeconds;
         const float heartbeatInterval = windowDefinition_.feedbackHeartbeatIntervalSeconds;
@@ -755,6 +767,7 @@ private:
     WindowAssetDefinition windowDefinition_ {};
     std::unique_ptr<UdpRuntimeBridge> runtimeBridge_ {};
     api1::ContainerRuntimeHost containerRuntime_ {};
+    api1::WidgetRuntimeHost widgetRuntime_ {};
     RuntimeFeedbackThrottle feedbackThrottle_ {};
     RuntimeFeedbackThrottle lifecycleThrottle_ {};
     std::vector<CommandBatch> pendingCommandBatches_ {};

@@ -46,6 +46,8 @@ struct CommandWorkUnitEstimator
     std::size_t operator()(const SetDynamicReticleSetStrobeMagnetEnabledCommand&) const noexcept { return 1U; }
     std::size_t operator()(const RemoveDynamicReticleCommand&) const noexcept { return 1U; }
     std::size_t operator()(const api1::UpdateContainerCommand&) const noexcept { return 1U; }
+
+    std::size_t operator()(const api1::UpdateWidgetCommand&) const noexcept { return 1U; }
     std::size_t operator()(const ResetWindowCommand&) const noexcept { return 1U; }
 };
 

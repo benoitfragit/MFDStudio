@@ -188,6 +188,11 @@ struct CommandRollbackFootprintCollector
         touchedPages.push_back(detail::PageBindingOf(command));
     }
 
+    void operator()(const api1::UpdateWidgetCommand& command) const
+    {
+        touchedPages.push_back(detail::PageBindingOf(command));
+    }
+
     void operator()(const ResetWindowCommand&) const noexcept
     {
         touchesWholeScene = true;
@@ -751,6 +756,11 @@ struct CommandProcessor::ResolvedCommandDispatcher
         return processor.OnUpdateContainer(command);
     }
 
+    CommandResult operator()(const api1::UpdateWidgetCommand& command) const
+    {
+        return processor.OnUpdateWidget(command);
+    }
+
     CommandResult operator()(const ResetWindowCommand& command) const
     {
         return processor.OnResetWindow(command);
@@ -1259,6 +1269,37 @@ struct CommandProcessor::IdentifierResolver
         return true;
     }
 
+    bool operator()(api1::UpdateWidgetCommand& command) const
+    {
+        if (!processor.ResolveGeneratedPage(command.target.page, command.target.pageId))
+        {
+            return false;
+        }
+        if (command.target.widgetTransportId == 0U)
+        {
+            return !command.target.widgetId.empty();
+        }
+        const std::string* resolved = processor.scene_.ResolveWidgetId(
+            command.target.pageId, command.target.widgetTransportId);
+        if (resolved == nullptr)
+        {
+            processor.SetFailure(
+                "Unknown generated widget transport id " +
+                std::to_string(command.target.widgetTransportId));
+            return false;
+        }
+        if (!command.target.widgetId.empty() &&
+            !PageNamesEqual(command.target.widgetId, *resolved))
+        {
+            processor.SetFailure(
+                "Generated widget transport id does not match widget '" +
+                command.target.widgetId + "'");
+            return false;
+        }
+        command.target.widgetId = *resolved;
+        return true;
+    }
+
     bool operator()(ResetWindowCommand&) const noexcept
     {
         return true;
@@ -1525,6 +1566,21 @@ CommandProcessor::CommandResult CommandProcessor::OnUpdateContainer(
     {
         return CommandResult::Failure(
             "Unable to update exposed container '" + command.target.containerId +
+            "' on page '" + command.target.page + "'");
+    }
+    return CommandResult::Success();
+}
+
+CommandProcessor::CommandResult CommandProcessor::OnUpdateWidget(
+    const api1::UpdateWidgetCommand& command)
+{
+    const auto pageRef = scene_.ResolvePageRef(command.target.pageId, command.target.page);
+    if (!pageRef.has_value() ||
+        !scene_.ApplyWidgetPatchByKey(
+            pageRef->normalizedName, command.target.widgetId, command.patch))
+    {
+        return CommandResult::Failure(
+            "Unable to update exposed widget '" + command.target.widgetId +
             "' on page '" + command.target.page + "'");
     }
     return CommandResult::Success();

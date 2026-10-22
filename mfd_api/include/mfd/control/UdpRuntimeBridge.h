@@ -236,6 +236,7 @@ public:
      * @param feedback Cached renderer observation, containing no native handles.
      */
     void EnqueueExternalStreamFeedback(ExternalStreamFeedback feedback);
+    void EnqueueWidgetFeedback(api1::WidgetFeedback feedback);
 
     /**
      * @brief Returns the last command-side status or error string.

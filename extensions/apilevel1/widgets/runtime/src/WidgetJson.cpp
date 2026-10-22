@@ -71,6 +71,19 @@ void ValidateResources(const ReticleGroup& visual, const std::filesystem::path& 
 }
 } // namespace
 
+std::filesystem::path WidgetAssetRoot(const std::filesystem::path& windowFile)
+{
+    const auto folder = std::filesystem::weakly_canonical(windowFile).parent_path();
+    auto current = folder;
+    for (std::size_t depth = 0; depth < 64U; ++depth)
+    {
+        if (current.filename() == "assets") return current;
+        if (current == current.parent_path()) break;
+        current = current.parent_path();
+    }
+    return folder;
+}
+
 std::filesystem::path ResolveWidgetAsset(const std::filesystem::path& baseFolder,
     const std::filesystem::path& assetRoot, const std::string& reference)
 {

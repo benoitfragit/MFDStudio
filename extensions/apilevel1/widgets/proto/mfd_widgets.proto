@@ -1,0 +1,25 @@
+syntax = "proto3";
+package mfd.transport;
+// Additive messages on the common UserCommand/FeedbackEnvelope; no second transport.
+message WidgetHandle { uint64 page_id = 1; uint64 widget_id = 2; }
+message WidgetStatePatch {
+  optional bool visible = 1;
+  optional bool enabled = 2;
+  optional bool checked = 3;
+  optional bool warning = 4;
+  optional double value = 5;
+  optional string text = 6;
+  optional uint64 request_id = 7;
+}
+message UpdateWidgetCommand { WidgetHandle target = 1; WidgetStatePatch patch = 2; }
+message WidgetFeedback {
+  uint64 session = 1;
+  uint64 sequence = 2;
+  uint64 page_id = 3;
+  uint64 widget_id = 4;
+  uint64 request_id = 5;
+  uint32 event = 6;
+  bool pressed = 7;
+  bool checked = 8;
+  double value = 9;
+}

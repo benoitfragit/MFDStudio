@@ -154,6 +154,18 @@ struct TransportMapContainerEntry
     std::string normalizedContainerId;
 };
 
+struct TransportMapWidgetEntry
+{
+    /** @brief Stable generated transport id of the widget. */
+    TransportId id = 0U;
+    /** @brief Generated transport id of the owning page. */
+    TransportId pageId = 0U;
+    /** @brief Stable authored page-local widget identifier. */
+    std::string widgetId;
+    /** @brief Normalized identifier used by runtime lookup. */
+    std::string normalizedWidgetId;
+};
+
 /** @brief Parsed content of one `*.generated.map` companion file. */
 struct GeneratedTransportMap
 {
@@ -179,6 +191,8 @@ struct GeneratedTransportMap
     std::vector<TransportMapStrobeEntry> strobes;
     /** @brief Generated exposed API LEVEL 1 container entries. */
     std::vector<TransportMapContainerEntry> containers;
+    /** @brief All widget routes, including instances without public handles. */
+    std::vector<TransportMapWidgetEntry> widgets;
 };
 
 /**

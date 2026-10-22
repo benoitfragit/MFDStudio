@@ -6,6 +6,7 @@ syntax = "proto3";
 package mfd.transport;
 
 import "mfd_commands.proto";
+import "mfd_widgets.proto";
 
 enum StrobeCaptureShape
 {
@@ -85,6 +86,7 @@ message FeedbackEnvelope
     ActivePageFeedback active_page = 2;
     WindowLifecycleFeedback window_lifecycle = 3;
     ExternalStreamFeedback external_stream = 4;
+    WidgetFeedback widget = 5;
   }
 }
 

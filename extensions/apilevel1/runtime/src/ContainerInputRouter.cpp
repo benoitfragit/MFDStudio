@@ -49,10 +49,14 @@ detail::ContainerPointerQuery::ContainerPointerQuery(
 
 bool detail::ContainerPointerQuery::CanReceive(const ContainerLayoutNode& layout) const noexcept
 {
+    return layout.effectiveEnabled && VisibleAt(layout);
+}
+bool detail::ContainerPointerQuery::VisibleAt(const ContainerLayoutNode& layout, const bool testOwnBounds) const noexcept
+{
     if (!valid_ || layout.sourceIndex >= definitions_.size() ||
-        !layout.effectiveVisible || !layout.effectiveEnabled || !Contains(layout.viewport, pointer_)) return false;
+        !layout.effectiveVisible || (testOwnBounds && !Contains(layout.viewport, pointer_))) return false;
     const ContainerLayoutNode* current = &layout;
-    for (std::size_t depth = 0U; current != nullptr && depth <= kMaximumContainerDepth; ++depth)
+    for (std::size_t depth = 0U; current != nullptr && depth <= kMaximumContainerDepth + 1U; ++depth)
     {
         if (current->sourceIndex >= definitions_.size()) return false;
         if (definitions_[current->sourceIndex].scrolling.clipContent &&

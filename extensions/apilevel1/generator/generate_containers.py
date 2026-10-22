@@ -98,6 +98,10 @@ def collect_container_specs(page_name: str, page_root: dict, seen_ids: set[int])
         for child in children:
             if not isinstance(child, dict) or not isinstance(child.get("id"), str):
                 raise RuntimeError(f"Container '{raw['id']}' has an invalid child placement")
+            if child.get("kind", "container") not in ("container", "widget"):
+                raise RuntimeError("Unsupported container child kind")
+            if child.get("kind") == "widget":
+                continue  # Validated against the widget instance catalog by generate_widgets.
             child_normalized = _normalize(child["id"])
             # Authored edges are exact identities, like runtime/editor lookup.
             # Normalization is reserved for collision checks and transport keys.

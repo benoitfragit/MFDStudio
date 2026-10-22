@@ -93,6 +93,11 @@ inline CommandPageBinding PageBindingOf(const api1::UpdateContainerCommand& comm
     return {&command.target.page, command.target.pageId};
 }
 
+inline CommandPageBinding PageBindingOf(const api1::UpdateWidgetCommand& command) noexcept
+{
+    return {&command.target.page, command.target.pageId};
+}
+
 inline CommandPageBinding PageBindingOf(const ResetWindowCommand&) noexcept
 {
     return {};

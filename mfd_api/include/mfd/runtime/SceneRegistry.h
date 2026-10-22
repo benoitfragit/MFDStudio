@@ -10,6 +10,7 @@
  * @brief EnTT-based runtime scene storing pages, reticles, strobes and dynamic data.
  */
 
+#include "mfd/apilevel1/widgets/WidgetCommands.h"
 #include <entt/entt.hpp>
 
 #include <chrono>
@@ -247,6 +248,12 @@ public:
      * @brief Copies active-page container definitions with runtime state overrides applied.
      * @param destination Caller-owned scratch vector, cleared before use.
      */
+    void CollectActiveWidgets(std::vector<api1::WidgetInstance>& instances, std::vector<api1::WidgetState>& states) const;
+    bool SetActiveWidgetInteraction(std::string_view id, bool hovered, bool pressed, bool pending, std::uint64_t requestId) noexcept;
+    TransportId ActiveWidgetTransportId(std::string_view id) const noexcept;
+    void QueueWidgetFeedback(api1::WidgetFeedback feedback);
+    std::vector<api1::WidgetFeedback> TakeWidgetFeedback();
+
     void CollectActiveContainerDefinitions(
         std::vector<api1::ContainerDefinition>& destination) const;
     /**
@@ -502,6 +509,12 @@ private:
             bool enabled = true;
             Vec2 scrollOffset {};
         };
+        struct WidgetState
+        {
+            std::string normalizedPageName;
+            std::string widgetId;
+            api1::WidgetState state;
+        };
 
         std::vector<PageState> pages;
         std::vector<ReticleState> staticReticles;
@@ -510,6 +523,7 @@ private:
         std::vector<DynamicTemplateVisibilityState> dynamicTemplateVisibility;
         std::vector<DynamicTemplateStrobeMagnetState> dynamicTemplateStrobeMagnet;
         std::vector<ContainerState> containers;
+        std::vector<WidgetState> widgets;
         /** @brief Normalized page keys covered by a page-scoped snapshot (`scoped == true`). */
         std::vector<std::string> scopedPageKeys;
         std::uint64_t nextDynamicCreationSequence = 1;
@@ -584,6 +598,12 @@ private:
     {
         TransportId pageId = 0U;
         std::string containerId;
+    };
+
+    struct TransportWidgetLookup
+    {
+        TransportId pageId = 0U;
+        std::string widgetId;
     };
     /** @brief Mutable runtime state kept separate from authored definitions. */
     struct ContainerRuntimeState
@@ -833,6 +853,8 @@ private:
     /** @brief Resolves one generated strobe transport id within a page. */
     const std::string* ResolveStrobeName(TransportId pageId, TransportId strobeId) const noexcept;
     /** @brief Resolves one generated container id within a page. */
+    const std::string* ResolveWidgetId(TransportId pageId, TransportId widgetId) const noexcept;
+    bool ApplyWidgetPatchByKey(std::string_view page, std::string_view id, const api1::WidgetStatePatch& patch) noexcept;
     const std::string* ResolveContainerId(TransportId pageId, TransportId containerId) const noexcept;
     /** @brief Applies one validated container patch using normalized runtime identifiers. */
     bool ApplyContainerPatchByKey(std::string_view normalizedPageName,
@@ -880,6 +902,9 @@ private:
     std::unordered_map<TransportId, TransportStrobeLookup> transportStrobes_ {};
     /** @brief Generated API LEVEL 1 container lookup indexed by transport id. */
     std::unordered_map<TransportId, TransportContainerLookup> transportContainers_ {};
+    std::unordered_map<TransportId, TransportWidgetLookup> transportWidgets_;
+    std::unordered_map<std::string, RuntimeSnapshot::WidgetState> widgetRuntimeStates_;
+    std::vector<api1::WidgetFeedback> widgetFeedback_;
     /** @brief Runtime container overrides keyed by normalized page and container ids. */
     std::unordered_map<std::string, ContainerRuntimeState, TransparentStringHash, TransparentStringEqual>
         containerRuntimeStates_ {};

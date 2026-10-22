@@ -496,6 +496,12 @@ struct CommandCoalescingKeyVisitor
         return key;
     }
 
+    std::optional<CommandCoalescingKey> operator()(const api1::UpdateWidgetCommand&) const
+    {
+        // Acknowledgements and gesture transitions are ordered; never coalesce them.
+        return std::nullopt;
+    }
+
     std::optional<CommandCoalescingKey> operator()(const ResetWindowCommand&) const
     {
         // A window reset invalidates every earlier command and must never be merged away.
@@ -630,7 +636,7 @@ std::string DescribeFeedbackTarget(const FeedbackPayload& feedback)
     // Explicit named overloads keep the description per alternative. The static_assert turns any future
     // extension of FeedbackPayload into a compile error here, forcing a matching overload to be added
     // instead of silently falling through.
-    static_assert(std::variant_size_v<FeedbackPayload> == 4,
+    static_assert(std::variant_size_v<FeedbackPayload> == 5,
                   "DescribeFeedbackTarget must cover every FeedbackPayload alternative");
 
     if (const auto* strobe = std::get_if<StrobeStatusFeedback>(&feedback))
@@ -643,6 +649,7 @@ std::string DescribeFeedbackTarget(const FeedbackPayload& feedback)
         return DescribeFeedbackTargetImpl(*activePage);
     }
 
+    if (const auto* widget = std::get_if<api1::WidgetFeedback>(&feedback)) return "widget:" + std::to_string(widget->widgetId);
     if (const auto* stream = std::get_if<ExternalStreamFeedback>(&feedback)) return "stream:" + stream->streamId;
     return DescribeFeedbackTargetImpl(std::get<WindowLifecycleFeedback>(feedback));
 }
@@ -1347,6 +1354,11 @@ void UdpRuntimeBridge::EnqueueWindowLifecycleFeedback(WindowLifecycleFeedback fe
 }
 
 void UdpRuntimeBridge::EnqueueExternalStreamFeedback(ExternalStreamFeedback feedback)
+{
+    if (impl_ != nullptr && HasFeedbackSender()) impl_->PushQueuedFeedback(FeedbackPayload {std::move(feedback)});
+}
+
+void UdpRuntimeBridge::EnqueueWidgetFeedback(api1::WidgetFeedback feedback)
 {
     if (impl_ != nullptr && HasFeedbackSender()) impl_->PushQueuedFeedback(FeedbackPayload {std::move(feedback)});
 }

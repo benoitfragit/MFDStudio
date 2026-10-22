@@ -543,6 +543,21 @@ struct UserCommandValidator
         }
     }
 
+    void operator()(const api1::UpdateWidgetCommand& command) const
+    {
+        if ((command.target.pageId == 0U && command.target.page.empty()) ||
+            (command.target.widgetTransportId == 0U && command.target.widgetId.empty()) ||
+            command.target.page.size() > 4096U || command.target.widgetId.size() > 256U ||
+            command.target.widgetId.find('\0') != std::string::npos)
+            throw std::runtime_error("UpdateWidgetCommand requires a bounded page and widget target");
+        const auto& patch = command.patch;
+        if (!patch.visible && !patch.enabled && !patch.checked && !patch.warning && !patch.value && !patch.text && !patch.requestId)
+            throw std::runtime_error("UpdateWidgetCommand patch cannot be empty");
+        if (patch.value && !std::isfinite(*patch.value)) throw std::runtime_error("Widget value must be finite");
+        if (patch.text && (patch.text->size() > 4096U || patch.text->find('\0') != std::string::npos))
+            throw std::runtime_error("Widget text is invalid or too long");
+    }
+
     void operator()(const ResetWindowCommand&) const noexcept
     {
         // A window reset carries no payload: there is nothing to validate.
@@ -1464,6 +1479,23 @@ struct UserCommandProtoWriter
         }
     }
 
+    void operator()(const api1::UpdateWidgetCommand& command) const
+    {
+        if (command.target.pageId == 0U || command.target.widgetTransportId == 0U)
+            throw std::runtime_error("Widget serialization requires generated page and widget IDs");
+        auto* message = target->mutable_update_widget();
+        message->mutable_target()->set_page_id(command.target.pageId);
+        message->mutable_target()->set_widget_id(command.target.widgetTransportId);
+        auto* patch = message->mutable_patch();
+        if (command.patch.visible) patch->set_visible(*command.patch.visible);
+        if (command.patch.enabled) patch->set_enabled(*command.patch.enabled);
+        if (command.patch.checked) patch->set_checked(*command.patch.checked);
+        if (command.patch.warning) patch->set_warning(*command.patch.warning);
+        if (command.patch.value) patch->set_value(*command.patch.value);
+        if (command.patch.text) patch->set_text(*command.patch.text);
+        if (command.patch.requestId) patch->set_request_id(*command.patch.requestId);
+    }
+
     void operator()(const ResetWindowCommand&) const
     {
         target->mutable_reset_window();
@@ -1620,6 +1652,22 @@ void AppendParsedUserCommandFromProto(const pb::UserCommand& value, std::vector<
                     source.patch().scroll_offset().x(), source.patch().scroll_offset().y()};
             }
         }
+        return;
+    }
+
+    case pb::UserCommand::kUpdateWidget:
+    {
+        auto& command = std::get<api1::UpdateWidgetCommand>(target.emplace_back(std::in_place_type<api1::UpdateWidgetCommand>));
+        const auto& source = value.update_widget();
+        command.target.pageId = source.target().page_id();
+        command.target.widgetTransportId = source.target().widget_id();
+        if (source.patch().has_visible()) command.patch.visible = source.patch().visible();
+        if (source.patch().has_enabled()) command.patch.enabled = source.patch().enabled();
+        if (source.patch().has_checked()) command.patch.checked = source.patch().checked();
+        if (source.patch().has_warning()) command.patch.warning = source.patch().warning();
+        if (source.patch().has_value()) command.patch.value = source.patch().value();
+        if (source.patch().has_text()) command.patch.text = source.patch().text();
+        if (source.patch().has_request_id()) command.patch.requestId = source.patch().request_id();
         return;
     }
 

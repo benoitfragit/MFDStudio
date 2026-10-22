@@ -149,6 +149,10 @@ class MFD_CLIENT_API RuntimeFeedbackState
 public:
     /** @brief Applies a bounded stream observation, rejecting older sequence numbers. */
     bool Apply(const mfd::ExternalStreamFeedback& feedback);
+    /** @brief Reject stale/duplicate widget observations; session monotonicity is scoped to one runtime host. */
+    bool Apply(const mfd::api1::WidgetFeedback& feedback);
+    /** @brief Drains typed requests and recovery snapshots, including private widget routes. */
+    std::vector<mfd::api1::WidgetFeedback> TakeWidgetEvents();
     /** @brief Returns a cached stream observation, with freshness evaluated locally.
      * @param streamId Authored stream identifier.
      * @return Last observation, or an unavailable default before receiving feedback.
@@ -265,6 +269,9 @@ private:
         std::chrono::steady_clock::time_point received;
     };
     std::unordered_map<std::string, StreamObservation> streams_;
+    std::uint64_t widgetSession_ = 0;
+    std::unordered_map<TransportId, std::uint64_t> widgetSequences_;
+    std::vector<mfd::api1::WidgetFeedback> widgetEvents_;
     struct PageCaptureState
     {
         std::uint32_t lastStrobeSequence = 0;

@@ -104,6 +104,11 @@ struct CommandGeneratedIdentifierProbe
         return command.target.pageId != 0U || command.target.containerTransportId != 0U;
     }
 
+    bool operator()(const api1::UpdateWidgetCommand& command) const noexcept
+    {
+        return command.target.pageId != 0U || command.target.widgetTransportId != 0U;
+    }
+
     bool operator()(const ResetWindowCommand&) const noexcept
     {
         return false;

@@ -2,6 +2,7 @@
 # Project author: Benoit Fra
 # Repository: https://github.com/benoitfragit/MFDStudio
 set(CLIENT_API_PUBLIC_HEADERS
+    ${MFD_WIDGETS_ROOT_DIR}/generator/include/mfd/client/Widget.h
     ${MFD_APILEVEL1_ROOT_DIR}/generator/include/mfd/client/Container.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/Animation.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/ClientSdk.h
@@ -11,6 +12,7 @@ set(CLIENT_API_PUBLIC_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mfd/client/WindowLivenessMonitor.h)
 
 set(CLIENT_API_SOURCES
+    ${MFD_WIDGETS_ROOT_DIR}/generator/src/Widget.cpp
     ${MFD_APILEVEL1_ROOT_DIR}/generator/src/Container.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Animation.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/LatestBatchPublisher.cpp
@@ -30,6 +32,7 @@ target_include_directories(mfd_client_api
     PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
         "$<BUILD_INTERFACE:${MFD_APILEVEL1_ROOT_DIR}/generator/include>"
+        "$<BUILD_INTERFACE:${MFD_WIDGETS_ROOT_DIR}/generator/include>"
         "$<BUILD_INTERFACE:${MFD_APILEVEL1_RUNTIME_INCLUDE_DIR}>"
         "$<BUILD_INTERFACE:${MFD_WIDGETS_INCLUDE_DIR}>"
         "$<BUILD_INTERFACE:${MFD_COMMON_API_PUBLIC_INCLUDE_DIR}>"

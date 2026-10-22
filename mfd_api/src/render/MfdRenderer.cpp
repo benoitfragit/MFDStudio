@@ -25,6 +25,10 @@
 #include "BezierPolylineCache.h"
 #include "ContainerDecorationRenderer.h"
 #include "ContainerPointerQuery.h"
+#include "mfd/apilevel1/widgets/WidgetModel.h"
+#include "mfd/apilevel1/widgets/WidgetVisuals.h"
+#include "mfd/apilevel1/widgets/WidgetRuntimeHost.h"
+#include "mfd/apilevel1/widgets/WidgetInputController.h"
 #include "ImageTextureCache.h"
 #include "ExternalStreamRegistry.h"
 #include "RenderWorkBudget.h"
@@ -195,6 +199,8 @@ struct LayerLocalRestoreContext
     const std::vector<ReticleRenderView>* reticles = nullptr;
     const std::vector<api1::ContainerDefinition>* containerDefinitions = nullptr;
     const std::vector<api1::ContainerLayoutNode>* containerLayouts = nullptr;
+    const std::vector<ReticleGroup>* widgetVisuals = nullptr;
+    std::size_t firstWidget = 0U;
     PageViewState view {};
     detail::ContainerDecorationPointerState pointer {};
     Color background = BLACK;
@@ -204,6 +210,13 @@ struct LayerLocalRestoreContext
     bool eraseLayerOnly = false;
     detail::RenderWorkBudget restoreVisitBudget {detail::kMaxLayerRestoreVisits};
 };
+
+void DrawWidgetLeaf(const LayerLocalRestoreContext& context, const std::size_t sourceIndex)
+{
+    if (context.canvas == nullptr || context.widgetVisuals == nullptr || sourceIndex < context.firstWidget) return;
+    const std::size_t index = sourceIndex - context.firstWidget;
+    if (index < context.widgetVisuals->size()) context.canvas->DrawReticleWithoutClipping((*context.widgetVisuals)[index], (*context.widgetVisuals)[index].visible);
+}
 
 void RestoreLayerLocalBackground(LayerLocalRestoreContext& context)
 {
@@ -216,7 +229,7 @@ void RestoreLayerLocalBackground(LayerLocalRestoreContext& context)
             context.view,
             context.width,
             context.height,
-            context.pointer);
+            context.pointer, [&context](const std::size_t index) { DrawWidgetLeaf(context, index); });
     }
     if (!context.eraseLayerOnly || context.canvas == nullptr || context.reticles == nullptr)
     {
@@ -240,6 +253,8 @@ void RestoreLayerLocalBackground(LayerLocalRestoreContext& context)
 void DrawActivePageContent(const SceneRegistry& scene,
                            const std::vector<api1::ContainerDefinition>& containerDefinitions,
                            const std::vector<api1::ContainerLayoutNode>& containerLayouts,
+                           const std::vector<ReticleGroup>& widgetVisuals,
+                           const std::size_t firstWidget,
                            const std::vector<ReticleRenderView>& activeReticles,
                            const ReticleGroup& titleReticle,
                            const int width,
@@ -260,15 +275,10 @@ void DrawActivePageContent(const SceneRegistry& scene,
         IsMouseButtonDown(MOUSE_BUTTON_LEFT),
         activeScrollbarSourceIndex,
         activeScrollbarHorizontal};
-    detail::DrawContainerDecorations(
-        containerDefinitions,
-        containerLayouts,
-        scene.ActivePageView(),
-        width,
-        height,
-        containerPointer);
     LayerLocalRestoreContext restoreContext;
     restoreContext.reticles = &activeReticles;
+    restoreContext.widgetVisuals = &widgetVisuals;
+    restoreContext.firstWidget = firstWidget;
     restoreContext.containerDefinitions = &containerDefinitions;
     restoreContext.containerLayouts = &containerLayouts;
     restoreContext.view = scene.ActivePageView();
@@ -298,6 +308,14 @@ void DrawActivePageContent(const SceneRegistry& scene,
         textLayoutCache,
         std::move(restore), detail::kMaxCanvasDrawWorkUnits, externalStreams);
     restoreContext.canvas = &canvas;
+    detail::DrawContainerDecorations(
+        containerDefinitions,
+        containerLayouts,
+        scene.ActivePageView(),
+        width,
+        height,
+        containerPointer, [&restoreContext](const std::size_t index) { DrawWidgetLeaf(restoreContext, index); });
+
 
     for (const ReticleRenderView& reticle : activeReticles)
     {
@@ -353,6 +371,12 @@ struct MfdRenderer::Impl
     std::vector<api1::ContainerDefinition> containerDefinitionsScratch {};
     std::vector<api1::ContainerLayoutNode> containerLayoutsScratch {};
     api1::ContainerRuntimeHost containerRuntime {};
+    api1::WidgetRuntimeHost widgetRuntime {};
+    api1::WidgetInputController widgetInput {};
+    std::vector<api1::WidgetInstance> widgets;
+    std::vector<api1::WidgetState> widgetStates;
+    std::vector<ReticleGroup> widgetVisuals;
+    std::size_t firstWidget = 0U;
     api1::ContainerInputRouter containerInputRouter {};
     ThumbDragState thumbDrag {};
     bool containerRuntimeLoadAttempted = false;
@@ -366,6 +390,38 @@ struct MfdRenderer::Impl
     void ResolveContainers(const SceneRegistry& scene)
     {
         scene.CollectActiveContainerDefinitions(containerDefinitionsScratch);
+        firstWidget = containerDefinitionsScratch.size();
+        scene.CollectActiveWidgets(widgets, widgetStates);
+        widgetVisuals.clear();
+        if (!widgets.empty())
+        {
+            std::string error;
+            if ((!widgetRuntime.IsLoaded() && !widgetRuntime.LoadForProcess({}, error)) ||
+                !api1::EvaluateWidgetLayout(containerDefinitionsScratch, widgets, containerLayoutsScratch, error))
+            {
+                containerLayoutsScratch.clear();
+                if (containerLayoutDiagnostic != error) TraceLog(LOG_ERROR, "%s", error.c_str());
+                containerLayoutDiagnostic = error;
+                return;
+            }
+            auto nodes = api1::ProjectWidgetLayoutNodes(containerDefinitionsScratch, widgets);
+            for (std::size_t index = 0; index < firstWidget; ++index) nodes[index].id = containerDefinitionsScratch[index].id;
+            widgetVisuals.resize(widgets.size());
+            for (auto& layout : containerLayoutsScratch)
+            {
+                if (layout.sourceIndex < firstWidget) layout.id = nodes[layout.sourceIndex].id;
+                else
+                {
+                    const auto index = layout.sourceIndex-firstWidget;
+                    auto state = widgetStates[index];
+                    state.visible = layout.effectiveVisible;
+                    state.enabled = layout.effectiveEnabled;
+                    widgetVisuals[index] = api1::BuildWidgetVisual(widgets[index], state, layout.bounds);
+                }
+            }
+            containerDefinitionsScratch = std::move(nodes);
+            return;
+        }
         containerLayoutsScratch.clear();
         if (containerDefinitionsScratch.empty()) return;
         if (!containerRuntime.IsAvailable() && !containerRuntimeLoadAttempted)
@@ -636,7 +692,9 @@ void MfdRenderer::HandleContainerInput(SceneRegistry& scene,
     // evaluation to DrawActivePage; actual wheel/drag frames still resolve both
     // before input and after mutation, so no persistent invalidation cache exists.
     const Vector2 wheel = GetMouseWheelMoveV();
-    if (!impl_->thumbDrag.active && !IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
+    const auto* activePage = FindPageDefinition(scene.Document(), scene.ActivePageName());
+    const bool hasWidgets = activePage != nullptr && !activePage->widgets.empty();
+    if (!hasWidgets && !impl_->thumbDrag.active && !IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
         wheel.x == 0.0f && wheel.y == 0.0f)
     {
         return;
@@ -653,8 +711,8 @@ void MfdRenderer::HandleContainerInput(SceneRegistry& scene,
     }
 
     const Vector2 mouse = GetMousePosition();
-    if (mouse.x < 0.0f || mouse.y < 0.0f ||
-        mouse.x > static_cast<float>(viewportWidth) || mouse.y > static_cast<float>(viewportHeight))
+    if (!hasWidgets && (mouse.x < 0.0f || mouse.y < 0.0f ||
+        mouse.x > static_cast<float>(viewportWidth) || mouse.y > static_cast<float>(viewportHeight)))
     {
         if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) impl_->thumbDrag.active = false;
         return;
@@ -667,7 +725,12 @@ void MfdRenderer::HandleContainerInput(SceneRegistry& scene,
         (mouse.x - static_cast<float>(viewportWidth) * 0.5f) / logicalScale / zoom + view.center.x,
         -(mouse.y - static_cast<float>(viewportHeight) * 0.5f) / logicalScale / zoom + view.center.y};
 
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+    const bool widgetOwnsPointer = impl_->widgetInput.Update(scene, impl_->widgetRuntime,
+        impl_->containerDefinitionsScratch, impl_->containerLayoutsScratch, impl_->widgets, impl_->widgetStates,
+        pointer, IsMouseButtonDown(MOUSE_BUTTON_LEFT), IsMouseButtonPressed(MOUSE_BUTTON_LEFT),
+        IsMouseButtonReleased(MOUSE_BUTTON_LEFT), impl_->thumbDrag.active || !IsWindowFocused() || scene.WindowDisplay().disabled,
+        GetFrameTime());
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !widgetOwnsPointer)
     {
         const api1::detail::ContainerPointerQuery pointerQuery(
             impl_->containerDefinitionsScratch, impl_->containerLayoutsScratch, pointer);
@@ -844,6 +907,8 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
             scene,
             impl_->containerDefinitionsScratch,
             impl_->containerLayoutsScratch,
+            impl_->widgetVisuals,
+            impl_->firstWidget,
             *activeReticles,
             *titleReticle,
             viewportWidth,
@@ -868,6 +933,8 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
             scene,
             impl_->containerDefinitionsScratch,
             impl_->containerLayoutsScratch,
+            impl_->widgetVisuals,
+            impl_->firstWidget,
             *activeReticles,
             *titleReticle,
             viewportWidth,
@@ -901,6 +968,8 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
             scene,
             impl_->containerDefinitionsScratch,
             impl_->containerLayoutsScratch,
+            impl_->widgetVisuals,
+            impl_->firstWidget,
             *activeReticles,
             *titleReticle,
             viewportWidth,

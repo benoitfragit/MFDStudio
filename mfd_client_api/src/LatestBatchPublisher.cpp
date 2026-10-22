@@ -48,6 +48,7 @@ struct LatestBatchPublisher::Impl
     bool ready = false;
     bool stopRequested = false;
     bool sending = false;
+    std::size_t sendingWidgetCommands = 0U;
     bool retryBlocked = false;
 };
 
@@ -62,6 +63,12 @@ struct DynamicLifecycleOperation
 };
 
 using DynamicOperationMap = std::unordered_map<std::string, std::size_t>;
+
+std::size_t CountWidgetCommands(const std::vector<mfd::UserCommand>& commands)
+{
+    return static_cast<std::size_t>(std::count_if(commands.begin(), commands.end(), [](const mfd::UserCommand& command)
+    { return std::holds_alternative<mfd::api1::UpdateWidgetCommand>(command); }));
+}
 
 bool IsResetWindowCommand(const mfd::UserCommand& command) noexcept
 {
@@ -764,6 +771,11 @@ void MergePendingBatchPreservingUndeliveredDeltas(std::optional<mfd::CommandBatc
         carriedOperations.push_back(mfd::UserCommand {std::move(pendingUpdate)});
     }
 
+    if (!pendingHasReset)
+    {
+        for (const auto& command : pendingBatch->commands)
+            if (std::holds_alternative<mfd::api1::UpdateWidgetCommand>(command)) carriedOperations.push_back(command);
+    }
     if (carriedOperations.empty())
     {
         if (pendingHasReset)
@@ -821,6 +833,7 @@ void StartWorker(ImplType& impl)
                     batch = std::move(*impl.pendingBatch);
                     impl.pendingBatch.reset();
                     impl.sending = true;
+                    impl.sendingWidgetCommands = CountWidgetCommands(batch.commands);
                 }
 
                 bool success = false;
@@ -850,6 +863,7 @@ void StartWorker(ImplType& impl)
                 {
                     std::lock_guard<std::mutex> lock(impl.mutex);
                     impl.sending = false;
+                    impl.sendingWidgetCommands = 0U;
                     if (success)
                     {
                         impl.lastError.clear();
@@ -1009,6 +1023,12 @@ bool LatestBatchPublisher::SubmitLatest(mfd::CommandBatch batch)
             return false;
         }
 
+        const std::size_t queuedWidgets = impl_->pendingBatch ? CountWidgetCommands(impl_->pendingBatch->commands) : 0U;
+        if (queuedWidgets + impl_->sendingWidgetCommands + CountWidgetCommands(batch.commands) > 4096U)
+        {
+            impl_->lastError = "Widget confirmation queue is full; retry this batch after sending resumes";
+            return false;
+        }
         MergePendingBatchPreservingUndeliveredDeltas(impl_->pendingBatch, std::move(batch));
         impl_->retryBlocked = false;
     }

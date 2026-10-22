@@ -212,6 +212,7 @@ private:
     CommandResult OnSetDynamicReticleSetStrobeMagnetEnabled(const SetDynamicReticleSetStrobeMagnetEnabledCommand& command);
     CommandResult OnRemoveDynamicReticle(const RemoveDynamicReticleCommand& command);
     CommandResult OnUpdateContainer(const api1::UpdateContainerCommand& command);
+    CommandResult OnUpdateWidget(const api1::UpdateWidgetCommand& command);
     CommandResult OnResetWindow(const ResetWindowCommand& command);
 
     bool SubmitCommandsWithCurrentTransactionMode(ArrayView<const UserCommand> commands, std::string_view mappingHash);
