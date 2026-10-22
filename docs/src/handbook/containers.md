@@ -101,7 +101,12 @@ Wheel input is routed to the deepest visible and enabled viewport under the
 pointer. When that region cannot move farther in the requested direction, the
 gesture bubbles to an eligible ancestor. Ancestor clipping is respected. Thumb
 dragging maps directly to the shared clamped scroll offset; hover and active
-colors come from the authored scrollbar appearance.
+colors come from the authored scrollbar appearance. Each pointer query builds a
+bounded source-index lookup and reuses it for ancestor checks; it cannot become
+stale across layout changes. Frames without wheel/button/active-drag input skip
+the input-side layout evaluation. Interaction frames retain a fresh draw-side
+evaluation after scrolling, so new offsets appear in the same frame without a
+persistent layout cache.
 
 ## Editor
 

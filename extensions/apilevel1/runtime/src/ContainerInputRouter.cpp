@@ -5,6 +5,7 @@
  */
 
 #include "mfd/apilevel1/ContainerInputRouter.h"
+#include "ContainerPointerQuery.h"
 
 #include <algorithm>
 #include <cmath>
@@ -22,46 +23,6 @@ bool Contains(const ContainerRect& rectangle, const Vec2 point) noexcept
            point.y <= rectangle.center.y + rectangle.size.y * 0.5f;
 }
 
-const ContainerLayoutNode* FindLayoutBySourceIndex(const std::vector<ContainerLayoutNode>& layouts,
-                                                   const std::size_t sourceIndex) noexcept
-{
-    for (const ContainerLayoutNode& layout : layouts)
-    {
-        if (layout.sourceIndex == sourceIndex)
-        {
-            return &layout;
-        }
-    }
-    return nullptr;
-}
-
-bool IsInsideEffectiveClip(const std::vector<ContainerDefinition>& definitions,
-                           const std::vector<ContainerLayoutNode>& layouts,
-                           const ContainerLayoutNode& layout,
-                           const Vec2 point) noexcept
-{
-    const ContainerLayoutNode* current = &layout;
-    std::size_t remainingDepth = kMaximumContainerDepth + 1U;
-    while (current != nullptr && remainingDepth > 0U)
-    {
-        if (current->sourceIndex >= definitions.size())
-        {
-            return false;
-        }
-        if (definitions[current->sourceIndex].scrolling.clipContent && !Contains(current->viewport, point))
-        {
-            return false;
-        }
-        if (current->parentSourceIndex == std::numeric_limits<std::size_t>::max())
-        {
-            return true;
-        }
-        current = FindLayoutBySourceIndex(layouts, current->parentSourceIndex);
-        --remainingDepth;
-    }
-    return false;
-}
-
 float MoveOffset(const float current,
                  const float wheelDelta,
                  const float logicalStep,
@@ -71,14 +32,44 @@ float MoveOffset(const float current,
 }
 } // namespace
 
+detail::ContainerPointerQuery::ContainerPointerQuery(
+    const std::vector<ContainerDefinition>& definitions,
+    const std::vector<ContainerLayoutNode>& layouts, const Vec2 pointer) noexcept
+    : definitions_(definitions), pointer_(pointer)
+{
+    if (definitions.size() > bySource_.size() || layouts.size() > bySource_.size() ||
+        !std::isfinite(pointer.x) || !std::isfinite(pointer.y)) return;
+    for (const ContainerLayoutNode& layout : layouts)
+    {
+        if (layout.sourceIndex >= definitions.size() || bySource_[layout.sourceIndex] != nullptr) return;
+        bySource_[layout.sourceIndex] = &layout;
+    }
+    valid_ = true;
+}
+
+bool detail::ContainerPointerQuery::CanReceive(const ContainerLayoutNode& layout) const noexcept
+{
+    if (!valid_ || layout.sourceIndex >= definitions_.size() ||
+        !layout.effectiveVisible || !layout.effectiveEnabled || !Contains(layout.viewport, pointer_)) return false;
+    const ContainerLayoutNode* current = &layout;
+    for (std::size_t depth = 0U; current != nullptr && depth <= kMaximumContainerDepth; ++depth)
+    {
+        if (current->sourceIndex >= definitions_.size()) return false;
+        if (definitions_[current->sourceIndex].scrolling.clipContent &&
+            !Contains(current->viewport, pointer_)) return false;
+        if (current->parentSourceIndex == std::numeric_limits<std::size_t>::max()) return true;
+        if (current->parentSourceIndex >= definitions_.size()) return false;
+        current = bySource_[current->parentSourceIndex];
+    }
+    return false;
+}
+
 bool ContainerInputRouter::CanReceivePointer(const std::vector<ContainerDefinition>& definitions,
                                              const std::vector<ContainerLayoutNode>& layouts,
                                              const ContainerLayoutNode& layout,
                                              const Vec2 pointer) const noexcept
 {
-    return std::isfinite(pointer.x) && std::isfinite(pointer.y) &&
-           layout.sourceIndex < definitions.size() && layout.effectiveVisible && layout.effectiveEnabled &&
-           Contains(layout.viewport, pointer) && IsInsideEffectiveClip(definitions, layouts, layout, pointer);
+    return detail::ContainerPointerQuery(definitions, layouts, pointer).CanReceive(layout);
 }
 
 bool ContainerInputRouter::RouteWheel(const std::vector<ContainerDefinition>& definitions,
@@ -102,10 +93,11 @@ bool ContainerInputRouter::RouteWheel(const std::vector<ContainerDefinition>& de
         return false;
     }
 
+    const detail::ContainerPointerQuery pointerQuery(definitions, layouts, pointer);
     for (auto iterator = layouts.rbegin(); iterator != layouts.rend(); ++iterator)
     {
         const ContainerLayoutNode& layout = *iterator;
-        if (!CanReceivePointer(definitions, layouts, layout, pointer))
+        if (!pointerQuery.CanReceive(layout))
         {
             continue;
         }

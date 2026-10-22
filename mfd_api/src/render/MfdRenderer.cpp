@@ -24,6 +24,7 @@
 #include "Canvas2D.h"
 #include "BezierPolylineCache.h"
 #include "ContainerDecorationRenderer.h"
+#include "ContainerPointerQuery.h"
 #include "ImageTextureCache.h"
 #include "ExternalStreamRegistry.h"
 #include "RenderWorkBudget.h"
@@ -631,6 +632,15 @@ void MfdRenderer::HandleContainerInput(SceneRegistry& scene,
     {
         return;
     }
+    // Input cannot change layout on an idle frame. Leave the one authoritative
+    // evaluation to DrawActivePage; actual wheel/drag frames still resolve both
+    // before input and after mutation, so no persistent invalidation cache exists.
+    const Vector2 wheel = GetMouseWheelMoveV();
+    if (!impl_->thumbDrag.active && !IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
+        wheel.x == 0.0f && wheel.y == 0.0f)
+    {
+        return;
+    }
     impl_->ResolveContainers(scene);
     if (impl_->thumbDrag.active && impl_->thumbDrag.pageName != scene.ActivePageName())
     {
@@ -659,16 +669,14 @@ void MfdRenderer::HandleContainerInput(SceneRegistry& scene,
 
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
     {
+        const api1::detail::ContainerPointerQuery pointerQuery(
+            impl_->containerDefinitionsScratch, impl_->containerLayoutsScratch, pointer);
         for (auto iterator = impl_->containerLayoutsScratch.rbegin();
              iterator != impl_->containerLayoutsScratch.rend();
              ++iterator)
         {
             const api1::ContainerLayoutNode& layout = *iterator;
-            if (!impl_->containerInputRouter.CanReceivePointer(
-                    impl_->containerDefinitionsScratch,
-                    impl_->containerLayoutsScratch,
-                    layout,
-                    pointer))
+            if (!pointerQuery.CanReceive(layout))
                 continue;
             const bool verticalHit = layout.verticalScrollbar.visible &&
                                      Contains(ToScreenRect(layout.verticalScrollbar.thumb,
@@ -724,7 +732,6 @@ void MfdRenderer::HandleContainerInput(SceneRegistry& scene,
         }
     }
 
-    const Vector2 wheel = GetMouseWheelMoveV();
     api1::ContainerScrollRequest request;
     if (impl_->containerInputRouter.RouteWheel(
             impl_->containerDefinitionsScratch,
