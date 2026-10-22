@@ -162,3 +162,9 @@ not partial rendering. The runtime DLL never depends on the editor DLL. See
 `examples/apilevel1` for a mixed Window and generated client. After building the
 example, `Scripts/Start-APILevel1Containers.bat` launches both from the staged
 runtime tree; the example opens directly on its Containers Page.
+
+Build-tree copies are owned by each producing DLL target: the runtime DLL is
+copied beside both hosts, and the editor DLL beside the editor. Destination
+folders are created before copying, including on a clean multi-config build.
+Rebuilding only a DLL refreshes its host copies. The hosts depend on these
+build targets but retain optional runtime loading for LEVEL 0.

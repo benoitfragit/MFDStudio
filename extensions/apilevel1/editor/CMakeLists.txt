@@ -17,11 +17,9 @@ add_dependencies(mfd_editor mfd_editor_containers_api1 mfd_containers_api1)
 add_custom_command(
     TARGET mfd_editor_containers_api1
     POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:mfd_editor>"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:mfd_editor_containers_api1>
-            $<TARGET_FILE_DIR:mfd_editor>/
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_FILE:mfd_containers_api1>
             $<TARGET_FILE_DIR:mfd_editor>/
     VERBATIM)
 

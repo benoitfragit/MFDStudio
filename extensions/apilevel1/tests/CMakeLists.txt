@@ -74,3 +74,13 @@ endif()
 gtest_discover_tests(mfd_apilevel1_extension_availability_tests
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_apilevel1_extension_availability_tests>"
     DISCOVERY_TIMEOUT 60)
+
+if(WIN32)
+    add_test(NAME apilevel1_host_deployment
+        COMMAND ${CMAKE_COMMAND}
+            "-DRUNTIME_DLL=$<TARGET_FILE:mfd_containers_api1>"
+            "-DEDITOR_DLL=$<TARGET_FILE:mfd_editor_containers_api1>"
+            "-DWINDOW_DIR=$<TARGET_FILE_DIR:mfd_window>"
+            "-DEDITOR_DIR=$<TARGET_FILE_DIR:mfd_editor>"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyHostDeployment.cmake")
+endif()
