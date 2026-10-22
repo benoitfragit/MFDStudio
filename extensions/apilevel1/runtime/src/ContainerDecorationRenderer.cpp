@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 #include <raylib.h>
 
@@ -20,32 +21,61 @@ Color ToRayColor(const ColorRgba& color) noexcept
     return Color {color.r, color.g, color.b, color.a};
 }
 
-Rectangle ToScreenRect(const api1::ContainerRect& rect,
-                       const PageViewState& view,
-                       const int width,
-                       const int height) noexcept
+// Keep transforms and clipping in double: finite float geometry times a finite
+// float zoom can exceed both float and int without exceeding double.
+struct ScreenRect
 {
-    const Vec2 center = ApplyPageView(rect.center, view);
-    const float screenExtent = static_cast<float>(std::min(width, height));
-    const float scale = screenExtent * 0.5f * SanitizeZoom(view.zoom);
-    const float pixelWidth = std::max(0.0f, rect.size.x * scale);
-    const float pixelHeight = std::max(0.0f, rect.size.y * scale);
-    return {static_cast<float>(width) * 0.5f + center.x * screenExtent * 0.5f - pixelWidth * 0.5f,
-            static_cast<float>(height) * 0.5f - center.y * screenExtent * 0.5f - pixelHeight * 0.5f,
-            pixelWidth,
-            pixelHeight};
+    double x = 0.0;
+    double y = 0.0;
+    double width = 0.0;
+    double height = 0.0;
+};
+
+ScreenRect ToScreenRect(const api1::ContainerRect& rect,
+                        const PageViewState& view,
+                        const int width,
+                        const int height) noexcept
+{
+    const double scale = static_cast<double>(std::min(width, height)) * 0.5 * SanitizeZoom(view.zoom);
+    const double pixelWidth = static_cast<double>(rect.size.x) * scale;
+    const double pixelHeight = static_cast<double>(rect.size.y) * scale;
+    return {width * 0.5 + (static_cast<double>(rect.center.x) - view.center.x) * scale - pixelWidth * 0.5,
+            height * 0.5 - (static_cast<double>(rect.center.y) - view.center.y) * scale - pixelHeight * 0.5,
+            pixelWidth, pixelHeight};
 }
 
-Rectangle IntersectRectangles(const Rectangle first, const Rectangle second) noexcept
+bool IsFiniteRect(const ScreenRect rect) noexcept
 {
-    const float left = std::max(first.x, second.x);
-    const float top = std::max(first.y, second.y);
-    const float right = std::min(first.x + first.width, second.x + second.width);
-    const float bottom = std::min(first.y + first.height, second.y + second.height);
-    return {left, top, std::max(0.0f, right - left), std::max(0.0f, bottom - top)};
+    return std::isfinite(rect.x) && std::isfinite(rect.y) &&
+           std::isfinite(rect.width) && std::isfinite(rect.height) &&
+           rect.width >= 0.0 && rect.height >= 0.0;
 }
 
-bool Contains(const Rectangle rectangle, const Vec2 point) noexcept
+ScreenRect IntersectRectangles(const ScreenRect first, const ScreenRect second) noexcept
+{
+    if (!IsFiniteRect(first) || !IsFiniteRect(second)) return {};
+    const double left = std::max(first.x, second.x);
+    const double top = std::max(first.y, second.y);
+    const double right = std::min(first.x + first.width, second.x + second.width);
+    const double bottom = std::min(first.y + first.height, second.y + second.height);
+    if (right <= left || bottom <= top) return {};
+    return {left, top, right - left, bottom - top};
+}
+
+bool ToDrawingRect(const ScreenRect source, Rectangle& destination) noexcept
+{
+    // Leave headroom for raylib's float vertex arithmetic. Clipping still uses
+    // the original double rectangle if its decorations cannot be represented.
+    constexpr double limit = static_cast<double>(std::numeric_limits<float>::max()) / 16.0;
+    if (!IsFiniteRect(source) || source.width <= 0.0 || source.height <= 0.0 ||
+        std::abs(source.x) > limit || std::abs(source.y) > limit ||
+        source.width > limit || source.height > limit) return false;
+    destination = {static_cast<float>(source.x), static_cast<float>(source.y),
+                   static_cast<float>(source.width), static_cast<float>(source.height)};
+    return true;
+}
+
+bool Contains(const ScreenRect rectangle, const Vec2 point) noexcept
 {
     return point.x >= rectangle.x && point.x <= rectangle.x + rectangle.width &&
            point.y >= rectangle.y && point.y <= rectangle.y + rectangle.height;
@@ -55,13 +85,17 @@ class ScissorModeScope final
 {
 public:
     /** @brief Begins one clipped drawing scope. */
-    explicit ScissorModeScope(const Rectangle clip) noexcept
+    explicit ScissorModeScope(const ScreenRect clip, const int width, const int height) noexcept
     {
-        const int x = static_cast<int>(std::floor(clip.x));
-        const int y = static_cast<int>(std::floor(clip.y));
-        const int right = static_cast<int>(std::ceil(clip.x + clip.width));
-        const int bottom = static_cast<int>(std::ceil(clip.y + clip.height));
-        BeginScissorMode(x, y, std::max(0, right - x), std::max(0, bottom - y));
+        // Intersect before rounding or narrowing. All four endpoints now lie
+        // in [0, viewport extent], even for offscreen/invalid input rectangles.
+        const ScreenRect bounded = IntersectRectangles(
+            {0.0, 0.0, static_cast<double>(width), static_cast<double>(height)}, clip);
+        const int x = static_cast<int>(std::floor(bounded.x));
+        const int y = static_cast<int>(std::floor(bounded.y));
+        const int right = static_cast<int>(std::ceil(bounded.x + bounded.width));
+        const int bottom = static_cast<int>(std::ceil(bounded.y + bounded.height));
+        BeginScissorMode(x, y, right - x, bottom - y);
     }
 
     /** @brief Restores the previous unclipped drawing state. */
@@ -71,19 +105,23 @@ public:
     ScissorModeScope& operator=(const ScissorModeScope&) = delete;
 };
 
-void DrawRoundedRectangle(const Rectangle rectangle,
+void DrawRoundedRectangle(const ScreenRect screenRectangle,
                           const float logicalRadius,
-                          const float logicalScale,
+                          const double logicalScale,
                           const Color color)
 {
-    const float pixelRadius = std::max(0.0f, logicalRadius * logicalScale);
+    Rectangle rectangle {};
+    if (!ToDrawingRect(screenRectangle, rectangle)) return;
+    const float pixelRadius = static_cast<float>(std::min(
+        static_cast<double>(logicalRadius) * logicalScale,
+        static_cast<double>(std::min(rectangle.width, rectangle.height))));
     const float minimumExtent = std::min(rectangle.width, rectangle.height);
     const float roundness = minimumExtent <= 0.0f ? 0.0f : std::clamp(pixelRadius / minimumExtent, 0.0f, 0.5f);
     DrawRectangleRounded(rectangle, roundness, 8, color);
 }
 
 Color ResolveThumbColor(const api1::ScrollbarAppearance& appearance,
-                        const Rectangle thumb,
+                        const ScreenRect thumb,
                         const ContainerDecorationPointerState& pointer,
                         const bool active) noexcept
 {
@@ -104,20 +142,23 @@ void DrawContainerForeground(const api1::ContainerDefinition& definition,
                              const PageViewState& view,
                              const int width,
                              const int height,
-                             const float logicalScale,
+                             const double logicalScale,
                              const ContainerDecorationPointerState& pointer)
 {
-    const Rectangle bounds = ToScreenRect(layout.bounds, view, width, height);
-    if (definition.appearance.borderVisible)
+    Rectangle bounds {};
+    if (definition.appearance.borderVisible &&
+        ToDrawingRect(ToScreenRect(layout.bounds, view, width, height), bounds))
     {
-        const float thickness = std::max(1.0f, definition.appearance.borderThickness * logicalScale);
+        const float thickness = static_cast<float>(std::clamp(
+            static_cast<double>(definition.appearance.borderThickness) * logicalScale,
+            1.0, static_cast<double>(std::numeric_limits<float>::max()) / 16.0));
         const float minimumExtent = std::min(bounds.width, bounds.height);
         const float roundness = minimumExtent <= 0.0f
                                     ? 0.0f
-                                    : std::clamp(definition.appearance.cornerRadius * logicalScale /
+                                    : static_cast<float>(std::clamp(static_cast<double>(definition.appearance.cornerRadius) * logicalScale /
                                                      minimumExtent,
-                                                 0.0f,
-                                                 0.5f);
+                                                 0.0,
+                                                 0.5));
         DrawRectangleRoundedLinesEx(bounds, roundness, 8, thickness,
                                     ToRayColor(definition.appearance.borderColor));
     }
@@ -133,7 +174,7 @@ void DrawContainerForeground(const api1::ContainerDefinition& definition,
         }
         DrawRoundedRectangle(ToScreenRect(scrollbar.track, view, width, height),
                              appearance.cornerRadius, logicalScale, ToRayColor(appearance.trackColor));
-        const Rectangle thumb = ToScreenRect(scrollbar.thumb, view, width, height);
+        const ScreenRect thumb = ToScreenRect(scrollbar.thumb, view, width, height);
         DrawRoundedRectangle(thumb, appearance.cornerRadius, logicalScale,
                              ResolveThumbColor(appearance, thumb, pointer,
                                                pointer.activeSourceIndex == layout.sourceIndex &&
@@ -154,9 +195,9 @@ void DrawContainerDecorations(const std::vector<api1::ContainerDefinition>& defi
         return;
     }
 
-    const Rectangle fullViewport {0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height)};
-    const float logicalScale = static_cast<float>(std::min(width, height)) * 0.5f * SanitizeZoom(view.zoom);
-    std::vector<Rectangle> effectiveClips(definitions.size(), fullViewport);
+    const ScreenRect fullViewport {0.0, 0.0, static_cast<double>(width), static_cast<double>(height)};
+    const double logicalScale = static_cast<double>(std::min(width, height)) * 0.5 * SanitizeZoom(view.zoom);
+    std::vector<ScreenRect> effectiveClips(definitions.size(), fullViewport);
     // Layout is preorder: close each subtree before painting its next sibling.
     // This keeps parent scrollbars above children without lifting earlier overlay
     // siblings above later ones. The validated hierarchy bounds this stack to 64.
@@ -167,9 +208,9 @@ void DrawContainerDecorations(const std::vector<api1::ContainerDefinition>& defi
         while (!foregroundStack.empty() && foregroundStack.back()->sourceIndex != layout.parentSourceIndex)
         {
             const api1::ContainerLayoutNode& completed = *foregroundStack.back();
-            const Rectangle clip = completed.parentSourceIndex < effectiveClips.size()
+            const ScreenRect clip = completed.parentSourceIndex < effectiveClips.size()
                                        ? effectiveClips[completed.parentSourceIndex] : fullViewport;
-            ScissorModeScope scissor(clip);
+            ScissorModeScope scissor(clip, width, height);
             DrawContainerForeground(definitions[completed.sourceIndex], completed, view, width, height,
                                     logicalScale, pointer);
             foregroundStack.pop_back();
@@ -180,16 +221,16 @@ void DrawContainerDecorations(const std::vector<api1::ContainerDefinition>& defi
         }
 
         const api1::ContainerDefinition& definition = definitions[layout.sourceIndex];
-        const Rectangle parentClip = layout.parentSourceIndex < effectiveClips.size()
+        const ScreenRect parentClip = layout.parentSourceIndex < effectiveClips.size()
                                          ? effectiveClips[layout.parentSourceIndex]
                                          : fullViewport;
-        const Rectangle bounds = ToScreenRect(layout.bounds, view, width, height);
-        const Rectangle viewport = ToScreenRect(layout.viewport, view, width, height);
-        const Rectangle ownClip = IntersectRectangles(parentClip, viewport);
+        const ScreenRect bounds = ToScreenRect(layout.bounds, view, width, height);
+        const ScreenRect viewport = ToScreenRect(layout.viewport, view, width, height);
+        const ScreenRect ownClip = IntersectRectangles(parentClip, viewport);
         effectiveClips[layout.sourceIndex] = definition.scrolling.clipContent ? ownClip : parentClip;
         foregroundStack.push_back(&layout);
 
-        ScissorModeScope scissor(parentClip);
+        ScissorModeScope scissor(parentClip, width, height);
         if (definition.appearance.backgroundVisible)
         {
             DrawRoundedRectangle(bounds,
@@ -201,9 +242,9 @@ void DrawContainerDecorations(const std::vector<api1::ContainerDefinition>& defi
     while (!foregroundStack.empty())
     {
         const api1::ContainerLayoutNode& completed = *foregroundStack.back();
-        const Rectangle clip = completed.parentSourceIndex < effectiveClips.size()
+        const ScreenRect clip = completed.parentSourceIndex < effectiveClips.size()
                                    ? effectiveClips[completed.parentSourceIndex] : fullViewport;
-        ScissorModeScope scissor(clip);
+        ScissorModeScope scissor(clip, width, height);
         DrawContainerForeground(definitions[completed.sourceIndex], completed, view, width, height,
                                 logicalScale, pointer);
         foregroundStack.pop_back();

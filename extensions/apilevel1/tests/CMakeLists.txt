@@ -84,3 +84,16 @@ if(WIN32)
             "-DEDITOR_DIR=$<TARGET_FILE_DIR:mfd_editor>"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyHostDeployment.cmake")
 endif()
+
+# Headless command-sink tests exercise the actual host decoration implementation.
+add_executable(mfd_container_decoration_tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/ContainerDecorationTests.cpp
+    ${MFD_APILEVEL1_ROOT_DIR}/runtime/src/ContainerDecorationRenderer.cpp)
+target_compile_features(mfd_container_decoration_tests PRIVATE cxx_std_17)
+target_include_directories(mfd_container_decoration_tests PRIVATE
+    ${MFD_APILEVEL1_RUNTIME_INCLUDE_DIR}
+    ${MFD_APILEVEL1_ROOT_DIR}/runtime/src
+    $<TARGET_PROPERTY:raylib,INTERFACE_INCLUDE_DIRECTORIES>)
+target_link_libraries(mfd_container_decoration_tests PRIVATE mfd::model GTest::gtest_main)
+mfd_enable_target_warnings(mfd_container_decoration_tests)
+gtest_discover_tests(mfd_container_decoration_tests)

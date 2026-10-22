@@ -87,6 +87,12 @@ existing ordered legacy reticles. The editor preview calls this same host-side
 decoration renderer, so appearance changes are visible while authoring. There is
 no second drawing API and runtime scrollbars do not use ImGui.
 
+Screen clipping is intersected with the current viewport in double precision
+before conversion to integer pixels. Empty, offscreen and non-finite clips
+become empty scissors. Extreme decorations outside raylib's representable float
+geometry are skipped; their clipping still uses the original double rectangle.
+Authored geometry is not rewritten and no window-size limit is added.
+
 A hidden ancestor removes its subtree from rendering and input. A disabled
 ancestor only removes input; descendants keep their authored state, so enabling
 the parent does not overwrite an independently disabled child.
