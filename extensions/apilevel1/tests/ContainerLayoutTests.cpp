@@ -356,3 +356,40 @@ TEST(ContainerLayoutTests, JsonRoundTripPreservesHierarchyAndAppearance)
     EXPECT_TRUE(reparsed.front().appearance.backgroundVisible);
     EXPECT_EQ(reparsed.front().scrolling.vertical, mfd::api1::ScrollMode::AlwaysVisible);
 }
+
+TEST(ContainerLayoutTests, RejectsRgbaBeforeNarrowing)
+{
+    using nlohmann::json;
+    const std::vector<json> invalid {256, -1, std::numeric_limits<int>::max(),
+        std::numeric_limits<std::uint64_t>::max(), std::uint64_t {1} << 32U,
+        1.0, true, "1", nullptr};
+    for (const json& channel : invalid)
+    {
+        const json page = {{"containers", json::array({{{"id", "panel"},
+            {"appearance", {{"backgroundColor", json::array({channel, 0, 255, 255})}}}}})}};
+        EXPECT_THROW(mfd::api1::ParsePageContainers(page), std::runtime_error) << channel.dump();
+    }
+    const json page = {{"containers", json::array({{{"id", "panel"},
+        {"appearance", {{"backgroundColor", json::array({0, 255, 0, 255})}}}}})}};
+    const auto containers = mfd::api1::ParsePageContainers(page);
+    ASSERT_EQ(containers.size(), 1U);
+    EXPECT_EQ(containers.front().appearance.backgroundColor.g, 255U);
+    EXPECT_NO_THROW(mfd::api1::SerializePageContainers(containers));
+}
+
+TEST(ContainerLayoutTests, ChildReferencesUseExactAuthoredSpelling)
+{
+    ContainerDefinition parent = MakeContainer("Parent", ContainerType::Canvas, {}, {1.0f, 1.0f});
+    const ContainerDefinition child = MakeContainer("Child", ContainerType::Canvas, {}, {0.2f, 0.2f});
+    std::string error;
+    for (const std::string reference : {"child", " Child", "Child ", "unknown"})
+    {
+        parent.children = {ContainerChildPlacement {reference}};
+        EXPECT_FALSE(ContainerLayoutEngine {}.Validate({parent, child}, error)) << reference;
+    }
+    parent.children = {ContainerChildPlacement {"Child"}};
+    std::vector<ContainerLayoutNode> layouts;
+    EXPECT_TRUE(ContainerLayoutEngine {}.Evaluate({parent, child}, layouts, error)) << error;
+    EXPECT_NO_THROW(mfd::api1::ParsePageContainers(
+        nlohmann::json {{"containers", mfd::api1::SerializePageContainers({parent, child})}}));
+}

@@ -74,3 +74,35 @@ endif()
 gtest_discover_tests(mfd_apilevel1_extension_availability_tests
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_apilevel1_extension_availability_tests>"
     DISCOVERY_TIMEOUT 60)
+
+if(WIN32)
+    add_test(NAME apilevel1_host_deployment
+        COMMAND ${CMAKE_COMMAND}
+            "-DRUNTIME_DLL=$<TARGET_FILE:mfd_containers_api1>"
+            "-DEDITOR_DLL=$<TARGET_FILE:mfd_editor_containers_api1>"
+            "-DWINDOW_DIR=$<TARGET_FILE_DIR:mfd_window>"
+            "-DEDITOR_DIR=$<TARGET_FILE_DIR:mfd_editor>"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/VerifyHostDeployment.cmake")
+endif()
+
+# Headless command-sink tests exercise the actual host decoration implementation.
+add_executable(mfd_container_decoration_tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/ContainerDecorationTests.cpp
+    ${MFD_APILEVEL1_ROOT_DIR}/runtime/src/ContainerDecorationRenderer.cpp)
+target_compile_features(mfd_container_decoration_tests PRIVATE cxx_std_17)
+target_include_directories(mfd_container_decoration_tests PRIVATE
+    ${MFD_APILEVEL1_RUNTIME_INCLUDE_DIR}
+    ${MFD_APILEVEL1_ROOT_DIR}/runtime/src
+    $<TARGET_PROPERTY:raylib,INTERFACE_INCLUDE_DIRECTORIES>)
+target_link_libraries(mfd_container_decoration_tests PRIVATE mfd::model GTest::gtest_main)
+mfd_enable_target_warnings(mfd_container_decoration_tests)
+gtest_discover_tests(mfd_container_decoration_tests)
+
+add_executable(mfd_container_inspector_gesture_tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/ContainerInspectorGestureTests.cpp
+    ${MFD_APILEVEL1_ROOT_DIR}/editor/src/ContainerInspectorGesture.cpp)
+target_compile_features(mfd_container_inspector_gesture_tests PRIVATE cxx_std_17)
+target_include_directories(mfd_container_inspector_gesture_tests PRIVATE ${MFD_APILEVEL1_ROOT_DIR}/editor/src)
+target_link_libraries(mfd_container_inspector_gesture_tests PRIVATE GTest::gtest_main)
+mfd_enable_target_warnings(mfd_container_inspector_gesture_tests)
+gtest_discover_tests(mfd_container_inspector_gesture_tests)

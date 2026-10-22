@@ -77,12 +77,15 @@ ColorRgba ParseColor(const json& value, const std::string& field)
         {
             throw std::runtime_error(field + " channels must be integers in [0, 255].");
         }
-        const int channel = value.at(index).get<int>();
-        if (channel < 0 || channel > 255)
+        const json& channel = value.at(index);
+        // Compare in JSON's original signed/unsigned domain before narrowing.
+        if (channel.is_number_unsigned() ? channel.get<std::uint64_t>() > 255U
+                                         : (channel.get<std::int64_t>() < 0 ||
+                                            channel.get<std::int64_t>() > 255))
         {
             throw std::runtime_error(field + " channels must be integers in [0, 255].");
         }
-        channels[index] = static_cast<std::uint8_t>(channel);
+        channels[index] = channel.get<std::uint8_t>();
     }
     return {channels[0U], channels[1U], channels[2U], channels[3U]};
 }

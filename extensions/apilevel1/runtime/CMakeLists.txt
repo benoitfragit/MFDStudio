@@ -28,15 +28,18 @@ set_target_properties(mfd_containers_api1 PROPERTIES OUTPUT_NAME "mfd_containers
 
 mfd_stage_runtime(mfd_containers_api1 WITH_RUNTIME_DLLS)
 
-if(TARGET mfd_window)
-    add_dependencies(mfd_window mfd_containers_api1)
+foreach(host_target IN ITEMS mfd_window mfd_editor)
+  if(TARGET ${host_target})
+    add_dependencies(${host_target} mfd_containers_api1)
     add_custom_command(
         TARGET mfd_containers_api1 POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${host_target}>"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 $<TARGET_FILE:mfd_containers_api1>
-                $<TARGET_FILE_DIR:mfd_window>/
+                "$<TARGET_FILE_DIR:${host_target}>/"
         VERBATIM)
-endif()
+  endif()
+endforeach()
 
 install(TARGETS mfd_containers_api1
     ARCHIVE DESTINATION "${MFD_PACKAGE_LIB_DESTINATION}" COMPONENT ${MFD_COMPONENT_API_DEVELOPMENT}

@@ -253,7 +253,8 @@ public:
      * @brief Applies local pointer-driven scroll state to an active-page container.
      * @param containerId Stable authored container identifier.
      * @param offset Finite non-negative offset already clamped by the layout engine.
-     * @return `true` when the active page owns the container and the state was updated.
+     * @return `true` when the active page owns the container and the state was updated;
+     *         `false` for invalid input or allocation failure, with prior state preserved.
      */
     bool SetActiveContainerScrollOffset(std::string_view containerId, Vec2 offset) noexcept;
     /** @brief Returns the live strobe state of a page when that page is currently active. */

@@ -31,7 +31,11 @@ kept as silently ignored data.
 Each Page may contain a flat `containers` catalog. Stable `children[].id` edges
 form the hierarchy and have exactly one owner. Cycles, duplicate ownership,
 unknown IDs, non-finite geometry, more than 4096 definitions, and depth beyond 64
-are rejected. Grid row and column counts are bounded to 1–4096.
+are rejected. Each child reference must match its definition's ID exactly,
+including case and whitespace, in the generator as well as the runtime/editor.
+Trimmed, case-insensitive identities are used only to reject collisions and to
+compute the existing stable transport keys; references are never silently renamed.
+Grid row and column counts are bounded to 1–4096.
 
 Common container fields are:
 
@@ -83,6 +87,12 @@ existing ordered legacy reticles. The editor preview calls this same host-side
 decoration renderer, so appearance changes are visible while authoring. There is
 no second drawing API and runtime scrollbars do not use ImGui.
 
+Screen clipping is intersected with the current viewport in double precision
+before conversion to integer pixels. Empty, offscreen and non-finite clips
+become empty scissors. Extreme decorations outside raylib's representable float
+geometry are skipped; their clipping still uses the original double rectangle.
+Authored geometry is not rewritten and no window-size limit is added.
+
 A hidden ancestor removes its subtree from rendering and input. A disabled
 ancestor only removes input; descendants keep their authored state, so enabling
 the parent does not overwrite an independently disabled child.
@@ -91,7 +101,12 @@ Wheel input is routed to the deepest visible and enabled viewport under the
 pointer. When that region cannot move farther in the requested direction, the
 gesture bubbles to an eligible ancestor. Ancestor clipping is respected. Thumb
 dragging maps directly to the shared clamped scroll offset; hover and active
-colors come from the authored scrollbar appearance.
+colors come from the authored scrollbar appearance. Each pointer query builds a
+bounded source-index lookup and reuses it for ancestor checks; it cannot become
+stale across layout changes. Frames without wheel/button/active-drag input skip
+the input-side layout evaluation. Interaction frames retain a fresh draw-side
+evaluation after scrolling, so new offsets appear in the same frame without a
+persistent layout cache.
 
 ## Editor
 
@@ -100,7 +115,11 @@ below **Reticles**. The tree is the Page hierarchy itself and supports root/chil
 creation, rename, duplicate, delete, and reparenting. Tree and canvas selection
 share one selection state. The inspector edits geometry, layout, appearance,
 scrolling, visibility, enabled state, generated-API exposure, and all four size
-modes. Both sidebar separators are draggable and their proportions persist.
+modes. One continuous inspector drag creates one Undo entry; releasing and
+starting another drag creates a separate entry. Keyboard edits, checkboxes and
+selection changes retain separate gestures. Values are prepared outside the
+live document and validated before an Undo snapshot is recorded. Idle frames
+and rejected edits do not copy a full document snapshot. Both sidebar separators are draggable and their proportions persist.
 
 Selecting a container displays the existing preview-style outline and corner gizmo. A resize
 captures authored geometry once, creates one undo snapshot, and applies the final
@@ -162,3 +181,9 @@ not partial rendering. The runtime DLL never depends on the editor DLL. See
 `examples/apilevel1` for a mixed Window and generated client. After building the
 example, `Scripts/Start-APILevel1Containers.bat` launches both from the staged
 runtime tree; the example opens directly on its Containers Page.
+
+Build-tree copies are owned by each producing DLL target: the runtime DLL is
+copied beside both hosts, and the editor DLL beside the editor. Destination
+folders are created before copying, including on a clean multi-config build.
+Rebuilding only a DLL refreshes its host copies. The hosts depend on these
+build targets but retain optional runtime loading for LEVEL 0.

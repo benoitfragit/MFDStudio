@@ -169,6 +169,20 @@
           "name": "^tutorial_client_runtime_layout_smoke$|ExternalStreamGpuInterop|CanvasCircleStrokeRenderTests\\.DegenerateSolidCircleDrawsNothing|CanvasCircleStrokeRenderTests\\.DashedCircleRendersLessStrokeCoverageThanSolidCircle|CanvasCircleStrokeRenderTests\\.AnisotropicFilledCircleUsesTheSameTransformAsItsOutline|CanvasRingRenderTests\\..*|CanvasClippingCallbackRenderTests\\..*|CanvasClippingRenderTests\\..*|CanvasTextRenderTests\\..*|CanvasDrawWorkRenderTests\\..*|RenderResourceLifetimeTests\\..*|OffscreenSurfaceTests\\..*"
         }
       }
+    },
+    {
+      "name": "test-release-win32",
+      "configurePreset": "vs2022-win32",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "test-release-win32-ci",
+      "inherits": "test-debug-win32-ci",
+      "configuration": "Release",
+      "description": "Release CI suite with the same existing hosted-runner exclusions as Debug."
     }
   ]
 }

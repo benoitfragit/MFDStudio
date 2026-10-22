@@ -7,6 +7,7 @@
 #include <gtest/gtest.h>
 
 #include <limits>
+#include <algorithm>
 
 #include "mfd/apilevel1/ContainerInputRouter.h"
 #include "mfd/apilevel1/ContainerLayoutEngine.h"
@@ -103,4 +104,55 @@ TEST(ContainerInputRouterTests, RejectsPointersOutsideAnAncestorClip)
         layouts,
         layouts[1],
         {std::numeric_limits<float>::quiet_NaN(), 0.0f}));
+}
+
+TEST(ContainerInputRouterTests, LargeReverseAuthoredTreesPreserveClippingAndScrollSelection)
+{
+    for (const std::size_t count : {100U, 1000U, 4096U})
+    {
+        std::vector<mfd::api1::ContainerDefinition> definitions;
+        definitions.reserve(count);
+        for (std::size_t index = 0; index < count; ++index)
+        {
+            auto node = MakeScrollable(std::to_string(index), {{}, {1.0f, 1.0f}});
+            // Reverse source order deliberately differs from layout preorder.
+            if (index + 1U < count && index % 32U != 31U)
+                node.children.push_back({std::to_string(index + 1U)});
+            definitions.push_back(std::move(node));
+        }
+        std::reverse(definitions.begin(), definitions.end());
+        std::vector<mfd::api1::ContainerLayoutNode> layouts;
+        std::string error;
+        ASSERT_TRUE(mfd::api1::ContainerLayoutEngine {}.Evaluate(definitions, layouts, error)) << error;
+        // Deterministic overflow at the first root; all later candidates are
+        // at their scroll limit, requiring traversal of the entire layout.
+        const std::size_t rootSource = layouts.front().sourceIndex;
+        layouts.front().contentSize.y = 2.0f;
+        mfd::api1::ContainerScrollRequest request;
+        mfd::api1::ContainerInputRouter router;
+        ASSERT_TRUE(router.RouteWheel(definitions, layouts, {}, {0.0f, -1.0f}, 0.1f, request));
+        EXPECT_EQ(request.sourceIndex, rootSource);
+        EXPECT_FLOAT_EQ(request.offset.y, 0.1f);
+        EXPECT_FALSE(router.RouteWheel(definitions, layouts, {20.0f, 20.0f}, {0.0f, -1.0f}, 0.1f, request));
+        layouts.front().effectiveEnabled = false;
+        EXPECT_FALSE(router.RouteWheel(definitions, layouts, {}, {0.0f, -1.0f}, 0.1f, request));
+    }
+}
+
+TEST(ContainerInputRouterTests, RejectsMalformedLookupIndicesWithoutStaleState)
+{
+    const std::vector<mfd::api1::ContainerDefinition> definitions {
+        MakeScrollable("root", {{}, {1.0f, 1.0f}})};
+    std::vector<mfd::api1::ContainerLayoutNode> layouts(1);
+    layouts[0].sourceIndex = 0U;
+    layouts[0].viewport = {{}, {1.0f, 1.0f}};
+    layouts[0].effectiveVisible = layouts[0].effectiveEnabled = true;
+    mfd::api1::ContainerInputRouter router;
+    EXPECT_TRUE(router.CanReceivePointer(definitions, layouts, layouts[0], {}));
+    layouts[0].parentSourceIndex = 0U; // Cycle must terminate at the depth bound.
+    EXPECT_FALSE(router.CanReceivePointer(definitions, layouts, layouts[0], {}));
+    layouts[0].parentSourceIndex = 4096U;
+    EXPECT_FALSE(router.CanReceivePointer(definitions, layouts, layouts[0], {}));
+    layouts[0].sourceIndex = 4096U;
+    EXPECT_FALSE(router.CanReceivePointer(definitions, layouts, layouts[0], {}));
 }

@@ -24,7 +24,7 @@ struct AssetFileWrite
 };
 
 /** @brief I/O boundaries available to deterministic failure-injection tests. */
-enum class FileCommitPoint { Stage, Write, Flush, Close, Verify, Backup, Promote, Delete, Rollback };
+enum class FileCommitPoint { Stage, Write, Flush, Close, Verify, Backup, Promote, Delete, Rollback, RestoreBackup, RemovePromoted, Cleanup };
 using FileCommitCheckpoint = std::function<void(FileCommitPoint, const std::filesystem::path&)>;
 
 /**

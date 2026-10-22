@@ -90,6 +90,7 @@ add_executable(mfd_editor
     ${MFD_APILEVEL1_ROOT_DIR}/editor/src/ContainerGizmoAdapter.cpp
     ${MFD_APILEVEL1_EDITOR_INCLUDE_DIR}/mfd/apilevel1/ContainerEditorHost.h
     ${MFD_APILEVEL1_ROOT_DIR}/editor/src/ContainerEditorHost.cpp
+    ${MFD_APILEVEL1_ROOT_DIR}/editor/src/ContainerInspectorGesture.cpp
     ${MFD_APILEVEL1_EDITOR_INCLUDE_DIR}/mfd/apilevel1/ContainerEditorModel.h
     ${MFD_APILEVEL1_ROOT_DIR}/editor/src/ContainerEditorModel.cpp
     ${MFD_EDITOR_SOURCES}
