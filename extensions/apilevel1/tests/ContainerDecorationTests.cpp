@@ -100,3 +100,25 @@ TEST_F(ContainerDecorationTests, IntegerMaximumViewportIsRepresentable)
     ASSERT_FALSE(clips.empty());
     EXPECT_EQ(clips.front(), (std::array<int, 4> {0, 0, maximum, maximum}));
 }
+
+TEST_F(ContainerDecorationTests, HiddenGrandchildrenDoNotCloseVisibleAncestor)
+{
+    std::vector<mfd::api1::ContainerDefinition> definitions(5);
+    std::vector<mfd::api1::ContainerLayoutNode> layouts(5);
+    for (std::size_t index = 0; index < definitions.size(); ++index)
+    {
+        definitions[index].appearance.backgroundVisible = true;
+        definitions[index].appearance.borderVisible = true;
+        definitions[index].appearance.backgroundColor.r = static_cast<std::uint8_t>(index + 1U);
+        definitions[index].appearance.borderColor.r = static_cast<std::uint8_t>(index + 11U);
+        layouts[index].sourceIndex = index;
+        layouts[index].bounds = layouts[index].viewport = {{}, {1.0f, 1.0f}};
+        layouts[index].effectiveVisible = index != 1U && index != 2U;
+    }
+    layouts[1].parentSourceIndex = 0U;
+    layouts[2].parentSourceIndex = 1U;
+    layouts[3].parentSourceIndex = 0U;
+    mfd::detail::DrawContainerDecorations(definitions, layouts, {}, 800, 600, {});
+    // Parent, visible child, child's border, parent's border, next root + border.
+    EXPECT_EQ(drawOrder, (std::vector<int> {1, 4, 14, 11, 5, 15}));
+}

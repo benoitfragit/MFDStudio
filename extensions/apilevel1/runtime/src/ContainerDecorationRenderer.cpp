@@ -205,6 +205,13 @@ void DrawContainerDecorations(const std::vector<api1::ContainerDefinition>& defi
     foregroundStack.reserve(api1::kMaximumContainerDepth);
     for (const api1::ContainerLayoutNode& layout : layouts)
     {
+        // Invisible nodes never open a scope. Skip their complete preorder
+        // subtree before comparing parents, so a hidden grandchild cannot pop
+        // the still-visible ancestor shared with its later visible sibling.
+        if (layout.sourceIndex >= definitions.size() || !layout.effectiveVisible)
+        {
+            continue;
+        }
         while (!foregroundStack.empty() && foregroundStack.back()->sourceIndex != layout.parentSourceIndex)
         {
             const api1::ContainerLayoutNode& completed = *foregroundStack.back();
@@ -214,10 +221,6 @@ void DrawContainerDecorations(const std::vector<api1::ContainerDefinition>& defi
             DrawContainerForeground(definitions[completed.sourceIndex], completed, view, width, height,
                                     logicalScale, pointer);
             foregroundStack.pop_back();
-        }
-        if (layout.sourceIndex >= definitions.size() || !layout.effectiveVisible)
-        {
-            continue;
         }
 
         const api1::ContainerDefinition& definition = definitions[layout.sourceIndex];
