@@ -8,6 +8,7 @@
 #include <nlohmann/json.hpp>
 #include <chrono>
 #include <fstream>
+#include <limits>
 namespace
 {
 using json = nlohmann::json;
@@ -195,4 +196,49 @@ TEST_F(WidgetFiles, DefinitionRenameCannotCollideWithAnUnusedLibraryDefinition)
     EXPECT_FALSE(mfd::api1::WidgetEditorModel::ReplaceDefinition(loaded.document, renamed, error));
     EXPECT_EQ(loaded.document.pages.front().widgets.front().definition, original);
     EXPECT_EQ(loaded.document.widgetLibrary.size(),2U);
+}
+
+TEST_F(WidgetFiles, ProportionalGestureFollowsPageSpaceAndKeepsSharedDefinition)
+{
+    auto loaded = mfd::JsonLoader {}.LoadWindowConfigurationForAuthoring(source / "windows/window.json");
+    auto& page = loaded.document.pages.front();
+    page.containers[0].geometry.size = {2.0f,1.0f};
+    page.containers[0].layoutReferenceSize = {1.0f,1.0f};
+    page.containers[0].children[0].resizeMode = mfd::api1::ChildResizeMode::Proportional;
+    const auto initial = page.widgets[0];
+    std::string error;
+    std::vector<mfd::api1::ContainerLayoutNode> before, after;
+    ASSERT_TRUE(mfd::api1::EvaluateWidgetLayout(page.containers,page.widgets,before,error));
+    ASSERT_TRUE(mfd::api1::WidgetEditorModel::ApplyGesture(page,initial,{0.2f,0.1f},false,error)) << error;
+    ASSERT_TRUE(mfd::api1::EvaluateWidgetLayout(page.containers,page.widgets,after,error));
+    EXPECT_NEAR(after[1].bounds.center.x-before[1].bounds.center.x,0.2f,0.00001f);
+    EXPECT_NEAR(after[1].bounds.center.y-before[1].bounds.center.y,0.1f,0.00001f);
+    ASSERT_TRUE(mfd::api1::WidgetEditorModel::ApplyGesture(page,initial,{0.2f,-0.1f},true,error)) << error;
+    ASSERT_TRUE(mfd::api1::EvaluateWidgetLayout(page.containers,page.widgets,after,error));
+    EXPECT_NEAR(after[1].bounds.size.x-before[1].bounds.size.x,0.4f,0.00001f);
+    EXPECT_NEAR(after[1].bounds.size.y-before[1].bounds.size.y,0.2f,0.00001f);
+    EXPECT_EQ(page.widgets[0].definition,initial.definition);
+    EXPECT_FALSE(page.widgets[1].size.has_value());
+    ASSERT_TRUE(mfd::api1::WidgetEditorModel::ApplyGesture(page,initial,{},true,error));
+    EXPECT_FALSE(page.widgets[0].size.has_value());
+    EXPECT_FLOAT_EQ(page.widgets[0].position.x,initial.position.x);
+}
+TEST_F(WidgetFiles, ParentControlledGestureDoesNotRecordInvisibleGeometryChanges)
+{
+    auto loaded = mfd::JsonLoader {}.LoadWindowConfigurationForAuthoring(source / "windows/window.json");
+    auto& page = loaded.document.pages.front();
+    const auto initial = page.widgets[0];
+    std::string error;
+    page.containers[0].type = mfd::api1::ContainerType::Grid;
+    EXPECT_FALSE(mfd::api1::WidgetEditorModel::ApplyGesture(page,initial,{0.2f,0.1f},false,error));
+    EXPECT_EQ(page.widgets[0].position.x,initial.position.x);
+    page.containers[0].children[0].horizontalAlignment = mfd::api1::ContainerAlignment::Stretch;
+    ASSERT_TRUE(mfd::api1::WidgetEditorModel::ApplyGesture(page,initial,{0.2f,-0.1f},true,error)) << error;
+    EXPECT_FLOAT_EQ(page.widgets[0].size->x,initial.definition->preferredSize.x);
+    EXPECT_GT(page.widgets[0].size->y,initial.definition->preferredSize.y);
+    const auto size = page.widgets[0].size;
+    EXPECT_FALSE(mfd::api1::WidgetEditorModel::ApplyGesture(page,initial,
+        {std::numeric_limits<float>::quiet_NaN(),0.0f},true,error));
+    EXPECT_EQ(page.widgets[0].size->x,size->x);
+    EXPECT_EQ(page.widgets[0].size->y,size->y);
 }

@@ -146,3 +146,34 @@ TEST_F(ContainerDecorationTests, FractionalNestedClipsStayWithinIntegerMaximumVi
         }
     }
 }
+
+TEST_F(ContainerDecorationTests, WidgetLeavesKeepAncestorClipAndSubtreePaintOrder)
+{
+    std::vector<mfd::api1::ContainerDefinition> definitions(3);
+    definitions[0].appearance.backgroundVisible = true;
+    definitions[0].appearance.backgroundColor.r = 1;
+    definitions[0].appearance.borderVisible = true;
+    definitions[0].appearance.borderColor.r = 11;
+    std::vector<mfd::api1::ContainerLayoutNode> layouts(3);
+    for (std::size_t index = 0; index < layouts.size(); ++index)
+    {
+        layouts[index].sourceIndex = index;
+        layouts[index].effectiveVisible = true;
+        layouts[index].bounds = layouts[index].viewport = {{}, {2.0f,2.0f}};
+    }
+    layouts[0].viewport.size = {1.0f,1.0f};
+    layouts[1].parentSourceIndex = 0U;
+    std::vector<std::array<int,4>> leafClips;
+    mfd::detail::DrawContainerDecorations(definitions,layouts,{},100,100,{},
+        [&leafClips](const std::size_t index)
+        {
+            if (index == 0U) return;
+            EXPECT_EQ(scopeDepth,1);
+            leafClips.push_back(clips.back());
+            drawOrder.push_back(20 + static_cast<int>(index));
+        });
+    EXPECT_EQ(drawOrder,(std::vector<int> {1,21,11,22}));
+    ASSERT_EQ(leafClips.size(),2U);
+    EXPECT_EQ(leafClips[0],(std::array<int,4> {25,25,50,50}));
+    EXPECT_EQ(leafClips[1],(std::array<int,4> {0,0,100,100}));
+}

@@ -16,6 +16,16 @@ public:
     static bool Remove(PageDefinition& page, std::string_view id, std::string& error);
     static bool Replace(PageDefinition& page, std::string_view previousId, WidgetInstance replacement,
                         std::string_view parent, const ContainerChildPlacement* placement, std::string& error);
+    /** @brief Applies a page-space drag to the initial instance, respecting parent layout constraints.
+     * @param page Page changed only after validation succeeds.
+     * @param initial Instance captured when the gesture starts.
+     * @param delta Total pointer displacement in page coordinates.
+     * @param resize True for a bottom-right corner resize around the instance center.
+     * @param error Reason when the gesture is invalid or controlled by parent layout.
+     * @return True when an authored geometry change was committed.
+     */
+    static bool ApplyGesture(PageDefinition& page, const WidgetInstance& initial, Vec2 delta,
+                             bool resize, std::string& error);
     static bool ReplaceDefinition(MfdDocument& document, std::shared_ptr<const WidgetDefinition> replacement,
                                   std::string& error);
     static std::shared_ptr<const WidgetDefinition> CreateDefinition(std::filesystem::path file,

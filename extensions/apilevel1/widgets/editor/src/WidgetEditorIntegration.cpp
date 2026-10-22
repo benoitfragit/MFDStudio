@@ -467,7 +467,6 @@ bool EditorApplication::BeginWidgetPreviewGesture(const ViewportState& viewport,
         widgetGestureBefore_ = CaptureCurrentSnapshot();
         widgetGestureStart_ = widget;
         widgetGesturePointer_ = pointer;
-        widgetGestureResolvedSize_ = layout->bounds.size;
         widgetGestureResize_ = resize;
         widgetGestureChanged_ = false;
         return true;
@@ -499,25 +498,12 @@ bool EditorApplication::UpdateWidgetPreviewGesture(const ViewportState& viewport
         RestoreSnapshot(snapshot);
         return true;
     }
-    auto replacement = widgetGestureStart_;
     const auto pointer = viewport.ToLogical(ImGui::GetMousePos());
     const mfd::Vec2 delta {pointer.x - widgetGesturePointer_.x, pointer.y - widgetGesturePointer_.y};
-    if (delta.x == 0 && delta.y == 0) return true;
-    if (widgetGestureResize_)
-    {
-        const auto size = replacement.size.value_or(replacement.definition->preferredSize);
-        replacement.size = mfd::Vec2 {std::max(0.001f, size.x + 2 * delta.x * size.x / std::max(0.001f, widgetGestureResolvedSize_.x)),
-                                     std::max(0.001f, size.y - 2 * delta.y * size.y / std::max(0.001f, widgetGestureResolvedSize_.y))};
-    }
-    else replacement.position = {replacement.position.x + delta.x, replacement.position.y + delta.y};
-    const auto parent = WidgetParent(*page, live->id);
-    mfd::api1::ContainerChildPlacement placement;
-    for (const auto& container : page->containers)
-        for (const auto& edge : container.children)
-            if (edge.kind == mfd::api1::ContainerChildKind::Widget && edge.childId == live->id) placement = edge;
     std::string error;
-    if (mfd::api1::WidgetEditorModel::Replace(*page, live->id, replacement, parent, &placement, error)) widgetGestureChanged_ = true;
-    else RebuildStatus(error, true);
+    if (mfd::api1::WidgetEditorModel::ApplyGesture(*page, widgetGestureStart_, delta, widgetGestureResize_, error))
+        widgetGestureChanged_ = true;
+    else if (!error.empty()) RebuildStatus(error, true);
     return true;
 }
 

@@ -793,7 +793,6 @@ private:
     std::optional<UndoSnapshot> widgetGestureBefore_;
     mfd::api1::WidgetInstance widgetGestureStart_;
     mfd::Vec2 widgetGesturePointer_ {};
-    mfd::Vec2 widgetGestureResolvedSize_ {};
     bool widgetGestureResize_ = false;
     bool widgetGestureChanged_ = false;
     std::string widgetVisualTemplate_;

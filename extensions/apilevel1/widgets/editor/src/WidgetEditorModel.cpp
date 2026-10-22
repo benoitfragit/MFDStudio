@@ -2,6 +2,7 @@
 #include "mfd/model/PageName.h"
 #include "mfd/apilevel1/ContainerLayoutEngine.h"
 #include <algorithm>
+#include <cmath>
 namespace mfd::api1
 {
 namespace
@@ -11,6 +12,12 @@ bool UsesId(const PageDefinition& page, const std::string& id)
     for (const auto& container : page.containers) if (PageNamesEqual(container.id, id)) return true;
     for (const auto& widget : page.widgets) if (PageNamesEqual(widget.id, id)) return true;
     return false;
+}
+bool SameGeometry(const WidgetInstance& first, const WidgetInstance& second) noexcept
+{
+    if (first.position.x != second.position.x || first.position.y != second.position.y ||
+        first.size.has_value() != second.size.has_value()) return false;
+    return !first.size || (first.size->x == second.size->x && first.size->y == second.size->y);
 }
 void RemoveEdges(PageDefinition& page, const std::string_view id)
 {
@@ -103,6 +110,67 @@ bool WidgetEditorModel::Replace(PageDefinition& page, const std::string_view pre
         edge.childId = target->id;
         container->children.push_back(std::move(edge));
     }
+    if (!ValidatePageWidgets(candidate.containers, candidate.widgets, error)) return false;
+    page = std::move(candidate);
+    return true;
+}
+bool WidgetEditorModel::ApplyGesture(PageDefinition& page, const WidgetInstance& initial, const Vec2 delta,
+                                    const bool resize, std::string& error)
+{
+    if (!std::isfinite(delta.x) || !std::isfinite(delta.y) || !initial.definition)
+    { error = "Widget gesture must have finite coordinates and a definition."; return false; }
+    PageDefinition candidate = page;
+    auto* target = Find(candidate, initial.id);
+    if (!target) { error = "Unknown widget instance."; return false; }
+    *target = initial;
+    Vec2 scale {1.0f, 1.0f};
+    bool resizeX = true, resizeY = true;
+    for (std::size_t parentIndex = 0; parentIndex < candidate.containers.size(); ++parentIndex)
+    {
+        const auto& parent = candidate.containers[parentIndex];
+        const auto edge = std::find_if(parent.children.begin(), parent.children.end(),
+            [&initial](const ContainerChildPlacement& child)
+            { return child.kind == ContainerChildKind::Widget && child.childId == initial.id; });
+        if (edge == parent.children.end()) continue;
+        const bool positioned = parent.type == ContainerType::Canvas || parent.type == ContainerType::Overlay;
+        if ((!resize && !positioned) || (positioned && edge->resizeMode == ChildResizeMode::Stretch))
+        { error = "The parent layout controls this widget geometry; edit its placement instead."; return false; }
+        if (positioned && edge->resizeMode == ChildResizeMode::Proportional)
+        {
+            std::vector<ContainerLayoutNode> layouts;
+            if (!EvaluateWidgetLayout(candidate.containers, candidate.widgets, layouts, error)) return false;
+            const auto layout = std::find_if(layouts.begin(), layouts.end(),
+                [parentIndex](const ContainerLayoutNode& node) { return node.sourceIndex == parentIndex; });
+            if (layout == layouts.end()) { error = "Missing parent layout."; return false; }
+            scale = {layout->viewport.size.x / parent.layoutReferenceSize.x,
+                     layout->viewport.size.y / parent.layoutReferenceSize.y};
+        }
+        if (parent.type == ContainerType::Grid)
+        {
+            resizeX = edge->horizontalAlignment != ContainerAlignment::Stretch;
+            resizeY = edge->verticalAlignment != ContainerAlignment::Stretch;
+        }
+        if (parent.type == ContainerType::Linear && parent.alignment == ContainerAlignment::Stretch)
+        {
+            resizeX = parent.orientation == LinearOrientation::Horizontal;
+            resizeY = parent.orientation == LinearOrientation::Vertical;
+        }
+        break;
+    }
+    if (!std::isfinite(scale.x) || !std::isfinite(scale.y) || scale.x <= 0.0f || scale.y <= 0.0f)
+    { error = "Cannot drag a widget inside an empty layout viewport."; return false; }
+    if (resize)
+    {
+        const auto size = initial.size.value_or(initial.definition->preferredSize);
+        const Vec2 changed {resizeX ? std::max(0.001f, size.x + 2.0f * delta.x / scale.x) : size.x,
+                            resizeY ? std::max(0.001f, size.y - 2.0f * delta.y / scale.y) : size.y};
+        if (changed.x != size.x || changed.y != size.y) target->size = changed;
+    }
+    else
+    {
+        target->position = {initial.position.x + delta.x / scale.x, initial.position.y + delta.y / scale.y};
+    }
+    if (SameGeometry(*target, *Find(page, initial.id))) return false;
     if (!ValidatePageWidgets(candidate.containers, candidate.widgets, error)) return false;
     page = std::move(candidate);
     return true;
