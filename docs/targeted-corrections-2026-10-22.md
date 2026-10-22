@@ -24,7 +24,7 @@ an as-yet absent launcher output directory.
 | PERF-002 | Full snapshots were captured even with no edit. The DLL receives local scalar values; a changed draft is created only on edit, validated with scoped rollback, then the snapshot is captured only for the first valid change. | Lifecycle tests and source review: idle/rejected frames reach no `CaptureCurrentSnapshot`; continuous accepted frames after the first reuse the gesture identity. |
 | PERF-001 | Ancestor checks repeatedly scanned all layout nodes. A bounded per-query source index is reused for wheel and thumb hit candidates. | Existing clipping/disabled/bubbling tests plus 100/1000/4096-node reverse-authored hierarchies and malformed parent/index/cycle tests. Measurement below. |
 | PERF-003 | Idle input processing and drawing both evaluated layout. Idle input now returns before resolution. Actual interaction frames still evaluate before input and again for drawing after state changes. | Source-path count: ordinary frame 2 → 1 evaluations, wheel/drag frame 2 → 2. No persistent cache, generation token, resize/page/reload invalidation or client-thread assumption. Same-frame interactive rendering requires manual graphics verification. |
-| CPP-001 | Two public `noexcept` state updates allocate normalized keys/map entries. Narrow `std::bad_alloc` handlers preserve the signatures and return failure before patch writes. | Public noexcept static assertion, allocated long IDs, valid updates and invalid-input state preservation. Allocation-fault injection across Windows DLL allocators was not performed. |
+| CPP-001 | Two public `noexcept` state updates allocate normalized keys/map entries. Narrow `std::bad_alloc` handlers preserve the signatures and return failure before patch writes. | Public noexcept static assertion, allocated long IDs, valid updates and invalid-input state preservation. Isolated statically linked allocation-fault tests exercise every insertion allocation, failed updates, state preservation and successful retry; Windows execution is part of the PR CI. |
 
 ## Local validation
 
@@ -46,7 +46,12 @@ python tests/client_api_generator/test_generate_ui.py --generator mfd_client_api
 
 Headless flags: `-std=c++17 -Wall -Wextra -Wpedantic
 -fsanitize=undefined,float-cast-overflow -fno-sanitize-recover=all`.
-The targeted C++ suite passes 26 tests; the existing generator suite, including
+The expanded headless suite runs 89 tests: **88 pass and one is skipped** by its
+existing Windows-only cross-drive path condition. It includes the existing
+serializer/commit and LEVEL 1 ABI suites, plus real allocation-failure injection.
+The portable ABI target uses `-include cstdint` to compensate an existing
+MSVC-dependent transitive include in the unchanged extension source; no repository
+source was patched for that local harness. The existing generator suite, including
 the added identity case, passes 31 tests. Syntax-only C++17 compilation also
 covers the edited host inspector, application inspector, serializer, renderer,
 SceneRegistry and its test translation unit. This is not a substitute for linking

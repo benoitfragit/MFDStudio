@@ -102,3 +102,12 @@ target_compile_features(image_texture_cache_tests PRIVATE cxx_std_17)
 mfd_enable_target_warnings(image_texture_cache_tests)
 mfd_configure_test_runtime_output(image_texture_cache_tests)
 gtest_discover_tests(image_texture_cache_tests DISCOVERY_TIMEOUT 60)
+
+# Keep fault injection isolated and link the runtime statically so the test's
+# allocator replacement reaches SceneRegistry on Windows as well as Linux.
+add_executable(mfd_container_allocation_tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/ContainerAllocationFailureTests.cpp)
+target_compile_features(mfd_container_allocation_tests PRIVATE cxx_std_17)
+target_link_libraries(mfd_container_allocation_tests PRIVATE mfd::runtime mfd::io_json GTest::gtest_main)
+mfd_enable_target_warnings(mfd_container_allocation_tests)
+gtest_discover_tests(mfd_container_allocation_tests)

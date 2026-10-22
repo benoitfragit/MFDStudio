@@ -1960,6 +1960,9 @@ TEST(SceneRegistryTests, ContainerScrollUpdatesRetainNoexceptAndRejectInvalidSta
     mfd::MfdDocument document;
     mfd::PageDefinition page;
     page.name = "Containers";
+    page.normalizedName = "containers";
+    page.title = "Containers";
+    page.layers.push_back(mfd::PageLayerDefinition {std::string(kDefaultLayerId)});
     mfd::api1::ContainerDefinition container;
     container.id = std::string(128U, 'p'); // Exercise allocated identity/key storage.
     page.containers.push_back(container);
