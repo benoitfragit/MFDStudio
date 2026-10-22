@@ -46,7 +46,7 @@ python tests/client_api_generator/test_generate_ui.py --generator mfd_client_api
 
 Headless flags: `-std=c++17 -Wall -Wextra -Wpedantic
 -fsanitize=undefined,float-cast-overflow -fno-sanitize-recover=all`.
-The expanded headless suite runs 89 tests: **88 pass and one is skipped** by its
+The expanded headless suite runs 90 tests: **89 pass and one is skipped** by its
 existing Windows-only cross-drive path condition. It includes the existing
 serializer/commit and LEVEL 1 ABI suites, plus real allocation-failure injection.
 The portable ABI target uses `-include cstdint` to compensate an existing
@@ -77,6 +77,24 @@ idle input resolution removes the ordinary duplicate evaluation with no stale
 state risk.
 
 ## Windows validation and remaining manual checks
+
+Run [39727852860](https://github.com/benoitfragit/MFDStudio/actions/runs/39727852860)
+built both configurations. Release passed all 1,074 selected tests; Debug passed
+1,074 of 1,076, but both allocation-injection tests terminated before reporting
+assertions. The test allocator had also faulted MSVC's debug iterator proxies:
+the v142 STL allocates these inside `noexcept` string constructors and moves, so
+the exception cannot reach the application's `bad_alloc` handler. See Microsoft's
+[v142 string implementation](https://github.com/microsoft/STL/blob/vs-2019-16.10/stl/inc/xstring).
+
+The isolated allocator now exempts exactly `sizeof(std::_Container_proxy)` blocks
+when MSVC iterator debugging is enabled. This is a size-based filter: any other
+block of that same size is also outside Debug fault coverage. The exercised long
+string payloads and map nodes are larger. Release retains exhaustive injection,
+and neither iterator-debug settings nor product code are changed. A new test
+checks that default/move string construction leaves the injected failure armed
+for the next allocating string constructor. Both original state-preservation
+tests remain enabled and retain their assertions. The follow-up CI must pass
+before this correction is considered validated on Windows.
 
 The PR runs the existing VS2022/v142 Win32 Debug job and now runs its same CI test
 selection in Release too. `test-debug-win32-ci` retains its pre-existing hosted

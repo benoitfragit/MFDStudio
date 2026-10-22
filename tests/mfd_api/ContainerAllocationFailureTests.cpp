@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <new>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace allocation_test
@@ -20,6 +21,15 @@ public:
     FailureScope(const FailureScope&) = delete;
     FailureScope& operator=(const FailureScope&) = delete;
 };
+
+bool ShouldFailAllocation() noexcept
+{
+    if (remaining < 0) return false;
+    if (remaining-- != 0) return false;
+    remaining = -1;
+    failed = true;
+    return true;
+}
 }
 
 // This isolated executable links SceneRegistry statically. Replacing allocation
@@ -27,10 +37,19 @@ public:
 // relying on interception across Windows DLL/CRT allocation boundaries.
 void* operator new(const std::size_t size)
 {
-    if (allocation_test::remaining >= 0 && allocation_test::remaining-- == 0)
+#if defined(_MSVC_STL_VERSION) && _ITERATOR_DEBUG_LEVEL != 0
+    // MSVC's debug STL allocates iterator proxies even in noexcept string
+    // constructors/moves. Throwing there terminates inside the STL before the
+    // application can catch bad_alloc. Keep iterator debugging enabled, but do
+    // not fault proxy-sized blocks in this isolated test allocator. The long
+    // string payloads, map nodes and bucket arrays exercised here are larger.
+    // Release has no such exclusion and still faults every allocation.
+    const bool canInject = size != sizeof(std::_Container_proxy);
+#else
+    const bool canInject = true;
+#endif
+    if (canInject && allocation_test::ShouldFailAllocation())
     {
-        allocation_test::remaining = -1;
-        allocation_test::failed = true;
         throw std::bad_alloc {};
     }
     if (void* memory = std::malloc(size == 0U ? 1U : size)) return memory;
@@ -64,6 +83,32 @@ void CheckOffset(const mfd::SceneRegistry& scene, const float expected)
 }
 }
 
+TEST(ContainerAllocationFailureTests, NoexceptStringConstructionDoesNotConsumePayloadFailure)
+{
+    bool caught = false;
+    bool empty = false;
+    std::size_t payloadSize = 0U;
+    {
+        allocation_test::FailureScope failure(0);
+        std::string initial;
+        std::string moved(std::move(initial));
+        empty = moved.empty();
+        try
+        {
+            const std::string payload(128U, 'p');
+            payloadSize = payload.size();
+        }
+        catch (const std::bad_alloc&)
+        {
+            caught = true;
+        }
+    }
+    EXPECT_TRUE(empty);
+    EXPECT_TRUE(caught);
+    EXPECT_TRUE(allocation_test::failed);
+    EXPECT_EQ(payloadSize, 0U);
+}
+
 TEST(ContainerAllocationFailureTests, EveryInsertionAllocationFailurePreservesStateAndAllowsRetry)
 {
     const std::string id(128U, 'p');
@@ -71,6 +116,7 @@ TEST(ContainerAllocationFailureTests, EveryInsertionAllocationFailurePreservesSt
     std::size_t failedAllocations = 0U;
     for (std::ptrdiff_t failAfter = 0; failAfter < 32; ++failAfter)
     {
+        SCOPED_TRACE(failAfter);
         mfd::SceneRegistry scene(MakeDocument(id));
         bool updated = false;
         {
