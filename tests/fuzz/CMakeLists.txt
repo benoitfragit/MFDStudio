@@ -47,7 +47,8 @@ mfd_configure_fuzzer_target(mfd_api_transport_fuzzer)
 add_executable(mfd_editor_serializer_fuzzer
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorSerializerFuzzer.cpp
     ${MFD_ROOT_DIR}/mfd_editor/include/EditorDocumentSerializer.h
-    ${MFD_ROOT_DIR}/mfd_editor/src/EditorDocumentSerializer.cpp)
+    ${MFD_ROOT_DIR}/mfd_editor/src/EditorDocumentSerializer.cpp
+    ${MFD_ROOT_DIR}/mfd_editor/src/EditorFileCommit.cpp)
 
 target_include_directories(mfd_editor_serializer_fuzzer
     PRIVATE

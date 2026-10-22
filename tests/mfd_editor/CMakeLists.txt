@@ -11,6 +11,7 @@ set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAssetReferenceIndexServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAssetPathServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorFileCommitTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorFileCommitFailureTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorDocumentSerializerTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorDesignExportServiceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorFullscreenPreviewControllerTests.cpp

@@ -204,14 +204,19 @@ replacement resets the autosave success timer. Restore and clean-exit retention
 rules are unchanged. Atomic replacement gives reader-visible consistency, not
 a guarantee against power loss.
 
-Global page and reticle renames stage every changed file before modifying live
-assets. Original files are backed up, new contents promoted, then obsolete
+Document Save, recovery-bundle restoration, and global page/reticle renames
+share the same transactional writer. They stage and verify every changed file
+before modifying live assets. Original files are backed up, new contents promoted, then obsolete
 reticle files removed. The in-memory document and file layout change only after
 that transaction succeeds. A handled failure rolls back the changed files.
 If rollback itself fails, the error lists the affected target and retained
 `.mfd_backup_*` file: preserve those files, close the editor, and restore the
 listed originals before reopening the asset tree. These multi-file operations
-are not crash-atomic and assume no concurrent external writer.
+are not crash-atomic and assume no concurrent external writer. Primary errors and
+secondary restore/removal errors are reported together. A cleanup error after
+all promotions explicitly says **Assets committed** and retains the affected
+transaction paths; it never rolls back a transaction whose backups were already
+partly cleaned. Preserve any reported backup until the document is verified.
 
 Undo and Redo keep the same history and selection semantics. When their history
 stack is empty, the editor reports that immediately without copying the document.

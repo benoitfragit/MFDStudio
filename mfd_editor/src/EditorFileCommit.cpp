@@ -188,6 +188,31 @@ void ValidateTargets(const std::vector<CommitEntry>& entries)
     }
 }
 
+void CleanupTransactionFile(const std::filesystem::path& path,
+                            const FileCommitCheckpoint& checkpoint,
+                            std::string& failures)
+{
+    if (path.empty()) return;
+    try
+    {
+        Checkpoint(checkpoint, FileCommitPoint::Cleanup, path);
+        std::error_code removeError;
+        std::filesystem::remove(path, removeError);
+        if (removeError)
+        {
+            // Backups may inherit a read-only attribute. Only owned transaction
+            // paths reach this helper; report any failure of the retry as well.
+            std::filesystem::permissions(path, std::filesystem::perms::owner_write,
+                                         std::filesystem::perm_options::add);
+            std::filesystem::remove(path);
+        }
+    }
+    catch (const std::exception& exception)
+    {
+        failures += "\nCleanup failed for " + path.string() + ": " + exception.what();
+    }
+}
+
 std::string Rollback(std::vector<CommitEntry>& entries, const FileCommitCheckpoint& checkpoint)
 {
     std::string failures;
@@ -201,21 +226,23 @@ std::string Rollback(std::vector<CommitEntry>& entries, const FileCommitCheckpoi
                 Checkpoint(checkpoint, FileCommitPoint::Rollback, entry.target);
                 if (!entry.backup.empty())
                 {
+                    Checkpoint(checkpoint, FileCommitPoint::RestoreBackup, entry.target);
                     Promote(entry.backup, entry.target, true);
                 }
                 else
                 {
+                    Checkpoint(checkpoint, FileCommitPoint::RemovePromoted, entry.target);
                     std::filesystem::remove(entry.target);
                 }
             }
-            RemoveTemporary(entry.backup);
+            CleanupTransactionFile(entry.backup, checkpoint, failures);
         }
         catch (const std::exception& exception)
         {
             failures += "\nRollback failed for " + entry.target.string() + ": " + exception.what() +
                         "; retained backup: " + entry.backup.string();
         }
-        RemoveTemporary(entry.staged);
+        CleanupTransactionFile(entry.staged, checkpoint, failures);
     }
     return failures;
 }
@@ -277,10 +304,17 @@ void CommitAssetFiles(const std::vector<AssetFileWrite>& writes,
         const std::string rollbackFailures = Rollback(entries, checkpoint);
         throw std::runtime_error(failure + rollbackFailures);
     }
+    // Promotion is committed. A cleanup failure must never start rollback after
+    // earlier backups have already been deleted.
+    std::string cleanupFailures;
     for (const CommitEntry& entry : entries)
     {
-        RemoveTemporary(entry.backup);
-        RemoveTemporary(entry.staged);
+        CleanupTransactionFile(entry.backup, checkpoint, cleanupFailures);
+        CleanupTransactionFile(entry.staged, checkpoint, cleanupFailures);
+    }
+    if (!cleanupFailures.empty())
+    {
+        throw std::runtime_error("Assets committed, but transaction cleanup was incomplete:" + cleanupFailures);
     }
 }
 

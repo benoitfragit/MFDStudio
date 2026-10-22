@@ -4,6 +4,7 @@
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
 #include "EditorDocumentSerializer.h"
+#include "internal/EditorFileCommit.h"
 
 #include "mfd/apilevel1/ContainerJson.h"
 
@@ -1437,24 +1438,6 @@ std::optional<json> SerializeReticleClippingOverride(const mfd::ReticleClipState
     return SerializeReticleClipping(clipping);
 }
 
-void WriteJsonFile(const std::filesystem::path& path, const json& value)
-{
-    std::filesystem::create_directories(path.parent_path());
-
-    std::ofstream stream(path, std::ios::binary | std::ios::trunc);
-    if (!stream.is_open())
-    {
-        throw std::runtime_error("Unable to open file for writing: " + path.string());
-    }
-
-    stream << value.dump(2) << '\n';
-    stream.flush();
-    if (!stream.good())
-    {
-        throw std::runtime_error("Unable to complete file write: " + path.string());
-    }
-}
-
 std::string JsonToString(const json& value)
 {
     return value.dump(2) + '\n';
@@ -1580,127 +1563,24 @@ void ValidateSaveTargets(const mfd::LoadedWindowConfiguration& loaded,
     }
 }
 
-struct SaveTransactionEntry
-{
-    std::filesystem::path target;
-    std::filesystem::path staged;
-    std::filesystem::path backup;
-    bool hadOriginal = false;
-    bool promoted = false;
-};
-
-std::filesystem::path MakeSiblingTransactionPath(const std::filesystem::path& target,
-                                                 const std::string_view suffix,
-                                                 const std::size_t index)
-{
-    const auto ticks = std::chrono::steady_clock::now().time_since_epoch().count();
-    for (std::size_t attempt = 0; attempt < 100U; ++attempt)
-    {
-        std::filesystem::path result = target;
-        result += std::string(suffix) + std::to_string(ticks) + "_" + std::to_string(index) + "_" +
-                  std::to_string(attempt);
-        if (!std::filesystem::exists(result))
-        {
-            return result;
-        }
-    }
-    throw std::runtime_error("Unable to reserve a transaction path beside: " + target.string());
-}
-
-void RemoveTransactionFile(const std::filesystem::path& path) noexcept
-{
-    std::error_code error;
-    std::filesystem::remove(path, error);
-}
-
-void RollBackSaveTransaction(std::vector<SaveTransactionEntry>& entries) noexcept
-{
-    for (auto iterator = entries.rbegin(); iterator != entries.rend(); ++iterator)
-    {
-        SaveTransactionEntry& entry = *iterator;
-        if (entry.promoted)
-        {
-            RemoveTransactionFile(entry.target);
-        }
-        std::error_code backupExistsError;
-        const bool backupExists = std::filesystem::exists(entry.backup, backupExistsError);
-        if (entry.hadOriginal && !backupExistsError && backupExists)
-        {
-            std::error_code restoreError;
-            std::filesystem::rename(entry.backup, entry.target, restoreError);
-        }
-        RemoveTransactionFile(entry.staged);
-    }
-}
-
 void SaveFilesTransactionally(const std::vector<std::pair<std::filesystem::path, json>>& files,
                               const std::vector<std::filesystem::path>& removedFiles)
 {
-    std::vector<SaveTransactionEntry> entries;
-    entries.reserve(files.size() + removedFiles.size());
-
-    try
+    std::vector<internal::AssetFileWrite> writes;
+    writes.reserve(files.size());
+    for (const auto& file : files)
     {
-        for (std::size_t index = 0; index < files.size(); ++index)
+        writes.push_back({file.first, JsonToString(file.second), true});
+    }
+    // Serialization and path validation finish before any live asset is changed.
+    for (const internal::AssetFileWrite& write : writes)
+    {
+        if (write.target.has_parent_path())
         {
-            const auto& file = files[index];
-            SaveTransactionEntry entry;
-            entry.target = file.first;
-            entry.staged = MakeSiblingTransactionPath(entry.target, ".mfd_save_tmp_", index);
-            entry.backup = MakeSiblingTransactionPath(entry.target, ".mfd_save_backup_", index);
-            entries.push_back(std::move(entry));
-            WriteJsonFile(entries.back().staged, file.second);
-
-            std::ifstream verification(entries.back().staged, std::ios::binary);
-            if (!verification.is_open())
-            {
-                throw std::runtime_error("Unable to verify staged file: " + entries.back().staged.string());
-            }
-            const json stagedDocument = json::parse(verification);
-            if (stagedDocument != file.second)
-            {
-                throw std::runtime_error("Staged JSON verification failed: " + entries.back().staged.string());
-            }
-        }
-
-        for (const std::filesystem::path& removedFile : removedFiles)
-        {
-            SaveTransactionEntry entry;
-            entry.target = removedFile;
-            entry.backup = MakeSiblingTransactionPath(entry.target, ".mfd_save_backup_", entries.size());
-            entries.push_back(std::move(entry));
-        }
-
-        for (SaveTransactionEntry& entry : entries)
-        {
-            std::error_code existsError;
-            entry.hadOriginal = std::filesystem::exists(entry.target, existsError);
-            if (existsError)
-            {
-                throw std::runtime_error("Unable to inspect save target: " + entry.target.string());
-            }
-            if (entry.hadOriginal)
-            {
-                std::filesystem::rename(entry.target, entry.backup);
-            }
-        }
-
-        for (std::size_t index = 0; index < files.size(); ++index)
-        {
-            std::filesystem::rename(entries[index].staged, entries[index].target);
-            entries[index].promoted = true;
-        }
-
-        for (SaveTransactionEntry& entry : entries)
-        {
-            RemoveTransactionFile(entry.backup);
+            std::filesystem::create_directories(write.target.parent_path());
         }
     }
-    catch (...)
-    {
-        RollBackSaveTransaction(entries);
-        throw;
-    }
+    internal::CommitAssetFiles(writes, removedFiles);
 }
 
 std::optional<std::string> TryReadTemplateId(const std::filesystem::path& path)
