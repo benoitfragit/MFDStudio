@@ -13,3 +13,8 @@ add_test(
 
 add_test(NAME widget_generator_tests
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_generate_widgets.py)
+
+add_test(NAME widget_showcase_assets_check
+    COMMAND ${Python3_EXECUTABLE}
+        ${MFD_ROOT_DIR}/examples/apilevel1/widgets/generate_showcase_assets.py
+        --check)

@@ -5,7 +5,9 @@
 2. Open `examples/apilevel1/widgets/assets/windows/widgets_window.json` in the
    editor. The left sidebar shows **Pages → Reticle library → Containers → Widgets**.
    LEVEL 0 retains its two sections; LEVEL 1 keeps both extension sections even
-   when the current Page has no instances.
+   when the current Page has no instances. The showcase uses visibly different
+   controls for every supported semantic type. It does not fake combo boxes or
+   trees because API LEVEL 1 has no such types.
 3. Open **Widgets → Library**. Select the shared toggle definition. Edit its ID,
    default text or preferred size directly in the library. **Save library and
    document** writes the asset with the existing save transaction.
@@ -38,6 +40,11 @@
     cancel once, then confirm and Undo. Shared definition assets are retained.
     Never resave widget-bearing assets with a previously distributed editor:
     that binary cannot be made aware of fields added in this release.
+
+The checked-in showcase JSON is generated deterministically. Run
+`py -3 .\examples\apilevel1\widgets\generate_showcase_assets.py` to restore its
+baseline, or append `--check` in validation jobs. Regeneration intentionally
+overwrites edits made directly to these example JSON files.
 
 For DLL requirements, bounded UDP recovery and current picking/clipping limits,
 see [the widget handbook](../src/handbook/widgets.md).
