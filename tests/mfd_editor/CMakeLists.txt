@@ -38,6 +38,7 @@ set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorUiThemeTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorUiStatePersistenceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorUndoHistoryTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/WidgetEditorHostTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorViewportSnapTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorViewportGridTests.cpp)
 
@@ -69,6 +70,7 @@ target_include_directories(mfd_editor_tests
 target_sources(mfd_editor_tests
     PRIVATE
         ${MFD_WIDGETS_ROOT_DIR}/editor/src/WidgetAssetService.cpp
+        ${MFD_WIDGETS_ROOT_DIR}/editor/src/WidgetEditorHost.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorAssetReferenceIndexService.h
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorAssetReferenceIndexService.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorAssetPathService.h
@@ -126,9 +128,13 @@ set_target_properties(mfd_editor_tests PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:mfd_editor_tests>")
 
 if(WIN32)
+    add_dependencies(mfd_editor_tests mfd_editor_widgets_api1)
     add_custom_command(
         TARGET mfd_editor_tests
         POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:mfd_editor_widgets_api1>
+            $<TARGET_FILE_DIR:mfd_editor_tests>/
         COMMAND
             ${CMAKE_COMMAND}
             "-DDEST_DIR=$<TARGET_FILE_DIR:mfd_editor_tests>"

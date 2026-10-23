@@ -35,7 +35,7 @@ std::uint8_t MFD_WIDGET_EDITOR_CALL Checkbox(void*, const char* label, std::uint
 std::uint8_t MFD_WIDGET_EDITOR_CALL Number(void*, const char* label, double* value, double minimum, double maximum)
 {
     editor::ui::BeginInspectorField(label);
-    const bool changed = ImGui::InputDouble("##value", value, 0, 0, "%.6g", ImGuiInputTextFlags_EnterReturnsTrue);
+    const bool changed = ImGui::InputDouble("##value", value, 0, 0, "%.6g");
     editor::ui::EndInspectorField();
     if (changed && std::isfinite(*value) && minimum <= maximum) *value = std::clamp(*value, minimum, maximum);
     return changed;
