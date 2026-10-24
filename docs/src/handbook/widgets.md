@@ -113,19 +113,27 @@ Numeric bindings target an existing primitive's text, rotation, scale, position
 or visibility. Numeric text uses fixed decimal formatting; other text bindings
 use confirmed text. The logical hit rectangle is independent of painted shapes.
 
-The folder icon in the sidebar's **Widgets** section opens the dedicated
-**Widget definition library** editor. It creates, imports, searches, duplicates,
-exports and edits shared definitions without inserting them. Selecting a widget
-instance instead opens its Page-local properties in the standard right-hand
-inspector.
+The folder icon in the sidebar's **Widgets** section opens the **Widget definition
+library** browser. It creates, imports, searches, duplicates and exports shared
+definitions without inserting them. Selecting either a definition in that browser
+or an instance in the sidebar opens **Widget Studio** in the central workspace and
+routes the corresponding shared or Page-local properties to the right inspector.
 
-Widget visuals intentionally reuse **Reticle studio** rather than duplicating a
-second primitive canvas. In the definition editor, select a visual state, choose
-**Edit visual in Reticle studio**, edit the existing primitive controls, then use
-the check-mark action in **Widgets** (or **Apply edited visual** in the library).
-The working reticle is retained in the reticle library. Value bindings are edited
-beside the shared definition controls. The Page inspector edits only instance
-overrides unless **Edit shared definition** is enabled.
+Widget Studio initially fits the selected widget, then keeps an independent camera:
+the wheel zooms around the pointer, right-drag pans, and the recenter button fits the
+selection again. Instance widgets expose direct move and resize gestures through
+their outline and corner handle; exact values, parent placement, semantic state and
+definition fields remain available in the inspector. Grid, Page border, labels and
+gizmos are editor-only View options. Right-click exposes the local duplicate/delete,
+insert and return-to-Page actions without mixing them into the authored asset.
+
+Widget visuals intentionally reuse **Reticle studio** for primitive-level authoring.
+In Widget Studio, select a visual state in the inspector, choose **Edit visual in
+Reticle studio**, edit with the complete reticle camera, labels, handles and snapping,
+then use the check-mark action in **Widgets**. Applying returns to the originating
+shared definition in Widget Studio. The working reticle is retained in the reticle
+library. Value bindings are edited beside the shared definition controls. The Page
+inspector edits only instance overrides unless **Edit shared definition** is enabled.
 
 Simple instance-state edits (visible, enabled, exposed and checked/warning/value/
 text overrides) use a bounded page-local mutation after field validation and one
@@ -136,8 +144,9 @@ one reusable widget do not repeat the same visual validation work.
 Runtime pointer evaluation uses the allocation-free bounded source index and
 reuses its active-id scratch buffer; after capacity warm-up it does not recreate
 those containers on every input frame.
-The editor interaction tool also reuses the layout already computed for the
-current preview frame instead of evaluating the complete hierarchy a second time.
+The Page interaction tool reuses the layout already computed for the current
+preview frame. Widget Studio and Container Studio likewise resolve their focused
+layout once per rendered frame and reuse it for overlays and pointer input.
 
 Widget visuals are drawn within their ancestor scissor. Legacy Page reticles
 remain above the container/widget layer, and layer-local background restoration

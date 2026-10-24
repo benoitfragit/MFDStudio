@@ -5,6 +5,7 @@ include(GoogleTest)
 
 set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorApplicationInternalTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorFocusedStudioTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorSidebarLayoutTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAssetWatcherTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorAutosaveSchedulerTests.cpp
@@ -88,6 +89,7 @@ target_sources(mfd_editor_tests
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorDocumentSerializer.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorDesignExportService.h
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorDesignExportService.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorFocusedStudio.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorFullscreenPreviewController.h
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorFullscreenPreviewController.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/EditorWorkspaceLayout.h

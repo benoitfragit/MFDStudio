@@ -693,6 +693,22 @@ bool EditorApplication::IsLibraryStudioWorkspaceVisible() const
            (documentState_.selection.kind == SelectionKind::LibraryReticle || documentState_.selection.kind == SelectionKind::LibraryPrimitive);
 }
 
+bool EditorApplication::IsFocusedLevel1StudioWorkspaceVisible() const
+{
+    if (documentState_.loaded.window.apiLevel != mfd::ApiLevel::Level1)
+    {
+        return false;
+    }
+
+    if (documentState_.selection.kind == SelectionKind::WidgetDefinition)
+    {
+        return documentState_.selection.widgetDefinitionIndex <
+               documentState_.loaded.document.widgetLibrary.size();
+    }
+    return documentState_.selection.kind == SelectionKind::Widget ||
+           documentState_.selection.kind == SelectionKind::Container;
+}
+
 bool EditorApplication::CanToggleFullscreenPagePreview() const
 {
     // Fullscreen preview only rearranges editor-only panel visibility and pane sizes; it never reads
@@ -1310,6 +1326,12 @@ void EditorApplication::DrawWorkspace(const std::vector<editor::PagePreviewProbl
         return;
     }
 
+    if (IsFocusedLevel1StudioWorkspaceVisible())
+    {
+        DrawFocusedLevel1StudioPanel();
+        return;
+    }
+
     // The former "Page preview" header banner only restated that overlays live in the View menu.
     // It carried no tutorial dependency and ate vertical space, so the workspace now starts directly
     // with the canvas; the tutorial coach still renders inline when a guided step is active.
@@ -1437,6 +1459,30 @@ void EditorApplication::DrawReticleStudioPanel(const float width)
         DrawLibraryPreview(studioViewport);
         DrawLibraryPreviewOverlays(studioViewport);
         HandleLibraryPreviewInteraction(studioViewport);
+    }
+    ImGui::EndChild();
+}
+
+void EditorApplication::DrawFocusedLevel1StudioPanel()
+{
+    const float panelWidth = std::max(0.0f, std::floor(ImGui::GetContentRegionAvail().x));
+    ImGui::BeginChild("FocusedLevel1StudioPanel", ImVec2(panelWidth, 0.0f), false);
+    tutorial_->DrawCoach();
+
+    ViewportState studioViewport;
+    studioViewport.origin = ImGui::GetCursorScreenPos();
+    studioViewport.size = ImGui::GetContentRegionAvail();
+    studioViewport.valid = studioViewport.size.x > 8.0f && studioViewport.size.y > 8.0f;
+    if (studioViewport.valid)
+    {
+        if (layoutState_.focusedStudioFitPending)
+        {
+            ResetFocusedLevel1StudioView(studioViewport);
+        }
+        studioViewport.view = layoutState_.focusedStudioView;
+        DrawFocusedLevel1StudioPreview(studioViewport);
+        DrawFocusedLevel1StudioOverlays(studioViewport);
+        HandleFocusedLevel1StudioInteraction(studioViewport);
     }
     ImGui::EndChild();
 }
@@ -1597,6 +1643,9 @@ void EditorApplication::DrawInspector()
     case SelectionKind::Widget:
         contextLabel = "Page > Widget";
         break;
+    case SelectionKind::WidgetDefinition:
+        contextLabel = "Library > Widget definition";
+        break;
     case SelectionKind::Container:
         contextLabel = "Page > Container";
         break;
@@ -1634,6 +1683,9 @@ void EditorApplication::DrawInspector()
         break;
     case SelectionKind::Widget:
         DrawWidgetInspector();
+        break;
+    case SelectionKind::WidgetDefinition:
+        DrawWidgetInspector(true);
         break;
     case SelectionKind::Container:
         DrawContainerInspector();

@@ -67,7 +67,8 @@ Once one window is loaded, the normal authoring workspace takes over:
 The editor writes text and time alignment (`left`, `center`, `right`) directly
 into the asset model, matching what both the preview gizmos and `mfd_window`
 render at runtime. It keeps one shared editor-only visible grid, snap toggle,
-and logical grid step across the page preview and reticle studio **without**
+and logical grid step across the page preview, reticle studio, Widget Studio and
+Container Studio **without**
 serializing those preferences into the authored JSON.
 
 The **API LEVEL** selector is available both in **Create new window** and in the
@@ -85,6 +86,14 @@ authoring, import/export and independent instances. If the container editor exte
 section is read-only and explains the problem. Downgrading a Window that owns
 containers or widgets requires explicit, counted confirmation; deletion and the level change form
 one undoable operation. See [API LEVEL 1 containers](./containers.md).
+
+Selecting a widget, shared widget definition or container replaces the Page preview
+with its focused studio. These studios retain the reticle workflow's independent
+wheel zoom, right-drag pan, recenter control, View options and right inspector.
+Widget instances can be moved/resized directly; Container Studio renders only the
+selected subtree and lets a visible descendant become the next focus. Choose
+**Return to Page preview** from View or the canvas context menu, or select a Page in
+the sidebar.
 
 The Page-preview pointer-and-response-ring tool enables session-only widget test
 mode. While armed, the left button executes the same button, toggle, checkbox,
@@ -186,6 +195,9 @@ Opening one library reticle replaces the page preview with the reticle studio:
 - primitive labels and handles make geometry edits explicit
 - the right inspector edits default appearance plus the primitive list
 - the left library remains available so you can jump to another shared template quickly
+
+Widget visual states reuse this exact primitive editor: **Edit visual in Reticle
+studio** opens a working reticle, and applying the result returns to Widget Studio.
 
 ## Validation problems
 

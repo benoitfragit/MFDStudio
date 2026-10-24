@@ -202,14 +202,23 @@ selection changes retain separate gestures. Values are prepared outside the
 live document and validated before an Undo snapshot is recorded. Idle frames
 and rejected edits do not copy a full document snapshot. Both sidebar separators are draggable and their proportions persist.
 
-There is no separate container-library window: containers are Page-owned layout
-nodes, not reusable definition assets. The **Containers** hierarchy, the preview
-gizmo and the right-hand container inspector together form the dedicated
-container editor. By contrast, widgets have reusable definitions and therefore
-also expose a separate definition-library editor. Collapsing any sidebar section
-now releases its body height and keeps only the section header visible.
+There is no container-library window because containers are Page-owned layout
+nodes, not reusable definition assets. Selecting one hierarchy entry opens
+**Container Studio** in the central workspace. The studio isolates that container
+and its descendants, while the right inspector edits the selected node. Clicking a
+visible descendant focuses it; widget leaves switch directly to Widget Studio.
+Collapsing any sidebar section releases its body height and keeps only the section
+header visible.
 
-Selecting a container displays the existing preview-style outline and corner gizmo. A resize
+Container Studio has the same navigation freedom as Reticle Studio: its first frame
+fits the selected subtree, the wheel zooms around the pointer, right-drag pans, and
+the recenter action fits the current selection again. Labels and gizmos can be
+toggled from **View**. A right-click gives hierarchy actions and an explicit return
+to the Page preview. During normal rendering the focused layout is evaluated once
+and reused by rendering, overlays and hit-testing, avoiding repeated full-tree work
+on idle frames.
+
+Selecting a container displays an outline and corner gizmo in Container Studio. A resize
 captures authored geometry once, creates one undo snapshot, and applies the final
 parent size through the same layout engine used by runtime preview. Layout-driven
 children are recomputed once; proportional children use `layoutReferenceSize`.

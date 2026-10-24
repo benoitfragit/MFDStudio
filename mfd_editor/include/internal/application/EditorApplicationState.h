@@ -63,7 +63,8 @@ enum class SelectionKind
     Container,
     LibraryReticle,
     LibraryPrimitive,
-    Widget
+    Widget,
+    WidgetDefinition
 };
 
 /** @brief Current direct-manipulation mode active in one preview viewport. */
@@ -113,6 +114,8 @@ struct Selection
     std::string libraryBrowserReticleId {};
     int primitiveIndex = -1;
     std::string widgetId {};
+    /** @brief Index of the selected shared widget definition, or `size_t` maximum when absent. */
+    std::size_t widgetDefinitionIndex = std::numeric_limits<std::size_t>::max();
 };
 
 /**
@@ -397,6 +400,10 @@ struct PreviewState
     std::vector<mfd::api1::ContainerLayoutNode> widgetInteractionLayouts {};
     /** @brief Whether widgetInteractionLayouts belongs to the active page rendered this frame. */
     bool widgetInteractionLayoutValid = false;
+    /** @brief Selected LEVEL 1 subtree resolved once and reused by focused-studio overlays and input. */
+    std::vector<mfd::api1::ContainerLayoutNode> focusedStudioLayouts {};
+    /** @brief Whether focusedStudioLayouts matches the focused studio content rendered this frame. */
+    bool focusedStudioLayoutValid = false;
     mfd::BezierPolylineCache previewBezierCache {};
     mfd::ImageTextureCache previewImageCache {};
     mfd::ExternalStreamRegistry externalStreams {};
@@ -522,10 +529,18 @@ struct LayoutState
     std::map<std::string, bool> inspectorSectionOpen {};
     bool libraryStudioShowPrimitiveLabels = true;
     bool libraryStudioShowGizmos = true;
+    bool focusedStudioShowLabels = true;
+    bool focusedStudioShowGizmos = true;
     editor::PagePreviewViewOptions pagePreviewViewOptions {};
     editor::LayerFocusState layerFocusState {};
     mfd::PageViewState pagePreviewView {};
     mfd::PageViewState libraryPreviewView {};
+    /** @brief Independent camera shared by the focused Widget and Container studios. */
+    mfd::PageViewState focusedStudioView {};
+    /** @brief Requests one content fit after the focused studio selection changes. */
+    bool focusedStudioFitPending = true;
+    /** @brief Prevents a completed right-button pan from opening a studio context action. */
+    bool suppressNextFocusedStudioContextMenu = false;
     mfd::Vec2 minimapDragOffsetLogical {};
     /** @brief One-shot marquee tool armed from the page-preview toolbar; session-only, not persisted. */
     PreviewTool armedPreviewTool = PreviewTool::None;

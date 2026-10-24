@@ -117,10 +117,29 @@ void EditorApplication::SelectWidget(const int pageIndex, std::string id)
 {
     if (pageIndex < 0 || static_cast<std::size_t>(pageIndex) >= documentState_.loaded.document.pages.size() ||
         !mfd::api1::WidgetEditorModel::Find(documentState_.loaded.document.pages[pageIndex], id)) return;
+    const bool selectionChanged = documentState_.selection.kind != SelectionKind::Widget ||
+                                  documentState_.selection.pageIndex != pageIndex ||
+                                  documentState_.selection.widgetId != id;
     documentState_.selection = {};
     documentState_.selection.kind = SelectionKind::Widget;
     documentState_.selection.pageIndex = pageIndex;
     documentState_.selection.widgetId = std::move(id);
+    layoutState_.focusedStudioFitPending = selectionChanged;
+}
+
+void EditorApplication::SelectWidgetDefinition(const std::size_t index)
+{
+    const auto& library = documentState_.loaded.document.widgetLibrary;
+    if (index >= library.size()) return;
+    const bool selectionChanged = documentState_.selection.kind != SelectionKind::WidgetDefinition ||
+                                  widgetLibrarySelected_ != index;
+    const int activePageIndex = documentState_.selection.pageIndex;
+    widgetLibrarySelected_ = index;
+    documentState_.selection = {};
+    documentState_.selection.kind = SelectionKind::WidgetDefinition;
+    documentState_.selection.pageIndex = activePageIndex;
+    documentState_.selection.widgetDefinitionIndex = index;
+    layoutState_.focusedStudioFitPending = selectionChanged;
 }
 void EditorApplication::DrawSidebarWidgetsSection(const float height)
 {
@@ -148,7 +167,20 @@ void EditorApplication::DrawSidebarWidgetsSection(const float height)
                 const std::string label = widget.id + (parent.empty() ? " (root)" : " / " + parent);
                 if (ImGui::Selectable(label.c_str(), documentState_.selection.kind == SelectionKind::Widget &&
                                       documentState_.selection.widgetId == widget.id))
+                {
                     SelectWidget(documentState_.selection.pageIndex, widget.id);
+                }
+                if (widget.definition != nullptr)
+                {
+                    const mfd::api1::ContainerRect previewBounds {
+                        {}, widget.size.value_or(widget.definition->preferredSize)};
+                    const mfd::ColorRgba& background = page->backgroundColor;
+                    DrawWidgetHoverPreviewTooltip(
+                        widget,
+                        previewBounds,
+                        widget.id,
+                        Color {background.r, background.g, background.b, background.a});
+                }
             }
         }
         ImGui::EndChild();
@@ -241,7 +273,17 @@ void EditorApplication::DrawWidgetLibrary()
     {
         if (mfd::NormalizePageName(library[index]->id).find(mfd::NormalizePageName(widgetLibraryFilter_.data())) == std::string::npos) continue;
         ImGui::PushID(static_cast<int>(index));
-        if (ImGui::Selectable(library[index]->id.c_str(), widgetLibrarySelected_ == index)) widgetLibrarySelected_ = index;
+        const bool selected = documentState_.selection.kind == SelectionKind::WidgetDefinition &&
+                              documentState_.selection.widgetDefinitionIndex == index;
+        if (ImGui::Selectable(library[index]->id.c_str(), selected)) SelectWidgetDefinition(index);
+        mfd::api1::WidgetInstance previewWidget;
+        previewWidget.id = library[index]->id;
+        previewWidget.definition = library[index];
+        DrawWidgetHoverPreviewTooltip(
+            previewWidget,
+            {{}, library[index]->preferredSize},
+            library[index]->id,
+            Color {10, 18, 24, 255});
         if (ImGui::BeginDragDropSource())
         {
             ImGui::SetDragDropPayload("MFD_WIDGET_DEFINITION", &index, sizeof(index));
@@ -259,7 +301,7 @@ void EditorApplication::DrawWidgetLibrary()
         ImGui::SameLine();
         if (ImGui::Button("Export definition and resources")) ExportWidgetDefinition();
         if (ImGui::Button("Save library and document")) SaveAll();
-        if (ImGui::CollapsingHeader("Edit / rename definition", ImGuiTreeNodeFlags_DefaultOpen)) DrawWidgetInspector(true);
+        ImGui::TextDisabled("Select the definition to edit it in Widget Studio and the inspector.");
     }
     if (!widgetVisualTemplate_.empty() && ImGui::Button("Apply edited visual")) ApplyWidgetVisual();
     ImGui::End();
@@ -296,7 +338,8 @@ void EditorApplication::AddWidgetDefinition(const bool duplicate)
         widgetLibrarySelected_ = document.widgetLibrary.size() - 1;
         PushUndoSnapshot(std::move(before));
         widgetLibraryOpen_ = true;
-        RebuildStatus("Widget definition created. Edit its properties and visuals in the library, then insert independent instances.", false);
+        SelectWidgetDefinition(widgetLibrarySelected_);
+        RebuildStatus("Widget definition created. Edit it in Widget Studio, then insert independent instances.", false);
     }
     catch (const std::exception& error) { RebuildStatus(error.what(), true); }
 }
@@ -342,7 +385,10 @@ std::shared_ptr<const mfd::api1::WidgetDefinition> EditorApplication::SelectedWi
     if (definitionOnly)
     {
         const auto& library = documentState_.loaded.document.widgetLibrary;
-        return widgetLibrarySelected_ < library.size() ? library[widgetLibrarySelected_] : nullptr;
+        const std::size_t definitionIndex = documentState_.selection.kind == SelectionKind::WidgetDefinition
+                                                ? documentState_.selection.widgetDefinitionIndex
+                                                : widgetLibrarySelected_;
+        return definitionIndex < library.size() ? library[definitionIndex] : nullptr;
     }
     const auto* widget = SelectedWidget();
     return widget ? widget->definition : nullptr;
@@ -499,7 +545,14 @@ void EditorApplication::ApplyWidgetInspector(const std::uint32_t actions, const 
     }
     documentState_.loaded.document = std::move(candidate);
     PushUndoSnapshot(before);
-    if (!definitionOnly) SelectWidget(documentState_.selection.pageIndex, replacement.id);
+    if (!definitionOnly)
+    {
+        SelectWidget(documentState_.selection.pageIndex, replacement.id);
+    }
+    else
+    {
+        SelectWidgetDefinition(widgetLibrarySelected_);
+    }
 }
 void EditorApplication::EditWidgetVisual(const bool definitionOnly)
 {
@@ -538,10 +591,12 @@ void EditorApplication::ApplyWidgetVisual()
     { replacement->visuals.push_back({widgetVisualState_, source->second, {}}); }
     else visual->composition = source->second;
     const auto before = CaptureCurrentSnapshot();
+    const std::size_t definitionIndex = static_cast<std::size_t>(found - library.begin());
     std::string error;
     if (!mfd::api1::WidgetEditorModel::ReplaceDefinition(documentState_.loaded.document, replacement, error))
     { RebuildStatus(error, true); return; }
     PushUndoSnapshot(before);
+    SelectWidgetDefinition(definitionIndex);
     RebuildStatus("Shared widget visual updated; instance overrides retained.", false);
 }
 
@@ -567,6 +622,7 @@ void EditorApplication::ImportWidgetDefinition()
         const auto& definitions = documentState_.loaded.document.widgetLibrary;
         widgetLibrarySelected_ = static_cast<std::size_t>(std::find(definitions.begin(), definitions.end(), imported) - definitions.begin());
         PushUndoSnapshot(before);
+        SelectWidgetDefinition(widgetLibrarySelected_);
         RebuildStatus("Widget and resources imported. Save commits all authored assets together.", false);
     }
     catch (const std::exception& failure) { RebuildStatus(failure.what(), true); }
@@ -606,7 +662,9 @@ void EditorApplication::DrawWidgetPreviewGizmo(const ViewportState& viewport, co
         draw->AddRectFilled({b.x - 6, b.y - 6}, {b.x + 6, b.y + 6}, IM_COL32(100, 220, 255, 255));
     }
 }
-bool EditorApplication::BeginWidgetPreviewGesture(const ViewportState& viewport, const ImVec2 mouse)
+bool EditorApplication::BeginWidgetPreviewGesture(const ViewportState& viewport,
+                                                  const ImVec2 mouse,
+                                                  const bool selectedOnly)
 {
     auto* page = ActivePage(); if (!page || page->widgets.empty()) return false;
     std::vector<mfd::api1::ContainerLayoutNode> layouts;
@@ -617,8 +675,15 @@ bool EditorApplication::BeginWidgetPreviewGesture(const ViewportState& viewport,
     const mfd::api1::detail::ContainerPointerQuery query(nodes, layouts, pointer);
     for (auto layout = layouts.rbegin(); layout != layouts.rend(); ++layout)
     {
-        if (layout->sourceIndex < page->containers.size() || !query.VisibleAt(*layout, false)) continue;
+        if (layout->sourceIndex < page->containers.size() ||
+            (!selectedOnly && !query.VisibleAt(*layout, false)))
+        {
+            continue;
+        }
         const auto& widget = page->widgets[layout->sourceIndex - page->containers.size()];
+        if (selectedOnly && (documentState_.selection.kind != SelectionKind::Widget ||
+                             widget.id != documentState_.selection.widgetId))
+            continue;
         const auto corner = viewport.ToScreen({layout->bounds.center.x + layout->bounds.size.x * 0.5f,
                                                layout->bounds.center.y - layout->bounds.size.y * 0.5f});
         const bool resize = documentState_.selection.kind == SelectionKind::Widget && widget.id == documentState_.selection.widgetId &&

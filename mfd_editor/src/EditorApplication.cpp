@@ -54,6 +54,7 @@
 #include "EditorUiTheme.h"
 #include "EditorWorkspaceLayout.h"
 #include "internal/application/EditorApplicationAuthoringSupport.h"
+#include "internal/application/EditorFocusedStudio.h"
 #include "mfd/model/Types.h"
 #include "mfd/ipc/UdpLimits.h"
 #include "mfd/model/RuntimeBudgets.h"
@@ -232,6 +233,7 @@ constexpr float kLayerInspectorPreviewHeight = 84.0f;
 constexpr float kPreviewProblemsDockHeight = 176.0f;
 constexpr const char* kPagePreviewHelpPopupId = "PagePreviewHelpPopup";
 constexpr const char* kLibraryPreviewHelpPopupId = "LibraryPreviewHelpPopup";
+constexpr const char* kFocusedStudioHelpPopupId = "FocusedStudioHelpPopup";
 constexpr const char* kUiStateFileName = "examples/demo/assets/.editor_ui_state.json";
 constexpr const char* kRecoveryFileName = "examples/demo/assets/.editor_recovery.json";
 constexpr const char* kRecentWindowsFileName = "examples/demo/assets/.editor_recent_windows.json";
@@ -1412,6 +1414,134 @@ bool DrawViewportToolbar(const ImVec2 viewportOrigin,
     return resetRequested;
 }
 
+void ApplyFocusedWidgetVisualState(mfd::api1::WidgetState& state, const int requestedState) noexcept
+{
+    const int visualState = std::clamp(requestedState, 0, 6);
+    state.visible = true;
+    state.hovered = visualState == static_cast<int>(mfd::api1::WidgetVisualState::Hover);
+    state.pressed = visualState == static_cast<int>(mfd::api1::WidgetVisualState::Pressed);
+    state.confirmed.checked = visualState == static_cast<int>(mfd::api1::WidgetVisualState::Checked);
+    state.enabled = visualState != static_cast<int>(mfd::api1::WidgetVisualState::Disabled);
+    state.confirmed.warning = visualState == static_cast<int>(mfd::api1::WidgetVisualState::Warning);
+    state.pending = visualState == static_cast<int>(mfd::api1::WidgetVisualState::Pending);
+}
+
+/** @brief Resolves an authored container ID to its projected layout source index. */
+std::optional<std::size_t> FindContainerSourceIndex(
+    const mfd::PageDefinition& page,
+    const std::string_view id) noexcept
+{
+    for (std::size_t index = 0; index < page.containers.size(); ++index)
+    {
+        if (page.containers[index].id == id)
+        {
+            return index;
+        }
+    }
+    return std::nullopt;
+}
+
+/** @brief Resolves an authored widget ID to its projected layout source index. */
+std::optional<std::size_t> FindWidgetSourceIndex(
+    const mfd::PageDefinition& page,
+    const std::string_view id) noexcept
+{
+    for (std::size_t index = 0; index < page.widgets.size(); ++index)
+    {
+        if (page.widgets[index].id == id)
+        {
+            return page.containers.size() + index;
+        }
+    }
+    return std::nullopt;
+}
+
+/** @brief Maps a projected mixed-layout node back to its authored ID. */
+std::string_view FocusedStudioLayoutId(
+    const mfd::PageDefinition& page,
+    const mfd::api1::ContainerLayoutNode& layout) noexcept
+{
+    if (layout.sourceIndex < page.containers.size())
+    {
+        return page.containers[layout.sourceIndex].id;
+    }
+    const std::size_t widgetIndex = layout.sourceIndex - page.containers.size();
+    return widgetIndex < page.widgets.size() ? std::string_view(page.widgets[widgetIndex].id) : std::string_view {};
+}
+
+bool DrawFocusedStudioToolbar(const ImVec2 viewportOrigin,
+                              const float zoom,
+                              const std::optional<mfd::Vec2>& mouseLogical,
+                              const bool widgetStudio)
+{
+    const ViewportToolbarLayout layout = ComputeViewportToolbarLayout(viewportOrigin, zoom, mouseLogical);
+    DrawViewportToolbarSurface(layout);
+
+    ImGui::SetCursorScreenPos(layout.helpButtonPos);
+    if (IconButton("?##FocusedStudioHelp", EditorIcon::Help, "Show the focused-studio controls."))
+    {
+        ImGui::OpenPopup(kFocusedStudioHelpPopupId);
+    }
+
+    ImGui::SetCursorScreenPos(layout.resetButtonPos);
+    const bool resetRequested = IconButton(
+        "R##FocusedStudioRecenter", EditorIcon::Recenter, "Fit the selected asset in the focused studio.");
+
+    ImGui::SetCursorScreenPos(layout.textPos);
+    ImGui::TextDisabled("%s", layout.infoLabel.data());
+
+    ImGui::SetNextWindowPos(
+        ImVec2(layout.helpButtonPos.x, layout.helpButtonPos.y + layout.buttonSize.y + 6.0f),
+        ImGuiCond_Appearing);
+    if (ImGui::BeginPopup(kFocusedStudioHelpPopupId))
+    {
+        ImGui::TextDisabled(widgetStudio ? "Widget Studio" : "Container Studio");
+        ImGui::Separator();
+        ImGui::BulletText("Mouse wheel: zoom around the pointer.");
+        ImGui::BulletText("Right-drag: pan the studio camera.");
+        ImGui::BulletText("Recenter: fit the selected asset again.");
+        ImGui::BulletText("Use the inspector for exact authored values.");
+        if (widgetStudio)
+        {
+            ImGui::BulletText("Drag the widget body or corner handle to move or resize an instance.");
+            ImGui::BulletText("Choose a visual state in the inspector; Edit visual opens Reticle Studio.");
+        }
+        else
+        {
+            ImGui::BulletText("Click a descendant to focus it without leaving the hierarchy.");
+            ImGui::BulletText("Drag a corner handle to resize non-Fit content containers.");
+        }
+        ImGui::EndPopup();
+    }
+    return resetRequested;
+}
+
+void DrawFocusedStudioLabel(ImDrawList& drawList, const ImVec2 topLeft, const std::string_view label)
+{
+    if (label.empty())
+    {
+        return;
+    }
+    const ImVec2 textSize = ImGui::CalcTextSize(label.data(), label.data() + label.size());
+    const ImVec2 labelMin(topLeft.x + 5.0f, topLeft.y + 5.0f);
+    const ImVec2 labelMax(labelMin.x + textSize.x + 10.0f, labelMin.y + textSize.y + 5.0f);
+    drawList.AddRectFilled(labelMin, labelMax, IM_COL32(22, 31, 40, 220), 3.0f);
+    drawList.AddText(
+        ImVec2(labelMin.x + 5.0f, labelMin.y + 2.0f),
+        IM_COL32(225, 235, 242, 255),
+        label.data(),
+        label.data() + label.size());
+}
+
+bool FocusedStudioRectIntersectsViewport(const ImVec2 topLeft,
+                                         const ImVec2 bottomRight,
+                                         const editor::app::ViewportState& viewport) noexcept
+{
+    const ImVec2 viewportMax(viewport.origin.x + viewport.size.x, viewport.origin.y + viewport.size.y);
+    return bottomRight.x >= viewport.origin.x && topLeft.x <= viewportMax.x &&
+           bottomRight.y >= viewport.origin.y && topLeft.y <= viewportMax.y;
+}
+
 ImVec2 ToMinimapScreen(const PageMinimapState& minimap, const mfd::Vec2 logical)
 {
     return ImVec2(
@@ -1943,6 +2073,12 @@ void EditorApplication::RestoreSnapshot(UndoSnapshot snapshot)
     {
         SelectPage(documentState_.loaded.document.pages.empty() ? 0 : static_cast<int>(documentState_.loaded.document.pages.size()) - 1);
     }
+    if (documentState_.selection.kind == SelectionKind::WidgetDefinition &&
+        documentState_.selection.widgetDefinitionIndex >= documentState_.loaded.document.widgetLibrary.size())
+    {
+        SelectPage(documentState_.selection.pageIndex, false);
+    }
+    layoutState_.focusedStudioFitPending = true;
 
     SanitizeLayerFocusForActivePage();
     SanitizePageReticleSelectionForCurrentFocus();
@@ -4073,6 +4209,651 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
     }
 }
 
+void EditorApplication::ResetFocusedLevel1StudioView(const ViewportState& viewport) noexcept
+{
+    mfd::api1::ContainerRect bounds {{}, {0.5f, 0.5f}};
+    bool hasBounds = false;
+
+    if (documentState_.selection.kind == SelectionKind::WidgetDefinition)
+    {
+        const std::shared_ptr<const mfd::api1::WidgetDefinition> definition = SelectedWidgetDefinition(true);
+        if (definition)
+        {
+            bounds.size = definition->preferredSize;
+            hasBounds = true;
+        }
+    }
+    else if (const mfd::PageDefinition* page = ActivePage(); page != nullptr)
+    {
+        std::vector<mfd::api1::ContainerLayoutNode> layouts;
+        std::string layoutError;
+        if (mfd::api1::EvaluateWidgetLayout(page->containers, page->widgets, layouts, layoutError))
+        {
+            const std::optional<std::size_t> selectedSourceIndex =
+                documentState_.selection.kind == SelectionKind::Widget
+                    ? FindWidgetSourceIndex(*page, documentState_.selection.widgetId)
+                    : FindContainerSourceIndex(*page, documentState_.selection.containerId);
+            if (selectedSourceIndex)
+            {
+                const mfd::api1::ContainerLayoutNode* selected =
+                    editor::app::FindFocusedStudioLayout(layouts, *selectedSourceIndex);
+                if (selected != nullptr)
+                {
+                    bounds = selected->bounds;
+                    hasBounds = true;
+                }
+            }
+        }
+    }
+
+    layoutState_.focusedStudioView = hasBounds
+                                         ? editor::app::ComputeFocusedStudioView(
+                                               bounds, viewport.size.x, viewport.size.y, 0.72f)
+                                         : mfd::PageViewState {};
+    layoutState_.focusedStudioFitPending = false;
+}
+
+void EditorApplication::DrawFocusedLevel1StudioPreview(const ViewportState& viewport)
+{
+    const mfd::PageDefinition* page = ActivePage();
+    const bool definitionStudio = documentState_.selection.kind == SelectionKind::WidgetDefinition;
+    if (page == nullptr && !definitionStudio)
+    {
+        return;
+    }
+
+    previewState_.focusedStudioLayouts.clear();
+    previewState_.focusedStudioLayoutValid = false;
+
+    EnsurePreviewTexture(static_cast<int>(viewport.size.x), static_cast<int>(viewport.size.y));
+    if (!previewState_.previewTextureReady)
+    {
+        return;
+    }
+
+    for (const auto& resource : documentState_.files.stagedResources)
+    {
+        previewState_.previewImageCache.Preload(resource.first, resource.second);
+    }
+
+    std::vector<mfd::api1::ContainerDefinition> previewNodes;
+    std::vector<mfd::api1::ContainerLayoutNode> focusedLayouts;
+    std::vector<mfd::ReticleGroup> widgetVisuals(page == nullptr ? 0U : page->widgets.size());
+    std::vector<bool> widgetVisualReady(page == nullptr ? 0U : page->widgets.size(), false);
+    std::optional<mfd::ReticleGroup> isolatedWidgetVisual;
+    const bool containerStudio = documentState_.selection.kind == SelectionKind::Container;
+
+    if (containerStudio)
+    {
+        if (page == nullptr)
+        {
+            return;
+        }
+        std::vector<mfd::api1::ContainerLayoutNode> layouts;
+        std::string layoutError;
+        if (!mfd::api1::EvaluateWidgetLayout(page->containers, page->widgets, layouts, layoutError))
+        {
+            return;
+        }
+        const std::optional<std::size_t> selectedSourceIndex =
+            FindContainerSourceIndex(*page, documentState_.selection.containerId);
+        const mfd::api1::ContainerLayoutNode* selected = selectedSourceIndex
+                                                             ? editor::app::FindFocusedStudioLayout(
+                                                                   layouts, *selectedSourceIndex)
+                                                             : nullptr;
+        if (selected == nullptr)
+        {
+            return;
+        }
+        previewNodes = mfd::api1::ProjectWidgetLayoutNodes(page->containers, page->widgets);
+        focusedLayouts = editor::app::CollectFocusedContainerLayouts(layouts, selected->sourceIndex);
+        previewState_.focusedStudioLayouts = focusedLayouts;
+        previewState_.focusedStudioLayoutValid = !focusedLayouts.empty();
+        for (const mfd::api1::ContainerLayoutNode& layout : focusedLayouts)
+        {
+            if (layout.sourceIndex < page->containers.size())
+            {
+                continue;
+            }
+            const std::size_t widgetIndex = layout.sourceIndex - page->containers.size();
+            if (widgetIndex >= page->widgets.size())
+            {
+                continue;
+            }
+            mfd::api1::WidgetState state = mfd::api1::InitialWidgetState(page->widgets[widgetIndex]);
+            state.visible = layout.effectiveVisible;
+            state.enabled = layout.effectiveEnabled;
+            widgetVisuals[widgetIndex] =
+                mfd::api1::BuildWidgetVisual(page->widgets[widgetIndex], state, layout.bounds);
+            widgetVisualReady[widgetIndex] = true;
+        }
+    }
+    else
+    {
+        mfd::api1::WidgetInstance previewWidget;
+        mfd::api1::ContainerRect bounds;
+        if (documentState_.selection.kind == SelectionKind::WidgetDefinition)
+        {
+            previewWidget.definition = SelectedWidgetDefinition(true);
+            if (!previewWidget.definition)
+            {
+                return;
+            }
+            previewWidget.id = previewWidget.definition->id;
+            bounds = {{}, previewWidget.definition->preferredSize};
+        }
+        else
+        {
+            if (page == nullptr)
+            {
+                return;
+            }
+            const mfd::api1::WidgetInstance* selectedWidget = SelectedWidget();
+            if (selectedWidget == nullptr)
+            {
+                return;
+            }
+            previewWidget = *selectedWidget;
+            std::vector<mfd::api1::ContainerLayoutNode> layouts;
+            std::string layoutError;
+            if (!mfd::api1::EvaluateWidgetLayout(page->containers, page->widgets, layouts, layoutError))
+            {
+                return;
+            }
+            const std::optional<std::size_t> selectedSourceIndex =
+                FindWidgetSourceIndex(*page, previewWidget.id);
+            const mfd::api1::ContainerLayoutNode* selected = selectedSourceIndex
+                                                                 ? editor::app::FindFocusedStudioLayout(
+                                                                       layouts, *selectedSourceIndex)
+                                                                 : nullptr;
+            if (selected == nullptr)
+            {
+                return;
+            }
+            bounds = selected->bounds;
+            previewState_.focusedStudioLayouts.push_back(*selected);
+            previewState_.focusedStudioLayoutValid = true;
+        }
+
+        mfd::api1::WidgetState state = mfd::api1::InitialWidgetState(previewWidget);
+        ApplyFocusedWidgetVisualState(state, widgetDraft_.visual_state);
+        isolatedWidgetVisual = mfd::api1::BuildWidgetVisual(previewWidget, state, bounds);
+    }
+
+    previewState_.externalStreams.BeginFrame();
+    if (isolatedWidgetVisual)
+    {
+        previewState_.externalStreams.Observe(*isolatedWidgetVisual, isolatedWidgetVisual->visible);
+    }
+    for (std::size_t index = 0; index < widgetVisuals.size(); ++index)
+    {
+        if (widgetVisualReady[index])
+        {
+            previewState_.externalStreams.Observe(widgetVisuals[index], widgetVisuals[index].visible);
+        }
+    }
+    previewState_.externalStreams.Update();
+
+    BeginTextureMode(previewState_.previewTexture);
+    const Color backgroundColor = page == nullptr ? Color {10, 14, 22, 255} : ToRayColor(page->backgroundColor);
+    ClearBackground(backgroundColor);
+    if (page != nullptr)
+    {
+        DrawPagePreviewBackgroundGuides(viewport, *page);
+    }
+    EnsurePreviewFont();
+    ApplyPointFilterToFont(PreviewTextFont() == nullptr ? GetFontDefault() : *PreviewTextFont());
+    mfd::Canvas2D canvas(
+        previewState_.previewTexture.texture.width,
+        previewState_.previewTexture.texture.height,
+        viewport.view,
+        PreviewTextFont(),
+        backgroundColor,
+        previewState_.previewTextureStencilReady,
+        &previewState_.previewBezierCache,
+        &previewState_.previewImageCache,
+        &previewState_.previewTextLayoutCache,
+        {},
+        mfd::detail::kMaxCanvasDrawWorkUnits,
+        &previewState_.externalStreams);
+    if (containerStudio)
+    {
+        const std::size_t firstWidgetIndex = page->containers.size();
+        const auto drawWidgetLeaf =
+            [&canvas, &widgetVisuals, &widgetVisualReady, firstWidgetIndex](const std::size_t sourceIndex)
+        {
+            if (sourceIndex < firstWidgetIndex)
+            {
+                return;
+            }
+            const std::size_t widgetIndex = sourceIndex - firstWidgetIndex;
+            if (widgetIndex < widgetVisuals.size() && widgetVisualReady[widgetIndex])
+            {
+                canvas.DrawReticleWithoutClipping(widgetVisuals[widgetIndex], widgetVisuals[widgetIndex].visible);
+            }
+        };
+        mfd::detail::DrawContainerDecorations(
+            previewNodes,
+            focusedLayouts,
+            viewport.view,
+            previewState_.previewTexture.texture.width,
+            previewState_.previewTexture.texture.height,
+            {},
+            drawWidgetLeaf);
+    }
+    else if (isolatedWidgetVisual)
+    {
+        canvas.DrawReticle(*isolatedWidgetVisual);
+    }
+    EndTextureMode();
+    previewState_.externalStreams.EndFrame();
+
+    ImGui::Image(
+        (ImTextureID)(uintptr_t)previewState_.previewTexture.texture.id,
+        viewport.size,
+        ImVec2(0.0f, 1.0f),
+        ImVec2(1.0f, 0.0f));
+    ImGui::SetCursorScreenPos(viewport.origin);
+    ImGui::SetNextItemAllowOverlap();
+    ImGui::InvisibleButton("FocusedLevel1StudioInput", viewport.size);
+
+    if (ImGui::IsItemHovered() && IsMouseButtonReleased(MOUSE_BUTTON_RIGHT))
+    {
+        if (layoutState_.suppressNextFocusedStudioContextMenu)
+        {
+            layoutState_.suppressNextFocusedStudioContextMenu = false;
+        }
+        else if (!ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+        {
+            ImGui::OpenPopup("FocusedLevel1StudioContextMenu");
+        }
+    }
+    DrawFocusedLevel1StudioContextMenu();
+
+    const ImVec2 mouse = ImGui::GetMousePos();
+    const ImVec2 viewportMax(viewport.origin.x + viewport.size.x, viewport.origin.y + viewport.size.y);
+    const std::optional<mfd::Vec2> mouseLogical =
+        IsPointInsideRect(mouse, viewport.origin, viewportMax)
+            ? std::optional<mfd::Vec2> {viewport.ToLogical(mouse)}
+            : std::nullopt;
+    const bool widgetStudio = documentState_.selection.kind == SelectionKind::Widget ||
+                              documentState_.selection.kind == SelectionKind::WidgetDefinition;
+    if (DrawFocusedStudioToolbar(
+            viewport.origin,
+            mfd::SanitizeZoom(layoutState_.focusedStudioView.zoom),
+            mouseLogical,
+            widgetStudio))
+    {
+        ResetFocusedLevel1StudioView(viewport);
+    }
+}
+
+void EditorApplication::DrawFocusedLevel1StudioContextMenu()
+{
+    if (!ImGui::BeginPopup("FocusedLevel1StudioContextMenu"))
+    {
+        return;
+    }
+
+    if (documentState_.selection.kind == SelectionKind::WidgetDefinition)
+    {
+        if (ImGui::MenuItem("Edit selected state visual in Reticle Studio"))
+        {
+            EditWidgetVisual(true);
+        }
+        if (ImGui::MenuItem("Insert into active Page"))
+        {
+            InsertWidgetDefinition(widgetLibrarySelected_);
+        }
+    }
+    else if (documentState_.selection.kind == SelectionKind::Widget)
+    {
+        if (ImGui::MenuItem("Edit selected state visual in Reticle Studio"))
+        {
+            EditWidgetVisual(false);
+        }
+        if (ImGui::MenuItem("Duplicate widget"))
+        {
+            DuplicateWidget();
+        }
+        if (ImGui::MenuItem("Delete widget"))
+        {
+            DeleteWidget();
+        }
+    }
+    else if (documentState_.selection.kind == SelectionKind::Container)
+    {
+        if (ImGui::MenuItem("Add child container"))
+        {
+            AddChildContainer(documentState_.selection.containerId);
+        }
+        if (ImGui::MenuItem("Duplicate container hierarchy"))
+        {
+            DuplicateContainer(documentState_.selection.containerId);
+        }
+        if (ImGui::MenuItem("Delete container hierarchy"))
+        {
+            DeleteContainer(documentState_.selection.containerId);
+        }
+    }
+    ImGui::Separator();
+    if (ImGui::MenuItem("Return to Page preview"))
+    {
+        SelectPage(documentState_.selection.pageIndex, false);
+    }
+    ImGui::EndPopup();
+}
+
+void EditorApplication::DrawFocusedLevel1StudioOverlays(const ViewportState& viewport)
+{
+    if (documentState_.selection.kind == SelectionKind::WidgetDefinition)
+    {
+        const std::shared_ptr<const mfd::api1::WidgetDefinition> definition = SelectedWidgetDefinition(true);
+        if (!definition)
+        {
+            return;
+        }
+        const mfd::api1::ContainerRect bounds {{}, definition->preferredSize};
+        const ImVec2 topLeft = viewport.ToScreen(
+            {bounds.center.x - bounds.size.x * 0.5f, bounds.center.y + bounds.size.y * 0.5f});
+        const ImVec2 bottomRight = viewport.ToScreen(
+            {bounds.center.x + bounds.size.x * 0.5f, bounds.center.y - bounds.size.y * 0.5f});
+        if (!FocusedStudioRectIntersectsViewport(topLeft, bottomRight, viewport))
+        {
+            return;
+        }
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        if (layoutState_.focusedStudioShowGizmos)
+        {
+            drawList->AddRect(topLeft, bottomRight, IM_COL32(100, 220, 255, 255), 3.0f, 0, 2.0f);
+        }
+        if (layoutState_.focusedStudioShowLabels)
+        {
+            DrawFocusedStudioLabel(*drawList, topLeft, definition->id);
+        }
+        return;
+    }
+
+    const mfd::PageDefinition* page = ActivePage();
+    if (page == nullptr)
+    {
+        return;
+    }
+
+    if (documentState_.selection.kind == SelectionKind::Widget)
+    {
+        if (previewState_.focusedStudioLayoutValid && !previewState_.focusedStudioLayouts.empty())
+        {
+            const mfd::api1::ContainerRect& bounds = previewState_.focusedStudioLayouts.front().bounds;
+            const ImVec2 topLeft = viewport.ToScreen(
+                {bounds.center.x - bounds.size.x * 0.5f, bounds.center.y + bounds.size.y * 0.5f});
+            const ImVec2 bottomRight = viewport.ToScreen(
+                {bounds.center.x + bounds.size.x * 0.5f, bounds.center.y - bounds.size.y * 0.5f});
+            if (!FocusedStudioRectIntersectsViewport(topLeft, bottomRight, viewport))
+            {
+                return;
+            }
+            ImDrawList* drawList = ImGui::GetWindowDrawList();
+            if (layoutState_.focusedStudioShowGizmos)
+            {
+                drawList->AddRect(topLeft, bottomRight, IM_COL32(100, 220, 255, 255), 2.0f, 0, 2.0f);
+                drawList->AddRectFilled(
+                    ImVec2(bottomRight.x - 6.0f, bottomRight.y - 6.0f),
+                    ImVec2(bottomRight.x + 6.0f, bottomRight.y + 6.0f),
+                    IM_COL32(100, 220, 255, 255));
+            }
+            if (layoutState_.focusedStudioShowLabels)
+            {
+                DrawFocusedStudioLabel(*drawList, topLeft, documentState_.selection.widgetId);
+            }
+        }
+        return;
+    }
+
+    if (documentState_.selection.kind != SelectionKind::Container)
+    {
+        return;
+    }
+
+    if (!previewState_.focusedStudioLayoutValid || previewState_.focusedStudioLayouts.empty())
+    {
+        return;
+    }
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    for (const mfd::api1::ContainerLayoutNode& layout : previewState_.focusedStudioLayouts)
+    {
+        const ImVec2 topLeft = viewport.ToScreen(
+            {layout.bounds.center.x - layout.bounds.size.x * 0.5f,
+             layout.bounds.center.y + layout.bounds.size.y * 0.5f});
+        const ImVec2 bottomRight = viewport.ToScreen(
+            {layout.bounds.center.x + layout.bounds.size.x * 0.5f,
+             layout.bounds.center.y - layout.bounds.size.y * 0.5f});
+        if (!FocusedStudioRectIntersectsViewport(topLeft, bottomRight, viewport))
+        {
+            continue;
+        }
+        const std::string_view authoredId = FocusedStudioLayoutId(*page, layout);
+        const bool isSelected = layout.sourceIndex < page->containers.size() &&
+                                authoredId == documentState_.selection.containerId;
+        if (layoutState_.focusedStudioShowGizmos && !isSelected)
+        {
+            const ImU32 color = layout.sourceIndex < page->containers.size()
+                                    ? IM_COL32(255, 193, 92, 130)
+                                    : IM_COL32(100, 220, 255, 130);
+            drawList->AddRect(topLeft, bottomRight, color, 3.0f, 0, 1.0f);
+        }
+        if (layoutState_.focusedStudioShowLabels && !authoredId.empty())
+        {
+            DrawFocusedStudioLabel(*drawList, topLeft, authoredId);
+        }
+    }
+    if (layoutState_.focusedStudioShowGizmos)
+    {
+        const mfd::api1::ContainerRect& bounds = previewState_.focusedStudioLayouts.front().bounds;
+        const ImVec2 topLeft = viewport.ToScreen(
+            {bounds.center.x - bounds.size.x * 0.5f, bounds.center.y + bounds.size.y * 0.5f});
+        const ImVec2 bottomRight = viewport.ToScreen(
+            {bounds.center.x + bounds.size.x * 0.5f, bounds.center.y - bounds.size.y * 0.5f});
+        const ImVec2 topRight(bottomRight.x, topLeft.y);
+        const ImVec2 bottomLeft(topLeft.x, bottomRight.y);
+        drawList->AddRect(topLeft, bottomRight, IM_COL32(255, 193, 92, 255), 3.0f, 0, 2.0f);
+        const mfd::api1::ContainerDefinition* selectedContainer = SelectedContainer();
+        if (selectedContainer != nullptr && selectedContainer->sizeMode != mfd::api1::ContainerSizeMode::FitContent)
+        {
+            for (const ImVec2 corner : std::array<ImVec2, 4U> {topLeft, topRight, bottomRight, bottomLeft})
+            {
+                drawList->AddRectFilled(
+                    ImVec2(corner.x - 5.5f, corner.y - 5.5f),
+                    ImVec2(corner.x + 5.5f, corner.y + 5.5f),
+                    IM_COL32(255, 193, 92, 255),
+                    2.0f);
+            }
+        }
+    }
+}
+
+void EditorApplication::HandleFocusedLevel1StudioInteraction(const ViewportState& viewport)
+{
+    mfd::PageDefinition* page = ActivePage();
+    if (page == nullptr && documentState_.selection.kind != SelectionKind::WidgetDefinition)
+    {
+        return;
+    }
+
+    const bool leftMouseDown = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+    const bool rightMouseDown = IsMouseButtonDown(MOUSE_BUTTON_RIGHT);
+    const ImVec2 mouse = ImGui::GetMousePos();
+    const ImVec2 viewportMax(viewport.origin.x + viewport.size.x, viewport.origin.y + viewport.size.y);
+    const bool mouseInsideViewport = IsPointInsideRect(mouse, viewport.origin, viewportMax);
+    const std::optional<mfd::Vec2> mouseLogical = mouseInsideViewport
+                                                     ? std::optional<mfd::Vec2> {viewport.ToLogical(mouse)}
+                                                     : std::nullopt;
+    const ViewportToolbarLayout toolbarLayout = ComputeViewportToolbarLayout(
+        viewport.origin, mfd::SanitizeZoom(layoutState_.focusedStudioView.zoom), mouseLogical);
+    const bool mouseInsideToolbar = IsPointInsideRect(mouse, toolbarLayout.toolbarMin, toolbarLayout.toolbarMax);
+    const bool anyPopupOpen = ImGui::IsPopupOpen((const char*)nullptr, ImGuiPopupFlags_AnyPopupId);
+
+    if (interactionState_.mode == InteractionMode::PanPage)
+    {
+        if (!rightMouseDown || anyPopupOpen)
+        {
+            interactionState_.mode = InteractionMode::None;
+            if (!mouseInsideViewport || mouseInsideToolbar)
+            {
+                layoutState_.suppressNextFocusedStudioContextMenu = false;
+            }
+        }
+        else
+        {
+            const float scale = viewport.LogicalScale();
+            const float zoom = mfd::SanitizeZoom(layoutState_.focusedStudioView.zoom);
+            if (scale > 0.0f)
+            {
+                const ImVec2 delta = ImGui::GetIO().MouseDelta;
+                layoutState_.focusedStudioView.center.x -= delta.x / (scale * zoom);
+                layoutState_.focusedStudioView.center.y += delta.y / (scale * zoom);
+            }
+        }
+        return;
+    }
+
+    if (documentState_.selection.kind == SelectionKind::Widget && UpdateWidgetPreviewGesture(viewport))
+    {
+        return;
+    }
+
+    if (interactionState_.mode == InteractionMode::ResizeContainer)
+    {
+        ApplyMouseTransform(viewport);
+        if (!leftMouseDown || anyPopupOpen)
+        {
+            CancelPreviewInteraction();
+        }
+        return;
+    }
+
+    if (!mouseInsideViewport || mouseInsideToolbar || anyPopupOpen)
+    {
+        return;
+    }
+
+    const float wheelDelta = ImGui::GetIO().MouseWheel;
+    if (std::abs(wheelDelta) > 0.0001f)
+    {
+        constexpr float kMinimumZoom = 0.1f;
+        constexpr float kMaximumZoom = 20.0f;
+        constexpr float kWheelZoomStep = 1.12f;
+        const float currentZoom =
+            std::clamp(mfd::SanitizeZoom(layoutState_.focusedStudioView.zoom), kMinimumZoom, kMaximumZoom);
+        const float nextZoom = std::clamp(
+            currentZoom * std::pow(kWheelZoomStep, wheelDelta), kMinimumZoom, kMaximumZoom);
+        if (std::abs(nextZoom - currentZoom) > 0.0001f)
+        {
+            const mfd::Vec2 pointerBeforeZoom = viewport.ToLogical(mouse);
+            const mfd::Vec2 viewedOffset = pointerBeforeZoom - layoutState_.focusedStudioView.center;
+            const float zoomRatio = currentZoom / nextZoom;
+            layoutState_.focusedStudioView.zoom = nextZoom;
+            layoutState_.focusedStudioView.center = {
+                pointerBeforeZoom.x - viewedOffset.x * zoomRatio,
+                pointerBeforeZoom.y - viewedOffset.y * zoomRatio};
+        }
+    }
+
+    if (rightMouseDown && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+    {
+        interactionState_.mode = InteractionMode::PanPage;
+        layoutState_.suppressNextFocusedStudioContextMenu = true;
+        return;
+    }
+    if (!IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+    {
+        return;
+    }
+
+    if (documentState_.selection.kind == SelectionKind::Widget)
+    {
+        BeginWidgetPreviewGesture(viewport, mouse, true);
+        return;
+    }
+    if (documentState_.selection.kind != SelectionKind::Container)
+    {
+        return;
+    }
+
+    if (!previewState_.focusedStudioLayoutValid || previewState_.focusedStudioLayouts.empty())
+    {
+        return;
+    }
+    const mfd::api1::ContainerLayoutNode* selected = &previewState_.focusedStudioLayouts.front();
+
+    if (layoutState_.focusedStudioShowGizmos)
+    {
+        const ImVec2 topLeft = viewport.ToScreen(
+            {selected->bounds.center.x - selected->bounds.size.x * 0.5f,
+             selected->bounds.center.y + selected->bounds.size.y * 0.5f});
+        const ImVec2 bottomRight = viewport.ToScreen(
+            {selected->bounds.center.x + selected->bounds.size.x * 0.5f,
+             selected->bounds.center.y - selected->bounds.size.y * 0.5f});
+        const ImVec2 center((topLeft.x + bottomRight.x) * 0.5f, (topLeft.y + bottomRight.y) * 0.5f);
+        const std::array<ImVec2, 4U> corners {
+            topLeft,
+            ImVec2(bottomRight.x, topLeft.y),
+            bottomRight,
+            ImVec2(topLeft.x, bottomRight.y)};
+        for (const ImVec2 corner : corners)
+        {
+            if (Distance(mouse, corner) > 16.0f)
+            {
+                continue;
+            }
+            mfd::api1::ContainerDefinition* container = SelectedContainer();
+            if (container == nullptr || container->sizeMode == mfd::api1::ContainerSizeMode::FitContent)
+            {
+                break;
+            }
+            interactionState_.containerId = container->id;
+            interactionState_.startContainerGeometry = container->geometry;
+            interactionState_.startMouseLogical = viewport.ToLogical(mouse);
+            interactionState_.startCenterScreen = center;
+            interactionState_.startCornerScreen = corner;
+            interactionState_.startDistance = std::max(8.0f, Distance(corner, center));
+            PushUndoSnapshot();
+            interactionState_.mode = InteractionMode::ResizeContainer;
+            return;
+        }
+    }
+
+    const mfd::Vec2 pointer = viewport.ToLogical(mouse);
+    for (auto current = previewState_.focusedStudioLayouts.rbegin();
+         current != previewState_.focusedStudioLayouts.rend();
+         ++current)
+    {
+        const mfd::api1::ContainerRect& bounds = current->bounds;
+        const bool inside = current->effectiveVisible &&
+                            pointer.x >= bounds.center.x - bounds.size.x * 0.5f &&
+                            pointer.x <= bounds.center.x + bounds.size.x * 0.5f &&
+                            pointer.y >= bounds.center.y - bounds.size.y * 0.5f &&
+                            pointer.y <= bounds.center.y + bounds.size.y * 0.5f;
+        if (!inside)
+        {
+            continue;
+        }
+        if (current->sourceIndex < page->containers.size())
+        {
+            SelectContainer(documentState_.selection.pageIndex, page->containers[current->sourceIndex].id);
+        }
+        else
+        {
+            const std::size_t widgetIndex = current->sourceIndex - page->containers.size();
+            if (widgetIndex < page->widgets.size())
+            {
+                SelectWidget(documentState_.selection.pageIndex, page->widgets[widgetIndex].id);
+            }
+        }
+        return;
+    }
+}
+
 void EditorApplication::DrawViewMenu()
 {
     const bool hasOpenWindow = HasOpenWindow();
@@ -4111,6 +4892,10 @@ void EditorApplication::DrawViewMenu()
         else if (IsLibraryStudioWorkspaceVisible())
         {
             DrawReticleStudioViewMenuItems();
+        }
+        else if (IsFocusedLevel1StudioWorkspaceVisible())
+        {
+            DrawFocusedLevel1StudioViewMenuItems();
         }
         else
         {
@@ -4263,6 +5048,34 @@ void EditorApplication::DrawReticleStudioViewMenuItems()
         layoutState_.pagePreviewViewOptions.gridStepLogical =
             editor::app::SanitizeGridStepLogical(layoutState_.pagePreviewViewOptions.gridStepLogical);
         ShowItemTooltip("Shared logical spacing reused by the visible grid and both editor snapping workflows.");
+    }
+    ImGui::Separator();
+    DrawFullscreenPreviewMenuItem();
+}
+
+void EditorApplication::DrawFocusedLevel1StudioViewMenuItems()
+{
+    ImGui::Checkbox("Labels", &layoutState_.focusedStudioShowLabels);
+    ImGui::Checkbox("Gizmos", &layoutState_.focusedStudioShowGizmos);
+    ImGui::Separator();
+    ImGui::Checkbox("Grid", &layoutState_.pagePreviewViewOptions.showGrid);
+    ShowItemTooltip("Draw the shared logical placement grid behind the focused asset.");
+    ImGui::Checkbox("Page border", &layoutState_.pagePreviewViewOptions.showPageBorder);
+    ShowItemTooltip("Show the authored Page extent while editing the focused asset.");
+    ImGui::Checkbox("Snap to grid", &layoutState_.pagePreviewViewOptions.snapToGrid);
+    ShowItemTooltip("Reuse the shared logical grid for compatible direct-manipulation gestures.");
+    if (layoutState_.pagePreviewViewOptions.showGrid || layoutState_.pagePreviewViewOptions.snapToGrid)
+    {
+        ImGui::SetNextItemWidth(120.0f);
+        ImGui::DragFloat(
+            "Grid step", &layoutState_.pagePreviewViewOptions.gridStepLogical, 0.005f, 0.01f, 0.5f, "%.3f");
+        layoutState_.pagePreviewViewOptions.gridStepLogical =
+            editor::app::SanitizeGridStepLogical(layoutState_.pagePreviewViewOptions.gridStepLogical);
+    }
+    ImGui::Separator();
+    if (ImGui::MenuItem("Return to Page preview"))
+    {
+        SelectPage(documentState_.selection.pageIndex, false);
     }
     ImGui::Separator();
     DrawFullscreenPreviewMenuItem();
@@ -7176,12 +7989,16 @@ void EditorApplication::SelectContainer(const int pageIndex, std::string contain
     if (pageIndex < 0 || pageIndex >= static_cast<int>(documentState_.loaded.document.pages.size())) return;
     mfd::PageDefinition& page = documentState_.loaded.document.pages[static_cast<std::size_t>(pageIndex)];
     if (mfd::api1::FindContainer(page.containers, containerId) == nullptr) return;
+    const bool selectionChanged = documentState_.selection.kind != SelectionKind::Container ||
+                                  documentState_.selection.pageIndex != pageIndex ||
+                                  documentState_.selection.containerId != containerId;
     documentState_.selection.kind = SelectionKind::Container;
     documentState_.selection.pageIndex = pageIndex;
     documentState_.selection.containerId = std::move(containerId);
     documentState_.selection.pageReticleIndex = -1;
     documentState_.selection.pageReticleIndices.clear();
     interactionState_.mode = InteractionMode::None;
+    layoutState_.focusedStudioFitPending = selectionChanged;
 }
 
 void EditorApplication::AddRootContainer()
@@ -7295,7 +8112,9 @@ void EditorApplication::DowngradeWindowToLegacyRemovingContainers()
         page.widgets.clear();
     }
     documentState_.loaded.window.apiLevel = mfd::ApiLevel::Legacy;
-    if (documentState_.selection.kind == SelectionKind::Container || documentState_.selection.kind == SelectionKind::Widget)
+    if (documentState_.selection.kind == SelectionKind::Container ||
+        documentState_.selection.kind == SelectionKind::Widget ||
+        documentState_.selection.kind == SelectionKind::WidgetDefinition)
     {
         SelectPage(documentState_.selection.pageIndex, false);
     }
@@ -7874,6 +8693,25 @@ void EditorApplication::DrawReticleHoverPreviewTooltip(const mfd::ReticleGroup& 
         ImVec2(1.0f, 0.0f));
     ImGui::TextDisabled("Hover preview");
     ImGui::EndTooltip();
+}
+
+void EditorApplication::DrawWidgetHoverPreviewTooltip(
+    const mfd::api1::WidgetInstance& widget,
+    const mfd::api1::ContainerRect& bounds,
+    const std::string_view label,
+    const Color backgroundColor)
+{
+    if (!ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort | ImGuiHoveredFlags_NoSharedDelay) ||
+        widget.definition == nullptr)
+    {
+        return;
+    }
+
+    const mfd::api1::WidgetState state = mfd::api1::InitialWidgetState(widget);
+    const mfd::ReticleGroup visual = mfd::api1::BuildWidgetVisual(widget, state, bounds);
+    std::ostringstream heading;
+    heading << label << "  |  " << bounds.size.x << " x " << bounds.size.y;
+    DrawReticleHoverPreviewTooltip(visual, heading.str(), backgroundColor);
 }
 
 EditorApplication::ReticleScreenBounds EditorApplication::ComputePrimitiveScreenBounds(

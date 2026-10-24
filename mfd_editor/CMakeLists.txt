@@ -6,6 +6,7 @@ set(MFD_EDITOR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAssetReferenceIndexService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorAssetPathService.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/EditorApplication.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorFocusedStudio.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorSidebarLayout.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorViewportGrid.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorViewportSnap.cpp
@@ -76,6 +77,7 @@ set(MFD_EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorApplicationAuthoringSupport.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorApplicationInternal.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorApplicationState.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorFocusedStudio.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorSidebarLayout.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorViewportGrid.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorViewportSnap.h

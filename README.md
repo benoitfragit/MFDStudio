@@ -86,6 +86,10 @@ fallback.
 The container, widget and external-stream guides each include a build/run
 checklist, required DLLs, generated-client wiring and performance limits. Use
 those checklists before copying an example into another application.
+In the editor, selecting a LEVEL 1 widget, widget definition or container now opens
+an isolated central studio with the same zoom, pan, recenter and inspector workflow
+as Reticle Studio; Container Studio keeps the selected subtree visible and Widget
+Studio hands primitive-level visual edits to Reticle Studio.
 
 ## Run
 

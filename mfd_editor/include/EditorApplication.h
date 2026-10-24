@@ -210,6 +210,8 @@ private:
     void DrawInspector();
     /** @brief Returns whether the reticle-studio split workspace is the active editor mode. */
     [[nodiscard]] bool IsLibraryStudioWorkspaceVisible() const;
+    /** @brief Returns whether a selected LEVEL 1 asset owns the focused central studio. */
+    [[nodiscard]] bool IsFocusedLevel1StudioWorkspaceVisible() const;
     /** @brief Returns whether the fullscreen page preview can be toggled from the current workspace. */
     [[nodiscard]] bool CanToggleFullscreenPagePreview() const;
 
@@ -283,6 +285,8 @@ private:
     std::shared_ptr<const mfd::api1::WidgetDefinition> SelectedWidgetDefinition(bool definitionOnly);
     void DrawWidgetLibrary();
     void SelectWidget(int pageIndex, std::string id);
+    /** @brief Selects one shared widget definition and opens its focused studio. */
+    void SelectWidgetDefinition(std::size_t index);
     void AddWidgetDefinition(bool duplicate);
     void InsertWidgetDefinition(std::size_t index);
     void DuplicateWidget();
@@ -295,7 +299,7 @@ private:
     void ImportWidgetDefinition();
     void ExportWidgetDefinition();
     mfd::api1::WidgetInstance* SelectedWidget() noexcept;
-    bool BeginWidgetPreviewGesture(const ViewportState& viewport, ImVec2 mouse);
+    bool BeginWidgetPreviewGesture(const ViewportState& viewport, ImVec2 mouse, bool selectedOnly = false);
     bool UpdateWidgetPreviewGesture(const ViewportState& viewport);
     /** @brief Routes one preview pointer sample through session-only widget test semantics. */
     [[nodiscard]] bool HandleWidgetPreviewTestInteraction(const mfd::PageDefinition& page,
@@ -407,6 +411,18 @@ private:
                                   bool handlePreviewInteraction);
     /** @brief Draws the reticle-studio panel with one optional explicit width. */
     void DrawReticleStudioPanel(float width = 0.0f);
+    /** @brief Draws the focused Widget or Container studio in the central workspace. */
+    void DrawFocusedLevel1StudioPanel();
+    /** @brief Renders the isolated selected Widget or Container subtree. */
+    void DrawFocusedLevel1StudioPreview(const ViewportState& viewport);
+    /** @brief Draws selection outlines and direct-manipulation handles over the focused studio. */
+    void DrawFocusedLevel1StudioOverlays(const ViewportState& viewport);
+    /** @brief Draws contextual actions for the selected focused Widget or Container asset. */
+    void DrawFocusedLevel1StudioContextMenu();
+    /** @brief Handles zoom, pan, selection and direct manipulation in the focused studio. */
+    void HandleFocusedLevel1StudioInteraction(const ViewportState& viewport);
+    /** @brief Fits the focused studio camera to the selected asset. */
+    void ResetFocusedLevel1StudioView(const ViewportState& viewport) noexcept;
     /** @brief Draws the always-visible menu-bar View entry whose content adapts to the active workspace. */
     void DrawViewMenu();
     /** @brief Draws the sidebar and inspector visibility toggles shared by every View-menu context. */
@@ -415,6 +431,8 @@ private:
     void DrawPagePreviewViewMenuItems(bool showProblemsIndicator);
     /** @brief Draws the View-menu items for the reticle-studio workspace. */
     void DrawReticleStudioViewMenuItems();
+    /** @brief Draws the View-menu items shared by the Widget and Container studios. */
+    void DrawFocusedLevel1StudioViewMenuItems();
     /** @brief Draws the fullscreen-preview toggle shared by every View-menu context. */
     void DrawFullscreenPreviewMenuItem();
     /** @brief Draws guides, selection boxes and coordinate overlays on the page preview. */
@@ -678,6 +696,17 @@ private:
     void DrawReticleHoverPreviewTooltip(const mfd::ReticleGroup& reticle,
                                         std::string_view label,
                                         Color backgroundColor);
+    /**
+     * @brief Draws a lazily rendered hover preview for one widget instance or definition.
+     * @param widget Widget whose effective initial state is previewed.
+     * @param bounds Logical bounds used to compose the visual.
+     * @param label Descriptive tooltip heading.
+     * @param backgroundColor Preview background color.
+     */
+    void DrawWidgetHoverPreviewTooltip(const mfd::api1::WidgetInstance& widget,
+                                       const mfd::api1::ContainerRect& bounds,
+                                       std::string_view label,
+                                       Color backgroundColor);
     /** @brief Returns `true` when one page reticle is part of the current selection. */
     bool HasSelectedPageReticle(int pageIndex, int reticleIndex) const noexcept;
     /** @brief Returns `true` when the page-level strobe currently owns the selection. */
