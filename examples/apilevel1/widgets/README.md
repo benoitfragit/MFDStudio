@@ -32,6 +32,13 @@ none crosses a valve's central click target. Buttons share one compact rectangul
 profile around the perimeter, and switches use squircle tracks. The authored
 schematic has no generic widget cards or page-title overlay.
 
+The live Page deliberately labels both rendering paths without separating them
+into artificial screens: the upper `FIXED RETICLES / PIPES + LEGENDS` caption is
+an ordinary static Page reticle, while the lower `WIDGET / ...` annunciator is a
+real label widget whose text changes with the generated client. Pipes and legends
+therefore remain fixed while controls, tank levels and the annunciator update in
+the same composed UI.
+
 Each tank is a progress-bar widget. Its level rises from the fixed lower edge and
 is cropped by two local convex polygons to follow the inclined wing walls, including
 at empty and full capacity. The masks belong to the widget visual, not to a

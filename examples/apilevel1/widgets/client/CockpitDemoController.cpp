@@ -48,7 +48,7 @@ void CockpitDemoController::Initialize(WidgetsExampleUi& ui)
     page.NumericDisplayWidget().SetValue(0.0);
     page.IndicatorWidget().SetWarning(false);
     page.IndicatorWidget().SetText("FUEL OK");
-    page.LabelWidget().SetText("FUEL SYSTEM NORMAL");
+    page.LabelWidget().SetText("WIDGET / FUEL SYSTEM NORMAL");
     initialized_ = true;
 }
 
@@ -168,7 +168,7 @@ void CockpitDemoController::BeginBuiltInTest(WidgetsExampleUi& ui,
     page.RootActionWidget().Acknowledge(requestId);
     page.RootActionWidget().SetText("TEST ACTIVE");
     page.IndicatorWidget().SetWarning(true);
-    page.LabelWidget().SetText("FUEL TEST IN PROGRESS");
+    page.LabelWidget().SetText("WIDGET / FUEL TEST IN PROGRESS");
     publishedBuiltInTestActive_ = true;
 }
 
@@ -237,18 +237,18 @@ void CockpitDemoController::PublishInstruments(WidgetsExampleUi& ui)
     const bool bingoReached = totalFuelPercent <= bingoPercent_;
     page.IndicatorWidget().SetWarning(testActive || bingoReached);
     page.IndicatorWidget().SetText(bingoReached ? "BINGO" : "FUEL OK");
-    const char* advisory = "FUEL SYSTEM NORMAL";
+    const char* advisory = "WIDGET / FUEL SYSTEM NORMAL";
     if (testActive)
     {
-        advisory = "FUEL TEST IN PROGRESS";
+        advisory = "WIDGET / FUEL TEST IN PROGRESS";
     }
     else if (refuelActive_)
     {
-        advisory = "REFUEL IN PROGRESS";
+        advisory = "WIDGET / REFUEL IN PROGRESS";
     }
     else if (bingoReached)
     {
-        advisory = "BINGO FUEL";
+        advisory = "WIDGET / BINGO FUEL";
     }
     page.LabelWidget().SetText(advisory);
     if (testActive != publishedBuiltInTestActive_)

@@ -42,8 +42,8 @@
         {
           "id": "Text",
           "type": "text",
-          "text": "SYSTEM / TRANSFER",
-          "fontSize": 0.023,
+          "text": "FIXED RETICLES / PIPES + LEGENDS",
+          "fontSize": 0.021,
           "letterSpacing": 0.0008,
           "align": "left",
           "color": [

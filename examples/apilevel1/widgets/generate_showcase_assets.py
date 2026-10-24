@@ -445,8 +445,9 @@ def numeric_visual(state: str) -> Tuple[List[JsonObject], List[JsonObject]]:
 def label_visual(state: str) -> Tuple[List[JsonObject], List[JsonObject]]:
     _, accent, foreground = state_palette(state)
     elements = [
-        circle("Status", 0.006, position=(-0.265, 0.0), fill=accent),
-        text("Text", "FUEL SYSTEM NORMAL", 0.025, foreground, position=(-0.24, 0.0), align="left"),
+        circle("Status", 0.006, position=(-0.375, 0.0), fill=accent),
+        text("Text", "WIDGET / FUEL SYSTEM NORMAL", 0.023, foreground,
+             position=(-0.35, 0.0), align="left"),
     ]
     return elements, [value_binding("Text", "text")]
 
@@ -509,7 +510,8 @@ def widget_documents() -> Dict[str, JsonObject]:
         "numericDisplay.json": definition(
             "numericDisplay", "numericDisplay", (0.48, 0.24), "XFER FLOW", numeric_visual,
             default_value=0.0, maximum=2880.0),
-        "label.json": definition("label", "label", (0.56, 0.09), "FUEL SYSTEM NORMAL", label_visual),
+        "label.json": definition(
+            "label", "label", (0.78, 0.09), "WIDGET / FUEL SYSTEM NORMAL", label_visual),
     }
 
 
@@ -542,8 +544,8 @@ def cockpit_static_reticles() -> List[JsonObject]:
     tank_port_y = TANK_Y + 0.168
     return [
         legend("FuelTitle", "FUEL", (-0.67, 0.82), font_size=0.068, align="left"),
-        legend("FuelSubtitle", "SYSTEM / TRANSFER", (-0.67, 0.755),
-               font_size=0.023, color=MUTED_TEXT, align="left"),
+        legend("FuelSubtitle", "FIXED RETICLES / PIPES + LEGENDS", (-0.67, 0.755),
+               font_size=0.021, color=MUTED_TEXT, align="left"),
         legend("FuelStatus", "NORM", (0.67, 0.82), font_size=0.029, color=GREEN, align="right"),
         legend("LeftEngine", "1", (-MAIN_TANK_X, 0.705), font_size=0.045),
         legend("RightEngine", "2", (MAIN_TANK_X, 0.705), font_size=0.045),

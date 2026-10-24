@@ -3,7 +3,7 @@
   "id": "label",
   "type": "label",
   "preferredSize": [
-    0.56,
+    0.78,
     0.09
   ],
   "hitRegion": {
@@ -12,7 +12,7 @@
       0
     ],
     "size": [
-      0.56,
+      0.78,
       0.09
     ]
   },
@@ -23,7 +23,7 @@
     "decimals": 0
   },
   "defaults": {
-    "text": "FUEL SYSTEM NORMAL",
+    "text": "WIDGET / FUEL SYSTEM NORMAL",
     "checked": false,
     "value": 25
   },
@@ -51,15 +51,15 @@
               0
             ],
             "position": [
-              -0.265,
+              -0.375,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "FUEL SYSTEM NORMAL",
-            "fontSize": 0.025,
+            "text": "WIDGET / FUEL SYSTEM NORMAL",
+            "fontSize": 0.023,
             "letterSpacing": 0.0008,
             "align": "left",
             "color": [
@@ -69,7 +69,7 @@
               255
             ],
             "position": [
-              -0.24,
+              -0.35,
               0
             ]
           }
@@ -107,15 +107,15 @@
               0
             ],
             "position": [
-              -0.265,
+              -0.375,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "FUEL SYSTEM NORMAL",
-            "fontSize": 0.025,
+            "text": "WIDGET / FUEL SYSTEM NORMAL",
+            "fontSize": 0.023,
             "letterSpacing": 0.0008,
             "align": "left",
             "color": [
@@ -125,7 +125,7 @@
               255
             ],
             "position": [
-              -0.24,
+              -0.35,
               0
             ]
           }
@@ -163,15 +163,15 @@
               0
             ],
             "position": [
-              -0.265,
+              -0.375,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "FUEL SYSTEM NORMAL",
-            "fontSize": 0.025,
+            "text": "WIDGET / FUEL SYSTEM NORMAL",
+            "fontSize": 0.023,
             "letterSpacing": 0.0008,
             "align": "left",
             "color": [
@@ -181,7 +181,7 @@
               255
             ],
             "position": [
-              -0.24,
+              -0.35,
               0
             ]
           }
@@ -219,15 +219,15 @@
               0
             ],
             "position": [
-              -0.265,
+              -0.375,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "FUEL SYSTEM NORMAL",
-            "fontSize": 0.025,
+            "text": "WIDGET / FUEL SYSTEM NORMAL",
+            "fontSize": 0.023,
             "letterSpacing": 0.0008,
             "align": "left",
             "color": [
@@ -237,7 +237,7 @@
               255
             ],
             "position": [
-              -0.24,
+              -0.35,
               0
             ]
           }
@@ -275,15 +275,15 @@
               0
             ],
             "position": [
-              -0.265,
+              -0.375,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "FUEL SYSTEM NORMAL",
-            "fontSize": 0.025,
+            "text": "WIDGET / FUEL SYSTEM NORMAL",
+            "fontSize": 0.023,
             "letterSpacing": 0.0008,
             "align": "left",
             "color": [
@@ -293,7 +293,7 @@
               255
             ],
             "position": [
-              -0.24,
+              -0.35,
               0
             ]
           }
@@ -331,15 +331,15 @@
               0
             ],
             "position": [
-              -0.265,
+              -0.375,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "FUEL SYSTEM NORMAL",
-            "fontSize": 0.025,
+            "text": "WIDGET / FUEL SYSTEM NORMAL",
+            "fontSize": 0.023,
             "letterSpacing": 0.0008,
             "align": "left",
             "color": [
@@ -349,7 +349,7 @@
               255
             ],
             "position": [
-              -0.24,
+              -0.35,
               0
             ]
           }
@@ -387,15 +387,15 @@
               0
             ],
             "position": [
-              -0.265,
+              -0.375,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "FUEL SYSTEM NORMAL",
-            "fontSize": 0.025,
+            "text": "WIDGET / FUEL SYSTEM NORMAL",
+            "fontSize": 0.023,
             "letterSpacing": 0.0008,
             "align": "left",
             "color": [
@@ -405,7 +405,7 @@
               255
             ],
             "position": [
-              -0.24,
+              -0.35,
               0
             ]
           }

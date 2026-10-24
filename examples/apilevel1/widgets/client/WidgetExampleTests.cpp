@@ -147,6 +147,26 @@ TEST(WidgetExample, FuelSchematicConnectsPortsWithoutCoveringValveCenters)
     const auto loaded = mfd::JsonLoader {}.LoadWindowConfiguration(MFD_WIDGET_EXAMPLE_WINDOW);
     const mfd::PageDefinition& page = loaded.document.pages.front();
     EXPECT_FALSE(page.titleDisplay.visible);
+
+    const auto fixedCaption = std::find_if(
+        page.staticReticles.begin(),
+        page.staticReticles.end(),
+        [](const mfd::ReticleGroup& reticle) { return reticle.id == "FuelSubtitle"; });
+    ASSERT_NE(fixedCaption, page.staticReticles.end());
+    ASSERT_EQ(fixedCaption->primitives.size(), 1U);
+    const auto* fixedCaptionText = std::get_if<mfd::TextGeometry>(&fixedCaption->primitives.front().geometry);
+    ASSERT_NE(fixedCaptionText, nullptr);
+    EXPECT_EQ(fixedCaptionText->text, "FIXED RETICLES / PIPES + LEGENDS");
+
+    const auto liveAnnunciator = std::find_if(
+        page.widgets.begin(),
+        page.widgets.end(),
+        [](const mfd::api1::WidgetInstance& widget) { return widget.id == "Label"; });
+    ASSERT_NE(liveAnnunciator, page.widgets.end());
+    EXPECT_EQ(
+        mfd::api1::InitialWidgetState(*liveAnnunciator).confirmed.text,
+        "WIDGET / FUEL SYSTEM NORMAL");
+
     std::vector<mfd::api1::ContainerLayoutNode> layout;
     std::string error;
     ASSERT_TRUE(mfd::api1::EvaluateWidgetLayout(page.containers, page.widgets, layout, error)) << error;
@@ -308,7 +328,7 @@ TEST(WidgetExample, CockpitControllerPublishesLifeAndConfirmsUserControls)
     EXPECT_LT(centerTankState->confirmed.value, 1080.0);
     EXPECT_TRUE(rightValveState->confirmed.checked);
     EXPECT_TRUE(indicatorState->confirmed.warning);
-    EXPECT_EQ(labelState->confirmed.text, "FUEL TEST IN PROGRESS");
+    EXPECT_EQ(labelState->confirmed.text, "WIDGET / FUEL TEST IN PROGRESS");
 }
 
 TEST(WidgetExample, RefuellingRaisesAllTankLevelsAndStopsAtCapacity)
