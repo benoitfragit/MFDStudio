@@ -1,7 +1,7 @@
 {
   "name": "Widgets",
-  "title": "API LEVEL 1 WIDGET SHOWCASE",
-  "bg": "#07111BFF",
+  "title": "AVIONICS | SYS/STAT",
+  "bg": "#060C10FF",
   "layers": [
     {
       "id": "main"
@@ -16,7 +16,7 @@
         1.36
       ],
       "position": [
-        0.0,
+        0,
         -0.12
       ],
       "children": [
@@ -27,16 +27,16 @@
       "appearance": {
         "backgroundVisible": true,
         "backgroundColor": [
-          10,
-          23,
-          35,
+          8,
+          18,
+          20,
           255
         ],
         "borderVisible": true,
         "borderColor": [
-          43,
-          91,
-          112,
+          47,
+          78,
+          64,
           255
         ]
       }
@@ -201,7 +201,7 @@
       ],
       "exposed": true,
       "overrides": {
-        "text": "RUN CHECK"
+        "text": "START BIT"
       }
     },
     {
@@ -209,7 +209,7 @@
       "definition": "../widgets/toggle.json",
       "exposed": true,
       "overrides": {
-        "text": "AUX BUS"
+        "text": "ESS BUS"
       }
     },
     {
@@ -217,7 +217,7 @@
       "definition": "../widgets/toggle.json",
       "exposed": true,
       "overrides": {
-        "text": "MASTER ARM",
+        "text": "HYD PUMP",
         "checked": true
       }
     },
@@ -225,7 +225,7 @@
       "id": "PrivateButton",
       "definition": "../widgets/button.json",
       "overrides": {
-        "text": "LOCAL RESET"
+        "text": "RESET FAULT"
       }
     },
     {
@@ -282,7 +282,7 @@
       ],
       "exposed": true,
       "overrides": {
-        "text": "NIGHT MODE",
+        "text": "PANEL LIGHT",
         "checked": true
       }
     },
@@ -290,7 +290,7 @@
       "id": "ScrollLabel",
       "definition": "../widgets/label.json",
       "overrides": {
-        "text": "SCROLL FOR MORE"
+        "text": "ELEC STATUS"
       },
       "size": [
         0.46,

@@ -8,8 +8,8 @@
   ],
   "hitRegion": {
     "position": [
-      0.0,
-      0.0
+      0,
+      0
     ],
     "size": [
       0.5,
@@ -17,15 +17,15 @@
     ]
   },
   "range": {
-    "min": 0.0,
-    "max": 100.0,
-    "step": 1.0,
+    "min": 0,
+    "max": 100,
+    "step": 1,
     "decimals": 0
   },
   "defaults": {
-    "text": "SYSTEM NOMINAL",
+    "text": "FLT CTRL OK",
     "checked": false,
-    "value": 25.0
+    "value": 25
   },
   "visuals": [
     {
@@ -40,43 +40,50 @@
             "height": 0.16,
             "filled": true,
             "fillColor": [
-              17,
-              34,
-              49,
+              11,
+              22,
+              25,
               255
-            ]
+            ],
+            "color": [
+              47,
+              78,
+              64,
+              255
+            ],
+            "thickness": 0.0015
           },
           {
             "id": "Status",
             "type": "circle",
-            "radius": 0.014,
+            "radius": 0.009,
             "filled": true,
             "fillColor": [
-              69,
-              205,
-              226,
+              98,
+              204,
+              142,
               255
             ],
             "position": [
               -0.215,
-              0.0
+              0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "SYSTEM NOMINAL",
+            "text": "FLT CTRL OK",
             "fontSize": 0.027,
             "align": "left",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
               -0.18,
-              0.0
+              0
             ]
           },
           {
@@ -91,12 +98,12 @@
               -0.055
             ],
             "color": [
-              69,
-              205,
-              226,
+              98,
+              204,
+              142,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.002
           }
         ]
       },
@@ -104,8 +111,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -121,43 +128,50 @@
             "height": 0.16,
             "filled": true,
             "fillColor": [
-              24,
-              48,
-              66,
+              15,
+              34,
+              32,
               255
-            ]
+            ],
+            "color": [
+              47,
+              78,
+              64,
+              255
+            ],
+            "thickness": 0.0015
           },
           {
             "id": "Status",
             "type": "circle",
-            "radius": 0.014,
+            "radius": 0.009,
             "filled": true,
             "fillColor": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
             "position": [
               -0.215,
-              0.0
+              0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "SYSTEM NOMINAL",
+            "text": "FLT CTRL OK",
             "fontSize": 0.027,
             "align": "left",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
               -0.18,
-              0.0
+              0
             ]
           },
           {
@@ -172,12 +186,12 @@
               -0.055
             ],
             "color": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.002
           }
         ]
       },
@@ -185,8 +199,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -202,43 +216,50 @@
             "height": 0.16,
             "filled": true,
             "fillColor": [
-              20,
-              64,
-              79,
+              18,
+              49,
+              36,
               255
-            ]
+            ],
+            "color": [
+              47,
+              78,
+              64,
+              255
+            ],
+            "thickness": 0.0015
           },
           {
             "id": "Status",
             "type": "circle",
-            "radius": 0.014,
+            "radius": 0.009,
             "filled": true,
             "fillColor": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
             "position": [
               -0.215,
-              0.0
+              0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "SYSTEM NOMINAL",
+            "text": "FLT CTRL OK",
             "fontSize": 0.027,
             "align": "left",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
               -0.18,
-              0.0
+              0
             ]
           },
           {
@@ -253,12 +274,12 @@
               -0.055
             ],
             "color": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.002
           }
         ]
       },
@@ -266,8 +287,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -283,43 +304,50 @@
             "height": 0.16,
             "filled": true,
             "fillColor": [
-              17,
-              34,
-              49,
+              11,
+              22,
+              25,
               255
-            ]
+            ],
+            "color": [
+              47,
+              78,
+              64,
+              255
+            ],
+            "thickness": 0.0015
           },
           {
             "id": "Status",
             "type": "circle",
-            "radius": 0.014,
+            "radius": 0.009,
             "filled": true,
             "fillColor": [
               66,
-              214,
-              151,
+              222,
+              126,
               255
             ],
             "position": [
               -0.215,
-              0.0
+              0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "SYSTEM NOMINAL",
+            "text": "FLT CTRL OK",
             "fontSize": 0.027,
             "align": "left",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
               -0.18,
-              0.0
+              0
             ]
           },
           {
@@ -335,11 +363,11 @@
             ],
             "color": [
               66,
-              214,
-              151,
+              222,
+              126,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.002
           }
         ]
       },
@@ -347,8 +375,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -364,43 +392,50 @@
             "height": 0.16,
             "filled": true,
             "fillColor": [
-              35,
-              43,
-              50,
+              25,
+              30,
+              29,
               255
-            ]
+            ],
+            "color": [
+              47,
+              78,
+              64,
+              255
+            ],
+            "thickness": 0.0015
           },
           {
             "id": "Status",
             "type": "circle",
-            "radius": 0.014,
+            "radius": 0.009,
             "filled": true,
             "fillColor": [
-              104,
-              122,
-              132,
+              75,
+              100,
+              89,
               255
             ],
             "position": [
               -0.215,
-              0.0
+              0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "SYSTEM NOMINAL",
+            "text": "FLT CTRL OK",
             "fontSize": 0.027,
             "align": "left",
             "color": [
-              137,
-              160,
-              171,
+              135,
+              169,
+              145,
               255
             ],
             "position": [
               -0.18,
-              0.0
+              0
             ]
           },
           {
@@ -415,12 +450,12 @@
               -0.055
             ],
             "color": [
-              104,
-              122,
-              132,
+              75,
+              100,
+              89,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.002
           }
         ]
       },
@@ -428,8 +463,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -445,43 +480,50 @@
             "height": 0.16,
             "filled": true,
             "fillColor": [
-              17,
-              34,
-              49,
+              11,
+              22,
+              25,
               255
-            ]
+            ],
+            "color": [
+              47,
+              78,
+              64,
+              255
+            ],
+            "thickness": 0.0015
           },
           {
             "id": "Status",
             "type": "circle",
-            "radius": 0.014,
+            "radius": 0.009,
             "filled": true,
             "fillColor": [
-              244,
-              126,
-              61,
+              233,
+              114,
+              69,
               255
             ],
             "position": [
               -0.215,
-              0.0
+              0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "SYSTEM NOMINAL",
+            "text": "FLT CTRL OK",
             "fontSize": 0.027,
             "align": "left",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
               -0.18,
-              0.0
+              0
             ]
           },
           {
@@ -496,12 +538,12 @@
               -0.055
             ],
             "color": [
-              244,
-              126,
-              61,
+              233,
+              114,
+              69,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.002
           }
         ]
       },
@@ -509,8 +551,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -526,43 +568,50 @@
             "height": 0.16,
             "filled": true,
             "fillColor": [
-              17,
-              34,
-              49,
+              11,
+              22,
+              25,
               255
-            ]
+            ],
+            "color": [
+              47,
+              78,
+              64,
+              255
+            ],
+            "thickness": 0.0015
           },
           {
             "id": "Status",
             "type": "circle",
-            "radius": 0.014,
+            "radius": 0.009,
             "filled": true,
             "fillColor": [
-              245,
-              190,
-              76,
+              237,
+              181,
+              67,
               255
             ],
             "position": [
               -0.215,
-              0.0
+              0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "SYSTEM NOMINAL",
+            "text": "FLT CTRL OK",
             "fontSize": 0.027,
             "align": "left",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
               -0.18,
-              0.0
+              0
             ]
           },
           {
@@ -577,12 +626,12 @@
               -0.055
             ],
             "color": [
-              245,
-              190,
-              76,
+              237,
+              181,
+              67,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.002
           }
         ]
       },
@@ -590,8 +639,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     }

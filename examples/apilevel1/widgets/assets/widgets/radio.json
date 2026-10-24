@@ -8,8 +8,8 @@
   ],
   "hitRegion": {
     "position": [
-      0.0,
-      0.0
+      0,
+      0
     ],
     "size": [
       0.46,
@@ -17,15 +17,15 @@
     ]
   },
   "range": {
-    "min": 0.0,
-    "max": 100.0,
-    "step": 1.0,
+    "min": 0,
+    "max": 100,
+    "step": 1,
     "decimals": 0
   },
   "defaults": {
-    "text": "NAV SOURCE",
+    "text": "NAV / FMS",
     "checked": false,
-    "value": 25.0
+    "value": 25
   },
   "visuals": [
     {
@@ -34,75 +34,77 @@
         "id": "radioVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.46,
-            "height": 0.18,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.46,
-            "height": 0.18,
+            "width": 0.442,
+            "height": 0.16,
             "filled": true,
             "fillColor": [
-              17,
-              34,
-              49,
+              11,
+              22,
+              25,
               255
             ],
             "color": [
-              69,
-              205,
-              226,
+              47,
+              78,
+              64,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Ring",
             "type": "ring",
-            "outerRadius": 0.041,
-            "innerRadius": 0.032,
+            "outerRadius": 0.029,
+            "innerRadius": 0.024,
             "filled": true,
             "fillColor": [
-              69,
-              205,
-              226,
+              98,
+              204,
+              142,
               255
             ],
             "position": [
               -0.165,
-              0.0
+              0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "NAV SOURCE",
+            "text": "NAV / FMS",
             "fontSize": 0.029,
             "align": "left",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
               -0.105,
-              0.0
+              0
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.195,
+              0.07
+            ],
+            "end": [
+              -0.105,
+              0.07
+            ],
+            "color": [
+              98,
+              204,
+              142,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -110,8 +112,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -121,75 +123,77 @@
         "id": "radioVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.46,
-            "height": 0.18,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.46,
-            "height": 0.18,
+            "width": 0.442,
+            "height": 0.16,
             "filled": true,
             "fillColor": [
-              24,
-              48,
-              66,
+              15,
+              34,
+              32,
               255
             ],
             "color": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Ring",
             "type": "ring",
-            "outerRadius": 0.041,
-            "innerRadius": 0.032,
+            "outerRadius": 0.029,
+            "innerRadius": 0.024,
             "filled": true,
             "fillColor": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
             "position": [
               -0.165,
-              0.0
+              0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "NAV SOURCE",
+            "text": "NAV / FMS",
             "fontSize": 0.029,
             "align": "left",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
               -0.105,
-              0.0
+              0
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.195,
+              0.07
+            ],
+            "end": [
+              -0.105,
+              0.07
+            ],
+            "color": [
+              169,
+              239,
+              191,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -197,8 +201,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -208,75 +212,77 @@
         "id": "radioVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.46,
-            "height": 0.18,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.46,
-            "height": 0.18,
+            "width": 0.442,
+            "height": 0.16,
             "filled": true,
             "fillColor": [
-              20,
-              64,
-              79,
+              18,
+              49,
+              36,
               255
             ],
             "color": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Ring",
             "type": "ring",
-            "outerRadius": 0.041,
-            "innerRadius": 0.032,
+            "outerRadius": 0.029,
+            "innerRadius": 0.024,
             "filled": true,
             "fillColor": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
             "position": [
               -0.165,
-              0.0
+              0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "NAV SOURCE",
+            "text": "NAV / FMS",
             "fontSize": 0.029,
             "align": "left",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
               -0.105,
-              0.0
+              0
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.195,
+              0.07
+            ],
+            "end": [
+              -0.105,
+              0.07
+            ],
+            "color": [
+              169,
+              239,
+              191,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -284,8 +290,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -295,91 +301,93 @@
         "id": "radioVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.46,
-            "height": 0.18,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.46,
-            "height": 0.18,
+            "width": 0.442,
+            "height": 0.16,
             "filled": true,
             "fillColor": [
-              17,
-              34,
-              49,
+              11,
+              22,
+              25,
               255
             ],
             "color": [
               66,
-              214,
-              151,
+              222,
+              126,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Ring",
             "type": "ring",
-            "outerRadius": 0.041,
-            "innerRadius": 0.032,
+            "outerRadius": 0.029,
+            "innerRadius": 0.024,
             "filled": true,
             "fillColor": [
               66,
-              214,
-              151,
+              222,
+              126,
               255
             ],
             "position": [
               -0.165,
-              0.0
+              0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "NAV SOURCE",
+            "text": "NAV / FMS",
             "fontSize": 0.029,
             "align": "left",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
               -0.105,
-              0.0
+              0
             ]
           },
           {
             "id": "Selection",
             "type": "circle",
-            "radius": 0.021,
+            "radius": 0.016,
             "filled": true,
             "fillColor": [
               66,
-              214,
-              151,
+              222,
+              126,
               255
             ],
             "position": [
               -0.165,
-              0.0
+              0
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.195,
+              0.07
+            ],
+            "end": [
+              -0.105,
+              0.07
+            ],
+            "color": [
+              66,
+              222,
+              126,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -387,8 +395,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -398,75 +406,77 @@
         "id": "radioVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.46,
-            "height": 0.18,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.46,
-            "height": 0.18,
+            "width": 0.442,
+            "height": 0.16,
             "filled": true,
             "fillColor": [
-              35,
-              43,
-              50,
+              25,
+              30,
+              29,
               255
             ],
             "color": [
-              104,
-              122,
-              132,
+              47,
+              78,
+              64,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Ring",
             "type": "ring",
-            "outerRadius": 0.041,
-            "innerRadius": 0.032,
+            "outerRadius": 0.029,
+            "innerRadius": 0.024,
             "filled": true,
             "fillColor": [
-              104,
-              122,
-              132,
+              75,
+              100,
+              89,
               255
             ],
             "position": [
               -0.165,
-              0.0
+              0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "NAV SOURCE",
+            "text": "NAV / FMS",
             "fontSize": 0.029,
             "align": "left",
             "color": [
-              137,
-              160,
-              171,
+              135,
+              169,
+              145,
               255
             ],
             "position": [
               -0.105,
-              0.0
+              0
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.195,
+              0.07
+            ],
+            "end": [
+              -0.105,
+              0.07
+            ],
+            "color": [
+              47,
+              78,
+              64,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -474,8 +484,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -485,75 +495,77 @@
         "id": "radioVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.46,
-            "height": 0.18,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.46,
-            "height": 0.18,
+            "width": 0.442,
+            "height": 0.16,
             "filled": true,
             "fillColor": [
-              17,
-              34,
-              49,
+              11,
+              22,
+              25,
               255
             ],
             "color": [
-              244,
-              126,
-              61,
+              233,
+              114,
+              69,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Ring",
             "type": "ring",
-            "outerRadius": 0.041,
-            "innerRadius": 0.032,
+            "outerRadius": 0.029,
+            "innerRadius": 0.024,
             "filled": true,
             "fillColor": [
-              244,
-              126,
-              61,
+              233,
+              114,
+              69,
               255
             ],
             "position": [
               -0.165,
-              0.0
+              0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "NAV SOURCE",
+            "text": "NAV / FMS",
             "fontSize": 0.029,
             "align": "left",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
               -0.105,
-              0.0
+              0
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.195,
+              0.07
+            ],
+            "end": [
+              -0.105,
+              0.07
+            ],
+            "color": [
+              233,
+              114,
+              69,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -561,8 +573,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -572,91 +584,93 @@
         "id": "radioVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.46,
-            "height": 0.18,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.46,
-            "height": 0.18,
+            "width": 0.442,
+            "height": 0.16,
             "filled": true,
             "fillColor": [
-              17,
-              34,
-              49,
+              11,
+              22,
+              25,
               255
             ],
             "color": [
-              245,
-              190,
-              76,
+              237,
+              181,
+              67,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Ring",
             "type": "ring",
-            "outerRadius": 0.041,
-            "innerRadius": 0.032,
+            "outerRadius": 0.029,
+            "innerRadius": 0.024,
             "filled": true,
             "fillColor": [
-              245,
-              190,
-              76,
+              237,
+              181,
+              67,
               255
             ],
             "position": [
               -0.165,
-              0.0
+              0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "NAV SOURCE",
+            "text": "NAV / FMS",
             "fontSize": 0.029,
             "align": "left",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
               -0.105,
-              0.0
+              0
             ]
           },
           {
             "id": "Selection",
             "type": "circle",
-            "radius": 0.013,
+            "radius": 0.011,
             "filled": true,
             "fillColor": [
-              245,
-              190,
-              76,
+              237,
+              181,
+              67,
               255
             ],
             "position": [
               -0.165,
-              0.0
+              0
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.195,
+              0.07
+            ],
+            "end": [
+              -0.105,
+              0.07
+            ],
+            "color": [
+              237,
+              181,
+              67,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -664,8 +678,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     }

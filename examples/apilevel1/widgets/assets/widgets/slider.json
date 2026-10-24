@@ -8,8 +8,8 @@
   ],
   "hitRegion": {
     "position": [
-      0.0,
-      0.0
+      0,
+      0
     ],
     "size": [
       0.5,
@@ -17,15 +17,15 @@
     ]
   },
   "range": {
-    "min": 0.0,
-    "max": 100.0,
-    "step": 1.0,
+    "min": 0,
+    "max": 100,
+    "step": 1,
     "decimals": 0
   },
   "defaults": {
-    "text": "LEVEL",
+    "text": "DISP BRT",
     "checked": false,
-    "value": 42.0
+    "value": 42
   },
   "visuals": [
     {
@@ -34,52 +34,35 @@
         "id": "sliderVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.5,
-            "height": 0.22,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.5,
-            "height": 0.22,
+            "width": 0.482,
+            "height": 0.2,
             "filled": true,
             "fillColor": [
-              17,
-              34,
-              49,
+              11,
+              22,
+              25,
               255
             ],
             "color": [
-              69,
-              205,
-              226,
+              47,
+              78,
+              64,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Caption",
             "type": "text",
-            "text": "LEVEL",
+            "text": "DISP BRT",
             "fontSize": 0.025,
             "align": "left",
             "color": [
-              137,
-              160,
-              171,
+              135,
+              169,
+              145,
               255
             ],
             "position": [
@@ -91,12 +74,12 @@
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.03,
+            "fontSize": 0.026,
             "align": "right",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
@@ -108,16 +91,16 @@
             "id": "Track",
             "type": "rectangle",
             "width": 0.38,
-            "height": 0.02,
+            "height": 0.012,
             "filled": true,
             "fillColor": [
-              8,
-              17,
-              27,
+              6,
+              12,
+              16,
               255
             ],
             "position": [
-              0.0,
+              0,
               -0.045
             ]
           },
@@ -125,12 +108,12 @@
             "id": "Fill",
             "type": "rectangle",
             "width": 0.38,
-            "height": 0.02,
+            "height": 0.012,
             "filled": true,
             "fillColor": [
-              69,
-              205,
-              226,
+              98,
+              204,
+              142,
               255
             ],
             "position": [
@@ -141,18 +124,18 @@
           {
             "id": "Thumb",
             "type": "circle",
-            "radius": 0.03,
+            "radius": 0.018,
             "filled": true,
             "fillColor": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "color": [
-              69,
-              205,
-              226,
+              98,
+              204,
+              142,
               255
             ],
             "thickness": 0.004,
@@ -160,6 +143,25 @@
               -0.19,
               -0.045
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.215,
+              0.09
+            ],
+            "end": [
+              -0.125,
+              0.09
+            ],
+            "color": [
+              98,
+              204,
+              142,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -167,20 +169,20 @@
         {
           "primitive": "ValueText",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         },
         {
           "primitive": "Fill",
           "target": "scaleX",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         },
         {
           "primitive": "Fill",
           "target": "positionX",
           "from": -0.19,
-          "to": 0.0
+          "to": 0
         },
         {
           "primitive": "Thumb",
@@ -196,52 +198,35 @@
         "id": "sliderVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.5,
-            "height": 0.22,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.5,
-            "height": 0.22,
+            "width": 0.482,
+            "height": 0.2,
             "filled": true,
             "fillColor": [
-              24,
-              48,
-              66,
+              15,
+              34,
+              32,
               255
             ],
             "color": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Caption",
             "type": "text",
-            "text": "LEVEL",
+            "text": "DISP BRT",
             "fontSize": 0.025,
             "align": "left",
             "color": [
-              137,
-              160,
-              171,
+              135,
+              169,
+              145,
               255
             ],
             "position": [
@@ -253,12 +238,12 @@
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.03,
+            "fontSize": 0.026,
             "align": "right",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
@@ -270,16 +255,16 @@
             "id": "Track",
             "type": "rectangle",
             "width": 0.38,
-            "height": 0.02,
+            "height": 0.012,
             "filled": true,
             "fillColor": [
-              8,
-              17,
-              27,
+              6,
+              12,
+              16,
               255
             ],
             "position": [
-              0.0,
+              0,
               -0.045
             ]
           },
@@ -287,12 +272,12 @@
             "id": "Fill",
             "type": "rectangle",
             "width": 0.38,
-            "height": 0.02,
+            "height": 0.012,
             "filled": true,
             "fillColor": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
             "position": [
@@ -303,18 +288,18 @@
           {
             "id": "Thumb",
             "type": "circle",
-            "radius": 0.03,
+            "radius": 0.018,
             "filled": true,
             "fillColor": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "color": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
             "thickness": 0.004,
@@ -322,6 +307,25 @@
               -0.19,
               -0.045
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.215,
+              0.09
+            ],
+            "end": [
+              -0.125,
+              0.09
+            ],
+            "color": [
+              169,
+              239,
+              191,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -329,20 +333,20 @@
         {
           "primitive": "ValueText",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         },
         {
           "primitive": "Fill",
           "target": "scaleX",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         },
         {
           "primitive": "Fill",
           "target": "positionX",
           "from": -0.19,
-          "to": 0.0
+          "to": 0
         },
         {
           "primitive": "Thumb",
@@ -358,52 +362,35 @@
         "id": "sliderVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.5,
-            "height": 0.22,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.5,
-            "height": 0.22,
+            "width": 0.482,
+            "height": 0.2,
             "filled": true,
             "fillColor": [
-              20,
-              64,
-              79,
+              18,
+              49,
+              36,
               255
             ],
             "color": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Caption",
             "type": "text",
-            "text": "LEVEL",
+            "text": "DISP BRT",
             "fontSize": 0.025,
             "align": "left",
             "color": [
-              137,
-              160,
-              171,
+              135,
+              169,
+              145,
               255
             ],
             "position": [
@@ -415,12 +402,12 @@
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.03,
+            "fontSize": 0.026,
             "align": "right",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
@@ -432,16 +419,16 @@
             "id": "Track",
             "type": "rectangle",
             "width": 0.38,
-            "height": 0.02,
+            "height": 0.012,
             "filled": true,
             "fillColor": [
-              8,
-              17,
-              27,
+              6,
+              12,
+              16,
               255
             ],
             "position": [
-              0.0,
+              0,
               -0.045
             ]
           },
@@ -449,12 +436,12 @@
             "id": "Fill",
             "type": "rectangle",
             "width": 0.38,
-            "height": 0.02,
+            "height": 0.012,
             "filled": true,
             "fillColor": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
             "position": [
@@ -465,18 +452,18 @@
           {
             "id": "Thumb",
             "type": "circle",
-            "radius": 0.03,
+            "radius": 0.018,
             "filled": true,
             "fillColor": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "color": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
             "thickness": 0.004,
@@ -484,6 +471,25 @@
               -0.19,
               -0.045
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.215,
+              0.09
+            ],
+            "end": [
+              -0.125,
+              0.09
+            ],
+            "color": [
+              169,
+              239,
+              191,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -491,20 +497,20 @@
         {
           "primitive": "ValueText",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         },
         {
           "primitive": "Fill",
           "target": "scaleX",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         },
         {
           "primitive": "Fill",
           "target": "positionX",
           "from": -0.19,
-          "to": 0.0
+          "to": 0
         },
         {
           "primitive": "Thumb",
@@ -520,52 +526,35 @@
         "id": "sliderVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.5,
-            "height": 0.22,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.5,
-            "height": 0.22,
+            "width": 0.482,
+            "height": 0.2,
             "filled": true,
             "fillColor": [
-              17,
-              34,
-              49,
+              11,
+              22,
+              25,
               255
             ],
             "color": [
               66,
-              214,
-              151,
+              222,
+              126,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Caption",
             "type": "text",
-            "text": "LEVEL",
+            "text": "DISP BRT",
             "fontSize": 0.025,
             "align": "left",
             "color": [
-              137,
-              160,
-              171,
+              135,
+              169,
+              145,
               255
             ],
             "position": [
@@ -577,12 +566,12 @@
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.03,
+            "fontSize": 0.026,
             "align": "right",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
@@ -594,16 +583,16 @@
             "id": "Track",
             "type": "rectangle",
             "width": 0.38,
-            "height": 0.02,
+            "height": 0.012,
             "filled": true,
             "fillColor": [
-              8,
-              17,
-              27,
+              6,
+              12,
+              16,
               255
             ],
             "position": [
-              0.0,
+              0,
               -0.045
             ]
           },
@@ -611,12 +600,12 @@
             "id": "Fill",
             "type": "rectangle",
             "width": 0.38,
-            "height": 0.02,
+            "height": 0.012,
             "filled": true,
             "fillColor": [
               66,
-              214,
-              151,
+              222,
+              126,
               255
             ],
             "position": [
@@ -627,18 +616,18 @@
           {
             "id": "Thumb",
             "type": "circle",
-            "radius": 0.03,
+            "radius": 0.018,
             "filled": true,
             "fillColor": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "color": [
               66,
-              214,
-              151,
+              222,
+              126,
               255
             ],
             "thickness": 0.004,
@@ -646,6 +635,25 @@
               -0.19,
               -0.045
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.215,
+              0.09
+            ],
+            "end": [
+              -0.125,
+              0.09
+            ],
+            "color": [
+              66,
+              222,
+              126,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -653,20 +661,20 @@
         {
           "primitive": "ValueText",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         },
         {
           "primitive": "Fill",
           "target": "scaleX",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         },
         {
           "primitive": "Fill",
           "target": "positionX",
           "from": -0.19,
-          "to": 0.0
+          "to": 0
         },
         {
           "primitive": "Thumb",
@@ -682,52 +690,35 @@
         "id": "sliderVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.5,
-            "height": 0.22,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.5,
-            "height": 0.22,
+            "width": 0.482,
+            "height": 0.2,
             "filled": true,
             "fillColor": [
-              35,
-              43,
-              50,
+              25,
+              30,
+              29,
               255
             ],
             "color": [
-              104,
-              122,
-              132,
+              47,
+              78,
+              64,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Caption",
             "type": "text",
-            "text": "LEVEL",
+            "text": "DISP BRT",
             "fontSize": 0.025,
             "align": "left",
             "color": [
-              137,
-              160,
-              171,
+              135,
+              169,
+              145,
               255
             ],
             "position": [
@@ -739,12 +730,12 @@
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.03,
+            "fontSize": 0.026,
             "align": "right",
             "color": [
-              137,
-              160,
-              171,
+              135,
+              169,
+              145,
               255
             ],
             "position": [
@@ -756,16 +747,16 @@
             "id": "Track",
             "type": "rectangle",
             "width": 0.38,
-            "height": 0.02,
+            "height": 0.012,
             "filled": true,
             "fillColor": [
-              8,
-              17,
-              27,
+              6,
+              12,
+              16,
               255
             ],
             "position": [
-              0.0,
+              0,
               -0.045
             ]
           },
@@ -773,12 +764,12 @@
             "id": "Fill",
             "type": "rectangle",
             "width": 0.38,
-            "height": 0.02,
+            "height": 0.012,
             "filled": true,
             "fillColor": [
-              104,
-              122,
-              132,
+              75,
+              100,
+              89,
               255
             ],
             "position": [
@@ -789,18 +780,18 @@
           {
             "id": "Thumb",
             "type": "circle",
-            "radius": 0.03,
+            "radius": 0.018,
             "filled": true,
             "fillColor": [
-              137,
-              160,
-              171,
+              135,
+              169,
+              145,
               255
             ],
             "color": [
-              104,
-              122,
-              132,
+              75,
+              100,
+              89,
               255
             ],
             "thickness": 0.004,
@@ -808,6 +799,25 @@
               -0.19,
               -0.045
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.215,
+              0.09
+            ],
+            "end": [
+              -0.125,
+              0.09
+            ],
+            "color": [
+              47,
+              78,
+              64,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -815,20 +825,20 @@
         {
           "primitive": "ValueText",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         },
         {
           "primitive": "Fill",
           "target": "scaleX",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         },
         {
           "primitive": "Fill",
           "target": "positionX",
           "from": -0.19,
-          "to": 0.0
+          "to": 0
         },
         {
           "primitive": "Thumb",
@@ -844,52 +854,35 @@
         "id": "sliderVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.5,
-            "height": 0.22,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.5,
-            "height": 0.22,
+            "width": 0.482,
+            "height": 0.2,
             "filled": true,
             "fillColor": [
-              17,
-              34,
-              49,
+              11,
+              22,
+              25,
               255
             ],
             "color": [
-              244,
-              126,
-              61,
+              233,
+              114,
+              69,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Caption",
             "type": "text",
-            "text": "LEVEL",
+            "text": "DISP BRT",
             "fontSize": 0.025,
             "align": "left",
             "color": [
-              137,
-              160,
-              171,
+              135,
+              169,
+              145,
               255
             ],
             "position": [
@@ -901,12 +894,12 @@
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.03,
+            "fontSize": 0.026,
             "align": "right",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
@@ -918,16 +911,16 @@
             "id": "Track",
             "type": "rectangle",
             "width": 0.38,
-            "height": 0.02,
+            "height": 0.012,
             "filled": true,
             "fillColor": [
-              8,
-              17,
-              27,
+              6,
+              12,
+              16,
               255
             ],
             "position": [
-              0.0,
+              0,
               -0.045
             ]
           },
@@ -935,12 +928,12 @@
             "id": "Fill",
             "type": "rectangle",
             "width": 0.38,
-            "height": 0.02,
+            "height": 0.012,
             "filled": true,
             "fillColor": [
-              244,
-              126,
-              61,
+              233,
+              114,
+              69,
               255
             ],
             "position": [
@@ -951,18 +944,18 @@
           {
             "id": "Thumb",
             "type": "circle",
-            "radius": 0.03,
+            "radius": 0.018,
             "filled": true,
             "fillColor": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "color": [
-              244,
-              126,
-              61,
+              233,
+              114,
+              69,
               255
             ],
             "thickness": 0.004,
@@ -970,6 +963,25 @@
               -0.19,
               -0.045
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.215,
+              0.09
+            ],
+            "end": [
+              -0.125,
+              0.09
+            ],
+            "color": [
+              233,
+              114,
+              69,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -977,20 +989,20 @@
         {
           "primitive": "ValueText",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         },
         {
           "primitive": "Fill",
           "target": "scaleX",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         },
         {
           "primitive": "Fill",
           "target": "positionX",
           "from": -0.19,
-          "to": 0.0
+          "to": 0
         },
         {
           "primitive": "Thumb",
@@ -1006,52 +1018,35 @@
         "id": "sliderVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.5,
-            "height": 0.22,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.5,
-            "height": 0.22,
+            "width": 0.482,
+            "height": 0.2,
             "filled": true,
             "fillColor": [
-              17,
-              34,
-              49,
+              11,
+              22,
+              25,
               255
             ],
             "color": [
-              245,
-              190,
-              76,
+              237,
+              181,
+              67,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Caption",
             "type": "text",
-            "text": "LEVEL",
+            "text": "DISP BRT",
             "fontSize": 0.025,
             "align": "left",
             "color": [
-              137,
-              160,
-              171,
+              135,
+              169,
+              145,
               255
             ],
             "position": [
@@ -1063,12 +1058,12 @@
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.03,
+            "fontSize": 0.026,
             "align": "right",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
@@ -1080,16 +1075,16 @@
             "id": "Track",
             "type": "rectangle",
             "width": 0.38,
-            "height": 0.02,
+            "height": 0.012,
             "filled": true,
             "fillColor": [
-              8,
-              17,
-              27,
+              6,
+              12,
+              16,
               255
             ],
             "position": [
-              0.0,
+              0,
               -0.045
             ]
           },
@@ -1097,12 +1092,12 @@
             "id": "Fill",
             "type": "rectangle",
             "width": 0.38,
-            "height": 0.02,
+            "height": 0.012,
             "filled": true,
             "fillColor": [
-              245,
-              190,
-              76,
+              237,
+              181,
+              67,
               255
             ],
             "position": [
@@ -1113,18 +1108,18 @@
           {
             "id": "Thumb",
             "type": "circle",
-            "radius": 0.03,
+            "radius": 0.018,
             "filled": true,
             "fillColor": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "color": [
-              245,
-              190,
-              76,
+              237,
+              181,
+              67,
               255
             ],
             "thickness": 0.004,
@@ -1132,6 +1127,25 @@
               -0.19,
               -0.045
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.215,
+              0.09
+            ],
+            "end": [
+              -0.125,
+              0.09
+            ],
+            "color": [
+              237,
+              181,
+              67,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -1139,20 +1153,20 @@
         {
           "primitive": "ValueText",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         },
         {
           "primitive": "Fill",
           "target": "scaleX",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         },
         {
           "primitive": "Fill",
           "target": "positionX",
           "from": -0.19,
-          "to": 0.0
+          "to": 0
         },
         {
           "primitive": "Thumb",

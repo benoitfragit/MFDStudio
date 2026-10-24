@@ -516,15 +516,158 @@ def page_document() -> JsonObject:
     }
 
 
+
+# The avionics skin is independent of semantic types, state bindings and C++ API.
+AVIONICS_COLORS = {
+    (8, 17, 27, 255): [6, 12, 16, 255],
+    (17, 34, 49, 255): [11, 22, 25, 255],
+    (24, 48, 66, 255): [15, 34, 32, 255],
+    (20, 64, 79, 255): [18, 49, 36, 255],
+    (35, 43, 50, 255): [25, 30, 29, 255],
+    (228, 242, 247, 255): [225, 241, 229, 255],
+    (137, 160, 171, 255): [135, 169, 145, 255],
+    (69, 205, 226, 255): [98, 204, 142, 255],
+    (118, 230, 243, 255): [169, 239, 191, 255],
+    (66, 214, 151, 255): [66, 222, 126, 255],
+    (245, 190, 76, 255): [237, 181, 67, 255],
+    (244, 126, 61, 255): [233, 114, 69, 255],
+    (104, 122, 132, 255): [75, 100, 89, 255],
+    (34, 102, 78, 255): [21, 71, 47, 255],
+    (8, 20, 29, 255): [5, 15, 16, 255],
+}
+AVIONICS_TEXT = {
+    "EXECUTE": "RUN BIT", "MASTER ARM": "HYD PUMP", "AUTO SYNC": "AUTO TRIM",
+    "NAV SOURCE": "NAV / FMS", "LEVEL": "DISP BRT", "TRIM": "RUD TRIM",
+    "POWER": "N1", "UPLOAD": "FUEL XFER", "LINK": "DATA LINK",
+    "ALTITUDE": "OIL PRESS", "FT": "PSI", "SYSTEM NOMINAL": "FLT CTRL OK",
+    "RUN CHECK": "START BIT", "AUX BUS": "ESS BUS", "LOCAL RESET": "RESET FAULT",
+    "NIGHT MODE": "PANEL LIGHT", "SCROLL FOR MORE": "ELEC STATUS",
+}
+AVIONICS_FRAME = [47, 78, 64, 255]
+
+
+def avionics_widget(document: JsonObject) -> JsonObject:
+    """Apply a slim instrument skin while retaining seven states and all bindings."""
+    widget_id = str(document["id"])
+    defaults = document["defaults"]
+    defaults["text"] = AVIONICS_TEXT.get(defaults["text"], defaults["text"])
+    for visual in document["visuals"]:
+        state = visual["state"]
+        elements = [item for item in visual["reticle"]["elements"] if item["id"] != "Shadow"]
+        for item in elements:
+            for key in ("color", "fillColor"):
+                current = item.get(key)
+                if isinstance(current, list):
+                    replacement = AVIONICS_COLORS.get(tuple(current))
+                    if replacement is not None:
+                        item[key] = replacement.copy()
+            if item["type"] == "text":
+                item["text"] = AVIONICS_TEXT.get(item["text"], item["text"])
+            primitive_id = item["id"]
+            if primitive_id == "Surface":
+                if widget_id != "label":
+                    item["width"] = round(item["width"] - 0.018, 3)
+                    item["height"] = round(item["height"] - 0.020, 3)
+                item["color"] = (AVIONICS_FRAME.copy() if state in ("normal", "disabled")
+                                 else item.get("color", AVIONICS_FRAME.copy()))
+                item["thickness"] = 0.0015
+            if primitive_id == "Face":
+                item["width"], item["height"], item["thickness"] = 0.42, 0.132, 0.0015
+                if state in ("normal", "disabled"):
+                    item["color"] = AVIONICS_FRAME.copy()
+                if state == "pressed":
+                    item["fillColor"] = AVIONICS_COLORS[(20, 64, 79, 255)].copy()
+            if primitive_id == "Track" and widget_id == "toggle":
+                item["width"], item["height"], item["thickness"] = 0.13, 0.048, 0.002
+            if primitive_id == "Thumb" and widget_id == "toggle":
+                item["radius"] = 0.018
+                item["position"] = [0.173 if state == "checked" else 0.108, 0]
+            if primitive_id == "Box":
+                item["width"], item["height"], item["thickness"] = 0.054, 0.054, 0.002
+            if primitive_id == "Check":
+                item["thickness"] = 0.005
+                item["points"] = [[-0.019, 0], [-0.004, -0.014], [0.021, 0.019]]
+            if primitive_id == "Ring":
+                item["outerRadius"], item["innerRadius"] = 0.029, 0.024
+            if primitive_id == "Selection":
+                item["radius"] = 0.016 if state == "checked" else 0.011
+            if primitive_id == "Bezel":
+                item["outerRadius"], item["innerRadius"] = 0.038, 0.031
+            if widget_id in ("slider", "progressBar") and primitive_id in ("Track", "Fill"):
+                item["height"] = 0.012 if widget_id == "slider" else 0.016
+                if primitive_id == "Track" and "thickness" in item:
+                    item["thickness"] = 0.0015
+            if widget_id == "slider" and primitive_id == "Thumb":
+                item["radius"] = 0.018
+            if primitive_id == "Scale":
+                item["thickness"] = 0.0045
+            if primitive_id == "Dial":
+                item["radius"] = 0.046
+            if primitive_id == "Needle":
+                item["thickness"] = 0.004
+            if primitive_id == "Hub":
+                item["radius"] = 0.007
+            if primitive_id == "Lamp":
+                item["radius"] = 0.024
+            if primitive_id == "Accent" and widget_id == "numericDisplay":
+                item["width"] = 0.005
+            if primitive_id == "Accent" and widget_id == "button":
+                item["thickness"] = 0.003
+            if primitive_id == "ValueText":
+                item["fontSize"] = 0.040 if widget_id == "numericDisplay" else 0.026
+            if primitive_id == "Status":
+                item["radius"] = 0.009
+            if primitive_id == "Rule":
+                item["thickness"] = 0.002
+            if primitive_id == "Text" and widget_id == "button":
+                item["fontSize"] = 0.030
+        if widget_id not in ("button", "label"):
+            surface = next(item for item in elements if item["id"] == "Surface")
+            x = round(-surface["width"] / 2 + 0.026, 3)
+            y = round(surface["height"] / 2 - 0.010, 3)
+            accent = (AVIONICS_COLORS[(69, 205, 226, 255)].copy()
+                      if state == "normal" else surface["color"])
+            elements.append(line("Index", (x, y), (round(x + 0.090, 3), y),
+                                 accent, thickness=0.002))
+        visual["reticle"]["elements"] = elements
+    return document
+
+
+def avionics_page(page: JsonObject) -> JsonObject:
+    """Theme the Page only; layout and generated client identifiers are preserved."""
+    page["title"] = "AVIONICS | SYS/STAT"
+    page["bg"] = "#060C10FF"
+    for container in page["containers"]:
+        if container["id"] == "Panel":
+            container["appearance"]["backgroundColor"] = [8, 18, 20, 255]
+            container["appearance"]["borderColor"] = AVIONICS_FRAME.copy()
+    for widget in page["widgets"]:
+        overrides = widget.get("overrides", {})
+        if "text" in overrides:
+            overrides["text"] = AVIONICS_TEXT.get(overrides["text"], overrides["text"])
+    return page
+
+
+def canonical_numbers(value: object) -> object:
+    """Use stable compact numeric literals in the generated JSON."""
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, list):
+        return [canonical_numbers(item) for item in value]
+    if isinstance(value, dict):
+        return {key: canonical_numbers(item) for key, item in value.items()}
+    return value
+
+
 def serialized(document: JsonObject) -> str:
     """Serialize generated JSON with the repository's stable formatting."""
-    return json.dumps(document, indent=2, ensure_ascii=False) + "\n"
+    return json.dumps(canonical_numbers(document), indent=2, ensure_ascii=False) + "\n"
 
 
 def expected_outputs() -> Dict[Path, str]:
     """Return every generated path and its expected content."""
-    outputs = {WIDGET_FOLDER / name: serialized(document) for name, document in widget_documents().items()}
-    outputs[PAGE_FILE] = serialized(page_document())
+    outputs = {WIDGET_FOLDER / name: serialized(avionics_widget(document)) for name, document in widget_documents().items()}
+    outputs[PAGE_FILE] = serialized(avionics_page(page_document()))
     return outputs
 
 

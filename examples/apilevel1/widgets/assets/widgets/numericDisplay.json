@@ -8,8 +8,8 @@
   ],
   "hitRegion": {
     "position": [
-      0.0,
-      0.0
+      0,
+      0
     ],
     "size": [
       0.42,
@@ -17,15 +17,15 @@
     ]
   },
   "range": {
-    "min": 0.0,
-    "max": 100.0,
-    "step": 1.0,
+    "min": 0,
+    "max": 100,
+    "step": 1,
     "decimals": 0
   },
   "defaults": {
-    "text": "ALTITUDE",
+    "text": "OIL PRESS",
     "checked": false,
-    "value": 68.0
+    "value": 68
   },
   "visuals": [
     {
@@ -34,69 +34,52 @@
         "id": "numericDisplayVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.42,
-            "height": 0.22,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.42,
-            "height": 0.22,
+            "width": 0.402,
+            "height": 0.2,
             "filled": true,
             "fillColor": [
-              17,
-              34,
-              49,
+              11,
+              22,
+              25,
               255
             ],
             "color": [
-              69,
-              205,
-              226,
+              47,
+              78,
+              64,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Accent",
             "type": "rectangle",
-            "width": 0.012,
+            "width": 0.005,
             "height": 0.16,
             "filled": true,
             "fillColor": [
-              69,
-              205,
-              226,
+              98,
+              204,
+              142,
               255
             ],
             "position": [
               -0.185,
-              0.0
+              0
             ]
           },
           {
             "id": "Caption",
             "type": "text",
-            "text": "ALTITUDE",
+            "text": "OIL PRESS",
             "fontSize": 0.022,
             "align": "left",
             "color": [
-              137,
-              160,
-              171,
+              135,
+              169,
+              145,
               255
             ],
             "position": [
@@ -108,12 +91,12 @@
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.052,
+            "fontSize": 0.04,
             "align": "left",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
@@ -124,19 +107,38 @@
           {
             "id": "Unit",
             "type": "text",
-            "text": "FT",
+            "text": "PSI",
             "fontSize": 0.022,
             "align": "right",
             "color": [
-              69,
-              205,
-              226,
+              98,
+              204,
+              142,
               255
             ],
             "position": [
               0.165,
               -0.03
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.175,
+              0.09
+            ],
+            "end": [
+              -0.085,
+              0.09
+            ],
+            "color": [
+              98,
+              204,
+              142,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -144,8 +146,8 @@
         {
           "primitive": "ValueText",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -155,69 +157,52 @@
         "id": "numericDisplayVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.42,
-            "height": 0.22,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.42,
-            "height": 0.22,
+            "width": 0.402,
+            "height": 0.2,
             "filled": true,
             "fillColor": [
-              24,
-              48,
-              66,
+              15,
+              34,
+              32,
               255
             ],
             "color": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Accent",
             "type": "rectangle",
-            "width": 0.012,
+            "width": 0.005,
             "height": 0.16,
             "filled": true,
             "fillColor": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
             "position": [
               -0.185,
-              0.0
+              0
             ]
           },
           {
             "id": "Caption",
             "type": "text",
-            "text": "ALTITUDE",
+            "text": "OIL PRESS",
             "fontSize": 0.022,
             "align": "left",
             "color": [
-              137,
-              160,
-              171,
+              135,
+              169,
+              145,
               255
             ],
             "position": [
@@ -229,12 +214,12 @@
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.052,
+            "fontSize": 0.04,
             "align": "left",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
@@ -245,19 +230,38 @@
           {
             "id": "Unit",
             "type": "text",
-            "text": "FT",
+            "text": "PSI",
             "fontSize": 0.022,
             "align": "right",
             "color": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
             "position": [
               0.165,
               -0.03
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.175,
+              0.09
+            ],
+            "end": [
+              -0.085,
+              0.09
+            ],
+            "color": [
+              169,
+              239,
+              191,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -265,8 +269,8 @@
         {
           "primitive": "ValueText",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -276,69 +280,52 @@
         "id": "numericDisplayVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.42,
-            "height": 0.22,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.42,
-            "height": 0.22,
+            "width": 0.402,
+            "height": 0.2,
             "filled": true,
             "fillColor": [
-              20,
-              64,
-              79,
+              18,
+              49,
+              36,
               255
             ],
             "color": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Accent",
             "type": "rectangle",
-            "width": 0.012,
+            "width": 0.005,
             "height": 0.16,
             "filled": true,
             "fillColor": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
             "position": [
               -0.185,
-              0.0
+              0
             ]
           },
           {
             "id": "Caption",
             "type": "text",
-            "text": "ALTITUDE",
+            "text": "OIL PRESS",
             "fontSize": 0.022,
             "align": "left",
             "color": [
-              137,
-              160,
-              171,
+              135,
+              169,
+              145,
               255
             ],
             "position": [
@@ -350,12 +337,12 @@
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.052,
+            "fontSize": 0.04,
             "align": "left",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
@@ -366,19 +353,38 @@
           {
             "id": "Unit",
             "type": "text",
-            "text": "FT",
+            "text": "PSI",
             "fontSize": 0.022,
             "align": "right",
             "color": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
             "position": [
               0.165,
               -0.03
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.175,
+              0.09
+            ],
+            "end": [
+              -0.085,
+              0.09
+            ],
+            "color": [
+              169,
+              239,
+              191,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -386,8 +392,8 @@
         {
           "primitive": "ValueText",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -397,69 +403,52 @@
         "id": "numericDisplayVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.42,
-            "height": 0.22,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.42,
-            "height": 0.22,
+            "width": 0.402,
+            "height": 0.2,
             "filled": true,
             "fillColor": [
-              17,
-              34,
-              49,
+              11,
+              22,
+              25,
               255
             ],
             "color": [
               66,
-              214,
-              151,
+              222,
+              126,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Accent",
             "type": "rectangle",
-            "width": 0.012,
+            "width": 0.005,
             "height": 0.16,
             "filled": true,
             "fillColor": [
               66,
-              214,
-              151,
+              222,
+              126,
               255
             ],
             "position": [
               -0.185,
-              0.0
+              0
             ]
           },
           {
             "id": "Caption",
             "type": "text",
-            "text": "ALTITUDE",
+            "text": "OIL PRESS",
             "fontSize": 0.022,
             "align": "left",
             "color": [
-              137,
-              160,
-              171,
+              135,
+              169,
+              145,
               255
             ],
             "position": [
@@ -471,12 +460,12 @@
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.052,
+            "fontSize": 0.04,
             "align": "left",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
@@ -487,19 +476,38 @@
           {
             "id": "Unit",
             "type": "text",
-            "text": "FT",
+            "text": "PSI",
             "fontSize": 0.022,
             "align": "right",
             "color": [
               66,
-              214,
-              151,
+              222,
+              126,
               255
             ],
             "position": [
               0.165,
               -0.03
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.175,
+              0.09
+            ],
+            "end": [
+              -0.085,
+              0.09
+            ],
+            "color": [
+              66,
+              222,
+              126,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -507,8 +515,8 @@
         {
           "primitive": "ValueText",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -518,69 +526,52 @@
         "id": "numericDisplayVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.42,
-            "height": 0.22,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.42,
-            "height": 0.22,
+            "width": 0.402,
+            "height": 0.2,
             "filled": true,
             "fillColor": [
-              35,
-              43,
-              50,
+              25,
+              30,
+              29,
               255
             ],
             "color": [
-              104,
-              122,
-              132,
+              47,
+              78,
+              64,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Accent",
             "type": "rectangle",
-            "width": 0.012,
+            "width": 0.005,
             "height": 0.16,
             "filled": true,
             "fillColor": [
-              104,
-              122,
-              132,
+              75,
+              100,
+              89,
               255
             ],
             "position": [
               -0.185,
-              0.0
+              0
             ]
           },
           {
             "id": "Caption",
             "type": "text",
-            "text": "ALTITUDE",
+            "text": "OIL PRESS",
             "fontSize": 0.022,
             "align": "left",
             "color": [
-              137,
-              160,
-              171,
+              135,
+              169,
+              145,
               255
             ],
             "position": [
@@ -592,12 +583,12 @@
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.052,
+            "fontSize": 0.04,
             "align": "left",
             "color": [
-              137,
-              160,
-              171,
+              135,
+              169,
+              145,
               255
             ],
             "position": [
@@ -608,19 +599,38 @@
           {
             "id": "Unit",
             "type": "text",
-            "text": "FT",
+            "text": "PSI",
             "fontSize": 0.022,
             "align": "right",
             "color": [
-              104,
-              122,
-              132,
+              75,
+              100,
+              89,
               255
             ],
             "position": [
               0.165,
               -0.03
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.175,
+              0.09
+            ],
+            "end": [
+              -0.085,
+              0.09
+            ],
+            "color": [
+              47,
+              78,
+              64,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -628,8 +638,8 @@
         {
           "primitive": "ValueText",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -639,69 +649,52 @@
         "id": "numericDisplayVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.42,
-            "height": 0.22,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.42,
-            "height": 0.22,
+            "width": 0.402,
+            "height": 0.2,
             "filled": true,
             "fillColor": [
-              17,
-              34,
-              49,
+              11,
+              22,
+              25,
               255
             ],
             "color": [
-              244,
-              126,
-              61,
+              233,
+              114,
+              69,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Accent",
             "type": "rectangle",
-            "width": 0.012,
+            "width": 0.005,
             "height": 0.16,
             "filled": true,
             "fillColor": [
-              244,
-              126,
-              61,
+              233,
+              114,
+              69,
               255
             ],
             "position": [
               -0.185,
-              0.0
+              0
             ]
           },
           {
             "id": "Caption",
             "type": "text",
-            "text": "ALTITUDE",
+            "text": "OIL PRESS",
             "fontSize": 0.022,
             "align": "left",
             "color": [
-              137,
-              160,
-              171,
+              135,
+              169,
+              145,
               255
             ],
             "position": [
@@ -713,12 +706,12 @@
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.052,
+            "fontSize": 0.04,
             "align": "left",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
@@ -729,19 +722,38 @@
           {
             "id": "Unit",
             "type": "text",
-            "text": "FT",
+            "text": "PSI",
             "fontSize": 0.022,
             "align": "right",
             "color": [
-              244,
-              126,
-              61,
+              233,
+              114,
+              69,
               255
             ],
             "position": [
               0.165,
               -0.03
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.175,
+              0.09
+            ],
+            "end": [
+              -0.085,
+              0.09
+            ],
+            "color": [
+              233,
+              114,
+              69,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -749,8 +761,8 @@
         {
           "primitive": "ValueText",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -760,69 +772,52 @@
         "id": "numericDisplayVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.42,
-            "height": 0.22,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.008
-            ]
-          },
-          {
             "id": "Surface",
             "type": "rectangle",
-            "width": 0.42,
-            "height": 0.22,
+            "width": 0.402,
+            "height": 0.2,
             "filled": true,
             "fillColor": [
-              17,
-              34,
-              49,
+              11,
+              22,
+              25,
               255
             ],
             "color": [
-              245,
-              190,
-              76,
+              237,
+              181,
+              67,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.0015
           },
           {
             "id": "Accent",
             "type": "rectangle",
-            "width": 0.012,
+            "width": 0.005,
             "height": 0.16,
             "filled": true,
             "fillColor": [
-              245,
-              190,
-              76,
+              237,
+              181,
+              67,
               255
             ],
             "position": [
               -0.185,
-              0.0
+              0
             ]
           },
           {
             "id": "Caption",
             "type": "text",
-            "text": "ALTITUDE",
+            "text": "OIL PRESS",
             "fontSize": 0.022,
             "align": "left",
             "color": [
-              137,
-              160,
-              171,
+              135,
+              169,
+              145,
               255
             ],
             "position": [
@@ -834,12 +829,12 @@
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.052,
+            "fontSize": 0.04,
             "align": "left",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ],
             "position": [
@@ -850,19 +845,38 @@
           {
             "id": "Unit",
             "type": "text",
-            "text": "FT",
+            "text": "PSI",
             "fontSize": 0.022,
             "align": "right",
             "color": [
-              245,
-              190,
-              76,
+              237,
+              181,
+              67,
               255
             ],
             "position": [
               0.165,
               -0.03
             ]
+          },
+          {
+            "id": "Index",
+            "type": "line",
+            "start": [
+              -0.175,
+              0.09
+            ],
+            "end": [
+              -0.085,
+              0.09
+            ],
+            "color": [
+              237,
+              181,
+              67,
+              255
+            ],
+            "thickness": 0.002
           }
         ]
       },
@@ -870,8 +884,8 @@
         {
           "primitive": "ValueText",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     }

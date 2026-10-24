@@ -8,8 +8,8 @@
   ],
   "hitRegion": {
     "position": [
-      0.0,
-      0.0
+      0,
+      0
     ],
     "size": [
       0.44,
@@ -17,15 +17,15 @@
     ]
   },
   "range": {
-    "min": 0.0,
-    "max": 100.0,
-    "step": 1.0,
+    "min": 0,
+    "max": 100,
+    "step": 1,
     "decimals": 0
   },
   "defaults": {
-    "text": "EXECUTE",
+    "text": "RUN BIT",
     "checked": false,
-    "value": 25.0
+    "value": 25
   },
   "visuals": [
     {
@@ -34,41 +34,24 @@
         "id": "buttonVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.44,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.01
-            ]
-          },
-          {
             "id": "Face",
             "type": "rectangle",
-            "width": 0.44,
-            "height": 0.16,
+            "width": 0.42,
+            "height": 0.132,
             "filled": true,
             "fillColor": [
-              17,
-              34,
-              49,
+              11,
+              22,
+              25,
               255
             ],
             "color": [
-              69,
-              205,
-              226,
+              47,
+              78,
+              64,
               255
             ],
-            "thickness": 0.004
+            "thickness": 0.0015
           },
           {
             "id": "Accent",
@@ -82,23 +65,23 @@
               0.055
             ],
             "color": [
-              69,
-              205,
-              226,
+              98,
+              204,
+              142,
               255
             ],
-            "thickness": 0.006
+            "thickness": 0.003
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "EXECUTE",
-            "fontSize": 0.033,
+            "text": "RUN BIT",
+            "fontSize": 0.03,
             "align": "center",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ]
           }
@@ -108,8 +91,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -119,41 +102,24 @@
         "id": "buttonVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.44,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.01
-            ]
-          },
-          {
             "id": "Face",
             "type": "rectangle",
-            "width": 0.44,
-            "height": 0.16,
+            "width": 0.42,
+            "height": 0.132,
             "filled": true,
             "fillColor": [
-              24,
-              48,
-              66,
+              15,
+              34,
+              32,
               255
             ],
             "color": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
-            "thickness": 0.004
+            "thickness": 0.0015
           },
           {
             "id": "Accent",
@@ -167,23 +133,23 @@
               0.055
             ],
             "color": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
-            "thickness": 0.006
+            "thickness": 0.003
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "EXECUTE",
-            "fontSize": 0.033,
+            "text": "RUN BIT",
+            "fontSize": 0.03,
             "align": "center",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ]
           }
@@ -193,8 +159,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -204,41 +170,24 @@
         "id": "buttonVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.44,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.01
-            ]
-          },
-          {
             "id": "Face",
             "type": "rectangle",
-            "width": 0.44,
-            "height": 0.16,
+            "width": 0.42,
+            "height": 0.132,
             "filled": true,
             "fillColor": [
-              118,
-              230,
-              243,
+              18,
+              49,
+              36,
               255
             ],
             "color": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
-            "thickness": 0.004
+            "thickness": 0.0015
           },
           {
             "id": "Accent",
@@ -252,23 +201,23 @@
               0.055
             ],
             "color": [
-              118,
-              230,
-              243,
+              169,
+              239,
+              191,
               255
             ],
-            "thickness": 0.006
+            "thickness": 0.003
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "EXECUTE",
-            "fontSize": 0.033,
+            "text": "RUN BIT",
+            "fontSize": 0.03,
             "align": "center",
             "color": [
-              8,
-              17,
-              27,
+              6,
+              12,
+              16,
               255
             ]
           }
@@ -278,8 +227,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -289,41 +238,24 @@
         "id": "buttonVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.44,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.01
-            ]
-          },
-          {
             "id": "Face",
             "type": "rectangle",
-            "width": 0.44,
-            "height": 0.16,
+            "width": 0.42,
+            "height": 0.132,
             "filled": true,
             "fillColor": [
-              17,
-              34,
-              49,
+              11,
+              22,
+              25,
               255
             ],
             "color": [
               66,
-              214,
-              151,
+              222,
+              126,
               255
             ],
-            "thickness": 0.004
+            "thickness": 0.0015
           },
           {
             "id": "Accent",
@@ -338,22 +270,22 @@
             ],
             "color": [
               66,
-              214,
-              151,
+              222,
+              126,
               255
             ],
-            "thickness": 0.006
+            "thickness": 0.003
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "EXECUTE",
-            "fontSize": 0.033,
+            "text": "RUN BIT",
+            "fontSize": 0.03,
             "align": "center",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ]
           }
@@ -363,8 +295,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -374,41 +306,24 @@
         "id": "buttonVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.44,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.01
-            ]
-          },
-          {
             "id": "Face",
             "type": "rectangle",
-            "width": 0.44,
-            "height": 0.16,
+            "width": 0.42,
+            "height": 0.132,
             "filled": true,
             "fillColor": [
-              35,
-              43,
-              50,
+              25,
+              30,
+              29,
               255
             ],
             "color": [
-              104,
-              122,
-              132,
+              47,
+              78,
+              64,
               255
             ],
-            "thickness": 0.004
+            "thickness": 0.0015
           },
           {
             "id": "Accent",
@@ -422,23 +337,23 @@
               0.055
             ],
             "color": [
-              104,
-              122,
-              132,
+              75,
+              100,
+              89,
               255
             ],
-            "thickness": 0.006
+            "thickness": 0.003
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "EXECUTE",
-            "fontSize": 0.033,
+            "text": "RUN BIT",
+            "fontSize": 0.03,
             "align": "center",
             "color": [
-              137,
-              160,
-              171,
+              135,
+              169,
+              145,
               255
             ]
           }
@@ -448,8 +363,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -459,41 +374,24 @@
         "id": "buttonVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.44,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.01
-            ]
-          },
-          {
             "id": "Face",
             "type": "rectangle",
-            "width": 0.44,
-            "height": 0.16,
+            "width": 0.42,
+            "height": 0.132,
             "filled": true,
             "fillColor": [
-              17,
-              34,
-              49,
+              11,
+              22,
+              25,
               255
             ],
             "color": [
-              244,
-              126,
-              61,
+              233,
+              114,
+              69,
               255
             ],
-            "thickness": 0.004
+            "thickness": 0.0015
           },
           {
             "id": "Accent",
@@ -507,23 +405,23 @@
               0.055
             ],
             "color": [
-              244,
-              126,
-              61,
+              233,
+              114,
+              69,
               255
             ],
-            "thickness": 0.006
+            "thickness": 0.003
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "EXECUTE",
-            "fontSize": 0.033,
+            "text": "RUN BIT",
+            "fontSize": 0.03,
             "align": "center",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ]
           }
@@ -533,8 +431,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     },
@@ -544,41 +442,24 @@
         "id": "buttonVisual",
         "elements": [
           {
-            "id": "Shadow",
-            "type": "rectangle",
-            "width": 0.44,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              8,
-              17,
-              27,
-              255
-            ],
-            "position": [
-              0.0,
-              -0.01
-            ]
-          },
-          {
             "id": "Face",
             "type": "rectangle",
-            "width": 0.44,
-            "height": 0.16,
+            "width": 0.42,
+            "height": 0.132,
             "filled": true,
             "fillColor": [
-              17,
-              34,
-              49,
+              11,
+              22,
+              25,
               255
             ],
             "color": [
-              245,
-              190,
-              76,
+              237,
+              181,
+              67,
               255
             ],
-            "thickness": 0.004
+            "thickness": 0.0015
           },
           {
             "id": "Accent",
@@ -592,23 +473,23 @@
               0.055
             ],
             "color": [
-              245,
-              190,
-              76,
+              237,
+              181,
+              67,
               255
             ],
-            "thickness": 0.006
+            "thickness": 0.003
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "EXECUTE",
-            "fontSize": 0.033,
+            "text": "RUN BIT",
+            "fontSize": 0.03,
             "align": "center",
             "color": [
-              228,
-              242,
-              247,
+              225,
+              241,
+              229,
               255
             ]
           }
@@ -618,8 +499,8 @@
         {
           "primitive": "Text",
           "target": "text",
-          "from": 0.0,
-          "to": 1.0
+          "from": 0,
+          "to": 1
         }
       ]
     }
