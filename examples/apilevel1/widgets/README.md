@@ -13,11 +13,19 @@ The window listens on command port 47330 and feedback port 47331. RootAction
 is a root button; RootToggle shares the nested ToggleA definition. Panel owns
 Grid, whose CellCanvas contains a clipped, scrollable Linear with ToggleA and
 ScrollLabel. Resize these containers in the editor to inspect placement. The
-catalog includes all eleven semantic types with deliberately distinct visuals:
+catalog includes all eleven semantic types with compact avionics-inspired visuals:
 button, switch, checkbox, radio, slider, knob, gauge, progress bar, indicator,
 numeric display and label. ToggleA and ToggleB share one definition and start
 with different independent values. PrivateButton is interactive with
 `exposed: false`: its numeric event identity remains available.
+
+The SYS/STAT demo uses a near-black instrument background, thin green bezels,
+restrained legends, slender controls, and amber warning/pending indications.
+Labels reference generic aircraft systems such as hydraulics, navigation,
+engine indication and electrical buses. All values are illustrative: this
+showcase is not a certified display or an aircraft-system model. The eleven
+semantic types, state bindings, transport identifiers, and client behavior are
+unchanged by this presentation-only theme.
 
 The example assets have one deterministic source. Regenerate them after an
 intentional showcase change, or check that committed JSON still matches it:

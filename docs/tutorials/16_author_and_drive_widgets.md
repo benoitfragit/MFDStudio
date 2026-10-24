@@ -6,7 +6,7 @@
    editor. The left sidebar shows **Pages → Reticle library → Containers → Widgets**.
    LEVEL 0 retains its two sections; LEVEL 1 keeps both extension sections even
    when the current Page has no instances. The showcase uses visibly different
-   controls for every supported semantic type. It does not fake combo boxes or
+   avionics-style controls for every supported semantic type. It does not fake combo boxes or
    trees because API LEVEL 1 has no such types.
 3. Open **Widgets → Library**. Select the shared toggle definition. Edit its ID,
    default text or preferred size directly in the library. **Save library and
