@@ -4,6 +4,59 @@ Widgets and Containers belong to **API LEVEL 1**. They extend the existing
 SDK, renderer and command/feedback envelopes; there is no LEVEL 2 or second
 transport. The host owns the window, graphics context, ImGui context and scene.
 
+## Integration checklist
+
+Start with the executable widget example before adapting its assets:
+
+```powershell
+cmake --preset vs2022-win32
+cmake --build --preset debug-win32 --target mfd_window mfd_editor apilevel1_widgets_client
+.\Scripts\Start-APILevel1Widgets.bat
+```
+
+For another application:
+
+1. Set `"apiLevel": 1` on the Window and configure both command and feedback
+   transports. Widgets need feedback for user intent even when commands work.
+2. Create each reusable definition under `widgets/` in the editor, or copy and
+   adapt a shipped definition. Keep its required `normal` visual and referenced
+   images inside the asset root.
+3. Add Page instances whose `definition` paths are relative to the Page file.
+   Add `children` edges with `"kind": "widget"` when a container owns them.
+4. Set `"exposed": true` only when a generated typed handle is required.
+   Private widgets remain interactive through their numeric feedback identity.
+5. Run `client_api_generate_ui(...)`, compile its generated header/source, and
+   deploy the matching `.generated.map` beside the Window JSON.
+6. Link the client with `mfd::client`; poll feedback, process intent, update the
+   authoritative property and acknowledge the same `requestId` in one batch.
+7. Deploy both `mfd_containers_api1.dll` and `mfd_widgets_api1.dll` beside the
+   runtime. The editor additionally needs both corresponding editor DLLs.
+
+The Page side of a shared definition is deliberately small:
+
+```json
+"widgets": [
+  {
+    "id": "FuelValve",
+    "definition": "../widgets/valve.json",
+    "position": [0.0, 0.0],
+    "exposed": true,
+    "overrides": {"checked": false}
+  }
+]
+```
+
+A container owns that instance with a typed edge:
+
+```json
+"children": [{"kind": "widget", "id": "FuelValve"}]
+```
+
+The complete generator/staging setup is
+[`examples/apilevel1/widgets/client/CMakeLists.txt`](../../../examples/apilevel1/widgets/client/CMakeLists.txt),
+and its feedback loop is
+[`examples/apilevel1/widgets/client/main.cpp`](../../../examples/apilevel1/widgets/client/main.cpp).
+
 ## Assets and independent instances
 
 A reusable `widgets/*.json` definition has `schemaVersion: 1`, an `id`, a
@@ -60,12 +113,19 @@ Numeric bindings target an existing primitive's text, rotation, scale, position
 or visibility. Numeric text uses fixed decimal formatting; other text bindings
 use confirmed text. The logical hit rectangle is independent of painted shapes.
 
-The editor's library edits definitions without inserting them. Select a visual
-state, choose **Edit visual in Reticle studio**, edit the existing primitive
-controls, then **Apply edited visual** from Widgets or the library. The working
-reticle is retained in the reticle library. Value bindings are edited beside the
-shared definition controls. The Page inspector edits only instance overrides
-unless **Edit shared definition** is enabled.
+The folder icon in the sidebar's **Widgets** section opens the dedicated
+**Widget definition library** editor. It creates, imports, searches, duplicates,
+exports and edits shared definitions without inserting them. Selecting a widget
+instance instead opens its Page-local properties in the standard right-hand
+inspector.
+
+Widget visuals intentionally reuse **Reticle studio** rather than duplicating a
+second primitive canvas. In the definition editor, select a visual state, choose
+**Edit visual in Reticle studio**, edit the existing primitive controls, then use
+the check-mark action in **Widgets** (or **Apply edited visual** in the library).
+The working reticle is retained in the reticle library. Value bindings are edited
+beside the shared definition controls. The Page inspector edits only instance
+overrides unless **Edit shared definition** is enabled.
 
 Simple instance-state edits (visible, enabled, exposed and checked/warning/value/
 text overrides) use a bounded page-local mutation after field validation and one
@@ -109,11 +169,40 @@ numeric IDs and the generated mapping hash. No raw protobuf parsing is needed.
 UDP remains best effort. Session/sequence checks reject stale and duplicate
 events; queues keep at most 1024 events, identity history at most 4096 entries,
 and periodic snapshots repair confirmed-state knowledge. Snapshot work is at
-most 64 widgets per pass. An overflowing queue may lose transitions. The host
+most 64 widgets per pass. An overflowing queue drops the oldest events while
+preserving FIFO order for the retained events. The host
 releases capture on pointer release, cancellation, focus/page/visibility changes
 or its 30-second safety timeout. Pending proposals expire independently after
 2 seconds. Clients should resend current authoritative state after reconnecting;
 UDP send success is not an acknowledgement.
+
+The editor's pointer test mode is session-only. Changing a definition or an
+authored instance override resets the affected preview state and releases its
+capture, preventing an old test value from surviving outside a new range.
+
+## Performance guidance
+
+The input path uses bounded scratch storage and avoids rebuilding lookup
+containers after capacity warm-up. Numeric visual formatting uses a fixed stack
+buffer rather than a stream allocation. Feedback insertion and overflow are
+constant time; converting the bounded queue to the public event vector happens
+only when the client takes events.
+
+Visual projection and draw data are still rebuilt from current authoritative
+state. A widget visual may copy its reticle composition for binding application,
+and mixed container/widget interaction can evaluate layout on input and drawing
+in the same frame. Therefore:
+
+- share definitions, but keep each visual's primitive count proportional to what
+  is actually visible;
+- publish live instruments at an application cadence and batch changes, rather
+  than sending one command per widget per render frame;
+- drain feedback regularly and process all retained events before sending the
+  confirmation batch;
+- treat the 4096-widget and 1024-event bounds as safety limits, not throughput
+  targets;
+- benchmark representative pages before introducing caches whose invalidation
+  would span definitions, overrides, bindings, containers and scroll state.
 
 ## Compatibility, imports and migration
 

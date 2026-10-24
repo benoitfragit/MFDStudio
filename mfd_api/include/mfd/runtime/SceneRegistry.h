@@ -15,6 +15,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <deque>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -905,7 +906,8 @@ private:
     std::unordered_map<TransportId, TransportWidgetLookup> transportWidgets_;
     std::unordered_map<TransportId, std::unordered_map<std::string, TransportId, TransparentStringHash, TransparentStringEqual>> widgetEventIds_;
     std::unordered_map<std::string, RuntimeSnapshot::WidgetState> widgetRuntimeStates_;
-    std::vector<api1::WidgetFeedback> widgetFeedback_;
+    /** @brief Bounded FIFO; deque avoids shifting the complete queue when its oldest event expires. */
+    std::deque<api1::WidgetFeedback> widgetFeedback_;
     /** @brief Runtime container overrides keyed by normalized page and container ids. */
     std::unordered_map<std::string, ContainerRuntimeState, TransparentStringHash, TransparentStringEqual>
         containerRuntimeStates_ {};

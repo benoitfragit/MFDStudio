@@ -37,6 +37,7 @@ constexpr float kMaximumDisplayScale = 3.0f;
 constexpr float kMinimumInspectorLabelWidth = 104.0f;
 constexpr float kMaximumInspectorLabelWidth = 160.0f;
 constexpr float kInspectorLabelWidthRatio = 0.40f;
+constexpr float kNavigationHeaderVerticalPadding = 6.0f;
 
 /**
  * @brief Optional caller-owned store used to persist inspector-section open states across sessions.
@@ -90,7 +91,9 @@ bool DrawSectionHeader(const char* const label, const ImGuiTreeNodeFlags flags, 
     ImGui::PushStyleColor(ImGuiCol_Header, restingColor);
     ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(accent.x, accent.y, accent.z, tonalSurface ? 0.18f : 0.12f));
     ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(accent.x, accent.y, accent.z, tonalSurface ? 0.26f : 0.20f));
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, tonalSurface ? ImVec2(9.0f, 7.0f) : ImVec2(5.0f, 6.0f));
+    ImGui::PushStyleVar(
+        ImGuiStyleVar_FramePadding,
+        tonalSurface ? ImVec2(9.0f, 7.0f) : ImVec2(5.0f, kNavigationHeaderVerticalPadding));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tonalSurface ? 9.0f : 7.0f);
     const bool open = ImGui::CollapsingHeader(label, flags);
     ImGui::PopStyleVar(2);
@@ -405,17 +408,21 @@ bool BeginInspectorSection(const char* strId, const char* label, const bool defa
     return open;
 }
 
-bool BeginNavigationSection(const char* const label, const bool forceOpen)
+bool BeginNavigationSection(const char* const label, const bool forceOpen, bool& expanded)
 {
-    if (forceOpen)
+    ImGui::SetNextItemOpen(forceOpen || expanded, ImGuiCond_Always);
+    const bool open = DrawSectionHeader(label != nullptr ? label : "", ImGuiTreeNodeFlags_None, false);
+    if (!forceOpen)
     {
-        ImGui::SetNextItemOpen(true, ImGuiCond_Always);
+        expanded = open;
     }
-    else
-    {
-        ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
-    }
-    return DrawSectionHeader(label != nullptr ? label : "", ImGuiTreeNodeFlags_None, false);
+    return open;
+}
+
+float NavigationSectionCollapsedHeight() noexcept
+{
+    return ImGui::GetTextLineHeight() + 2.0f * kNavigationHeaderVerticalPadding +
+           ImGui::GetStyle().ItemSpacing.y;
 }
 
 void SetInspectorSectionStateStore(std::map<std::string, bool>* const store) noexcept

@@ -1609,13 +1609,18 @@ TransportId SceneRegistry::ActiveWidgetTransportId(const std::string& id) const 
 }
 void SceneRegistry::QueueWidgetFeedback(api1::WidgetFeedback feedback)
 {
-    if (widgetFeedback_.size() >= 1024U) widgetFeedback_.erase(widgetFeedback_.begin());
+    if (widgetFeedback_.size() >= 1024U) widgetFeedback_.pop_front();
     widgetFeedback_.push_back(std::move(feedback));
 }
 std::vector<api1::WidgetFeedback> SceneRegistry::TakeWidgetFeedback()
 {
     std::vector<api1::WidgetFeedback> events;
-    events.swap(widgetFeedback_);
+    events.reserve(widgetFeedback_.size());
+    for (api1::WidgetFeedback& feedback : widgetFeedback_)
+    {
+        events.push_back(std::move(feedback));
+    }
+    widgetFeedback_.clear();
     return events;
 }
 

@@ -169,6 +169,7 @@ set(MFD_RENDER_PRIVATE_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/CanvasDrawWork.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/Canvas2D.h
     ${MFD_APILEVEL1_ROOT_DIR}/runtime/src/ContainerDecorationRenderer.h
+    ${MFD_APILEVEL1_ROOT_DIR}/runtime/src/ContainerRuntimeHostValidation.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ImageTextureCache.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/MfdStudioBrandMark.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlCompat.h

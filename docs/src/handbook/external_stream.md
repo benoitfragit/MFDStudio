@@ -11,6 +11,49 @@ the producer API and version-one publication contract are identical in both mode
 Text, symbols, clipping and other primitives compose normally over that surface.
 This is the input counterpart of [framebuffer capture](./framebuffer.md).
 
+## Integration checklist
+
+Validate the complete path with the shipped producer first:
+
+```powershell
+cmake --preset vs2022-win32
+cmake --build --preset debug-win32 --target mfd_window mfd_editor mfd_stream_demo
+py -3.7-32 examples/external_stream/producer.py --launch
+```
+
+Then integrate a native producer in this order:
+
+1. Author one `externalStream` primitive for each source and give each a unique
+   `streamId`. Set `exposed: true` only when generated playback/status control is
+   required.
+2. Start the runtime and read the instance printed in its log (for example
+   `1234-1`). The producer cannot invent or reuse an instance from an old runtime.
+3. In a CMake build that includes the MFDStudio source tree, link the producer to
+   `mfd::external_stream` and include `mfd/stream/StreamProducer.h`.
+4. Call `Open(instance, streamId, width, height, format)` on the producer's owning
+   thread. Retry `Unavailable` later; do not spin or block the render thread.
+5. For each submitted frame, call `TryAcquire`, write or copy through the returned
+   D3D11 immediate context, then call `Publish` with a nonzero strictly increasing
+   frame number. Call `Cancel` if the acquired write cannot be published.
+6. Call `Poll` even while the image is unchanged, and call `Close` before changing
+   the requested configuration or destroying the producer.
+7. If the primitive is exposed, deploy the generated client/map together and poll
+   feedback for `GetStatus()`/`GetLastConsumedFrame()` observations. Playback
+   commands never transport pixels.
+
+`mfd::external_stream` is currently a build-tree target, not an exported target in
+the installed SDK package. An out-of-tree product must add the MFDStudio source
+tree (for example with `add_subdirectory`/`FetchContent`) or package that static
+library and its public headers as part of its own delivery. The producer itself
+has no runtime dependency on `mfd_stream_demo.dll`; that DLL exists only for the
+Python example.
+
+The native loop is intentionally nonblocking. `Unavailable` means "try on a later
+application tick"; `Reconfigured` means refresh the acquired generation before
+writing again; `Disconnected` means close and wait for a live runtime endpoint.
+Never retain the borrowed texture or context after `Publish`, `Cancel`, `Close` or
+reconfiguration.
+
 ## Supported configuration
 
 The demo uses command UDP port 47230. Its window remains open after the Python
@@ -132,7 +175,9 @@ travel over that transport.
   immediately even when the control mutex is busy; its epoch invalidation is
   latched until metadata can be updated, including a subsequent Play.
 - Hidden primitives do not consume frames, draw or process pixels. Bounded
-  metadata, liveness and resource housekeeping continue.
+  metadata, liveness and resource housekeeping continue. If every registered
+  stream is hidden or lacks a drawable image, the renderer also skips the external
+  stream render-batch flush.
 - Disconnect retains the last valid image. Before the first frame, only the
   replacement color is visible. A stopped producer heartbeat marks information
   stale, without interpreting an unchanged frame counter as a lost image.

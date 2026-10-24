@@ -19,6 +19,7 @@
 - [Offscreen Embedding](./handbook/offscreen.md)
 - [Framebuffer Capture](./handbook/framebuffer.md)
 - [External GPU Streams](./handbook/external_stream.md)
+  - [External Stream Integration Review](./handbook/external_stream_review.md)
 - [Cookbook](./cookbook.md)
 - [Troubleshooting](./handbook/troubleshooting.md)
 

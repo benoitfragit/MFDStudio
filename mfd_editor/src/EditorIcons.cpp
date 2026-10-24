@@ -65,6 +65,37 @@ void PaintAddChild(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
                      m.thickness);
 }
 
+void PaintLibrary(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
+{
+    const float left = m.center.x - m.radius;
+    const float right = m.center.x + m.radius;
+    const float top = m.center.y - m.radius * 0.55f;
+    const float bottom = m.center.y + m.radius * 0.82f;
+    const float tabRight = m.center.x - m.radius * 0.12f;
+    drawList.AddLine(ImVec2(left, top), ImVec2(tabRight, top), col, m.thickness);
+    drawList.AddLine(ImVec2(tabRight, top),
+                     ImVec2(tabRight + m.radius * 0.32f, top + m.radius * 0.30f),
+                     col,
+                     m.thickness);
+    drawList.AddLine(ImVec2(tabRight + m.radius * 0.32f, top + m.radius * 0.30f),
+                     ImVec2(right, top + m.radius * 0.30f),
+                     col,
+                     m.thickness);
+    drawList.AddRect(ImVec2(left, top), ImVec2(right, bottom), col, m.radius * 0.16f, 0, m.thickness);
+}
+
+void PaintApply(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
+{
+    drawList.AddLine(ImVec2(m.center.x - m.radius, m.center.y),
+                     ImVec2(m.center.x - m.radius * 0.25f, m.center.y + m.radius * 0.72f),
+                     col,
+                     m.thickness * 1.25f);
+    drawList.AddLine(ImVec2(m.center.x - m.radius * 0.25f, m.center.y + m.radius * 0.72f),
+                     ImVec2(m.center.x + m.radius, m.center.y - m.radius * 0.72f),
+                     col,
+                     m.thickness * 1.25f);
+}
+
 void PaintSearch(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
 {
     const ImVec2 ringCenter(m.center.x - m.radius * 0.25f, m.center.y - m.radius * 0.25f);
@@ -391,6 +422,12 @@ void PaintGlyph(ImDrawList& drawList, const EditorIcon icon, const ImVec2& topLe
         return;
     case EditorIcon::AddChild:
         PaintAddChild(drawList, metrics, col);
+        return;
+    case EditorIcon::Library:
+        PaintLibrary(drawList, metrics, col);
+        return;
+    case EditorIcon::Apply:
+        PaintApply(drawList, metrics, col);
         return;
     case EditorIcon::Search:
         PaintSearch(drawList, metrics, col);

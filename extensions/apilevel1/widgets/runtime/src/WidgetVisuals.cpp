@@ -2,11 +2,28 @@
 #include "mfd/apilevel1/widgets/WidgetModel.h"
 #include "mfd/model/internal/RuntimeModelValidation.h"
 #include <algorithm>
-#include <iomanip>
-#include <locale>
-#include <sstream>
+#include <array>
+#include <charconv>
+#include <system_error>
 namespace mfd::api1
 {
+namespace
+{
+void FormatWidgetValue(const double value, const std::uint32_t decimals, std::string& output)
+{
+    std::array<char, 512U> buffer {};
+    const std::to_chars_result result = std::to_chars(
+        buffer.data(), buffer.data() + buffer.size(), value, std::chars_format::fixed,
+        static_cast<int>(decimals));
+    if (result.ec != std::errc {})
+    {
+        output.clear();
+        return;
+    }
+    output.assign(buffer.data(), result.ptr);
+}
+} // namespace
+
 ContainerRect WidgetHitRegion(const WidgetInstance& widget, const ContainerRect& bounds) noexcept
 {
     if (!widget.definition) return {};
@@ -45,10 +62,7 @@ ReticleGroup BuildWidgetVisual(const WidgetInstance& widget, const WidgetState& 
                 if (definition.type == WidgetType::NumericDisplay || definition.type == WidgetType::Slider ||
                     definition.type == WidgetType::Knob || definition.type == WidgetType::Gauge || definition.type == WidgetType::ProgressBar)
                 {
-                    std::ostringstream formatted;
-                    formatted.imbue(std::locale::classic());
-                    formatted << std::fixed << std::setprecision(static_cast<int>(definition.range.decimals)) << state.confirmed.value;
-                    text->text = formatted.str();
+                    FormatWidgetValue(state.confirmed.value, definition.range.decimals, text->text);
                 }
                 else text->text = state.confirmed.text;
             }

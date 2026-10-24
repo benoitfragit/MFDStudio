@@ -54,6 +54,14 @@ TEST(WidgetModel, RejectsMissingAndUnsupportedDefinitions)
     definition->schemaVersion = 2;
     EXPECT_FALSE(mfd::api1::ValidateWidgetDefinition(*definition, error));
 }
+
+TEST(WidgetModel, ProjectionRejectsMissingDefinitionWithoutDereferencingIt)
+{
+    mfd::api1::WidgetInstance widget;
+    widget.id = "missing";
+
+    EXPECT_TRUE(mfd::api1::ProjectWidgetLayoutNodes({}, {widget}).empty());
+}
 TEST(WidgetLayout, RootAndTypedLeafContributeToFittedSize)
 {
     mfd::api1::ContainerDefinition parent;

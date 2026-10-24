@@ -1,5 +1,6 @@
 #include "EditorApplication.h"
 #include "EditorFileDialogs.h"
+#include "EditorIcons.h"
 #include "mfd/apilevel1/widgets/WidgetAssetService.h"
 #include "EditorUiTheme.h"
 #include "mfd/apilevel1/widgets/WidgetJson.h"
@@ -127,18 +128,9 @@ void EditorApplication::DrawSidebarWidgetsSection(const float height)
     auto* page = ActivePage();
     const auto count = page ? page->widgets.size() : 0;
     const std::string title = "Widgets (" + std::to_string(count) + ")###SidebarWidgetsHeader";
-    if (editor::ui::BeginNavigationSection(title.c_str(), false))
+    if (editor::ui::BeginNavigationSection(title.c_str(), false, layoutState_.sidebarWidgetsExpanded))
     {
-        if (ImGui::Button("+##Widget")) AddWidgetDefinition(false);
-        ImGui::SameLine();
-        if (ImGui::Button("Library##Widgets")) { widgetLibraryOpen_ = true; ScanWidgetLibrary(); }
-        if (SelectedWidget())
-        {
-            if (ImGui::Button("Duplicate##Widget")) DuplicateWidget();
-            ImGui::SameLine();
-            if (ImGui::Button("Remove##Widget")) DeleteWidget();
-        }
-        if (!widgetVisualTemplate_.empty() && ImGui::Button("Apply edited visual")) ApplyWidgetVisual();
+        DrawWidgetActionToolbar();
         ImGui::Spacing();
         ImGui::BeginChild(
             "SidebarWidgetsScrollRegion",
@@ -162,6 +154,58 @@ void EditorApplication::DrawSidebarWidgetsSection(const float height)
         ImGui::EndChild();
     }
     ImGui::EndChild();
+}
+
+void EditorApplication::DrawWidgetActionToolbar()
+{
+    using editor::ui::EditorIcon;
+    using editor::ui::IconButton;
+
+    if (IconButton("##sidebar_add_widget_definition",
+                   EditorIcon::Add,
+                   "Create a widget definition and open its dedicated library editor."))
+    {
+        AddWidgetDefinition(false);
+    }
+
+    ImGui::SameLine();
+    if (IconButton("##sidebar_open_widget_library",
+                   EditorIcon::Library,
+                   "Open the widget definition library and editor."))
+    {
+        widgetLibraryOpen_ = true;
+        ScanWidgetLibrary();
+    }
+
+    const bool hasSelection = SelectedWidget() != nullptr;
+    ImGui::SameLine();
+    if (IconButton("##sidebar_duplicate_widget",
+                   EditorIcon::Duplicate,
+                   "Duplicate the selected widget instance.",
+                   hasSelection))
+    {
+        DuplicateWidget();
+    }
+
+    ImGui::SameLine();
+    if (IconButton("##sidebar_remove_widget",
+                   EditorIcon::Delete,
+                   "Remove the selected widget instance from this Page.",
+                   hasSelection))
+    {
+        DeleteWidget();
+    }
+
+    if (!widgetVisualTemplate_.empty())
+    {
+        ImGui::SameLine();
+        if (IconButton("##sidebar_apply_widget_visual",
+                       EditorIcon::Apply,
+                       "Apply the visual edited in Reticle studio to its widget definition."))
+        {
+            ApplyWidgetVisual();
+        }
+    }
 }
 void EditorApplication::ScanWidgetLibrary()
 {

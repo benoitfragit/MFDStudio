@@ -123,6 +123,13 @@ bool ValidateWidgetDefinition(const WidgetDefinition& definition, std::string& e
 std::vector<ContainerDefinition> ProjectWidgetLayoutNodes(const std::vector<ContainerDefinition>& containers,
                                                          const std::vector<WidgetInstance>& widgets)
 {
+    if (containers.size() > kMaximumContainerCount || widgets.size() > kMaximumWidgetCount ||
+        std::any_of(widgets.begin(), widgets.end(),
+                    [](const WidgetInstance& widget) { return widget.definition == nullptr; }))
+    {
+        return {};
+    }
+
     std::vector<ContainerDefinition> nodes = containers;
     nodes.reserve(containers.size() + widgets.size());
     for (ContainerDefinition& container : nodes)
@@ -227,7 +234,13 @@ bool EvaluateWidgetLayout(const std::vector<ContainerDefinition>& containers,
 {
     output.clear();
     if (!ValidatePageWidgets(containers, widgets, error)) return false;
-    return detail::EvaluateLayoutNodes(ProjectWidgetLayoutNodes(containers, widgets),
+    std::vector<ContainerDefinition> projected = ProjectWidgetLayoutNodes(containers, widgets);
+    if (projected.empty() && (!containers.empty() || !widgets.empty()))
+    {
+        error = "Cannot project validated widget layout nodes.";
+        return false;
+    }
+    return detail::EvaluateLayoutNodes(projected,
                                       kMaximumContainerCount + kMaximumWidgetCount,
                                       kMaximumContainerDepth + 1U, output, error);
 }

@@ -111,6 +111,51 @@ commands depend on the matching map.
 - **Fix.** Enable the feedback transport and poll it (`PollFeedback`), then use
   `WindowLivenessMonitor` to detect shutdown.
 
+## Containers, widgets and external streams
+
+### A LEVEL 1 Window is rejected before rendering
+
+- **Cause.** `apiLevel` is missing/zero, or a required runtime extension DLL is
+  absent, incompatible or not beside the host executable.
+- **Diagnostic.** Container content always requires `mfd_containers_api1.dll`.
+  Widget content additionally requires `mfd_widgets_api1.dll`, even when the Page
+  contains no container definitions. The load diagnostic names the missing or
+  incompatible capability.
+- **Fix.** Set `"apiLevel": 1`, rebuild the corresponding targets, and stage the
+  runtime DLLs beside every runtime host. Editor DLLs belong only beside
+  `mfd_editor`; they do not replace runtime DLLs. See
+  [Containers](./containers.md#integration-checklist) and
+  [Widgets](./widgets.md#integration-checklist).
+
+### A widget draws but does not confirm user input
+
+- **Cause.** The command path works, but feedback is disabled/not polled, or the
+  client changes a property without acknowledging the matching request.
+- **Diagnostic.** Poll feedback and inspect `TakeWidgetEvents()`. A request only
+  drives transient pending state; UDP send success is not confirmation. Also
+  verify that the client and runtime use the same `.generated.map`.
+- **Fix.** For an exposed handle, test `Matches(event)`, apply `SetChecked`,
+  `SetValue` or the relevant authoritative setter, call
+  `Acknowledge(event.requestId)`, then send the generated batch. Route private
+  widgets with `event.pageId` and `event.widgetId`. Drain feedback regularly;
+  retained events are bounded and overflow drops the oldest event.
+
+### An external stream shows fallback color or `Unsupported`
+
+- **Cause.** The producer used the wrong runtime instance/stream ID, stopped
+  polling, selected another adapter, exhausted the 128 MiB budget, or neither the
+  direct nor CPU display path initialized.
+- **Diagnostic.** Compare the instance printed by the current runtime with the
+  producer argument. Read the generated status diagnostic: it distinguishes
+  connection state, direct interop, CPU fallback, temporary budget shortage and
+  fatal device/metadata errors. WSA 10048 is instead a command-port conflict.
+- **Fix.** Keep instance and `streamId` exact, call `Poll` while the image is
+  unchanged, retry `Unavailable` no faster than the application tick, and reduce
+  resolution/release other streams if the budget is full. A fatal device loss or
+  invalid control block requires recreating the endpoint/runtime. CPU fallback
+  still requires compatible D3D11/DXGI shared surfaces; it cannot repair an
+  adapter mismatch. See [External GPU Streams](./external_stream.md#diagnostics-and-recovery).
+
 ## Plugins and offscreen
 
 ### The framebuffer plugin is not loaded

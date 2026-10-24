@@ -27,6 +27,10 @@ struct SidebarSectionLayoutRequest
     float pagesMinHeight = 0.0f;
     /** @brief Minimum usable total height of the Reticle-library section. */
     float reticlesMinHeight = 0.0f;
+    /** @brief Whether the first section is expanded and may absorb spare height. */
+    bool pagesExpanded = true;
+    /** @brief Whether the second section is expanded and may absorb spare height. */
+    bool reticlesExpanded = true;
 };
 
 /**
@@ -44,8 +48,11 @@ struct SidebarSectionLayoutResult
 
 /**
  * @brief Splits the sidebar body into two stacked sections while preserving both headers.
- * @param request Total height, preferred gap, preferred Pages height and both minimum heights.
+ * @param request Total height, preferred gap, preferred first-section height, both minimum heights
+ *        and both expanded states.
  * @return Clamped section heights whose sum never exceeds the requested total height.
+ * @note A collapsed section keeps only its minimum header height. When both sections are collapsed,
+ *       their pair deliberately leaves the remaining height unused instead of displaying empty panes.
  */
 [[nodiscard]] SidebarSectionLayoutResult ComputeSidebarSectionLayout(
     const SidebarSectionLayoutRequest& request) noexcept;

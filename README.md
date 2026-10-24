@@ -34,8 +34,9 @@ release, while `Release Workflow` reflects the most recent `release.yml` run:
 | 2. End-to-end walkthrough | [Getting Started Tutorial](https://benoitfragit.github.io/MFDStudio/getting-started.html) |
 | 3. The JSON model | [Concepts](https://benoitfragit.github.io/MFDStudio/concepts.html) |
 | 4. Drive from typed C++ | [Generated Client API](https://benoitfragit.github.io/MFDStudio/handbook/generated_api.html) |
-| 4b. Author reusable controls | [API LEVEL 1 Widgets](./docs/src/handbook/widgets.md) |
 | 4a. Author nested layouts | [API LEVEL 1 Containers](./docs/src/handbook/containers.md) |
+| 4b. Author reusable controls | [API LEVEL 1 Widgets](./docs/src/handbook/widgets.md) |
+| 4c. Display a local GPU producer | [External GPU Streams](./docs/src/handbook/external_stream.md) |
 | 5. Run the runtime | [Runtime](https://benoitfragit.github.io/MFDStudio/handbook/runtime.html) |
 | 6. Explore the HUD | [HUD](https://benoitfragit.github.io/MFDStudio/handbook/hud.html) |
 | 7. Explore the LHLD console | [LHLD](https://benoitfragit.github.io/MFDStudio/handbook/lhld.html) |
@@ -81,6 +82,10 @@ Building `mfd_editor` also builds and stages the API LEVEL 1 container and widge
 runtime/editor extension DLLs. Widget DLLs are required only for widget content. No separate ImGui or font installation is required:
 the editor uses Segoe UI when available on Windows and keeps a readable bundled
 fallback.
+
+The container, widget and external-stream guides each include a build/run
+checklist, required DLLs, generated-client wiring and performance limits. Use
+those checklists before copying an example into another application.
 
 ## Run
 

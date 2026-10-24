@@ -138,3 +138,20 @@ TEST_F(WidgetInputTest, ResetCancelsTheCaptureBeforeAnotherPointerSample)
     ASSERT_FALSE(events.empty());
     EXPECT_EQ(events.back().event,mfd::api1::WidgetEvent::Cancelled);
 }
+
+TEST(WidgetFeedbackQueue, OverflowDropsOldestEventsWithoutChangingFifoOrder)
+{
+    mfd::SceneRegistry scene;
+    for (std::uint64_t sequence = 1U; sequence <= 1030U; ++sequence)
+    {
+        mfd::api1::WidgetFeedback feedback;
+        feedback.sequence = sequence;
+        scene.QueueWidgetFeedback(std::move(feedback));
+    }
+
+    const std::vector<mfd::api1::WidgetFeedback> events = scene.TakeWidgetFeedback();
+    ASSERT_EQ(events.size(), 1024U);
+    EXPECT_EQ(events.front().sequence, 7U);
+    EXPECT_EQ(events.back().sequence, 1030U);
+    EXPECT_TRUE(scene.TakeWidgetFeedback().empty());
+}

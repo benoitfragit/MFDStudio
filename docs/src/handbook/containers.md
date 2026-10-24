@@ -5,6 +5,58 @@ LEVEL 0 page, reticle, primitive, transport, and generated-client contract. Set
 `"apiLevel": 1` on the Window to enable it. A LEVEL 0 Window loads no LEVEL 1 DLL.
 [Widgets](./widgets.md) share this same level and extend the same layout kernel.
 
+## Integration checklist
+
+Use the shipped container example as the executable reference:
+
+```powershell
+cmake --preset vs2022-win32
+cmake --build --preset debug-win32 --target mfd_window mfd_editor apilevel1_containers_client
+.\Scripts\Start-APILevel1Containers.bat
+```
+
+For another asset/client pair:
+
+1. Set `"apiLevel": 1` in the Window JSON and add the Page to `pages`.
+2. Add a flat `containers` catalog to the Page. Express nesting only through
+   parent `children` edges; do not nest definition objects in JSON.
+3. Set `"exposed": true` only on containers the client must control.
+4. Pass the Window JSON to `client_api_generate_ui(...)`, compile its generated
+   header/source into the client and deploy the matching `.generated.map` beside
+   the Window JSON.
+5. Link the client with `mfd::client` (and `mfd::io_json` when it loads JSON).
+6. Deploy `mfd_containers_api1.dll` beside each runtime host. Deploy
+   `mfd_editor_containers_api1.dll` beside `mfd_editor` only.
+
+A small Page catalog looks like this; both definitions remain flat and the edge
+on `main_panel` establishes ownership:
+
+```json
+"containers": [
+  {
+    "id": "main_panel",
+    "name": "Main panel",
+    "type": "canvas",
+    "position": [0.0, 0.0],
+    "size": [1.6, 1.4],
+    "exposed": true,
+    "children": [{"id": "status", "resizeMode": "stretch"}]
+  },
+  {
+    "id": "status",
+    "name": "Status",
+    "type": "linear",
+    "size": [1.2, 0.4],
+    "orientation": "horizontal"
+  }
+]
+```
+
+The complete CMake generation/staging example is
+[`examples/apilevel1/client/CMakeLists.txt`](../../../examples/apilevel1/client/CMakeLists.txt).
+The source asset is
+[`examples/apilevel1/assets/pages/containers.json`](../../../examples/apilevel1/assets/pages/containers.json).
+
 ## Compatibility and transitions
 
 The Window level is a capability ceiling. Pages do not store an `apiLevel`; their
@@ -109,6 +161,34 @@ the input-side layout evaluation. Interaction frames retain a fresh draw-side
 evaluation after scrolling, so new offsets appear in the same frame without a
 persistent layout cache.
 
+## Performance and safety boundaries
+
+Layout evaluation is bounded by the documented definition, edge and depth
+limits. These limits are safety ceilings, not recommended authoring targets.
+Large trees should be profiled on the deployment hardware, especially when
+scroll input causes an input-side evaluation followed by the draw-side
+evaluation in the same frame. There is intentionally no persistent layout cache:
+runtime mutations and scroll offsets therefore cannot leave stale geometry.
+
+The host validates both authored input and every record returned by the runtime
+DLL. Output count, source and parent indices, hierarchy depth, boolean flags,
+inherited visibility/enabled state and all rectangles/offsets must have valid,
+finite components before rendering or input consumes them. A malformed or
+incompatible DLL fails the evaluation instead of forwarding NaN/Inf or invalid
+indices to the renderer. Scroll offsets must also remain within the returned
+content/viewport extent.
+
+For predictable frame cost:
+
+- keep ownership acyclic and prefer shallow trees even though 64 levels are
+  accepted;
+- use fit-content only where content-driven sizing is required;
+- publish container patches only when state changes, and batch independent
+  fields for the same container;
+- treat 4096 definitions as a rejection boundary, not a design goal;
+- measure before adding a layout cache, because invalidation must cover authored
+  geometry, generated commands, widget leaves and scrolling.
+
 ## Editor
 
 For LEVEL 1 Windows, **Containers** appears in the existing left sidebar directly
@@ -121,6 +201,13 @@ starting another drag creates a separate entry. Keyboard edits, checkboxes and
 selection changes retain separate gestures. Values are prepared outside the
 live document and validated before an Undo snapshot is recorded. Idle frames
 and rejected edits do not copy a full document snapshot. Both sidebar separators are draggable and their proportions persist.
+
+There is no separate container-library window: containers are Page-owned layout
+nodes, not reusable definition assets. The **Containers** hierarchy, the preview
+gizmo and the right-hand container inspector together form the dedicated
+container editor. By contrast, widgets have reusable definitions and therefore
+also expose a separate definition-library editor. Collapsing any sidebar section
+now releases its body height and keeps only the section header visible.
 
 Selecting a container displays the existing preview-style outline and corner gizmo. A resize
 captures authored geometry once, creates one undo snapshot, and applies the final

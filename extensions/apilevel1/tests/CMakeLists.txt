@@ -22,6 +22,7 @@ mfd_configure_test_runtime_output(mfd_apilevel1_tests)
 target_compile_features(mfd_apilevel1_tests PRIVATE cxx_std_17)
 target_include_directories(mfd_apilevel1_tests PRIVATE
     ${MFD_APILEVEL1_RUNTIME_INCLUDE_DIR}
+    ${MFD_APILEVEL1_ROOT_DIR}/runtime/src
     ${MFD_APILEVEL1_EDITOR_INCLUDE_DIR}
     ${MFD_WIDGETS_ROOT_DIR}/editor/include)
 target_link_libraries(mfd_apilevel1_tests PRIVATE

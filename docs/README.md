@@ -33,6 +33,9 @@ pwsh -File docs/CheckDocs.ps1 -SkipBuild   # static checks only, no mdBook neede
 - [Getting Started Tutorial](./src/getting-started.md)
 - [Concepts](./src/concepts.md)
 - [Generated Client API](./src/handbook/generated_api.md)
+- [API LEVEL 1 Containers](./src/handbook/containers.md)
+- [API LEVEL 1 Widgets](./src/handbook/widgets.md)
+- [External GPU Streams](./src/handbook/external_stream.md)
 - [Cookbook](./src/cookbook.md)
 - [Offscreen Embedding](./src/handbook/offscreen.md)
 - [JSON Reference](./src/reference/json.md)
@@ -41,4 +44,5 @@ pwsh -File docs/CheckDocs.ps1 -SkipBuild   # static checks only, no mdBook neede
 
 ## Targeted maintenance validation
 
+- [2026-10-24 integration, safety and performance review](integration-performance-review-2026-10-24.md)
 - [2026-10-18 correction matrix and validation](targeted-corrections-2026-10-18.md)

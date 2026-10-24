@@ -119,9 +119,16 @@ bool BeginInspectorSection(const char* strId, const char* label, bool defaultOpe
  * @brief Draws a restrained collapsible section header for a sidebar navigation group.
  * @param label Visible caption, optionally followed by an ImGui `###stable_id` suffix.
  * @param forceOpen Whether the section must remain open for tutorial target visibility.
+ * @param expanded Session-scoped state updated from the live header when it is not force-opened.
  * @return `true` when the section body must be drawn this frame.
  */
-bool BeginNavigationSection(const char* label, bool forceOpen);
+bool BeginNavigationSection(const char* label, bool forceOpen, bool& expanded);
+
+/**
+ * @brief Returns the vertical allocation needed by one collapsed navigation header.
+ * @return Header height including the standard inter-item spacing.
+ */
+[[nodiscard]] float NavigationSectionCollapsedHeight() noexcept;
 
 /**
  * @brief Injects the map used to persist collapsible inspector-section open states across sessions.

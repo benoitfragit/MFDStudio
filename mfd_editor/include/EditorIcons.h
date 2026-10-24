@@ -33,6 +33,8 @@ enum class EditorIcon
     Duplicate,        ///< Copy silhouette with a plus marker used for duplicate.
     Add,              ///< Plus silhouette used for create/add actions.
     AddChild,         ///< Hierarchy branch with a plus used for direct child creation.
+    Library,          ///< Folder silhouette used to open a reusable-definition library.
+    Apply,            ///< Check-mark silhouette used to commit a prepared edit.
     Search,           ///< Magnifier silhouette used to annotate the filter field and file pickers.
     Overflow,         ///< Three-dot silhouette used for an overflow menu trigger.
     Tutorial,         ///< Graduation-cap silhouette used for the guided tutorial entry point.

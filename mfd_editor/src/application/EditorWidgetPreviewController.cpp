@@ -150,6 +150,43 @@ void EditorWidgetPreviewController::CancelPointerInteraction() noexcept
     }
 }
 
+EditorWidgetPreviewController::Entry EditorWidgetPreviewController::BuildEntry(
+    const mfd::api1::WidgetInstance& widget)
+{
+    Entry entry;
+    entry.id = widget.id;
+    entry.definition = widget.definition.get();
+    entry.authoredState = mfd::api1::InitialWidgetState(widget);
+    entry.state = entry.authoredState;
+    return entry;
+}
+
+bool EditorWidgetPreviewController::MatchesAuthoredState(
+    const Entry& entry,
+    const mfd::api1::WidgetInstance& widget) noexcept
+{
+    if (entry.definition != widget.definition.get() ||
+        entry.authoredState.visible != widget.visible ||
+        entry.authoredState.enabled != widget.enabled)
+    {
+        return false;
+    }
+
+    const mfd::api1::WidgetValue emptyDefaults;
+    const mfd::api1::WidgetValue& defaults = widget.definition == nullptr
+                                                ? emptyDefaults
+                                                : widget.definition->defaults;
+    const mfd::api1::WidgetValue& authored = entry.authoredState.confirmed;
+    const bool checked = widget.overrides.checked.value_or(defaults.checked);
+    const bool warning = widget.overrides.warning.value_or(defaults.warning);
+    const double value = widget.overrides.value.value_or(defaults.value);
+    const std::string& text = widget.overrides.text.has_value()
+                                  ? *widget.overrides.text
+                                  : defaults.text;
+    return authored.checked == checked && authored.warning == warning &&
+           authored.value == value && authored.text == text;
+}
+
 void EditorWidgetPreviewController::Synchronize(const std::vector<mfd::api1::WidgetInstance>& widgets)
 {
     if (!enabled_)
@@ -164,6 +201,18 @@ void EditorWidgetPreviewController::Synchronize(const std::vector<mfd::api1::Wid
     }
     if (unchanged)
     {
+        for (std::size_t index = 0U; index < widgets.size(); ++index)
+        {
+            if (MatchesAuthoredState(entries_[index], widgets[index]))
+            {
+                continue;
+            }
+            if (capturedWidgetId_ == widgets[index].id)
+            {
+                capturedWidgetId_.clear();
+            }
+            entries_[index] = BuildEntry(widgets[index]);
+        }
         return;
     }
 
@@ -172,7 +221,7 @@ void EditorWidgetPreviewController::Synchronize(const std::vector<mfd::api1::Wid
     entries_.reserve(widgets.size());
     for (const mfd::api1::WidgetInstance& widget : widgets)
     {
-        entries_.push_back({widget.id, mfd::api1::InitialWidgetState(widget)});
+        entries_.push_back(BuildEntry(widget));
     }
 }
 

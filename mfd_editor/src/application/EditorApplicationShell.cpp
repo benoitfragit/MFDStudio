@@ -40,6 +40,7 @@ using editor::ui::DrawVerticalSplitter;
 using editor::ui::EditorIcon;
 using editor::ui::IconButton;
 using editor::ui::IconText;
+using editor::ui::NavigationSectionCollapsedHeight;
 using editor::ui::ShowItemTooltip;
 
 // Auxiliary panels expose a usable technical minimum, not a hard resize floor: when
@@ -766,6 +767,10 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
     const bool reticlesHaveContent = visibleReticles > 0;
     const bool containersHaveContent = containerCount > 0U;
     const bool widgetsHaveContent = widgetCount > 0U;
+    const bool pagesExpanded = tutorialActive || layoutState_.sidebarPagesExpanded;
+    const bool reticlesExpanded = tutorialActive || layoutState_.sidebarReticlesExpanded;
+    const bool containersExpanded = layoutState_.sidebarContainersExpanded;
+    const bool widgetsExpanded = layoutState_.sidebarWidgetsExpanded;
 
     const float sidebarBodyHeight = std::max(0.0f, ImGui::GetContentRegionAvail().y);
     const float sidebarBodyWidth = std::max(0.0f, ImGui::GetContentRegionAvail().x);
@@ -777,20 +782,37 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
     const float minSectionHeight =
         sectionChromeHeight + sectionRowHeight * kSidebarSectionMinVisibleRows;
     const float emptySectionHeight = sectionChromeHeight + sectionRowHeight;
-    const float pagesMinimumHeight = pagesHaveContent ? minSectionHeight : emptySectionHeight;
-    const float reticlesMinimumHeight = reticlesHaveContent ? minSectionHeight : emptySectionHeight;
-    const float containersMinimumHeight = containersHaveContent ? minSectionHeight : emptySectionHeight;
-    const float widgetsMinimumHeight = widgetsHaveContent ? minSectionHeight : emptySectionHeight;
+    const float collapsedSectionHeight = NavigationSectionCollapsedHeight();
+    const float pagesMinimumHeight = pagesExpanded
+                                         ? (pagesHaveContent ? minSectionHeight : emptySectionHeight)
+                                         : collapsedSectionHeight;
+    const float reticlesMinimumHeight = reticlesExpanded
+                                            ? (reticlesHaveContent ? minSectionHeight : emptySectionHeight)
+                                            : collapsedSectionHeight;
+    const float containersMinimumHeight = containersExpanded
+                                              ? (containersHaveContent ? minSectionHeight : emptySectionHeight)
+                                              : collapsedSectionHeight;
+    const float widgetsMinimumHeight = widgetsExpanded
+                                           ? (widgetsHaveContent ? minSectionHeight : emptySectionHeight)
+                                           : collapsedSectionHeight;
 
-    // Persisted splitter fractions remain authoritative when both peers contain data. An empty
-    // section keeps only its header, toolbar and empty-state row so it cannot starve its populated
-    // peer. Splitters are hidden when there is no meaningful pair to resize.
+    // Persisted splitter fractions remain authoritative when both peers contain data. Collapsed
+    // sections keep only their header; empty expanded sections keep their toolbar and empty-state
+    // row. Splitters are hidden when there is no meaningful expanded pair to resize.
     const float splitterThickness = editor::ui::kPaneSplitterWidth;
     const bool upperHasContent = pagesHaveContent || reticlesHaveContent;
     const bool lowerHasContent = containersHaveContent || widgetsHaveContent;
-    const float upperSplitter = pagesHaveContent && reticlesHaveContent ? splitterThickness : 0.0f;
-    const float lowerSplitter = containersHaveContent && widgetsHaveContent ? splitterThickness : 0.0f;
-    const float outerSplitter = upperHasContent && lowerHasContent ? splitterThickness : 0.0f;
+    const bool upperExpanded = pagesExpanded || reticlesExpanded;
+    const bool lowerExpanded = containersExpanded || widgetsExpanded;
+    const float upperSplitter = pagesExpanded && reticlesExpanded && pagesHaveContent && reticlesHaveContent
+                                    ? splitterThickness
+                                    : 0.0f;
+    const float lowerSplitter = containersExpanded && widgetsExpanded && containersHaveContent && widgetsHaveContent
+                                    ? splitterThickness
+                                    : 0.0f;
+    const float outerSplitter = upperExpanded && lowerExpanded && upperHasContent && lowerHasContent
+                                    ? splitterThickness
+                                    : 0.0f;
     const float upperMinimumHeight = pagesMinimumHeight + reticlesMinimumHeight + upperSplitter;
     const float lowerMinimumHeight = containersMinimumHeight + widgetsMinimumHeight + lowerSplitter;
     editor::app::SidebarSectionLayoutResult outerLayout;
@@ -800,12 +822,13 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
         outerDistributableHeight = std::max(0.0f, sidebarBodyHeight - outerSplitter);
         const float upperPreferredFraction =
             1.0f - std::clamp(layoutState_.sidebarContainersHeightFraction, 0.0f, 1.0f);
-        const bool upperAbsorbsUnusedHeight = upperHasContent || !lowerHasContent;
+        const bool upperAbsorbsUnusedHeight = (upperExpanded && upperHasContent) ||
+                                              !(lowerExpanded && lowerHasContent);
         const float upperPreferredHeight = editor::app::ResolveContentAwareSidebarPreferredHeight(
             outerDistributableHeight,
             upperPreferredFraction,
             upperAbsorbsUnusedHeight,
-            lowerHasContent,
+            lowerExpanded && lowerHasContent,
             upperMinimumHeight,
             lowerMinimumHeight);
         outerLayout = editor::app::ComputeSidebarSectionLayout(
@@ -813,7 +836,9 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
              outerSplitter,
              upperPreferredHeight,
              upperMinimumHeight,
-             lowerMinimumHeight});
+             lowerMinimumHeight,
+             upperExpanded,
+             lowerExpanded});
     }
     else
     {
@@ -823,12 +848,13 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
     const float upperBodyHeight = outerLayout.pagesHeight;
     const float distributableHeight = std::max(0.0f, upperBodyHeight - upperSplitter);
     const float pagesFraction = std::clamp(layoutState_.sidebarPagesSplitFraction, 0.0f, 1.0f);
-    const bool pagesAbsorbUnusedHeight = pagesHaveContent || !reticlesHaveContent;
+    const bool pagesAbsorbUnusedHeight = (pagesExpanded && pagesHaveContent) ||
+                                         !(reticlesExpanded && reticlesHaveContent);
     const float pagesPreferredHeight = editor::app::ResolveContentAwareSidebarPreferredHeight(
         distributableHeight,
         pagesFraction,
         pagesAbsorbUnusedHeight,
-        reticlesHaveContent,
+        reticlesExpanded && reticlesHaveContent,
         pagesMinimumHeight,
         reticlesMinimumHeight);
     const editor::app::SidebarSectionLayoutResult sectionLayout =
@@ -837,7 +863,9 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
              upperSplitter,
              pagesPreferredHeight,
              pagesMinimumHeight,
-             reticlesMinimumHeight});
+             reticlesMinimumHeight,
+             pagesExpanded,
+             reticlesExpanded});
 
     DrawSidebarPagesSection(filter, problems, visiblePages, sectionLayout.pagesHeight);
     if (sectionLayout.sectionSpacing > 0.0f)
@@ -865,12 +893,13 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
         }
         const float lowerHeight = outerLayout.reticlesHeight;
         const float lowerDistributableHeight = std::max(0.0f, lowerHeight - lowerSplitter);
-        const bool containersAbsorbUnusedHeight = containersHaveContent || !widgetsHaveContent;
+        const bool containersAbsorbUnusedHeight = (containersExpanded && containersHaveContent) ||
+                                                  !(widgetsExpanded && widgetsHaveContent);
         const float containersPreferredHeight = editor::app::ResolveContentAwareSidebarPreferredHeight(
             lowerDistributableHeight,
             layoutState_.sidebarWidgetsSplitFraction,
             containersAbsorbUnusedHeight,
-            widgetsHaveContent,
+            widgetsExpanded && widgetsHaveContent,
             containersMinimumHeight,
             widgetsMinimumHeight);
         const auto lowerLayout = editor::app::ComputeSidebarSectionLayout(
@@ -878,7 +907,9 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
              lowerSplitter,
              containersPreferredHeight,
              containersMinimumHeight,
-             widgetsMinimumHeight});
+             widgetsMinimumHeight,
+             containersExpanded,
+             widgetsExpanded});
         DrawSidebarContainersSection(lowerLayout.pagesHeight);
         if (lowerLayout.sectionSpacing > 0.0f && editor::ui::DrawHorizontalSplitter(
                 "##SidebarWidgetsSplitter", sidebarBodyWidth, lowerLayout.sectionSpacing))
@@ -902,7 +933,7 @@ void EditorApplication::DrawSidebarPagesSection(const editor::SidebarFilterQuery
     // The visible count lives in the label while the stable id (after '###') keeps the open state
     // from resetting whenever the filter changes that count.
     const std::string pagesHeader = "Pages (" + std::to_string(visiblePages) + ")###SidebarPagesHeader";
-    if (BeginNavigationSection(pagesHeader.c_str(), tutorialActive))
+    if (BeginNavigationSection(pagesHeader.c_str(), tutorialActive, layoutState_.sidebarPagesExpanded))
     {
         DrawPageActionToolbar();
         ImGui::Spacing();
@@ -928,7 +959,7 @@ void EditorApplication::DrawSidebarReticleSection(const editor::SidebarFilterQue
 
     const std::string libraryHeader =
         "Reticle library (" + std::to_string(visibleReticles) + ")###SidebarLibraryHeader";
-    if (BeginNavigationSection(libraryHeader.c_str(), tutorialActive))
+    if (BeginNavigationSection(libraryHeader.c_str(), tutorialActive, layoutState_.sidebarReticlesExpanded))
     {
         DrawLibraryActionToolbar();
         ImGui::Spacing();
@@ -944,14 +975,14 @@ void EditorApplication::DrawSidebarReticleSection(const editor::SidebarFilterQue
 
 void EditorApplication::DrawSidebarContainersSection(const float sectionHeight)
 {
-    const bool containersAvailable =
-        containerEditorHost_.EnsureLoaded(documentState_.loaded.window.sourceFile);
     ImGui::BeginChild("SidebarContainersSection", ImVec2(0.0f, std::max(1.0f, sectionHeight)), false);
     const mfd::PageDefinition* page = ActivePage();
     const std::size_t count = page == nullptr ? 0U : page->containers.size();
     const std::string header = "Containers (" + std::to_string(count) + ")###SidebarContainersHeader";
-    if (BeginNavigationSection(header.c_str(), false))
+    if (BeginNavigationSection(header.c_str(), false, layoutState_.sidebarContainersExpanded))
     {
+        const bool containersAvailable =
+            containerEditorHost_.EnsureLoaded(documentState_.loaded.window.sourceFile);
         if (!containersAvailable)
         {
             ImGui::TextWrapped("LEVEL 1 container editing is unavailable.");

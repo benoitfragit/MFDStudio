@@ -44,6 +44,34 @@ SidebarSectionLayoutResult ComputeSidebarSectionLayout(const SidebarSectionLayou
     const float reticlesMinHeight = SanitizeNonNegativeDimension(request.reticlesMinHeight);
     const float totalMinHeight = pagesMinHeight + reticlesMinHeight;
 
+    if (!request.pagesExpanded || !request.reticlesExpanded)
+    {
+        if (totalHeight < totalMinHeight && totalMinHeight > 0.0f)
+        {
+            result.pagesHeight = totalHeight * (pagesMinHeight / totalMinHeight);
+            result.reticlesHeight = std::max(0.0f, totalHeight - result.pagesHeight);
+            return result;
+        }
+
+        if (!request.pagesExpanded && !request.reticlesExpanded)
+        {
+            result.pagesHeight = pagesMinHeight;
+            result.reticlesHeight = reticlesMinHeight;
+            return result;
+        }
+
+        if (!request.pagesExpanded)
+        {
+            result.pagesHeight = pagesMinHeight;
+            result.reticlesHeight = std::max(0.0f, totalHeight - result.pagesHeight);
+            return result;
+        }
+
+        result.reticlesHeight = reticlesMinHeight;
+        result.pagesHeight = std::max(0.0f, totalHeight - result.reticlesHeight);
+        return result;
+    }
+
     if (preferredSpacing > 0.0f && totalHeight > totalMinHeight)
     {
         result.sectionSpacing = std::min(preferredSpacing, totalHeight - totalMinHeight);

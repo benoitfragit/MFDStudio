@@ -72,10 +72,16 @@ void ExternalStreamRegistry::Update()
 }
 void ExternalStreamRegistry::EndFrame()
 {
-    if (entries_.empty()) return;
+    const bool hasDrawnStream = std::any_of(entries_.begin(), entries_.end(), [](const Entry& entry)
+    {
+        return entry.visible && entry.references == 1U && entry.receiver != nullptr &&
+               entry.receiver->Texture() != 0U;
+    });
+    if (!hasDrawnStream) return;
+
     rlDrawRenderBatchActive();
     for (Entry& entry : entries_)
-        if (entry.visible && entry.references == 1) entry.receiver->EndFrame();
+        if (entry.visible && entry.references == 1U) entry.receiver->EndFrame();
 }
 Texture2D ExternalStreamRegistry::Resolve(const ExternalStreamGeometry& geometry) const
 {

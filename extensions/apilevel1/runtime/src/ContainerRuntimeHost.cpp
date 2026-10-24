@@ -5,6 +5,7 @@
  */
 
 #include "mfd/apilevel1/ContainerRuntimeHost.h"
+#include "ContainerRuntimeHostValidation.h"
 
 #include <array>
 #include <limits>
@@ -181,10 +182,25 @@ bool ContainerRuntimeHost::Evaluate(const std::vector<ContainerDefinition>& defi
         error = "LEVEL 1 container runtime extension is not loaded.";
         return false;
     }
+    if (definitions.size() > kMaximumContainerCount)
+    {
+        error = "LEVEL 1 layout exceeds the supported container count.";
+        output.clear();
+        return false;
+    }
 
     std::vector<MfdContainerChildV1> children;
     std::size_t childCount = 0U;
-    for (const ContainerDefinition& definition : definitions) childCount += definition.children.size();
+    for (const ContainerDefinition& definition : definitions)
+    {
+        if (definition.children.size() > kMaximumContainerCount - childCount)
+        {
+            error = "LEVEL 1 layout exceeds the supported ownership-edge count.";
+            output.clear();
+            return false;
+        }
+        childCount += definition.children.size();
+    }
     children.reserve(childCount);
     std::vector<MfdContainerDefinitionV1> abiDefinitions;
     abiDefinitions.reserve(definitions.size());
@@ -228,6 +244,11 @@ bool ContainerRuntimeHost::Evaluate(const std::vector<ContainerDefinition>& defi
     if (status != 0U || outputCount > layouts.size())
     {
         error = diagnostic[0] == '\0' ? "LEVEL 1 layout evaluation failed." : std::string(diagnostic.data());
+        output.clear();
+        return false;
+    }
+    if (!detail::ValidateContainerRuntimeOutput(layouts.data(), outputCount, definitions.size(), error))
+    {
         output.clear();
         return false;
     }

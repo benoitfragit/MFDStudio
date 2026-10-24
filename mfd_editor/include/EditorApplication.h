@@ -277,6 +277,8 @@ private:
     /** @brief Draws editor-DLL-provided controls for the selected container. */
     void DrawContainerInspector();
     void DrawSidebarWidgetsSection(float height);
+    /** @brief Draws widget create/library and selected-instance actions with the shared icon language. */
+    void DrawWidgetActionToolbar();
     void DrawWidgetInspector(bool definitionOnly = false);
     std::shared_ptr<const mfd::api1::WidgetDefinition> SelectedWidgetDefinition(bool definitionOnly);
     void DrawWidgetLibrary();

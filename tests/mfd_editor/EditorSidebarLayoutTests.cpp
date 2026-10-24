@@ -66,6 +66,45 @@ TEST(EditorSidebarLayoutTests, SanitizesInvalidInputs)
     EXPECT_FLOAT_EQ(layout.reticlesHeight, 0.0f);
 }
 
+TEST(EditorSidebarLayoutTests, CollapsedSectionsKeepOnlyTheirHeaderHeights)
+{
+    const editor::app::SidebarSectionLayoutResult layout =
+        editor::app::ComputeSidebarSectionLayout(
+            {600.0f, 8.0f, 220.0f, 36.0f, 36.0f, false, false});
+
+    EXPECT_FLOAT_EQ(layout.pagesHeight, 36.0f);
+    EXPECT_FLOAT_EQ(layout.sectionSpacing, 0.0f);
+    EXPECT_FLOAT_EQ(layout.reticlesHeight, 36.0f);
+}
+
+TEST(EditorSidebarLayoutTests, ExpandedSectionAbsorbsSpaceLeftByCollapsedPeer)
+{
+    const editor::app::SidebarSectionLayoutResult firstExpanded =
+        editor::app::ComputeSidebarSectionLayout(
+            {600.0f, 8.0f, 220.0f, 120.0f, 36.0f, true, false});
+    EXPECT_FLOAT_EQ(firstExpanded.pagesHeight, 564.0f);
+    EXPECT_FLOAT_EQ(firstExpanded.sectionSpacing, 0.0f);
+    EXPECT_FLOAT_EQ(firstExpanded.reticlesHeight, 36.0f);
+
+    const editor::app::SidebarSectionLayoutResult secondExpanded =
+        editor::app::ComputeSidebarSectionLayout(
+            {600.0f, 8.0f, 220.0f, 36.0f, 120.0f, false, true});
+    EXPECT_FLOAT_EQ(secondExpanded.pagesHeight, 36.0f);
+    EXPECT_FLOAT_EQ(secondExpanded.sectionSpacing, 0.0f);
+    EXPECT_FLOAT_EQ(secondExpanded.reticlesHeight, 564.0f);
+}
+
+TEST(EditorSidebarLayoutTests, TightHeightStillPreservesCollapsedHeadersProportionally)
+{
+    const editor::app::SidebarSectionLayoutResult layout =
+        editor::app::ComputeSidebarSectionLayout(
+            {40.0f, 8.0f, 220.0f, 30.0f, 30.0f, false, false});
+
+    EXPECT_FLOAT_EQ(layout.pagesHeight, 20.0f);
+    EXPECT_FLOAT_EQ(layout.sectionSpacing, 0.0f);
+    EXPECT_FLOAT_EQ(layout.reticlesHeight, 20.0f);
+}
+
 TEST(EditorSidebarLayoutTests, ContentAwarePreferredHeightGivesSpaceToThePopulatedSection)
 {
     EXPECT_FLOAT_EQ(editor::app::ResolveContentAwareSidebarPreferredHeight(

@@ -145,6 +145,29 @@ TEST(EditorWidgetPreviewController, CancelDisabledAndInvalidPointerCannotLeaveCa
     EXPECT_FALSE(controller.Update({}, layouts, widgets, invalid));
 }
 
+TEST(EditorWidgetPreviewController, DefinitionAndOverrideChangesResetStalePreviewValues)
+{
+    std::vector<mfd::api1::WidgetInstance> widgets {MakeWidget(mfd::api1::WidgetType::Slider, "Slider")};
+    std::vector<mfd::api1::ContainerLayoutNode> layouts = Evaluate(widgets);
+    editor::app::EditorWidgetPreviewController controller;
+    controller.SetEnabled(true);
+    controller.Update({}, layouts, widgets, Sample(0.18f, true, true, false));
+    controller.Update({}, layouts, widgets, Sample(0.18f, false, false, true));
+    EXPECT_GT(controller.PreviewState(0U, widgets[0], true, true).confirmed.value, 50.0);
+
+    auto replacement = std::make_shared<mfd::api1::WidgetDefinition>(*widgets[0].definition);
+    replacement->range = {0.0, 10.0, 1.0, 0U};
+    replacement->defaults.value = 4.0;
+    widgets[0].definition = std::move(replacement);
+    layouts = Evaluate(widgets);
+    EXPECT_FALSE(controller.Update({}, layouts, widgets, Sample(2.0f, false, false, false)));
+    EXPECT_DOUBLE_EQ(controller.PreviewState(0U, widgets[0], true, true).confirmed.value, 4.0);
+
+    widgets[0].overrides.value = 3.0;
+    controller.Update({}, layouts, widgets, Sample(2.0f, false, false, false));
+    EXPECT_DOUBLE_EQ(controller.PreviewState(0U, widgets[0], true, true).confirmed.value, 3.0);
+}
+
 TEST(EditorWidgetPreviewController, MaximumWidgetBudgetRemainsBoundedAcrossPointerFrames)
 {
     const auto sharedDefinition = MakeDefinition(mfd::api1::WidgetType::Button, "Shared");

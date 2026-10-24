@@ -84,8 +84,14 @@ private:
     struct Entry
     {
         std::string id;
+        const mfd::api1::WidgetDefinition* definition = nullptr;
+        mfd::api1::WidgetState authoredState;
         mfd::api1::WidgetState state;
     };
+
+    [[nodiscard]] static Entry BuildEntry(const mfd::api1::WidgetInstance& widget);
+    [[nodiscard]] static bool MatchesAuthoredState(const Entry& entry,
+                                                   const mfd::api1::WidgetInstance& widget) noexcept;
 
     bool enabled_ = false;
     std::string capturedWidgetId_;

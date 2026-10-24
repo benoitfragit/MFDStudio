@@ -24,6 +24,9 @@ You do not need to read this book linearly. Most users only need one path first.
 | Understand the JSON model | [Concepts](./concepts.md) |
 | Copy a short task-focused recipe | [Cookbook](./cookbook.md) |
 | Drive a window from a generated C++ client | [Generated Client API](./handbook/generated_api.md) |
+| Build nested, scrollable page layouts | [API LEVEL 1 Containers](./handbook/containers.md) |
+| Build reusable interactive controls | [API LEVEL 1 Widgets](./handbook/widgets.md) |
+| Display frames from a local GPU producer | [External GPU Streams](./handbook/external_stream.md) |
 | Embed the runtime offscreen in your app | [Offscreen Embedding](./handbook/offscreen.md) |
 | Capture raw runtime pixels | [Framebuffer Capture](./handbook/framebuffer.md) |
 | Author assets visually | [Editor](./handbook/editor.md) |
@@ -48,6 +51,9 @@ A visual tour of the runtime, editor, and client is in the
 | `mfd_editor` | Visual authoring tool for windows, pages, and reticles |
 | `offscreen_viewer` | Example embedding `mfd_runtime_api` and displaying offscreen images |
 | `mfd_framebuffer_stdout_plugin` | Sample framebuffer plugin for the `mfd_window` capture ABI |
+| `apilevel1_containers_client` | Generated client for the nested-layout example |
+| `apilevel1_widgets_client` | Generated feedback/acknowledgement client for the widget example |
+| `mfd_stream_demo` | Python-facing demonstration producer for external GPU streams |
 
 ## Where This Book Lives
 

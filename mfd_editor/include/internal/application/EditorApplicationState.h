@@ -514,6 +514,11 @@ struct LayoutState
     /** @brief User-chosen fraction (0..1) of the LEVEL 1 sidebar body given to Containers. */
     float sidebarContainersHeightFraction = 0.50f;
     float sidebarWidgetsSplitFraction = 0.50f;
+    /** @brief Session-scoped expanded state of each collapsible sidebar section. */
+    bool sidebarPagesExpanded = true;
+    bool sidebarReticlesExpanded = true;
+    bool sidebarContainersExpanded = true;
+    bool sidebarWidgetsExpanded = true;
     std::map<std::string, bool> inspectorSectionOpen {};
     bool libraryStudioShowPrimitiveLabels = true;
     bool libraryStudioShowGizmos = true;
