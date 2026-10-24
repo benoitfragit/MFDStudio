@@ -22,4 +22,14 @@ namespace mfd::detail
  * @return Number of commands removed by coalescing.
  */
 std::size_t CoalesceCommandBatch(CommandBatch& batch);
+
+/**
+ * @brief Decides whether the UDP worker must leave its idle wait.
+ * @param stopRequested Whether shutdown was requested.
+ * @param feedbackWakeRequested Whether a producer queued feedback since the last send attempt.
+ * @return `true` for shutdown or newly queued outbound feedback.
+ */
+[[nodiscard]] bool ShouldWakeUdpRuntimeBridgeWorker(
+    bool stopRequested,
+    bool feedbackWakeRequested) noexcept;
 } // namespace mfd::detail

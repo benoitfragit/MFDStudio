@@ -111,6 +111,45 @@ class GenerateUiTests(unittest.TestCase):
             self.assertEqual(explicit_map["primitives"], implicit_map["primitives"])
             self.assertNotIn("apiLevel", explicit_map)
 
+    def test_empty_page_class_suffix_derives_the_ui_name_on_python_37(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            page = root / "status.json"
+            window = root / "window.json"
+            output_header = root / "GeneratedUi.h"
+            page.write_text(
+                json.dumps(
+                    {
+                        "name": "Status Page",
+                        "layers": [{"id": "default"}],
+                        "staticReticles": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            window.write_text(json.dumps({"pages": [page.name]}), encoding="utf-8")
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(self.generator),
+                    "--window-json",
+                    str(window),
+                    "--output-header",
+                    str(output_header),
+                    "--output-source",
+                    str(root / "GeneratedUi.cpp"),
+                    "--output-map",
+                    str(root / "GeneratedUi.generated.map"),
+                    "--page-class-suffix",
+                    "",
+                    "--force-overwrite",
+                ],
+                check=True,
+            )
+
+            self.assertIn("class StatusMockupUi", output_header.read_text(encoding="utf-8"))
+
     def test_rejects_unsupported_and_malformed_api_levels(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

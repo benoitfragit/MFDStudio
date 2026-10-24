@@ -114,3 +114,38 @@ TEST(EditorFocusedStudioTests, RejectsLayoutsBeyondTheCombinedLevelOneLimit)
 
     EXPECT_TRUE(editor::app::CollectFocusedContainerLayouts(layouts, 0U).empty());
 }
+
+TEST(EditorFocusedStudioTests, ReusesLayoutUntilAnAuthoredMutationInvalidatesTheCache)
+{
+    mfd::PageDefinition page;
+    mfd::api1::ContainerDefinition container;
+    container.id = "panel";
+    container.geometry.size = {0.4f, 0.3f};
+    page.containers.push_back(container);
+
+    editor::app::FocusedStudioLayoutCache cache;
+    ASSERT_TRUE(cache.Resolve(page, 0U, true));
+    ASSERT_EQ(cache.Layouts().size(), 1U);
+    EXPECT_FLOAT_EQ(cache.Layouts().front().bounds.size.x, 0.4f);
+
+    page.containers.front().geometry.size.x = 0.8f;
+    ASSERT_TRUE(cache.Resolve(page, 0U, true));
+    EXPECT_FLOAT_EQ(cache.Layouts().front().bounds.size.x, 0.4f);
+
+    cache.Invalidate();
+    ASSERT_TRUE(cache.Resolve(page, 0U, true));
+    EXPECT_FLOAT_EQ(cache.Layouts().front().bounds.size.x, 0.8f);
+}
+
+TEST(EditorFocusedStudioTests, DetectsOnlyRealContainerGeometryChanges)
+{
+    const mfd::api1::ContainerRect initial {{0.1f, -0.2f}, {0.4f, 0.3f}};
+    mfd::api1::ContainerRect changed = initial;
+
+    EXPECT_FALSE(editor::app::ContainerGeometryChanged(initial, initial));
+    changed.size.x = 0.5f;
+    EXPECT_TRUE(editor::app::ContainerGeometryChanged(initial, changed));
+    changed = initial;
+    changed.center.y = 0.25f;
+    EXPECT_TRUE(editor::app::ContainerGeometryChanged(initial, changed));
+}

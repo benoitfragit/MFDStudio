@@ -729,7 +729,10 @@ bool EditorApplication::UpdateWidgetPreviewGesture(const ViewportState& viewport
     const mfd::Vec2 delta {pointer.x - widgetGesturePointer_.x, pointer.y - widgetGesturePointer_.y};
     std::string error;
     if (mfd::api1::WidgetEditorModel::ApplyGesture(*page, widgetGestureStart_, delta, widgetGestureResize_, error))
+    {
         widgetGestureChanged_ = true;
+        InvalidateFocusedLevel1StudioLayout();
+    }
     else if (!error.empty()) RebuildStatus(error, true);
     return true;
 }

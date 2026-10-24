@@ -1431,7 +1431,7 @@ def derive_ui_class_name(window_root: dict,
         if page_class_suffix and base_name.endswith(page_class_suffix):
             base_name = base_name[:-len(page_class_suffix)]
         elif base_name.endswith("Page"):
-            base_name = base_name.removesuffix("Page")
+            base_name = base_name[:-len("Page")]
         return f"{base_name}{ui_class_suffix}"
 
     title = window_root.get("title")

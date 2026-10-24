@@ -1,9 +1,11 @@
 #include "mfd/apilevel1/widgets/WidgetEditorHost.h"
 #include "EditorUiTheme.h"
+#include "WidgetEditorHostInternal.h"
 #include <imgui.h>
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
 #if defined(_WIN32)
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -12,6 +14,28 @@
 #endif
 namespace mfd::api1
 {
+namespace internal
+{
+namespace
+{
+bool HasNullTerminator(const char* value, const std::size_t capacity) noexcept
+{
+    return std::memchr(value, '\0', capacity) != nullptr;
+}
+} // namespace
+
+bool IsWidgetEditorDraftValidAfterDraw(const MfdWidgetEditorDraftV1& draft) noexcept
+{
+    return draft.struct_size == sizeof(MfdWidgetEditorDraftV1) &&
+           HasNullTerminator(draft.id, sizeof(draft.id)) &&
+           HasNullTerminator(draft.parent, sizeof(draft.parent)) &&
+           HasNullTerminator(draft.text, sizeof(draft.text)) &&
+           HasNullTerminator(draft.definition_id, sizeof(draft.definition_id)) &&
+           HasNullTerminator(draft.default_text, sizeof(draft.default_text)) &&
+           HasNullTerminator(draft.binding_primitive, sizeof(draft.binding_primitive));
+}
+} // namespace internal
+
 namespace
 {
 void MFD_WIDGET_EDITOR_CALL Text(void*, const char* label) { ImGui::TextWrapped("%s", label); }
@@ -110,6 +134,7 @@ std::uint32_t WidgetEditorHost::Draw(MfdWidgetEditorDraftV1& draft) const
 {
     if (!IsLoaded()) return 0;
     const MfdWidgetEditorUiV1 ui {sizeof(ui), 1U, nullptr, Text, Input, Checkbox, Number, Combo, Button};
-    return impl_->api.draw(&ui, &draft) & 127U;
+    const std::uint32_t actions = impl_->api.draw(&ui, &draft);
+    return internal::IsWidgetEditorDraftValidAfterDraw(draft) ? actions & 127U : 0U;
 }
 }

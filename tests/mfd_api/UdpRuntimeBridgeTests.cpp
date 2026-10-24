@@ -371,6 +371,14 @@ mfd::UserCommand MakeGeneratedDynamicSetStrobeMagnetCommand(const bool enabled)
 }
 } // namespace
 
+TEST(UdpRuntimeBridgeTests, IdleWorkerWakesForFeedbackAndShutdown)
+{
+    EXPECT_FALSE(mfd::detail::ShouldWakeUdpRuntimeBridgeWorker(false, false));
+    EXPECT_TRUE(mfd::detail::ShouldWakeUdpRuntimeBridgeWorker(false, true));
+    EXPECT_TRUE(mfd::detail::ShouldWakeUdpRuntimeBridgeWorker(true, false));
+    EXPECT_TRUE(mfd::detail::ShouldWakeUdpRuntimeBridgeWorker(true, true));
+}
+
 TEST(UdpRuntimeBridgeTests, DrainsReceivedBatchesFromWorkerQueue)
 {
     auto receiverState = std::make_shared<FakeChannelState>();

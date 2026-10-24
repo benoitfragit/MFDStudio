@@ -41,6 +41,7 @@
 #include "EditorReticleRenameService.h"
 #include "EditorReticleUsageHighlightService.h"
 #include "EditorUndoHistory.h"
+#include "internal/application/EditorFocusedStudio.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/Reticle.h"
 #include "BezierPolylineCache.h"
@@ -400,10 +401,8 @@ struct PreviewState
     std::vector<mfd::api1::ContainerLayoutNode> widgetInteractionLayouts {};
     /** @brief Whether widgetInteractionLayouts belongs to the active page rendered this frame. */
     bool widgetInteractionLayoutValid = false;
-    /** @brief Selected LEVEL 1 subtree resolved once and reused by focused-studio overlays and input. */
-    std::vector<mfd::api1::ContainerLayoutNode> focusedStudioLayouts {};
-    /** @brief Whether focusedStudioLayouts matches the focused studio content rendered this frame. */
-    bool focusedStudioLayoutValid = false;
+    /** @brief Derived LEVEL 1 layout and visuals reused until an authored mutation invalidates them. */
+    FocusedStudioLayoutCache focusedStudioLayoutCache {};
     mfd::BezierPolylineCache previewBezierCache {};
     mfd::ImageTextureCache previewImageCache {};
     mfd::ExternalStreamRegistry externalStreams {};
@@ -489,6 +488,8 @@ struct InteractionState
     std::vector<mfd::Transform2D> startReticleTransforms {};
     mfd::Primitive startPrimitive {};
     mfd::api1::ContainerRect startContainerGeometry {};
+    /** @brief Prevents one continuous container resize from recording more than one undo snapshot. */
+    bool containerResizeUndoRecorded = false;
     std::string containerId {};
     mfd::Vec2 startMouseLogical {};
     mfd::Vec2 startMouseReticleLocal {};

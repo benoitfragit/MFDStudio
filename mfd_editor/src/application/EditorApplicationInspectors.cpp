@@ -145,6 +145,7 @@ void EditorApplication::ApplyContainerInspectorEdit(mfd::api1::ContainerInspecto
     }
     lastContainerInspectorGesture_ = edit.gesture;
     workflowState_.documentDirty = true;
+    InvalidateFocusedLevel1StudioLayout();
     InvalidateReticleUsageHighlightCache();
     InvalidateLayerPreviewThumbnails();
     rollback.Commit();

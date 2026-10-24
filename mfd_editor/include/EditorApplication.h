@@ -423,6 +423,10 @@ private:
     void HandleFocusedLevel1StudioInteraction(const ViewportState& viewport);
     /** @brief Fits the focused studio camera to the selected asset. */
     void ResetFocusedLevel1StudioView(const ViewportState& viewport) noexcept;
+    /** @brief Resolves the cached layout for the selected page-local Widget or Container. */
+    [[nodiscard]] bool ResolveFocusedLevel1StudioLayout(const mfd::PageDefinition& page);
+    /** @brief Invalidates focused-studio layout and visual data after an authored mutation. */
+    void InvalidateFocusedLevel1StudioLayout() noexcept;
     /** @brief Draws the always-visible menu-bar View entry whose content adapts to the active workspace. */
     void DrawViewMenu();
     /** @brief Draws the sidebar and inspector visibility toggles shared by every View-menu context. */

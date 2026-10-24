@@ -661,6 +661,12 @@ std::size_t mfd::detail::CoalesceCommandBatch(CommandBatch& batch)
     return CommandCoalescer {}.Coalesce(batch);
 }
 
+bool mfd::detail::ShouldWakeUdpRuntimeBridgeWorker(const bool stopRequested,
+                                                   const bool feedbackWakeRequested) noexcept
+{
+    return stopRequested || feedbackWakeRequested;
+}
+
 struct UdpRuntimeBridge::Impl
 {
     WindowCommandTransportConfig commandConfig {};
@@ -686,6 +692,8 @@ struct UdpRuntimeBridge::Impl
 
     std::thread worker;
     bool stopRequested = false;
+    /** @brief State-mutex-protected producer signal consumed before each feedback flush attempt. */
+    bool feedbackWakeRequested = false;
     bool running = false;
     bool hasCommandReceiver = false;
     bool hasFeedbackSender = false;
@@ -811,11 +819,20 @@ struct UdpRuntimeBridge::Impl
             IncrementCounter(counters.feedbackQueued);
         }
 
+        {
+            std::lock_guard lock(stateMutex);
+            feedbackWakeRequested = true;
+        }
+
         waitCondition.notify_all();
     }
 
     bool FlushQueuedFeedback()
     {
+        {
+            std::lock_guard lock(stateMutex);
+            feedbackWakeRequested = false;
+        }
         if (!IsFeedbackReady() || feedbackSender == nullptr)
         {
             return false;
@@ -1035,7 +1052,8 @@ bool UdpRuntimeBridge::Start()
                         kIdleWait,
                         [impl]()
                         {
-                            return impl->stopRequested;
+                            return detail::ShouldWakeUdpRuntimeBridgeWorker(
+                                impl->stopRequested, impl->feedbackWakeRequested);
                         });
                 }
             }
@@ -1091,6 +1109,10 @@ void UdpRuntimeBridge::Stop() noexcept
     {
         std::lock_guard lock(impl_->outboundMutex);
         impl_->outboundFeedback.clear();
+    }
+    {
+        std::lock_guard lock(impl_->stateMutex);
+        impl_->feedbackWakeRequested = false;
     }
 }
 

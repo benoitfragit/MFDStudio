@@ -62,7 +62,9 @@ def resolve_asset(base, root, reference):
     if not isinstance(reference, str) or not reference or len(reference) > 4096 or "\0" in reference or Path(reference).is_absolute():
         raise RuntimeError("Widget references must be relative paths")
     path = (base / reference).resolve()
-    if not path.is_relative_to(root.resolve()):
+    try:
+        path.relative_to(root.resolve())
+    except ValueError:
         raise RuntimeError("Widget dependency escapes the asset root")
     return path
 

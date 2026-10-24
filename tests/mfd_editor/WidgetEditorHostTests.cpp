@@ -10,7 +10,9 @@
  */
 
 #include "mfd/apilevel1/widgets/WidgetEditorHost.h"
+#include "WidgetEditorHostInternal.h"
 
+#include <algorithm>
 #include <filesystem>
 
 #include <gtest/gtest.h>
@@ -80,4 +82,43 @@ TEST_F(WidgetEditorHostFrame, NumericFieldsRenderWithoutTriggeringAnImGuiAsserti
 #else
     GTEST_SKIP() << "The widget editor host currently loads extension modules through Win32.";
 #endif
+}
+
+TEST(WidgetEditorHostValidation, RejectsEveryUnterminatedDllOwnedBuffer)
+{
+    MfdWidgetEditorDraftV1 validDraft {};
+    validDraft.struct_size = sizeof(validDraft);
+    ASSERT_TRUE(mfd::api1::internal::IsWidgetEditorDraftValidAfterDraw(validDraft));
+
+    MfdWidgetEditorDraftV1 draft = validDraft;
+    std::fill(std::begin(draft.id), std::end(draft.id), 'x');
+    EXPECT_FALSE(mfd::api1::internal::IsWidgetEditorDraftValidAfterDraw(draft));
+
+    draft = validDraft;
+    std::fill(std::begin(draft.parent), std::end(draft.parent), 'x');
+    EXPECT_FALSE(mfd::api1::internal::IsWidgetEditorDraftValidAfterDraw(draft));
+
+    draft = validDraft;
+    std::fill(std::begin(draft.text), std::end(draft.text), 'x');
+    EXPECT_FALSE(mfd::api1::internal::IsWidgetEditorDraftValidAfterDraw(draft));
+
+    draft = validDraft;
+    std::fill(std::begin(draft.definition_id), std::end(draft.definition_id), 'x');
+    EXPECT_FALSE(mfd::api1::internal::IsWidgetEditorDraftValidAfterDraw(draft));
+
+    draft = validDraft;
+    std::fill(std::begin(draft.default_text), std::end(draft.default_text), 'x');
+    EXPECT_FALSE(mfd::api1::internal::IsWidgetEditorDraftValidAfterDraw(draft));
+
+    draft = validDraft;
+    std::fill(std::begin(draft.binding_primitive), std::end(draft.binding_primitive), 'x');
+    EXPECT_FALSE(mfd::api1::internal::IsWidgetEditorDraftValidAfterDraw(draft));
+}
+
+TEST(WidgetEditorHostValidation, RejectsAChangedDraftStructureSize)
+{
+    MfdWidgetEditorDraftV1 draft {};
+    draft.struct_size = sizeof(draft) - 1U;
+
+    EXPECT_FALSE(mfd::api1::internal::IsWidgetEditorDraftValidAfterDraw(draft));
 }
