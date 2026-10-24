@@ -759,6 +759,13 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
     const int visiblePages = CountVisibleSidebarPages(filter, problems);
     const int visibleReticles = CountVisibleSidebarReticles(filter, problems);
     const bool containersEnabled = documentState_.loaded.window.apiLevel == mfd::ApiLevel::Level1;
+    const mfd::PageDefinition* activePage = ActivePage();
+    const std::size_t containerCount = activePage == nullptr ? 0U : activePage->containers.size();
+    const std::size_t widgetCount = activePage == nullptr ? 0U : activePage->widgets.size();
+    const bool pagesHaveContent = visiblePages > 0;
+    const bool reticlesHaveContent = visibleReticles > 0;
+    const bool containersHaveContent = containerCount > 0U;
+    const bool widgetsHaveContent = widgetCount > 0U;
 
     const float sidebarBodyHeight = std::max(0.0f, ImGui::GetContentRegionAvail().y);
     const float sidebarBodyWidth = std::max(0.0f, ImGui::GetContentRegionAvail().x);
@@ -769,25 +776,44 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
         ImGui::GetStyle().ItemSpacing.y;
     const float minSectionHeight =
         sectionChromeHeight + sectionRowHeight * kSidebarSectionMinVisibleRows;
+    const float emptySectionHeight = sectionChromeHeight + sectionRowHeight;
+    const float pagesMinimumHeight = pagesHaveContent ? minSectionHeight : emptySectionHeight;
+    const float reticlesMinimumHeight = reticlesHaveContent ? minSectionHeight : emptySectionHeight;
+    const float containersMinimumHeight = containersHaveContent ? minSectionHeight : emptySectionHeight;
+    const float widgetsMinimumHeight = widgetsHaveContent ? minSectionHeight : emptySectionHeight;
 
-    // Both LEVEL 1 splits are user-driven. The outer split reserves the lower Containers section;
-    // the inner split keeps the existing Pages/Reticle behavior unchanged inside the upper region.
+    // Persisted splitter fractions remain authoritative when both peers contain data. An empty
+    // section keeps only its header, toolbar and empty-state row so it cannot starve its populated
+    // peer. Splitters are hidden when there is no meaningful pair to resize.
     const float splitterThickness = editor::ui::kPaneSplitterWidth;
+    const bool upperHasContent = pagesHaveContent || reticlesHaveContent;
+    const bool lowerHasContent = containersHaveContent || widgetsHaveContent;
+    const float upperSplitter = pagesHaveContent && reticlesHaveContent ? splitterThickness : 0.0f;
+    const float lowerSplitter = containersHaveContent && widgetsHaveContent ? splitterThickness : 0.0f;
+    const float outerSplitter = upperHasContent && lowerHasContent ? splitterThickness : 0.0f;
+    const float upperMinimumHeight = pagesMinimumHeight + reticlesMinimumHeight + upperSplitter;
+    const float lowerMinimumHeight = containersMinimumHeight + widgetsMinimumHeight + lowerSplitter;
     editor::app::SidebarSectionLayoutResult outerLayout;
     float outerDistributableHeight = 0.0f;
     if (containersEnabled)
     {
-        outerDistributableHeight = std::max(0.0f, sidebarBodyHeight - splitterThickness);
-        const float containerFraction =
-            std::clamp(layoutState_.sidebarContainersHeightFraction, 0.0f, 1.0f);
-        const float upperPreferredHeight = outerDistributableHeight * (1.0f - containerFraction);
-        const float upperMinimumHeight = 2.0f * minSectionHeight + splitterThickness;
+        outerDistributableHeight = std::max(0.0f, sidebarBodyHeight - outerSplitter);
+        const float upperPreferredFraction =
+            1.0f - std::clamp(layoutState_.sidebarContainersHeightFraction, 0.0f, 1.0f);
+        const bool upperAbsorbsUnusedHeight = upperHasContent || !lowerHasContent;
+        const float upperPreferredHeight = editor::app::ResolveContentAwareSidebarPreferredHeight(
+            outerDistributableHeight,
+            upperPreferredFraction,
+            upperAbsorbsUnusedHeight,
+            lowerHasContent,
+            upperMinimumHeight,
+            lowerMinimumHeight);
         outerLayout = editor::app::ComputeSidebarSectionLayout(
             {sidebarBodyHeight,
-             splitterThickness,
+             outerSplitter,
              upperPreferredHeight,
              upperMinimumHeight,
-             minSectionHeight});
+             lowerMinimumHeight});
     }
     else
     {
@@ -795,12 +821,23 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
     }
 
     const float upperBodyHeight = outerLayout.pagesHeight;
-    const float distributableHeight = std::max(0.0f, upperBodyHeight - splitterThickness);
+    const float distributableHeight = std::max(0.0f, upperBodyHeight - upperSplitter);
     const float pagesFraction = std::clamp(layoutState_.sidebarPagesSplitFraction, 0.0f, 1.0f);
-    const float pagesPreferredHeight = distributableHeight * pagesFraction;
+    const bool pagesAbsorbUnusedHeight = pagesHaveContent || !reticlesHaveContent;
+    const float pagesPreferredHeight = editor::app::ResolveContentAwareSidebarPreferredHeight(
+        distributableHeight,
+        pagesFraction,
+        pagesAbsorbUnusedHeight,
+        reticlesHaveContent,
+        pagesMinimumHeight,
+        reticlesMinimumHeight);
     const editor::app::SidebarSectionLayoutResult sectionLayout =
         editor::app::ComputeSidebarSectionLayout(
-            {upperBodyHeight, splitterThickness, pagesPreferredHeight, minSectionHeight, minSectionHeight});
+            {upperBodyHeight,
+             upperSplitter,
+             pagesPreferredHeight,
+             pagesMinimumHeight,
+             reticlesMinimumHeight});
 
     DrawSidebarPagesSection(filter, problems, visiblePages, sectionLayout.pagesHeight);
     if (sectionLayout.sectionSpacing > 0.0f)
@@ -827,14 +864,26 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
             ShowItemTooltip("Drag to resize the Reticle library and Containers sections.");
         }
         const float lowerHeight = outerLayout.reticlesHeight;
+        const float lowerDistributableHeight = std::max(0.0f, lowerHeight - lowerSplitter);
+        const bool containersAbsorbUnusedHeight = containersHaveContent || !widgetsHaveContent;
+        const float containersPreferredHeight = editor::app::ResolveContentAwareSidebarPreferredHeight(
+            lowerDistributableHeight,
+            layoutState_.sidebarWidgetsSplitFraction,
+            containersAbsorbUnusedHeight,
+            widgetsHaveContent,
+            containersMinimumHeight,
+            widgetsMinimumHeight);
         const auto lowerLayout = editor::app::ComputeSidebarSectionLayout(
-            {lowerHeight, splitterThickness, lowerHeight * layoutState_.sidebarWidgetsSplitFraction,
-             minSectionHeight, minSectionHeight});
+            {lowerHeight,
+             lowerSplitter,
+             containersPreferredHeight,
+             containersMinimumHeight,
+             widgetsMinimumHeight});
         DrawSidebarContainersSection(lowerLayout.pagesHeight);
         if (lowerLayout.sectionSpacing > 0.0f && editor::ui::DrawHorizontalSplitter(
                 "##SidebarWidgetsSplitter", sidebarBodyWidth, lowerLayout.sectionSpacing))
             layoutState_.sidebarWidgetsSplitFraction = editor::app::ResolveSidebarPagesFraction(
-                lowerLayout.pagesHeight, ImGui::GetIO().MouseDelta.y, std::max(0.0f, lowerHeight - splitterThickness));
+                lowerLayout.pagesHeight, ImGui::GetIO().MouseDelta.y, lowerDistributableHeight);
         DrawSidebarWidgetsSection(lowerLayout.reticlesHeight);
         DrawWidgetLibrary();
     }

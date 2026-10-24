@@ -311,6 +311,19 @@ void PaintSmartSelect(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 c
                                col);
 }
 
+void PaintWidgetInteraction(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
+{
+    // Pointer plus response ring: direct manipulation with immediate semantic feedback.
+    const ImVec2 pointer(m.center.x - m.radius * 0.72f, m.center.y - m.radius * 0.82f);
+    drawList.AddTriangleFilled(pointer,
+                               ImVec2(pointer.x + m.radius * 0.16f, pointer.y + m.radius * 1.55f),
+                               ImVec2(pointer.x + m.radius * 0.66f, pointer.y + m.radius * 1.03f),
+                               col);
+    const ImVec2 responseCenter(m.center.x + m.radius * 0.48f, m.center.y - m.radius * 0.42f);
+    drawList.AddCircle(responseCenter, m.radius * 0.42f, col, 0, m.thickness);
+    drawList.AddCircleFilled(responseCenter, std::max(1.0f, m.thickness * 0.62f), col);
+}
+
 void PaintInwardCornerArrow(ImDrawList& drawList,
                             const ImVec2 corner,
                             const float signX,
@@ -411,6 +424,9 @@ void PaintGlyph(ImDrawList& drawList, const EditorIcon icon, const ImVec2& topLe
         return;
     case EditorIcon::FitToPage:
         PaintFitToPage(drawList, metrics, col);
+        return;
+    case EditorIcon::WidgetInteraction:
+        PaintWidgetInteraction(drawList, metrics, col);
         return;
     }
 }

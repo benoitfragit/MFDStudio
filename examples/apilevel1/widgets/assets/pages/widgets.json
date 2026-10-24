@@ -1,10 +1,434 @@
 {
   "name": "Widgets",
-  "title": "AVIONICS | SYS/STAT",
-  "bg": "#060C10FF",
+  "title": "FUEL | SYNOPTIC",
+  "titleDisplay": {
+    "visible": false
+  },
+  "bg": "#040709FF",
   "layers": [
     {
       "id": "main"
+    }
+  ],
+  "staticReticles": [
+    {
+      "id": "FuelTitle",
+      "layerId": "main",
+      "elements": [
+        {
+          "id": "Text",
+          "type": "text",
+          "text": "FUEL",
+          "fontSize": 0.068,
+          "letterSpacing": 0.0008,
+          "align": "left",
+          "color": [
+            231,
+            239,
+            241,
+            255
+          ],
+          "position": [
+            -0.67,
+            0.82
+          ]
+        }
+      ]
+    },
+    {
+      "id": "FuelSubtitle",
+      "layerId": "main",
+      "elements": [
+        {
+          "id": "Text",
+          "type": "text",
+          "text": "SYSTEM / TRANSFER",
+          "fontSize": 0.023,
+          "letterSpacing": 0.0008,
+          "align": "left",
+          "color": [
+            130,
+            151,
+            158,
+            255
+          ],
+          "position": [
+            -0.67,
+            0.755
+          ]
+        }
+      ]
+    },
+    {
+      "id": "FuelStatus",
+      "layerId": "main",
+      "elements": [
+        {
+          "id": "Text",
+          "type": "text",
+          "text": "NORM",
+          "fontSize": 0.029,
+          "letterSpacing": 0.0008,
+          "align": "right",
+          "color": [
+            65,
+            239,
+            93,
+            255
+          ],
+          "position": [
+            0.67,
+            0.82
+          ]
+        }
+      ]
+    },
+    {
+      "id": "LeftEngine",
+      "layerId": "main",
+      "elements": [
+        {
+          "id": "Text",
+          "type": "text",
+          "text": "1",
+          "fontSize": 0.045,
+          "letterSpacing": 0.0008,
+          "align": "center",
+          "color": [
+            231,
+            239,
+            241,
+            255
+          ],
+          "position": [
+            -0.43,
+            0.705
+          ]
+        }
+      ]
+    },
+    {
+      "id": "RightEngine",
+      "layerId": "main",
+      "elements": [
+        {
+          "id": "Text",
+          "type": "text",
+          "text": "2",
+          "fontSize": 0.045,
+          "letterSpacing": 0.0008,
+          "align": "center",
+          "color": [
+            231,
+            239,
+            241,
+            255
+          ],
+          "position": [
+            0.43,
+            0.705
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ManifoldLegend",
+      "layerId": "main",
+      "elements": [
+        {
+          "id": "Text",
+          "type": "text",
+          "text": "CROSSFEED",
+          "fontSize": 0.024,
+          "letterSpacing": 0.0008,
+          "align": "center",
+          "color": [
+            231,
+            239,
+            241,
+            255
+          ],
+          "position": [
+            0,
+            0.53
+          ]
+        }
+      ]
+    },
+    {
+      "id": "LeftEngineFeed",
+      "layerId": "main",
+      "elements": [
+        {
+          "id": "Pipe",
+          "type": "line",
+          "start": [
+            -0.43,
+            0.5660000000000001
+          ],
+          "end": [
+            -0.43,
+            0.66
+          ],
+          "color": [
+            65,
+            239,
+            93,
+            255
+          ],
+          "thickness": 0.0025
+        },
+        {
+          "id": "FlowArrow",
+          "type": "polyline",
+          "points": [
+            [
+              -0.442,
+              0.603
+            ],
+            [
+              -0.43,
+              0.623
+            ],
+            [
+              -0.418,
+              0.603
+            ]
+          ],
+          "color": [
+            65,
+            239,
+            93,
+            255
+          ],
+          "thickness": 0.002
+        }
+      ]
+    },
+    {
+      "id": "RightEngineFeed",
+      "layerId": "main",
+      "elements": [
+        {
+          "id": "Pipe",
+          "type": "line",
+          "start": [
+            0.43,
+            0.5660000000000001
+          ],
+          "end": [
+            0.43,
+            0.66
+          ],
+          "color": [
+            65,
+            239,
+            93,
+            255
+          ],
+          "thickness": 0.0025
+        },
+        {
+          "id": "FlowArrow",
+          "type": "polyline",
+          "points": [
+            [
+              0.418,
+              0.603
+            ],
+            [
+              0.43,
+              0.623
+            ],
+            [
+              0.442,
+              0.603
+            ]
+          ],
+          "color": [
+            65,
+            239,
+            93,
+            255
+          ],
+          "thickness": 0.002
+        }
+      ]
+    },
+    {
+      "id": "LeftTankFeed",
+      "layerId": "main",
+      "elements": [
+        {
+          "id": "Pipe",
+          "type": "line",
+          "start": [
+            -0.43,
+            0.188
+          ],
+          "end": [
+            -0.43,
+            0.49400000000000005
+          ],
+          "color": [
+            65,
+            239,
+            93,
+            255
+          ],
+          "thickness": 0.0025
+        }
+      ]
+    },
+    {
+      "id": "RightTankFeed",
+      "layerId": "main",
+      "elements": [
+        {
+          "id": "Pipe",
+          "type": "line",
+          "start": [
+            0.43,
+            0.188
+          ],
+          "end": [
+            0.43,
+            0.49400000000000005
+          ],
+          "color": [
+            65,
+            239,
+            93,
+            255
+          ],
+          "thickness": 0.0025
+        }
+      ]
+    },
+    {
+      "id": "LeftManifold",
+      "layerId": "main",
+      "elements": [
+        {
+          "id": "Pipe",
+          "type": "line",
+          "start": [
+            -0.43,
+            0.38
+          ],
+          "end": [
+            -0.036,
+            0.38
+          ],
+          "color": [
+            65,
+            239,
+            93,
+            255
+          ],
+          "thickness": 0.0025
+        }
+      ]
+    },
+    {
+      "id": "RightManifold",
+      "layerId": "main",
+      "elements": [
+        {
+          "id": "Pipe",
+          "type": "line",
+          "start": [
+            0.036,
+            0.38
+          ],
+          "end": [
+            0.43,
+            0.38
+          ],
+          "color": [
+            65,
+            239,
+            93,
+            255
+          ],
+          "thickness": 0.0025
+        }
+      ]
+    },
+    {
+      "id": "CenterTankFeed",
+      "layerId": "main",
+      "elements": [
+        {
+          "id": "Pipe",
+          "type": "line",
+          "start": [
+            0,
+            0.188
+          ],
+          "end": [
+            0,
+            0.34400000000000003
+          ],
+          "color": [
+            65,
+            239,
+            93,
+            255
+          ],
+          "thickness": 0.0025
+        }
+      ]
+    },
+    {
+      "id": "InstrumentRule",
+      "layerId": "main",
+      "elements": [
+        {
+          "id": "Rule",
+          "type": "line",
+          "start": [
+            -0.67,
+            -0.315
+          ],
+          "end": [
+            0.67,
+            -0.315
+          ],
+          "color": [
+            57,
+            77,
+            85,
+            255
+          ],
+          "thickness": 0.0015
+        }
+      ]
+    },
+    {
+      "id": "FooterRule",
+      "layerId": "main",
+      "elements": [
+        {
+          "id": "Rule",
+          "type": "line",
+          "start": [
+            -0.67,
+            -0.745
+          ],
+          "end": [
+            0.67,
+            -0.745
+          ],
+          "color": [
+            57,
+            77,
+            85,
+            255
+          ],
+          "thickness": 0.0015
+        }
+      ]
     }
   ],
   "containers": [
@@ -12,172 +436,88 @@
       "id": "Panel",
       "type": "canvas",
       "size": [
-        1.9,
-        1.36
-      ],
-      "position": [
-        0,
-        -0.12
-      ],
-      "children": [
-        {
-          "id": "Grid"
-        }
+        2.1,
+        1.8
       ],
       "appearance": {
-        "backgroundVisible": true,
-        "backgroundColor": [
-          8,
-          18,
-          20,
-          255
-        ],
-        "borderVisible": true,
-        "borderColor": [
-          47,
-          78,
-          64,
-          255
-        ]
-      }
-    },
-    {
-      "id": "Grid",
-      "type": "grid",
-      "size": [
-        1.78,
-        1.24
-      ],
-      "padding": 0.04,
-      "spacing": 0.035,
-      "grid": {
-        "rows": 4,
-        "columns": 3
+        "backgroundVisible": false,
+        "borderVisible": false
       },
       "children": [
         {
-          "id": "CellCanvas",
-          "row": 0,
-          "column": 0,
-          "horizontalAlignment": "stretch",
-          "verticalAlignment": "stretch"
+          "id": "FuelSynoptic"
         },
         {
-          "id": "ToggleB",
-          "kind": "widget",
-          "row": 0,
-          "column": 1,
-          "horizontalAlignment": "center",
-          "verticalAlignment": "center"
+          "id": "LeftControls"
         },
         {
-          "id": "PrivateButton",
-          "kind": "widget",
-          "row": 0,
-          "column": 2,
-          "horizontalAlignment": "center",
-          "verticalAlignment": "center"
+          "id": "RightControls"
         },
         {
-          "id": "Checkbox",
-          "kind": "widget",
-          "row": 1,
-          "column": 0,
-          "horizontalAlignment": "center",
-          "verticalAlignment": "center"
+          "id": "FuelInstruments"
         },
         {
-          "id": "Radio",
-          "kind": "widget",
-          "row": 1,
-          "column": 1,
-          "horizontalAlignment": "center",
-          "verticalAlignment": "center"
-        },
+          "id": "AnnunciatorOverlay"
+        }
+      ]
+    },
+    {
+      "id": "FuelSynoptic",
+      "name": "Aircraft fuel schematic",
+      "type": "canvas",
+      "size": [
+        1.44,
+        1.34
+      ],
+      "appearance": {
+        "backgroundVisible": false,
+        "borderVisible": false
+      },
+      "children": [
         {
-          "id": "Slider",
-          "kind": "widget",
-          "row": 1,
-          "column": 2,
-          "horizontalAlignment": "center",
-          "verticalAlignment": "center"
-        },
-        {
-          "id": "Knob",
-          "kind": "widget",
-          "row": 2,
-          "column": 0,
-          "horizontalAlignment": "center",
-          "verticalAlignment": "center"
-        },
-        {
-          "id": "Gauge",
-          "kind": "widget",
-          "row": 2,
-          "column": 1,
-          "horizontalAlignment": "center",
-          "verticalAlignment": "center"
+          "id": "LeftTank",
+          "kind": "widget"
         },
         {
           "id": "ProgressBar",
-          "kind": "widget",
-          "row": 2,
-          "column": 2,
-          "horizontalAlignment": "center",
-          "verticalAlignment": "center"
+          "kind": "widget"
         },
         {
-          "id": "Indicator",
-          "kind": "widget",
-          "row": 3,
-          "column": 0,
-          "horizontalAlignment": "center",
-          "verticalAlignment": "center"
+          "id": "RightTank",
+          "kind": "widget"
         },
         {
-          "id": "NumericDisplay",
-          "kind": "widget",
-          "row": 3,
-          "column": 1,
-          "horizontalAlignment": "center",
-          "verticalAlignment": "center"
+          "id": "LeftValve",
+          "kind": "widget"
         },
         {
-          "id": "Label",
-          "kind": "widget",
-          "row": 3,
-          "column": 2,
-          "horizontalAlignment": "center",
-          "verticalAlignment": "center"
+          "id": "RightValve",
+          "kind": "widget"
+        },
+        {
+          "id": "RootToggle",
+          "kind": "widget"
         }
       ]
     },
     {
-      "id": "CellCanvas",
-      "type": "canvas",
-      "size": [
-        0.54,
-        0.26
-      ],
-      "children": [
-        {
-          "id": "ScrollLinear",
-          "resizeMode": "stretch"
-        }
-      ]
-    },
-    {
-      "id": "ScrollLinear",
+      "id": "LeftControls",
+      "name": "Pump controls",
       "type": "linear",
+      "position": [
+        -0.88,
+        0.19
+      ],
       "size": [
-        0.52,
-        0.24
+        0.28,
+        0.72
       ],
       "orientation": "vertical",
-      "spacing": 0.025,
-      "scrolling": {
-        "vertical": "automatic",
-        "clipContent": true
+      "alignment": "center",
+      "spacing": 0.045,
+      "appearance": {
+        "backgroundVisible": false,
+        "borderVisible": false
       },
       "children": [
         {
@@ -185,7 +525,164 @@
           "kind": "widget"
         },
         {
+          "id": "Checkbox",
+          "kind": "widget"
+        },
+        {
+          "id": "ScrollLinear"
+        }
+      ]
+    },
+    {
+      "id": "ScrollLinear",
+      "name": "Pump status",
+      "type": "linear",
+      "size": [
+        0.28,
+        0.15
+      ],
+      "orientation": "vertical",
+      "spacing": 0.02,
+      "appearance": {
+        "backgroundVisible": false,
+        "borderVisible": false
+      },
+      "scrolling": {
+        "vertical": "automatic",
+        "clipContent": true,
+        "appearance": {
+          "trackColor": [
+            13,
+            19,
+            23,
+            255
+          ],
+          "thumbColor": [
+            57,
+            77,
+            85,
+            255
+          ],
+          "hoverColor": [
+            108,
+            200,
+            218,
+            255
+          ],
+          "activeColor": [
+            65,
+            239,
+            93,
+            255
+          ],
+          "thickness": 0.007,
+          "minimumThumbSize": 0.045
+        }
+      },
+      "children": [
+        {
           "id": "ScrollLabel",
+          "kind": "widget"
+        },
+        {
+          "id": "PumpStatusLabel",
+          "kind": "widget"
+        }
+      ]
+    },
+    {
+      "id": "RightControls",
+      "name": "Feed controls",
+      "type": "linear",
+      "position": [
+        0.88,
+        0.19
+      ],
+      "size": [
+        0.28,
+        0.72
+      ],
+      "orientation": "vertical",
+      "alignment": "center",
+      "spacing": 0.045,
+      "appearance": {
+        "backgroundVisible": false,
+        "borderVisible": false
+      },
+      "children": [
+        {
+          "id": "ToggleB",
+          "kind": "widget"
+        },
+        {
+          "id": "Radio",
+          "kind": "widget"
+        },
+        {
+          "id": "Indicator",
+          "kind": "widget"
+        }
+      ]
+    },
+    {
+      "id": "FuelInstruments",
+      "name": "Fuel quantities",
+      "type": "grid",
+      "position": [
+        0,
+        -0.445
+      ],
+      "size": [
+        1.16,
+        0.24
+      ],
+      "grid": {
+        "rows": 1,
+        "columns": 2
+      },
+      "spacing": 0.16,
+      "appearance": {
+        "backgroundVisible": false,
+        "borderVisible": false
+      },
+      "children": [
+        {
+          "id": "Gauge",
+          "kind": "widget",
+          "row": 0,
+          "column": 0,
+          "horizontalAlignment": "center",
+          "verticalAlignment": "center"
+        },
+        {
+          "id": "NumericDisplay",
+          "kind": "widget",
+          "row": 0,
+          "column": 1,
+          "horizontalAlignment": "center",
+          "verticalAlignment": "center"
+        }
+      ]
+    },
+    {
+      "id": "AnnunciatorOverlay",
+      "name": "Fuel advisory",
+      "type": "overlay",
+      "position": [
+        0,
+        -0.815
+      ],
+      "size": [
+        0.8,
+        0.1
+      ],
+      "appearance": {
+        "backgroundVisible": false,
+        "borderVisible": false
+      },
+      "children": [
+        {
+          "id": "Label",
           "kind": "widget"
         }
       ]
@@ -196,12 +693,24 @@
       "id": "RootAction",
       "definition": "../widgets/button.json",
       "position": [
-        -0.55,
-        0.7
+        -0.88,
+        0.78
       ],
       "exposed": true,
       "overrides": {
-        "text": "START BIT"
+        "text": "XFER TEST"
+      }
+    },
+    {
+      "id": "Refuel",
+      "definition": "../widgets/button.json",
+      "position": [
+        0.88,
+        0.78
+      ],
+      "exposed": true,
+      "overrides": {
+        "text": "REFUEL"
       }
     },
     {
@@ -209,7 +718,8 @@
       "definition": "../widgets/toggle.json",
       "exposed": true,
       "overrides": {
-        "text": "ESS BUS"
+        "text": "L BOOST",
+        "checked": true
       }
     },
     {
@@ -217,36 +727,61 @@
       "definition": "../widgets/toggle.json",
       "exposed": true,
       "overrides": {
-        "text": "HYD PUMP",
+        "text": "R BOOST",
         "checked": true
       }
     },
     {
       "id": "PrivateButton",
       "definition": "../widgets/button.json",
+      "position": [
+        0.88,
+        -0.8
+      ],
       "overrides": {
-        "text": "RESET FAULT"
+        "text": "ACK"
       }
     },
     {
       "id": "Checkbox",
       "definition": "../widgets/checkbox.json",
-      "exposed": true
+      "exposed": true,
+      "overrides": {
+        "text": "CTR PUMPS",
+        "checked": true
+      }
     },
     {
       "id": "Radio",
       "definition": "../widgets/radio.json",
-      "exposed": true
+      "exposed": true,
+      "overrides": {
+        "text": "MANUAL"
+      }
     },
     {
       "id": "Slider",
       "definition": "../widgets/slider.json",
-      "exposed": true
+      "position": [
+        0,
+        -0.65
+      ],
+      "exposed": true,
+      "overrides": {
+        "value": 2100
+      }
     },
     {
       "id": "Knob",
       "definition": "../widgets/knob.json",
-      "exposed": true
+      "position": [
+        -0.88,
+        -0.47
+      ],
+      "exposed": true,
+      "overrides": {
+        "value": 45
+      }
     },
     {
       "id": "Gauge",
@@ -256,6 +791,10 @@
     {
       "id": "ProgressBar",
       "definition": "../widgets/progressBar.json",
+      "position": [
+        0,
+        0.02
+      ],
       "exposed": true
     },
     {
@@ -275,27 +814,82 @@
     },
     {
       "id": "RootToggle",
-      "definition": "../widgets/toggle.json",
+      "definition": "../widgets/crossfeedValve.json",
       "position": [
-        0.55,
-        0.7
+        0,
+        0.38
       ],
       "exposed": true,
       "overrides": {
-        "text": "PANEL LIGHT",
+        "text": "S3",
         "checked": true
       }
     },
     {
       "id": "ScrollLabel",
       "definition": "../widgets/label.json",
-      "overrides": {
-        "text": "ELEC STATUS"
-      },
       "size": [
-        0.46,
-        0.16
-      ]
+        0.26,
+        0.095
+      ],
+      "overrides": {
+        "text": "L PRESS OK"
+      }
+    },
+    {
+      "id": "PumpStatusLabel",
+      "definition": "../widgets/label.json",
+      "size": [
+        0.26,
+        0.095
+      ],
+      "overrides": {
+        "text": "CTR READY"
+      }
+    },
+    {
+      "id": "LeftTank",
+      "definition": "../widgets/leftTank.json",
+      "position": [
+        -0.43,
+        0.02
+      ],
+      "exposed": true
+    },
+    {
+      "id": "RightTank",
+      "definition": "../widgets/rightTank.json",
+      "position": [
+        0.43,
+        0.02
+      ],
+      "exposed": true
+    },
+    {
+      "id": "LeftValve",
+      "definition": "../widgets/valve.json",
+      "position": [
+        -0.43,
+        0.53
+      ],
+      "exposed": true,
+      "overrides": {
+        "text": "S1",
+        "checked": true
+      }
+    },
+    {
+      "id": "RightValve",
+      "definition": "../widgets/valve.json",
+      "position": [
+        0.43,
+        0.53
+      ],
+      "exposed": true,
+      "overrides": {
+        "text": "S2",
+        "checked": false
+      }
     }
   ]
 }

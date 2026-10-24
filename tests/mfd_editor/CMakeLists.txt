@@ -40,7 +40,8 @@ set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorUndoHistoryTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/WidgetEditorHostTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorViewportSnapTests.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/EditorViewportGridTests.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorViewportGridTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorWidgetPreviewControllerTests.cpp)
 
 add_executable(mfd_editor_tests ${MFD_EDITOR_TEST_SOURCES})
 
@@ -65,7 +66,10 @@ target_include_directories(mfd_editor_tests
         ${MFD_ROOT_DIR}/mfd_editor/src
         ${MFD_ROOT_DIR}/mfd_common_api/include
         ${MFD_ROOT_DIR}/mfd_api/include
-        ${MFD_ROOT_DIR}/mfd_api/src/render)
+        ${MFD_ROOT_DIR}/mfd_api/src/render
+        ${MFD_APILEVEL1_RUNTIME_INCLUDE_DIR}
+        ${MFD_WIDGETS_INCLUDE_DIR}
+        ${MFD_WIDGETS_ROOT_DIR}/runtime/src)
 
 target_sources(mfd_editor_tests
     PRIVATE
@@ -118,6 +122,8 @@ target_sources(mfd_editor_tests
         ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorViewportGrid.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/internal/application/EditorViewportSnap.h
         ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorViewportSnap.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/include/internal/application/EditorWidgetPreviewController.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorWidgetPreviewController.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/EditorUiTheme.cpp)
 
 target_compile_features(mfd_editor_tests PRIVATE cxx_std_17)

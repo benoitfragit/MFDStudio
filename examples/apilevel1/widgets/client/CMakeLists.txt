@@ -16,6 +16,8 @@ client_api_generate_ui(
 
 add_executable(apilevel1_widgets_client
     ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/CockpitDemoController.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/CockpitDemoController.cpp
     ${MFD_WIDGETS_EXAMPLE_GENERATED_DIR}/WidgetsExampleUi.h
     ${MFD_WIDGETS_EXAMPLE_GENERATED_DIR}/WidgetsExampleUi.cpp)
 target_include_directories(apilevel1_widgets_client PRIVATE ${MFD_WIDGETS_EXAMPLE_GENERATED_DIR})
@@ -43,6 +45,8 @@ mfd_stage_runtime(
 
 if(MFD_BUILD_TESTS)
     add_executable(apilevel1_widgets_client_tests WidgetExampleTests.cpp
+        CockpitDemoController.h
+        CockpitDemoController.cpp
         ${MFD_WIDGETS_EXAMPLE_GENERATED_DIR}/WidgetsExampleUi.cpp)
     target_include_directories(apilevel1_widgets_client_tests PRIVATE ${MFD_WIDGETS_EXAMPLE_GENERATED_DIR})
     target_compile_definitions(apilevel1_widgets_client_tests PRIVATE
@@ -56,6 +60,12 @@ if(MFD_BUILD_TESTS)
     endif()
     include(GoogleTest)
     gtest_discover_tests(apilevel1_widgets_client_tests DISCOVERY_TIMEOUT 60)
+    mfd_add_runtime_layout_smoke_test(
+        apilevel1_widgets_client
+        VERIFY_ASSETS
+        ASSET_SOURCE_DIR "${MFD_WIDGETS_EXAMPLE_ASSET_DIR}"
+        EXTRA_FILES assets/windows/widgets_window.json
+        LABELS examples apilevel1)
 endif()
 
 if(MFD_BUILD_TESTS AND WIN32)

@@ -1167,8 +1167,11 @@ enum class ViewportToolAction
     None,
     ZoomBox,
     SmartSelect,
-    FitToPage
+    FitToPage,
+    ToggleWidgetInteraction
 };
+
+constexpr int kPagePreviewLeadingToolCount = 4;
 
 bool ScreenRectsOverlap(const ImVec2 aMin, const ImVec2 aMax, const ImVec2 bMin, const ImVec2 bMax) noexcept
 {
@@ -1239,11 +1242,13 @@ void DrawViewportToolbarSurface(const ViewportToolbarLayout& layout)
 }
 
 /**
- * @brief Draws the page-preview leading tool buttons (zoom-box, smart-select, fit-to-page).
+ * @brief Draws page-preview tools for framing, selection, fitting and semantic widget interaction.
  * @return The tool the user clicked this frame, or ViewportToolAction::None.
  * @note Pure presentation: the caller owns arming, undo and the fit mutation.
  */
-ViewportToolAction DrawViewportLeadingTools(const ViewportToolbarLayout& layout, const editor::app::PreviewTool armedTool)
+ViewportToolAction DrawViewportLeadingTools(const ViewportToolbarLayout& layout,
+                                            const editor::app::PreviewTool armedTool,
+                                            const bool widgetInteractionEnabled)
 {
     DrawViewportToolbarSurface(layout);
     const float spacing = ImGui::GetStyle().ItemSpacing.x;
@@ -1288,6 +1293,25 @@ ViewportToolAction DrawViewportLeadingTools(const ViewportToolbarLayout& layout,
         action = ViewportToolAction::FitToPage;
     }
 
+    const ImVec2 widgetInteractionPos(fitPos.x + stride, zoomBoxPos.y);
+    if (widgetInteractionEnabled)
+    {
+        const ImVec4 accent = ImGui::GetStyleColorVec4(ImGuiCol_NavHighlight);
+        ImGui::GetWindowDrawList()->AddCircleFilled(
+            ImVec2(widgetInteractionPos.x + layout.buttonSize.x * 0.5f,
+                   widgetInteractionPos.y + layout.buttonSize.y * 0.5f),
+            layout.buttonSize.x * 0.5f,
+            ImGui::GetColorU32(ImVec4(accent.x, accent.y, accent.z, 0.28f)));
+    }
+    ImGui::SetCursorScreenPos(widgetInteractionPos);
+    if (IconButton("##PagePreviewWidgetInteraction",
+                   editor::ui::EditorIcon::WidgetInteraction,
+                   "Test widgets: use the mouse directly on buttons, toggles, sliders and knobs. "
+                   "This session-only mode never modifies authored assets or undo history."))
+    {
+        action = ViewportToolAction::ToggleWidgetInteraction;
+    }
+
     return action;
 }
 
@@ -1318,6 +1342,7 @@ void DrawViewportHelpPopupContent(const bool libraryPreview)
         ImGui::BulletText("Toolbar zoom-box: arm, then drag a rectangle to zoom the view onto it.");
         ImGui::BulletText("Toolbar smart-select: arm, then drag a rectangle to add the framed reticles to the selection.");
         ImGui::BulletText("Toolbar fit-to-page: scale and recenter the drawn reticles to the page border (Ctrl+Z to undo).");
+        ImGui::BulletText("Toolbar test-widgets: interact with widget semantics without changing the authored document.");
         ImGui::BulletText("Esc: disarm the zoom-box or smart-select tool.");
         ImGui::BulletText("Mouse wheel: zoom the page camera.");
         ImGui::BulletText("Right-drag: pan the page camera.");
@@ -3618,6 +3643,9 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         return;
     }
 
+    previewState_.widgetInteractionLayoutValid = false;
+    previewState_.widgetInteractionLayouts.clear();
+
     EnsurePreviewTexture(static_cast<int>(viewport.size.x), static_cast<int>(viewport.size.y));
     if (!previewState_.previewTextureReady)
     {
@@ -3638,6 +3666,7 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
     {
         std::vector<mfd::api1::ContainerLayoutNode> containerLayouts;
         std::string containerLayoutError;
+        bool widgetLayoutValid = false;
         auto previewNodes = page->containers;
         std::vector<mfd::ReticleGroup> widgetVisuals(page->widgets.size());
         if (page->widgets.empty())
@@ -3646,14 +3675,17 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         }
         else if (mfd::api1::EvaluateWidgetLayout(page->containers, page->widgets, containerLayouts, containerLayoutError))
         {
+            widgetLayoutValid = true;
             previewNodes = mfd::api1::ProjectWidgetLayoutNodes(page->containers, page->widgets);
+            widgetPreviewController_.Synchronize(page->widgets);
             for (const auto& layout : containerLayouts)
             {
                 if (layout.sourceIndex < page->containers.size()) continue;
                 const auto index = layout.sourceIndex - page->containers.size();
-                auto state = mfd::api1::InitialWidgetState(page->widgets[index]);
-                state.visible = layout.effectiveVisible; state.enabled = layout.effectiveEnabled;
-                if (documentState_.selection.kind == SelectionKind::Widget &&
+                auto state = widgetPreviewController_.PreviewState(
+                    index, page->widgets[index], layout.effectiveVisible, layout.effectiveEnabled);
+                if (!widgetPreviewController_.Enabled() &&
+                    documentState_.selection.kind == SelectionKind::Widget &&
                     documentState_.selection.widgetId == page->widgets[index].id && widgetDraft_.edit_definition)
                 {
                     state.hovered = widgetDraft_.visual_state == 1; state.pressed = widgetDraft_.visual_state == 2;
@@ -3752,6 +3784,11 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
 
         const mfd::ReticleGroup& titleReticle = BuildPageTitlePreviewReticle(*page);
         canvas.DrawReticle(titleReticle);
+        if (widgetPreviewController_.Enabled() && widgetLayoutValid)
+        {
+            previewState_.widgetInteractionLayouts = std::move(containerLayouts);
+            previewState_.widgetInteractionLayoutValid = true;
+        }
     }
     EndTextureMode();
     previewState_.externalStreams.EndFrame();
@@ -3812,15 +3849,15 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         ImGui::EndDragDropTarget();
     }
 
-    // Three one-shot marquee tools sit to the left of the help button; the toolbar reserves their
-    // leading slots so the help/recenter pair and the zoom label shift right to make room.
-    constexpr int kPagePreviewLeadingToolCount = 3;
+    // Preview tools sit to the left of the help button; the toolbar reserves their leading slots
+    // so the help/recenter pair and zoom label shift right to make room.
     const ViewportToolbarLayout toolLayout = ComputeViewportToolbarLayout(
         viewport.origin,
         mfd::SanitizeZoom(layoutState_.pagePreviewView.zoom),
         mouseLogical,
         kPagePreviewLeadingToolCount);
-    switch (DrawViewportLeadingTools(toolLayout, layoutState_.armedPreviewTool))
+    switch (DrawViewportLeadingTools(
+        toolLayout, layoutState_.armedPreviewTool, widgetPreviewController_.Enabled()))
     {
     case ViewportToolAction::ZoomBox:
         layoutState_.armedPreviewTool = layoutState_.armedPreviewTool == PreviewTool::ZoomBox
@@ -3834,6 +3871,11 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         break;
     case ViewportToolAction::FitToPage:
         FitActivePageContentToPageBorder();
+        break;
+    case ViewportToolAction::ToggleWidgetInteraction:
+        layoutState_.armedPreviewTool = PreviewTool::None;
+        widgetPreviewController_.SetEnabled(!widgetPreviewController_.Enabled());
+        CancelPreviewInteraction();
         break;
     case ViewportToolAction::None:
         break;
@@ -5656,7 +5698,6 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         IsPointInsideRect(mouse, viewport.origin, viewportMax) ? std::optional<mfd::Vec2> {viewport.ToLogical(mouse)}
                                                                : std::nullopt;
     // Mirror the page-preview toolbar's leading tool slots so a drag never starts under a button.
-    constexpr int kPagePreviewLeadingToolCount = 3;
     const ViewportToolbarLayout toolbarLayout =
         ComputeViewportToolbarLayout(viewport.origin,
                                      mfd::SanitizeZoom(layoutState_.pagePreviewView.zoom),
@@ -5667,6 +5708,10 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
     const bool anyPopupOpen = ImGui::IsPopupOpen((const char*)nullptr, ImGuiPopupFlags_AnyPopupId);
     if (!mouseInsideViewport || mouseInsideToolbar || anyPopupOpen)
     {
+        if (widgetPreviewController_.Enabled())
+        {
+            widgetPreviewController_.CancelPointerInteraction();
+        }
         if (interactionState_.mode != InteractionMode::None)
         {
             const bool interactionButtonReleased =
@@ -5711,6 +5756,38 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
                 mouseLogicalBeforeZoom.x - viewedOffset.x * zoomRatio,
                 mouseLogicalBeforeZoom.y - viewedOffset.y * zoomRatio};
             interactiveViewport.view = layoutState_.pagePreviewView;
+        }
+    }
+
+    if (widgetPreviewController_.Enabled())
+    {
+        if (interactionState_.mode == InteractionMode::None &&
+            rightMouseDown && ImGui::IsMouseDragging(ImGuiMouseButton_Right))
+        {
+            interactionState_.mode = InteractionMode::PanPage;
+            layoutState_.suppressNextPagePreviewContextMenu = true;
+            interactionState_.reticleIndex = -1;
+            interactionState_.reticleIndices.clear();
+            interactionState_.startReticleTransforms.clear();
+        }
+        if (interactionState_.mode == InteractionMode::PanPage)
+        {
+            ApplyMouseTransform(interactiveViewport);
+            if (!rightMouseDown)
+            {
+                CancelPreviewInteraction();
+            }
+            return;
+        }
+
+        const PageMinimapState previewMinimap = layoutState_.pagePreviewViewOptions.showMinimap
+                                                    ? ComputePageMinimapState(*page, interactiveViewport)
+                                                    : PageMinimapState {};
+        const bool minimapBlocksPointer = previewMinimap.valid &&
+                                          IsPointInsideRect(mouse, previewMinimap.contentMin, previewMinimap.contentMax);
+        if (HandleWidgetPreviewTestInteraction(*page, interactiveViewport, mouse, minimapBlocksPointer))
+        {
+            return;
         }
     }
 

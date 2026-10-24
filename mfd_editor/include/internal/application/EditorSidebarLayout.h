@@ -51,6 +51,26 @@ struct SidebarSectionLayoutResult
     const SidebarSectionLayoutRequest& request) noexcept;
 
 /**
+ * @brief Resolves a preferred first-section height without wasting space on an empty peer.
+ * @param distributableHeight Height shared by both sections after removing the splitter.
+ * @param preferredFirstFraction Persisted user preference in the `[0, 1]` range.
+ * @param firstHasContent Whether the first section contains visible authored items.
+ * @param secondHasContent Whether the second section contains visible authored items.
+ * @param firstMinimumHeight Minimum chrome height retained for the first section.
+ * @param secondMinimumHeight Minimum chrome height retained for the second section.
+ * @return Preferred first-section height; the final split still clamps it to both minima.
+ * @note When only one section has content, it receives all height not required by the empty
+ *       section. When both are populated, the persisted fraction remains authoritative.
+ */
+[[nodiscard]] float ResolveContentAwareSidebarPreferredHeight(
+    float distributableHeight,
+    float preferredFirstFraction,
+    bool firstHasContent,
+    bool secondHasContent,
+    float firstMinimumHeight,
+    float secondMinimumHeight) noexcept;
+
+/**
  * @brief Translates a section splitter drag into a new Pages fraction of the body height.
  * @param currentPagesHeight Pages-section height drawn this frame, used as the drag origin.
  * @param dragDeltaY Vertical mouse delta applied to the splitter this frame.

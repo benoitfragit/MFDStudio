@@ -42,6 +42,7 @@
 #include "EditorReticleUsageHighlightService.h"
 #include "EditorReticleRenameService.h"
 #include "internal/application/EditorApplicationState.h"
+#include "internal/application/EditorWidgetPreviewController.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/Reticle.h"
 #include "BezierPolylineCache.h"
@@ -294,6 +295,11 @@ private:
     mfd::api1::WidgetInstance* SelectedWidget() noexcept;
     bool BeginWidgetPreviewGesture(const ViewportState& viewport, ImVec2 mouse);
     bool UpdateWidgetPreviewGesture(const ViewportState& viewport);
+    /** @brief Routes one preview pointer sample through session-only widget test semantics. */
+    [[nodiscard]] bool HandleWidgetPreviewTestInteraction(const mfd::PageDefinition& page,
+                                                          const ViewportState& viewport,
+                                                          ImVec2 mousePosition,
+                                                          bool pointerBlocked);
     void DrawWidgetPreviewGizmo(const ViewportState& viewport, const mfd::PageDefinition& page);
     void ApplyContainerInspectorEdit(mfd::api1::ContainerInspectorEdit edit,
                                      mfd::PageDefinition& page,
@@ -783,6 +789,8 @@ private:
     editor::app::InteractionState interactionState_ {};
     /** @brief Grouped layout and view state for the main editor workspace. */
     editor::app::LayoutState layoutState_ {};
+    /** @brief Session-only semantic interaction state used by the page-preview widget test mode. */
+    editor::app::EditorWidgetPreviewController widgetPreviewController_ {};
     /** @brief Optional LEVEL 1 editor/runtime DLL owner; never loaded for LEVEL 0 Windows. */
     mfd::api1::ContainerEditorHost containerEditorHost_ {};
     mfd::api1::WidgetEditorHost widgetEditorHost_ {};

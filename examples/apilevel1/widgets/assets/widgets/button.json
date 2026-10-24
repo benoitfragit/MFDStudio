@@ -3,8 +3,8 @@
   "id": "button",
   "type": "button",
   "preferredSize": [
-    0.44,
-    0.16
+    0.28,
+    0.14
   ],
   "hitRegion": {
     "position": [
@@ -12,8 +12,8 @@
       0
     ],
     "size": [
-      0.44,
-      0.16
+      0.28,
+      0.14
     ]
   },
   "range": {
@@ -23,7 +23,7 @@
     "decimals": 0
   },
   "defaults": {
-    "text": "RUN BIT",
+    "text": "XFER TEST",
     "checked": false,
     "value": 25
   },
@@ -35,53 +35,87 @@
         "elements": [
           {
             "id": "Face",
-            "type": "rectangle",
-            "width": 0.42,
-            "height": 0.132,
+            "type": "polyline",
+            "points": [
+              [
+                -0.135,
+                0.05
+              ],
+              [
+                0.127,
+                0.05
+              ],
+              [
+                0.135,
+                0.042
+              ],
+              [
+                0.135,
+                -0.042
+              ],
+              [
+                0.127,
+                -0.05
+              ],
+              [
+                -0.127,
+                -0.05
+              ],
+              [
+                -0.135,
+                -0.042
+              ],
+              [
+                -0.135,
+                0.042
+              ]
+            ],
+            "closed": true,
             "filled": true,
             "fillColor": [
-              11,
-              22,
-              25,
+              13,
+              19,
+              23,
               255
             ],
             "color": [
-              47,
-              78,
-              64,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.0015
+            "thickness": 0.002
           },
           {
-            "id": "Accent",
+            "id": "KeyMark",
             "type": "line",
             "start": [
-              -0.17,
-              0.055
+              -0.134,
+              -0.018
             ],
             "end": [
-              0.17,
-              0.055
+              -0.134,
+              0.018
             ],
             "color": [
-              98,
-              204,
-              142,
+              108,
+              200,
+              218,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.004
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "RUN BIT",
-            "fontSize": 0.03,
+            "text": "XFER TEST",
+            "fontSize": 0.027,
+            "letterSpacing": 0.0008,
             "align": "center",
             "color": [
-              225,
+              231,
+              239,
               241,
-              229,
               255
             ]
           }
@@ -103,53 +137,87 @@
         "elements": [
           {
             "id": "Face",
-            "type": "rectangle",
-            "width": 0.42,
-            "height": 0.132,
+            "type": "polyline",
+            "points": [
+              [
+                -0.135,
+                0.05
+              ],
+              [
+                0.127,
+                0.05
+              ],
+              [
+                0.135,
+                0.042
+              ],
+              [
+                0.135,
+                -0.042
+              ],
+              [
+                0.127,
+                -0.05
+              ],
+              [
+                -0.127,
+                -0.05
+              ],
+              [
+                -0.135,
+                -0.042
+              ],
+              [
+                -0.135,
+                0.042
+              ]
+            ],
+            "closed": true,
             "filled": true,
             "fillColor": [
-              15,
-              34,
-              32,
+              22,
+              35,
+              40,
               255
             ],
             "color": [
-              169,
-              239,
-              191,
+              175,
+              235,
+              242,
               255
             ],
-            "thickness": 0.0015
+            "thickness": 0.002
           },
           {
-            "id": "Accent",
+            "id": "KeyMark",
             "type": "line",
             "start": [
-              -0.17,
-              0.055
+              -0.134,
+              -0.018
             ],
             "end": [
-              0.17,
-              0.055
+              -0.134,
+              0.018
             ],
             "color": [
-              169,
-              239,
-              191,
+              175,
+              235,
+              242,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.004
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "RUN BIT",
-            "fontSize": 0.03,
+            "text": "XFER TEST",
+            "fontSize": 0.027,
+            "letterSpacing": 0.0008,
             "align": "center",
             "color": [
-              225,
+              231,
+              239,
               241,
-              229,
               255
             ]
           }
@@ -171,53 +239,87 @@
         "elements": [
           {
             "id": "Face",
-            "type": "rectangle",
-            "width": 0.42,
-            "height": 0.132,
+            "type": "polyline",
+            "points": [
+              [
+                -0.135,
+                0.05
+              ],
+              [
+                0.127,
+                0.05
+              ],
+              [
+                0.135,
+                0.042
+              ],
+              [
+                0.135,
+                -0.042
+              ],
+              [
+                0.127,
+                -0.05
+              ],
+              [
+                -0.127,
+                -0.05
+              ],
+              [
+                -0.135,
+                -0.042
+              ],
+              [
+                -0.135,
+                0.042
+              ]
+            ],
+            "closed": true,
             "filled": true,
             "fillColor": [
-              18,
-              49,
-              36,
+              27,
+              57,
+              61,
               255
             ],
             "color": [
-              169,
-              239,
-              191,
+              175,
+              235,
+              242,
               255
             ],
-            "thickness": 0.0015
+            "thickness": 0.002
           },
           {
-            "id": "Accent",
+            "id": "KeyMark",
             "type": "line",
             "start": [
-              -0.17,
-              0.055
+              -0.134,
+              -0.018
             ],
             "end": [
-              0.17,
-              0.055
+              -0.134,
+              0.018
             ],
             "color": [
-              169,
-              239,
-              191,
+              175,
+              235,
+              242,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.004
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "RUN BIT",
-            "fontSize": 0.03,
+            "text": "XFER TEST",
+            "fontSize": 0.027,
+            "letterSpacing": 0.0008,
             "align": "center",
             "color": [
-              6,
-              12,
-              16,
+              231,
+              239,
+              241,
               255
             ]
           }
@@ -239,53 +341,87 @@
         "elements": [
           {
             "id": "Face",
-            "type": "rectangle",
-            "width": 0.42,
-            "height": 0.132,
+            "type": "polyline",
+            "points": [
+              [
+                -0.135,
+                0.05
+              ],
+              [
+                0.127,
+                0.05
+              ],
+              [
+                0.135,
+                0.042
+              ],
+              [
+                0.135,
+                -0.042
+              ],
+              [
+                0.127,
+                -0.05
+              ],
+              [
+                -0.127,
+                -0.05
+              ],
+              [
+                -0.135,
+                -0.042
+              ],
+              [
+                -0.135,
+                0.042
+              ]
+            ],
+            "closed": true,
             "filled": true,
             "fillColor": [
-              11,
-              22,
-              25,
+              13,
+              19,
+              23,
               255
             ],
             "color": [
-              66,
-              222,
-              126,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.0015
+            "thickness": 0.002
           },
           {
-            "id": "Accent",
+            "id": "KeyMark",
             "type": "line",
             "start": [
-              -0.17,
-              0.055
+              -0.134,
+              -0.018
             ],
             "end": [
-              0.17,
-              0.055
+              -0.134,
+              0.018
             ],
             "color": [
-              66,
-              222,
-              126,
+              65,
+              239,
+              93,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.004
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "RUN BIT",
-            "fontSize": 0.03,
+            "text": "XFER TEST",
+            "fontSize": 0.027,
+            "letterSpacing": 0.0008,
             "align": "center",
             "color": [
-              225,
+              231,
+              239,
               241,
-              229,
               255
             ]
           }
@@ -307,53 +443,87 @@
         "elements": [
           {
             "id": "Face",
-            "type": "rectangle",
-            "width": 0.42,
-            "height": 0.132,
+            "type": "polyline",
+            "points": [
+              [
+                -0.135,
+                0.05
+              ],
+              [
+                0.127,
+                0.05
+              ],
+              [
+                0.135,
+                0.042
+              ],
+              [
+                0.135,
+                -0.042
+              ],
+              [
+                0.127,
+                -0.05
+              ],
+              [
+                -0.127,
+                -0.05
+              ],
+              [
+                -0.135,
+                -0.042
+              ],
+              [
+                -0.135,
+                0.042
+              ]
+            ],
+            "closed": true,
             "filled": true,
             "fillColor": [
-              25,
-              30,
-              29,
+              17,
+              21,
+              24,
               255
             ],
             "color": [
-              47,
-              78,
-              64,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.0015
+            "thickness": 0.002
           },
           {
-            "id": "Accent",
+            "id": "KeyMark",
             "type": "line",
             "start": [
-              -0.17,
-              0.055
+              -0.134,
+              -0.018
             ],
             "end": [
-              0.17,
-              0.055
+              -0.134,
+              0.018
             ],
             "color": [
-              75,
-              100,
-              89,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.004
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "RUN BIT",
-            "fontSize": 0.03,
+            "text": "XFER TEST",
+            "fontSize": 0.027,
+            "letterSpacing": 0.0008,
             "align": "center",
             "color": [
-              135,
-              169,
-              145,
+              130,
+              151,
+              158,
               255
             ]
           }
@@ -375,53 +545,87 @@
         "elements": [
           {
             "id": "Face",
-            "type": "rectangle",
-            "width": 0.42,
-            "height": 0.132,
+            "type": "polyline",
+            "points": [
+              [
+                -0.135,
+                0.05
+              ],
+              [
+                0.127,
+                0.05
+              ],
+              [
+                0.135,
+                0.042
+              ],
+              [
+                0.135,
+                -0.042
+              ],
+              [
+                0.127,
+                -0.05
+              ],
+              [
+                -0.127,
+                -0.05
+              ],
+              [
+                -0.135,
+                -0.042
+              ],
+              [
+                -0.135,
+                0.042
+              ]
+            ],
+            "closed": true,
             "filled": true,
             "fillColor": [
-              11,
-              22,
-              25,
+              13,
+              19,
+              23,
               255
             ],
             "color": [
-              233,
-              114,
-              69,
+              255,
+              164,
+              61,
               255
             ],
-            "thickness": 0.0015
+            "thickness": 0.002
           },
           {
-            "id": "Accent",
+            "id": "KeyMark",
             "type": "line",
             "start": [
-              -0.17,
-              0.055
+              -0.134,
+              -0.018
             ],
             "end": [
-              0.17,
-              0.055
+              -0.134,
+              0.018
             ],
             "color": [
-              233,
-              114,
-              69,
+              255,
+              164,
+              61,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.004
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "RUN BIT",
-            "fontSize": 0.03,
+            "text": "XFER TEST",
+            "fontSize": 0.027,
+            "letterSpacing": 0.0008,
             "align": "center",
             "color": [
-              225,
+              231,
+              239,
               241,
-              229,
               255
             ]
           }
@@ -443,53 +647,87 @@
         "elements": [
           {
             "id": "Face",
-            "type": "rectangle",
-            "width": 0.42,
-            "height": 0.132,
+            "type": "polyline",
+            "points": [
+              [
+                -0.135,
+                0.05
+              ],
+              [
+                0.127,
+                0.05
+              ],
+              [
+                0.135,
+                0.042
+              ],
+              [
+                0.135,
+                -0.042
+              ],
+              [
+                0.127,
+                -0.05
+              ],
+              [
+                -0.127,
+                -0.05
+              ],
+              [
+                -0.135,
+                -0.042
+              ],
+              [
+                -0.135,
+                0.042
+              ]
+            ],
+            "closed": true,
             "filled": true,
             "fillColor": [
-              11,
-              22,
-              25,
+              13,
+              19,
+              23,
               255
             ],
             "color": [
-              237,
-              181,
-              67,
+              246,
+              192,
+              66,
               255
             ],
-            "thickness": 0.0015
+            "thickness": 0.002
           },
           {
-            "id": "Accent",
+            "id": "KeyMark",
             "type": "line",
             "start": [
-              -0.17,
-              0.055
+              -0.134,
+              -0.018
             ],
             "end": [
-              0.17,
-              0.055
+              -0.134,
+              0.018
             ],
             "color": [
-              237,
-              181,
-              67,
+              246,
+              192,
+              66,
               255
             ],
-            "thickness": 0.003
+            "thickness": 0.004
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "RUN BIT",
-            "fontSize": 0.03,
+            "text": "XFER TEST",
+            "fontSize": 0.027,
+            "letterSpacing": 0.0008,
             "align": "center",
             "color": [
-              225,
+              231,
+              239,
               241,
-              229,
               255
             ]
           }

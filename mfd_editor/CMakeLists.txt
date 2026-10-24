@@ -9,6 +9,7 @@ set(MFD_EDITOR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorSidebarLayout.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorViewportGrid.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorViewportSnap.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorWidgetPreviewController.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationShell.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorColorPicker.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorExternalStreamInspector.cpp
@@ -77,7 +78,8 @@ set(MFD_EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorApplicationState.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorSidebarLayout.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorViewportGrid.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorViewportSnap.h)
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorViewportSnap.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorWidgetPreviewController.h)
 
 set(MFD_EDITOR_WINDOWS_RESOURCES)
 if(WIN32)
@@ -107,6 +109,7 @@ target_include_directories(mfd_editor
         ${MFD_ROOT_DIR}/mfd_api/src/render
         ${MFD_APILEVEL1_RUNTIME_INCLUDE_DIR}
         ${MFD_APILEVEL1_ROOT_DIR}/runtime/src
+        ${MFD_WIDGETS_ROOT_DIR}/runtime/src
         ${MFD_APILEVEL1_EDITOR_INCLUDE_DIR}
         ${MFD_WIDGETS_ROOT_DIR}/editor/include)
 

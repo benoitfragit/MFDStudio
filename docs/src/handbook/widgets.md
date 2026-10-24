@@ -67,6 +67,18 @@ reticle is retained in the reticle library. Value bindings are edited beside the
 shared definition controls. The Page inspector edits only instance overrides
 unless **Edit shared definition** is enabled.
 
+Simple instance-state edits (visible, enabled, exposed and checked/warning/value/
+text overrides) use a bounded page-local mutation after field validation and one
+undo snapshot; they no longer rebuild or revalidate the complete document.
+Structural edits still use transactional page validation. Shared definitions are
+validated once per unique definition pointer per page pass, so many instances of
+one reusable widget do not repeat the same visual validation work.
+Runtime pointer evaluation uses the allocation-free bounded source index and
+reuses its active-id scratch buffer; after capacity warm-up it does not recreate
+those containers on every input frame.
+The editor interaction tool also reuses the layout already computed for the
+current preview frame instead of evaluating the complete hierarchy a second time.
+
 Widget visuals are drawn within their ancestor scissor. Legacy Page reticles
 remain above the container/widget layer, and layer-local background restoration
 redraws the mixed layer. Page-erasure reticle clipping inside a widget definition

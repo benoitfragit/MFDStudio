@@ -1,36 +1,37 @@
 {
   "apiLevel": 1,
-  "title": "MFD Avionics - API LEVEL 1",
-  "size": [
-    1000,
-    850
+  "commands": {
+    "udp": {
+      "address": "127.0.0.1",
+      "enabled": true,
+      "maxPacketSize": 16384,
+      "port": 47330
+    }
+  },
+  "defaultPage": "Widgets",
+  "fontFile": "../fonts/ShareTechMono-Regular.ttf",
+  "feedback": {
+    "fastIntervalMs": 20,
+    "heartbeatIntervalMs": 350,
+    "udp": {
+      "address": "127.0.0.1",
+      "enabled": true,
+      "maxPacketSize": 4096,
+      "port": 47331
+    }
+  },
+  "pages": [
+    "../pages/widgets.json"
   ],
   "position": [
     100,
     80
   ],
-  "targetFps": 60,
   "reticleLibraryFolder": "../reticles",
-  "pages": [
-    "../pages/widgets.json"
+  "size": [
+    1000,
+    850
   ],
-  "defaultPage": "Widgets",
-  "commands": {
-    "udp": {
-      "enabled": true,
-      "address": "127.0.0.1",
-      "port": 47330,
-      "maxPacketSize": 16384
-    }
-  },
-  "feedback": {
-    "udp": {
-      "enabled": true,
-      "address": "127.0.0.1",
-      "port": 47331,
-      "maxPacketSize": 4096
-    },
-    "fastIntervalMs": 20,
-    "heartbeatIntervalMs": 350
-  }
+  "targetFps": 60,
+  "title": "MFD Avionics - API LEVEL 1"
 }

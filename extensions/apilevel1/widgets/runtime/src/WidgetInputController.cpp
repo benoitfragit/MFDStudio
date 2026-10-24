@@ -7,7 +7,6 @@
 #include <chrono>
 #include <cmath>
 #include <limits>
-#include <unordered_set>
 namespace mfd::api1
 {
 namespace
@@ -43,7 +42,13 @@ bool WidgetInputController::Update(SceneRegistry& scene, const WidgetRuntimeHost
     const std::vector<WidgetInstance>& widgets, const std::vector<WidgetState>& states,
     const Vec2 pointer, const bool down, const bool began, const bool released, const bool cancel, const float elapsed, const bool pointerBlocked)
 {
-    if (widgets.size() != states.size() || widgets.size() > kMaximumWidgetCount || nodes.size() < widgets.size()) return false;
+    constexpr std::size_t maximumProjectedNodeCount = kMaximumContainerCount + kMaximumWidgetCount;
+    if (widgets.size() != states.size() || widgets.size() > kMaximumWidgetCount ||
+        nodes.size() < widgets.size() || nodes.size() > maximumProjectedNodeCount ||
+        layouts.size() > nodes.size() || !std::isfinite(pointer.x) || !std::isfinite(pointer.y) ||
+        std::any_of(widgets.begin(), widgets.end(),
+                    [](const WidgetInstance& widget) { return widget.definition == nullptr; }))
+        return false;
     const float dt = std::isfinite(elapsed) ? std::clamp(elapsed,0.0f,1.0f) : 0.0f;
     if (page_ != scene.ActivePageName())
     {
@@ -59,8 +64,6 @@ bool WidgetInputController::Update(SceneRegistry& scene, const WidgetRuntimeHost
     const std::size_t noTarget = std::numeric_limits<std::size_t>::max();
     std::size_t hovered = noTarget;
     const detail::ContainerPointerQuery query(nodes,layouts,pointer);
-    std::vector<const ContainerLayoutNode*> bySource(nodes.size(),nullptr);
-    for (const auto& node : layouts) if (node.sourceIndex < bySource.size()) bySource[node.sourceIndex] = &node;
     for (auto it = layouts.rbegin(); !pointerBlocked && it != layouts.rend(); ++it)
     {
         if (!query.VisibleAt(*it,false)) continue;
@@ -70,9 +73,9 @@ bool WidgetInputController::Update(SceneRegistry& scene, const WidgetRuntimeHost
             if (index >= widgets.size() || !Contains(WidgetHitRegion(widgets[index],it->bounds),pointer)) continue;
             bool scrollbar = false;
             auto parent = it->parentSourceIndex;
-            for (std::size_t depth = 0; parent < bySource.size() && depth < kMaximumContainerDepth; ++depth)
+            for (std::size_t depth = 0; parent < nodes.size() && depth < kMaximumContainerDepth; ++depth)
             {
-                const auto* ancestor = bySource[parent];
+                const auto* ancestor = query.LayoutAtSource(parent);
                 if (ancestor == nullptr) break;
                 scrollbar = scrollbar || OverScrollbar(*ancestor,pointer);
                 parent = ancestor->parentSourceIndex;
@@ -86,7 +89,7 @@ bool WidgetInputController::Update(SceneRegistry& scene, const WidgetRuntimeHost
     }
     if (began && !cancel && hovered < widgets.size() && captured_.empty())
     {
-        const auto* layout = bySource[firstWidget+hovered];
+        const auto* layout = query.LayoutAtSource(firstWidget+hovered);
         if (layout && layout->effectiveEnabled && IsInteractiveWidget(widgets[hovered].definition->type))
         {
             captured_ = widgets[hovered].id;
@@ -95,14 +98,17 @@ bool WidgetInputController::Update(SceneRegistry& scene, const WidgetRuntimeHost
     }
     const bool consumed = hovered != noTarget || !captured_.empty();
     capturedSeconds_ += dt;
-    std::unordered_set<std::string_view> activeIds;
-    activeIds.reserve(widgets.size());
-    for (const auto& widget : widgets) activeIds.insert(widget.id);
-    for (auto age = pendingAges_.begin(); age != pendingAges_.end();)
+    activeWidgetIds_.clear();
+    if (!pendingAges_.empty())
     {
-        if (activeIds.count(age->first) == 0)
-            age = pendingAges_.erase(age);
-        else { age->second += dt; ++age; }
+        activeWidgetIds_.reserve(widgets.size());
+        for (const auto& widget : widgets) activeWidgetIds_.insert(widget.id);
+        for (auto age = pendingAges_.begin(); age != pendingAges_.end();)
+        {
+            if (activeWidgetIds_.count(age->first) == 0)
+                age = pendingAges_.erase(age);
+            else { age->second += dt; ++age; }
+        }
     }
     snapshotSeconds_ += dt;
     const std::size_t snapshotBegin = std::min(snapshotIndex_, widgets.size());
@@ -112,7 +118,7 @@ bool WidgetInputController::Update(SceneRegistry& scene, const WidgetRuntimeHost
     {
         const auto& widget = widgets[index];
         const auto& state = states[index];
-        const auto* layout = bySource[firstWidget+index];
+        const auto* layout = query.LayoutAtSource(firstWidget+index);
         const bool ownsCapture = captured_ == widget.id;
         captureFound = captureFound || ownsCapture;
         const bool unavailable = layout == nullptr || !layout->effectiveVisible || !layout->effectiveEnabled;

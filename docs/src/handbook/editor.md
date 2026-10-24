@@ -78,11 +78,20 @@ is part of the Window snapshot used by the existing Undo/Redo workflow.
 
 At LEVEL 1, **Containers** is the third collapsible left-sidebar section, below
 Pages and Reticles; **Widgets** is the fourth section. Both remain visible on
-empty LEVEL 1 Pages. The [widget library](./widgets.md) supports shared definition
+empty LEVEL 1 Pages, but an empty section keeps only its compact header, toolbar
+and empty-state row. A populated sibling receives the remaining height instead
+of being squeezed by an unused fixed split. The [widget library](./widgets.md) supports shared definition
 authoring, import/export and independent instances. If the container editor extension is missing or incompatible, the
 section is read-only and explains the problem. Downgrading a Window that owns
 containers or widgets requires explicit, counted confirmation; deletion and the level change form
 one undoable operation. See [API LEVEL 1 containers](./containers.md).
+
+The Page-preview pointer-and-response-ring tool enables session-only widget test
+mode. While armed, the left button executes the same button, toggle, checkbox,
+radio, slider and knob transitions as the runtime; wheel zoom and right-drag pan
+remain available. Test values are never serialized, never enter Undo history and
+are discarded when the mode is disabled. This keeps semantic testing separate
+from widget selection, move and resize gestures.
 
 ## Responsive shell
 
@@ -128,8 +137,10 @@ one section:
 The branch holding the current selection stays expanded, and the first filtered
 match opens automatically so results never hide behind a collapsed page.
 
-The sidebar container itself never scrolls: the **Pages** and **Reticle library**
-sections each own their scroll region so only the long list under the pointer moves.
+The sidebar container itself never scrolls: **Pages**, **Reticle library**,
+**Containers** and **Widgets** each own their scroll region so only the long list
+under the pointer moves. Splitters appear only between populated peers; persisted
+fractions are restored when both sections contain data again.
 
 ![Reticle library controls](../images/editor/editor-sidebarreticlecontrols.png)
 

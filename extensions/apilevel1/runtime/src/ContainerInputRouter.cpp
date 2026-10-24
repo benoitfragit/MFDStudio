@@ -51,6 +51,10 @@ bool detail::ContainerPointerQuery::CanReceive(const ContainerLayoutNode& layout
 {
     return layout.effectiveEnabled && VisibleAt(layout);
 }
+const ContainerLayoutNode* detail::ContainerPointerQuery::LayoutAtSource(const std::size_t sourceIndex) const noexcept
+{
+    return valid_ && sourceIndex < definitions_.size() ? bySource_[sourceIndex] : nullptr;
+}
 bool detail::ContainerPointerQuery::VisibleAt(const ContainerLayoutNode& layout, const bool testOwnBounds) const noexcept
 {
     if (!valid_ || layout.sourceIndex >= definitions_.size() ||

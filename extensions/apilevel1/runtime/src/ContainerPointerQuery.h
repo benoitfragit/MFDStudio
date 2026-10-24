@@ -14,6 +14,8 @@ public:
                           const std::vector<ContainerLayoutNode>& layouts, Vec2 pointer) noexcept;
     [[nodiscard]] bool VisibleAt(const ContainerLayoutNode& layout, bool testOwnBounds = true) const noexcept;
     [[nodiscard]] bool CanReceive(const ContainerLayoutNode& layout) const noexcept;
+    /** @brief Returns the indexed layout node, or null when the query or source index is invalid. */
+    [[nodiscard]] const ContainerLayoutNode* LayoutAtSource(std::size_t sourceIndex) const noexcept;
 private:
     const std::vector<ContainerDefinition>& definitions_;
     Vec2 pointer_;

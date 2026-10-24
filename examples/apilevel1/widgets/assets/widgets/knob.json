@@ -3,8 +3,8 @@
   "id": "knob",
   "type": "knob",
   "preferredSize": [
-    0.36,
-    0.26
+    0.28,
+    0.24
   ],
   "hitRegion": {
     "position": [
@@ -12,8 +12,8 @@
       0
     ],
     "size": [
-      0.36,
-      0.26
+      0.28,
+      0.24
     ]
   },
   "range": {
@@ -23,9 +23,9 @@
     "decimals": 0
   },
   "defaults": {
-    "text": "RUD TRIM",
+    "text": "XFER RATE",
     "checked": false,
-    "value": 35
+    "value": 45
   },
   "visuals": [
     {
@@ -34,76 +34,40 @@
         "id": "knobVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.342,
-            "height": 0.24,
-            "filled": true,
-            "fillColor": [
-              11,
-              22,
-              25,
-              255
-            ],
-            "color": [
-              47,
-              78,
-              64,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "RUD TRIM",
+            "text": "XFER RATE",
             "fontSize": 0.024,
-            "align": "left",
+            "letterSpacing": 0.0008,
+            "align": "center",
             "color": [
-              135,
-              169,
-              145,
+              130,
+              151,
+              158,
               255
             ],
             "position": [
-              -0.145,
-              0.095
-            ]
-          },
-          {
-            "id": "ValueText",
-            "type": "text",
-            "text": "0",
-            "fontSize": 0.026,
-            "align": "right",
-            "color": [
-              225,
-              241,
-              229,
-              255
-            ],
-            "position": [
-              0.145,
-              0.095
+              0,
+              0.087
             ]
           },
           {
             "id": "Scale",
             "type": "arc",
-            "radius": 0.073,
+            "radius": 0.06,
             "startAngleDegrees": -135,
             "endAngleDegrees": 135,
             "segments": 32,
             "color": [
-              75,
-              100,
-              89,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.0045,
+            "thickness": 0.002,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
@@ -112,21 +76,21 @@
             "radius": 0.046,
             "filled": true,
             "fillColor": [
-              6,
-              12,
-              16,
+              13,
+              19,
+              23,
               255
             ],
             "color": [
-              98,
-              204,
-              142,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.004,
+            "thickness": 0.002,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
@@ -138,54 +102,37 @@
             ],
             "end": [
               0,
-              0.045
+              0.036
             ],
             "color": [
-              98,
-              204,
-              142,
+              108,
+              200,
+              218,
               255
             ],
-            "thickness": 0.004,
+            "thickness": 0.003,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
-            "id": "Hub",
-            "type": "circle",
-            "radius": 0.007,
-            "filled": true,
-            "fillColor": [
-              225,
+            "id": "ValueText",
+            "type": "text",
+            "text": "0",
+            "fontSize": 0.031,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              231,
+              239,
               241,
-              229,
               255
             ],
             "position": [
-              0,
-              -0.03
+              0.052,
+              -0.02
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.145,
-              0.11
-            ],
-            "end": [
-              -0.055,
-              0.11
-            ],
-            "color": [
-              98,
-              204,
-              142,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -210,76 +157,40 @@
         "id": "knobVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.342,
-            "height": 0.24,
-            "filled": true,
-            "fillColor": [
-              15,
-              34,
-              32,
-              255
-            ],
-            "color": [
-              169,
-              239,
-              191,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "RUD TRIM",
+            "text": "XFER RATE",
             "fontSize": 0.024,
-            "align": "left",
+            "letterSpacing": 0.0008,
+            "align": "center",
             "color": [
-              135,
-              169,
-              145,
+              130,
+              151,
+              158,
               255
             ],
             "position": [
-              -0.145,
-              0.095
-            ]
-          },
-          {
-            "id": "ValueText",
-            "type": "text",
-            "text": "0",
-            "fontSize": 0.026,
-            "align": "right",
-            "color": [
-              225,
-              241,
-              229,
-              255
-            ],
-            "position": [
-              0.145,
-              0.095
+              0,
+              0.087
             ]
           },
           {
             "id": "Scale",
             "type": "arc",
-            "radius": 0.073,
+            "radius": 0.06,
             "startAngleDegrees": -135,
             "endAngleDegrees": 135,
             "segments": 32,
             "color": [
-              75,
-              100,
-              89,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.0045,
+            "thickness": 0.002,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
@@ -288,21 +199,21 @@
             "radius": 0.046,
             "filled": true,
             "fillColor": [
-              6,
-              12,
-              16,
+              13,
+              19,
+              23,
               255
             ],
             "color": [
-              169,
-              239,
-              191,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.004,
+            "thickness": 0.002,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
@@ -314,54 +225,37 @@
             ],
             "end": [
               0,
-              0.045
+              0.036
             ],
             "color": [
-              169,
-              239,
-              191,
+              175,
+              235,
+              242,
               255
             ],
-            "thickness": 0.004,
+            "thickness": 0.003,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
-            "id": "Hub",
-            "type": "circle",
-            "radius": 0.007,
-            "filled": true,
-            "fillColor": [
-              225,
+            "id": "ValueText",
+            "type": "text",
+            "text": "0",
+            "fontSize": 0.031,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              231,
+              239,
               241,
-              229,
               255
             ],
             "position": [
-              0,
-              -0.03
+              0.052,
+              -0.02
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.145,
-              0.11
-            ],
-            "end": [
-              -0.055,
-              0.11
-            ],
-            "color": [
-              169,
-              239,
-              191,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -386,76 +280,40 @@
         "id": "knobVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.342,
-            "height": 0.24,
-            "filled": true,
-            "fillColor": [
-              18,
-              49,
-              36,
-              255
-            ],
-            "color": [
-              169,
-              239,
-              191,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "RUD TRIM",
+            "text": "XFER RATE",
             "fontSize": 0.024,
-            "align": "left",
+            "letterSpacing": 0.0008,
+            "align": "center",
             "color": [
-              135,
-              169,
-              145,
+              130,
+              151,
+              158,
               255
             ],
             "position": [
-              -0.145,
-              0.095
-            ]
-          },
-          {
-            "id": "ValueText",
-            "type": "text",
-            "text": "0",
-            "fontSize": 0.026,
-            "align": "right",
-            "color": [
-              225,
-              241,
-              229,
-              255
-            ],
-            "position": [
-              0.145,
-              0.095
+              0,
+              0.087
             ]
           },
           {
             "id": "Scale",
             "type": "arc",
-            "radius": 0.073,
+            "radius": 0.06,
             "startAngleDegrees": -135,
             "endAngleDegrees": 135,
             "segments": 32,
             "color": [
-              75,
-              100,
-              89,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.0045,
+            "thickness": 0.002,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
@@ -464,21 +322,21 @@
             "radius": 0.046,
             "filled": true,
             "fillColor": [
-              6,
-              12,
-              16,
+              13,
+              19,
+              23,
               255
             ],
             "color": [
-              169,
-              239,
-              191,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.004,
+            "thickness": 0.002,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
@@ -490,54 +348,37 @@
             ],
             "end": [
               0,
-              0.045
+              0.036
             ],
             "color": [
-              169,
-              239,
-              191,
+              175,
+              235,
+              242,
               255
             ],
-            "thickness": 0.004,
+            "thickness": 0.003,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
-            "id": "Hub",
-            "type": "circle",
-            "radius": 0.007,
-            "filled": true,
-            "fillColor": [
-              225,
+            "id": "ValueText",
+            "type": "text",
+            "text": "0",
+            "fontSize": 0.031,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              231,
+              239,
               241,
-              229,
               255
             ],
             "position": [
-              0,
-              -0.03
+              0.052,
+              -0.02
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.145,
-              0.11
-            ],
-            "end": [
-              -0.055,
-              0.11
-            ],
-            "color": [
-              169,
-              239,
-              191,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -562,76 +403,40 @@
         "id": "knobVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.342,
-            "height": 0.24,
-            "filled": true,
-            "fillColor": [
-              11,
-              22,
-              25,
-              255
-            ],
-            "color": [
-              66,
-              222,
-              126,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "RUD TRIM",
+            "text": "XFER RATE",
             "fontSize": 0.024,
-            "align": "left",
+            "letterSpacing": 0.0008,
+            "align": "center",
             "color": [
-              135,
-              169,
-              145,
+              130,
+              151,
+              158,
               255
             ],
             "position": [
-              -0.145,
-              0.095
-            ]
-          },
-          {
-            "id": "ValueText",
-            "type": "text",
-            "text": "0",
-            "fontSize": 0.026,
-            "align": "right",
-            "color": [
-              225,
-              241,
-              229,
-              255
-            ],
-            "position": [
-              0.145,
-              0.095
+              0,
+              0.087
             ]
           },
           {
             "id": "Scale",
             "type": "arc",
-            "radius": 0.073,
+            "radius": 0.06,
             "startAngleDegrees": -135,
             "endAngleDegrees": 135,
             "segments": 32,
             "color": [
-              75,
-              100,
-              89,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.0045,
+            "thickness": 0.002,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
@@ -640,21 +445,21 @@
             "radius": 0.046,
             "filled": true,
             "fillColor": [
-              6,
-              12,
-              16,
+              13,
+              19,
+              23,
               255
             ],
             "color": [
-              66,
-              222,
-              126,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.004,
+            "thickness": 0.002,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
@@ -666,54 +471,37 @@
             ],
             "end": [
               0,
-              0.045
+              0.036
             ],
             "color": [
-              66,
-              222,
-              126,
+              65,
+              239,
+              93,
               255
             ],
-            "thickness": 0.004,
+            "thickness": 0.003,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
-            "id": "Hub",
-            "type": "circle",
-            "radius": 0.007,
-            "filled": true,
-            "fillColor": [
-              225,
+            "id": "ValueText",
+            "type": "text",
+            "text": "0",
+            "fontSize": 0.031,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              231,
+              239,
               241,
-              229,
               255
             ],
             "position": [
-              0,
-              -0.03
+              0.052,
+              -0.02
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.145,
-              0.11
-            ],
-            "end": [
-              -0.055,
-              0.11
-            ],
-            "color": [
-              66,
-              222,
-              126,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -738,76 +526,40 @@
         "id": "knobVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.342,
-            "height": 0.24,
-            "filled": true,
-            "fillColor": [
-              25,
-              30,
-              29,
-              255
-            ],
-            "color": [
-              47,
-              78,
-              64,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "RUD TRIM",
+            "text": "XFER RATE",
             "fontSize": 0.024,
-            "align": "left",
+            "letterSpacing": 0.0008,
+            "align": "center",
             "color": [
-              135,
-              169,
-              145,
+              130,
+              151,
+              158,
               255
             ],
             "position": [
-              -0.145,
-              0.095
-            ]
-          },
-          {
-            "id": "ValueText",
-            "type": "text",
-            "text": "0",
-            "fontSize": 0.026,
-            "align": "right",
-            "color": [
-              135,
-              169,
-              145,
-              255
-            ],
-            "position": [
-              0.145,
-              0.095
+              0,
+              0.087
             ]
           },
           {
             "id": "Scale",
             "type": "arc",
-            "radius": 0.073,
+            "radius": 0.06,
             "startAngleDegrees": -135,
             "endAngleDegrees": 135,
             "segments": 32,
             "color": [
-              75,
-              100,
-              89,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.0045,
+            "thickness": 0.002,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
@@ -816,21 +568,21 @@
             "radius": 0.046,
             "filled": true,
             "fillColor": [
-              6,
-              12,
-              16,
+              13,
+              19,
+              23,
               255
             ],
             "color": [
-              75,
-              100,
-              89,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.004,
+            "thickness": 0.002,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
@@ -842,54 +594,37 @@
             ],
             "end": [
               0,
-              0.045
+              0.036
             ],
             "color": [
-              75,
-              100,
-              89,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.004,
+            "thickness": 0.003,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
-            "id": "Hub",
-            "type": "circle",
-            "radius": 0.007,
-            "filled": true,
-            "fillColor": [
-              135,
-              169,
-              145,
+            "id": "ValueText",
+            "type": "text",
+            "text": "0",
+            "fontSize": 0.031,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              130,
+              151,
+              158,
               255
             ],
             "position": [
-              0,
-              -0.03
+              0.052,
+              -0.02
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.145,
-              0.11
-            ],
-            "end": [
-              -0.055,
-              0.11
-            ],
-            "color": [
-              47,
-              78,
-              64,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -914,76 +649,40 @@
         "id": "knobVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.342,
-            "height": 0.24,
-            "filled": true,
-            "fillColor": [
-              11,
-              22,
-              25,
-              255
-            ],
-            "color": [
-              233,
-              114,
-              69,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "RUD TRIM",
+            "text": "XFER RATE",
             "fontSize": 0.024,
-            "align": "left",
+            "letterSpacing": 0.0008,
+            "align": "center",
             "color": [
-              135,
-              169,
-              145,
+              130,
+              151,
+              158,
               255
             ],
             "position": [
-              -0.145,
-              0.095
-            ]
-          },
-          {
-            "id": "ValueText",
-            "type": "text",
-            "text": "0",
-            "fontSize": 0.026,
-            "align": "right",
-            "color": [
-              225,
-              241,
-              229,
-              255
-            ],
-            "position": [
-              0.145,
-              0.095
+              0,
+              0.087
             ]
           },
           {
             "id": "Scale",
             "type": "arc",
-            "radius": 0.073,
+            "radius": 0.06,
             "startAngleDegrees": -135,
             "endAngleDegrees": 135,
             "segments": 32,
             "color": [
-              75,
-              100,
-              89,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.0045,
+            "thickness": 0.002,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
@@ -992,21 +691,21 @@
             "radius": 0.046,
             "filled": true,
             "fillColor": [
-              6,
-              12,
-              16,
+              13,
+              19,
+              23,
               255
             ],
             "color": [
-              233,
-              114,
-              69,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.004,
+            "thickness": 0.002,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
@@ -1018,54 +717,37 @@
             ],
             "end": [
               0,
-              0.045
+              0.036
             ],
             "color": [
-              233,
-              114,
-              69,
+              255,
+              164,
+              61,
               255
             ],
-            "thickness": 0.004,
+            "thickness": 0.003,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
-            "id": "Hub",
-            "type": "circle",
-            "radius": 0.007,
-            "filled": true,
-            "fillColor": [
-              225,
+            "id": "ValueText",
+            "type": "text",
+            "text": "0",
+            "fontSize": 0.031,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              231,
+              239,
               241,
-              229,
               255
             ],
             "position": [
-              0,
-              -0.03
+              0.052,
+              -0.02
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.145,
-              0.11
-            ],
-            "end": [
-              -0.055,
-              0.11
-            ],
-            "color": [
-              233,
-              114,
-              69,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -1090,76 +772,40 @@
         "id": "knobVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.342,
-            "height": 0.24,
-            "filled": true,
-            "fillColor": [
-              11,
-              22,
-              25,
-              255
-            ],
-            "color": [
-              237,
-              181,
-              67,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "RUD TRIM",
+            "text": "XFER RATE",
             "fontSize": 0.024,
-            "align": "left",
+            "letterSpacing": 0.0008,
+            "align": "center",
             "color": [
-              135,
-              169,
-              145,
+              130,
+              151,
+              158,
               255
             ],
             "position": [
-              -0.145,
-              0.095
-            ]
-          },
-          {
-            "id": "ValueText",
-            "type": "text",
-            "text": "0",
-            "fontSize": 0.026,
-            "align": "right",
-            "color": [
-              225,
-              241,
-              229,
-              255
-            ],
-            "position": [
-              0.145,
-              0.095
+              0,
+              0.087
             ]
           },
           {
             "id": "Scale",
             "type": "arc",
-            "radius": 0.073,
+            "radius": 0.06,
             "startAngleDegrees": -135,
             "endAngleDegrees": 135,
             "segments": 32,
             "color": [
-              75,
-              100,
-              89,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.0045,
+            "thickness": 0.002,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
@@ -1168,21 +814,21 @@
             "radius": 0.046,
             "filled": true,
             "fillColor": [
-              6,
-              12,
-              16,
+              13,
+              19,
+              23,
               255
             ],
             "color": [
-              237,
-              181,
-              67,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.004,
+            "thickness": 0.002,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
@@ -1194,54 +840,37 @@
             ],
             "end": [
               0,
-              0.045
+              0.036
             ],
             "color": [
-              237,
-              181,
-              67,
+              246,
+              192,
+              66,
               255
             ],
-            "thickness": 0.004,
+            "thickness": 0.003,
             "position": [
-              0,
-              -0.03
+              -0.035,
+              -0.02
             ]
           },
           {
-            "id": "Hub",
-            "type": "circle",
-            "radius": 0.007,
-            "filled": true,
-            "fillColor": [
-              225,
+            "id": "ValueText",
+            "type": "text",
+            "text": "0",
+            "fontSize": 0.031,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              231,
+              239,
               241,
-              229,
               255
             ],
             "position": [
-              0,
-              -0.03
+              0.052,
+              -0.02
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.145,
-              0.11
-            ],
-            "end": [
-              -0.055,
-              0.11
-            ],
-            "color": [
-              237,
-              181,
-              67,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },

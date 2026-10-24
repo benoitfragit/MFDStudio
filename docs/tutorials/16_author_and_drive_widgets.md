@@ -5,7 +5,9 @@
 2. Open `examples/apilevel1/widgets/assets/windows/widgets_window.json` in the
    editor. The left sidebar shows **Pages → Reticle library → Containers → Widgets**.
    LEVEL 0 retains its two sections; LEVEL 1 keeps both extension sections even
-   when the current Page has no instances. The showcase uses visibly different
+   when the current Page has no instances. Empty sections collapse to their compact
+   chrome while each populated section keeps an independently scrollable list.
+   The showcase uses visibly different
    avionics-style controls for every supported semantic type. It does not fake combo boxes or
    trees because API LEVEL 1 has no such types.
 3. Open **Widgets → Library**. Select the shared toggle definition. Edit its ID,
@@ -17,6 +19,8 @@
 5. Select ToggleA on the Page. Change only **Override checked**. ToggleB keeps
    its own checked value. **Duplicate** adds another independent instance;
    **Duplicate definition** in the library instead makes a new reusable asset.
+   Repeat with warning, value and text overrides: each follows the same bounded
+   state-only edit path and remains independently undoable.
 6. Edit the instance's **Parent**, grid row/column/span and alignment. An empty
    parent moves it to Page root. Drag the selected widget's corner to resize;
    parent Grid/Linear placement still governs its resolved position. Select a
@@ -26,17 +30,25 @@
    typed widget ownership edges and remaps colliding resources. Import into a
    LEVEL 0 Window is rejected before changing the document; explicitly upgrade
    the destination first. Undo/Redo applies to successful edits/imports.
-8. Save and build `apilevel1_widgets_client` again to regenerate the C++ API/map.
+8. Enable the pointer-and-response-ring tool in the Page-preview toolbar. Click
+   switches and drag the slider/knob directly in the editor. The transient test
+   state is discarded when the tool is disabled and never changes the asset.
+9. Save and build `apilevel1_widgets_client` again to regenerate the C++ API/map.
    Launch `.\Scripts\Start-APILevel1Widgets.bat` from the repository root.
-   Click ToggleA, then ToggleB; each feedback request is confirmed independently
-   by the client. Drag Slider/Knob and inspect their confirmed values. Stop the
-   client to see pending proposals time out without changing confirmed state.
-9. Read `examples/apilevel1/widgets/client/main.cpp`: `PollFeedback` and
+   The fuel instruments move at 10 Hz. Click **XFER TEST**, toggle the left and
+   right S1/S2 valves, and watch the center tank feed the main tanks while S3
+   and CTR PUMPS are enabled. **REFUEL** fills the three tanks and stops at
+   2000 kg per tank; **STOP FILL** stops it early. Drag the BINGO slider
+   (kilograms) and transfer-rate knob to inspect their confirmed values.
+   Stop the client to see pending proposals time out without changing confirmed
+   state.
+10. Read `examples/apilevel1/widgets/client/main.cpp` and
+   `CockpitDemoController.cpp`: `PollFeedback` and
    `TakeWidgetEvents` receive typed requests, `Matches` selects typed handles,
    and setters plus `Acknowledge` confirm them in the next generated batch.
    PrivateButton deliberately has no public generated handle; the example uses
    its numeric event identity with the same SDK command envelope.
-10. In a copy of the assets, try downgrading the Window. Review the counts,
+11. In a copy of the assets, try downgrading the Window. Review the counts,
     cancel once, then confirm and Undo. Shared definition assets are retained.
     Never resave widget-bearing assets with a previously distributed editor:
     that binary cannot be made aware of fields added in this release.

@@ -66,6 +66,34 @@ TEST(EditorSidebarLayoutTests, SanitizesInvalidInputs)
     EXPECT_FLOAT_EQ(layout.reticlesHeight, 0.0f);
 }
 
+TEST(EditorSidebarLayoutTests, ContentAwarePreferredHeightGivesSpaceToThePopulatedSection)
+{
+    EXPECT_FLOAT_EQ(editor::app::ResolveContentAwareSidebarPreferredHeight(
+                        500.0f, 0.5f, true, false, 80.0f, 60.0f),
+                    440.0f);
+    EXPECT_FLOAT_EQ(editor::app::ResolveContentAwareSidebarPreferredHeight(
+                        500.0f, 0.5f, false, true, 80.0f, 60.0f),
+                    80.0f);
+}
+
+TEST(EditorSidebarLayoutTests, ContentAwarePreferredHeightKeepsUserFractionForTwoPopulatedSections)
+{
+    EXPECT_FLOAT_EQ(editor::app::ResolveContentAwareSidebarPreferredHeight(
+                        500.0f, 0.35f, true, true, 80.0f, 60.0f),
+                    175.0f);
+}
+
+TEST(EditorSidebarLayoutTests, ContentAwarePreferredHeightSanitizesInvalidDimensionsAndFraction)
+{
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    EXPECT_FLOAT_EQ(editor::app::ResolveContentAwareSidebarPreferredHeight(
+                        nan, nan, true, false, nan, nan),
+                    0.0f);
+    EXPECT_FLOAT_EQ(editor::app::ResolveContentAwareSidebarPreferredHeight(
+                        400.0f, nan, true, true, 80.0f, 60.0f),
+                    200.0f);
+}
+
 TEST(EditorSidebarLayoutTests, DragGrowsPagesFractionProportionally)
 {
     EXPECT_FLOAT_EQ(editor::app::ResolveSidebarPagesFraction(200.0f, 50.0f, 500.0f), 0.5f);

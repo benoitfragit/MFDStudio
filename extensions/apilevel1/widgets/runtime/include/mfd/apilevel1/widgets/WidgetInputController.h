@@ -3,7 +3,10 @@
 #include "mfd/apilevel1/widgets/WidgetTypes.h"
 #include "mfd/apilevel1/widgets/WidgetCommands.h"
 #include <string>
+#include <string_view>
 #include <unordered_map>
+#include <unordered_set>
+#include <vector>
 namespace mfd { class SceneRegistry; }
 namespace mfd::api1
 {
@@ -28,6 +31,7 @@ private:
     std::uint64_t request_ = 0;
     float capturedSeconds_ = 0;
     std::unordered_map<std::string, float> pendingAges_;
+    std::unordered_set<std::string_view> activeWidgetIds_;
     float snapshotSeconds_ = 0;
     std::size_t snapshotIndex_ = 0;
 };

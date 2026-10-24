@@ -166,6 +166,8 @@ bool ValidatePageWidgets(const std::vector<ContainerDefinition>& containers,
     std::unordered_set<std::string> ids;
     std::unordered_set<std::string> widgetIds;
     std::unordered_set<std::string> containerIds;
+    std::unordered_set<const WidgetDefinition*> validatedDefinitions;
+    validatedDefinitions.reserve(widgets.size());
     for (const ContainerDefinition& container : containers)
     {
         if (!ids.insert(NormalizePageName(container.id)).second)
@@ -184,7 +186,11 @@ bool ValidatePageWidgets(const std::vector<ContainerDefinition>& containers,
             error = "Invalid widget ID, missing definition, collision or geometry: " + widget.id;
             return false;
         }
-        if (!ValidateWidgetDefinition(*widget.definition, error)) return false;
+        if (validatedDefinitions.insert(widget.definition.get()).second &&
+            !ValidateWidgetDefinition(*widget.definition, error))
+        {
+            return false;
+        }
         if (!ValidValue(InitialWidgetState(widget).confirmed, widget.definition->range))
         {
             error = "Invalid widget instance override: " + widget.id;

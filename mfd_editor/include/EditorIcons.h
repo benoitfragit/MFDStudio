@@ -43,7 +43,8 @@ enum class EditorIcon
     MoveDown,         ///< Downward chevron used to move an ordered entry one slot later.
     ZoomBox,          ///< Magnifier-over-a-square used to arm the drag-a-box-to-zoom tool.
     SmartSelect,      ///< Dashed marquee with a pointer used to arm the rectangular reticle picker.
-    FitToPage         ///< Frame with inward corner arrows used to scale page content to the border.
+    FitToPage,        ///< Frame with inward corner arrows used to scale page content to the border.
+    WidgetInteraction ///< Pointer and response ring used to toggle semantic widget test mode.
 };
 
 /**

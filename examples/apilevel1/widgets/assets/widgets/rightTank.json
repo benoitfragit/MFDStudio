@@ -1,0 +1,2748 @@
+{
+  "schemaVersion": 1,
+  "id": "rightTank",
+  "type": "progressBar",
+  "preferredSize": [
+    0.56,
+    0.54
+  ],
+  "hitRegion": {
+    "position": [
+      0,
+      0
+    ],
+    "size": [
+      0.56,
+      0.54
+    ]
+  },
+  "range": {
+    "min": 0,
+    "max": 2000,
+    "step": 1,
+    "decimals": 0
+  },
+  "defaults": {
+    "text": "R MAIN",
+    "checked": false,
+    "value": 1160
+  },
+  "visuals": [
+    {
+      "state": "normal",
+      "reticle": {
+        "id": "rightTankVisual",
+        "elements": [
+          {
+            "id": "TankBackdrop",
+            "type": "polyline",
+            "points": [
+              [
+                0.28,
+                -0.15
+              ],
+              [
+                -0.23,
+                -0.15
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.28,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "Fill",
+            "type": "rectangle",
+            "width": 0.55,
+            "height": 0.3,
+            "filled": true,
+            "fillColor": [
+              10,
+              47,
+              23,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "position": [
+              0.005,
+              -0.15
+            ]
+          },
+          {
+            "id": "LevelLine",
+            "type": "line",
+            "start": [
+              -0.275,
+              0
+            ],
+            "end": [
+              0.275,
+              0
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002,
+            "position": [
+              0.005,
+              -0.15
+            ]
+          },
+          {
+            "id": "FillMask0",
+            "type": "polyline",
+            "points": [
+              [
+                0.281,
+                0.151
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.281,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "FillMask1",
+            "type": "polyline",
+            "points": [
+              [
+                -0.23,
+                -0.151
+              ],
+              [
+                -0.271,
+                -0.151
+              ],
+              [
+                -0.27,
+                0.15
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "TankOutline",
+            "type": "polyline",
+            "points": [
+              [
+                0.28,
+                -0.15
+              ],
+              [
+                -0.23,
+                -0.15
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.28,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "color": [
+              231,
+              239,
+              241,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "ValueText",
+            "type": "text",
+            "text": "0",
+            "fontSize": 0.063,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "position": [
+              0,
+              -0.06
+            ]
+          },
+          {
+            "id": "Caption",
+            "type": "text",
+            "text": "R MAIN",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              231,
+              239,
+              241,
+              255
+            ],
+            "position": [
+              0,
+              -0.205
+            ]
+          },
+          {
+            "id": "Unit",
+            "type": "text",
+            "text": "KG",
+            "fontSize": 0.02,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              108,
+              200,
+              218,
+              255
+            ],
+            "position": [
+              0,
+              -0.246
+            ]
+          },
+          {
+            "id": "LeftPump",
+            "type": "rectangle",
+            "width": 0.033,
+            "height": 0.045,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.0015,
+            "position": [
+              -0.043,
+              0.102
+            ]
+          },
+          {
+            "id": "RightPump",
+            "type": "rectangle",
+            "width": 0.033,
+            "height": 0.045,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.0015,
+            "position": [
+              0.043,
+              0.102
+            ]
+          },
+          {
+            "id": "PumpHeader",
+            "type": "line",
+            "start": [
+              -0.043,
+              0.125
+            ],
+            "end": [
+              0.043,
+              0.125
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "LeftPumpInlet",
+            "type": "line",
+            "start": [
+              -0.043,
+              0.08
+            ],
+            "end": [
+              -0.043,
+              0.035
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "RightPumpInlet",
+            "type": "line",
+            "start": [
+              0.043,
+              0.08
+            ],
+            "end": [
+              0.043,
+              0.035
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "FeedPort",
+            "type": "line",
+            "start": [
+              0,
+              0.125
+            ],
+            "end": [
+              0,
+              0.17
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.0025
+          }
+        ]
+      },
+      "bindings": [
+        {
+          "primitive": "ValueText",
+          "target": "text",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "primitive": "Fill",
+          "target": "scaleY",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "primitive": "Fill",
+          "target": "positionY",
+          "from": -0.15,
+          "to": 0
+        },
+        {
+          "primitive": "LevelLine",
+          "target": "positionY",
+          "from": -0.15,
+          "to": 0.15
+        }
+      ]
+    },
+    {
+      "state": "hover",
+      "reticle": {
+        "id": "rightTankVisual",
+        "elements": [
+          {
+            "id": "TankBackdrop",
+            "type": "polyline",
+            "points": [
+              [
+                0.28,
+                -0.15
+              ],
+              [
+                -0.23,
+                -0.15
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.28,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "Fill",
+            "type": "rectangle",
+            "width": 0.55,
+            "height": 0.3,
+            "filled": true,
+            "fillColor": [
+              10,
+              47,
+              23,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "position": [
+              0.005,
+              -0.15
+            ]
+          },
+          {
+            "id": "LevelLine",
+            "type": "line",
+            "start": [
+              -0.275,
+              0
+            ],
+            "end": [
+              0.275,
+              0
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002,
+            "position": [
+              0.005,
+              -0.15
+            ]
+          },
+          {
+            "id": "FillMask0",
+            "type": "polyline",
+            "points": [
+              [
+                0.281,
+                0.151
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.281,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "FillMask1",
+            "type": "polyline",
+            "points": [
+              [
+                -0.23,
+                -0.151
+              ],
+              [
+                -0.271,
+                -0.151
+              ],
+              [
+                -0.27,
+                0.15
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "TankOutline",
+            "type": "polyline",
+            "points": [
+              [
+                0.28,
+                -0.15
+              ],
+              [
+                -0.23,
+                -0.15
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.28,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "color": [
+              175,
+              235,
+              242,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "ValueText",
+            "type": "text",
+            "text": "0",
+            "fontSize": 0.063,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "position": [
+              0,
+              -0.06
+            ]
+          },
+          {
+            "id": "Caption",
+            "type": "text",
+            "text": "R MAIN",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              231,
+              239,
+              241,
+              255
+            ],
+            "position": [
+              0,
+              -0.205
+            ]
+          },
+          {
+            "id": "Unit",
+            "type": "text",
+            "text": "KG",
+            "fontSize": 0.02,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              108,
+              200,
+              218,
+              255
+            ],
+            "position": [
+              0,
+              -0.246
+            ]
+          },
+          {
+            "id": "LeftPump",
+            "type": "rectangle",
+            "width": 0.033,
+            "height": 0.045,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.0015,
+            "position": [
+              -0.043,
+              0.102
+            ]
+          },
+          {
+            "id": "RightPump",
+            "type": "rectangle",
+            "width": 0.033,
+            "height": 0.045,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.0015,
+            "position": [
+              0.043,
+              0.102
+            ]
+          },
+          {
+            "id": "PumpHeader",
+            "type": "line",
+            "start": [
+              -0.043,
+              0.125
+            ],
+            "end": [
+              0.043,
+              0.125
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "LeftPumpInlet",
+            "type": "line",
+            "start": [
+              -0.043,
+              0.08
+            ],
+            "end": [
+              -0.043,
+              0.035
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "RightPumpInlet",
+            "type": "line",
+            "start": [
+              0.043,
+              0.08
+            ],
+            "end": [
+              0.043,
+              0.035
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "FeedPort",
+            "type": "line",
+            "start": [
+              0,
+              0.125
+            ],
+            "end": [
+              0,
+              0.17
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.0025
+          }
+        ]
+      },
+      "bindings": [
+        {
+          "primitive": "ValueText",
+          "target": "text",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "primitive": "Fill",
+          "target": "scaleY",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "primitive": "Fill",
+          "target": "positionY",
+          "from": -0.15,
+          "to": 0
+        },
+        {
+          "primitive": "LevelLine",
+          "target": "positionY",
+          "from": -0.15,
+          "to": 0.15
+        }
+      ]
+    },
+    {
+      "state": "pressed",
+      "reticle": {
+        "id": "rightTankVisual",
+        "elements": [
+          {
+            "id": "TankBackdrop",
+            "type": "polyline",
+            "points": [
+              [
+                0.28,
+                -0.15
+              ],
+              [
+                -0.23,
+                -0.15
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.28,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "Fill",
+            "type": "rectangle",
+            "width": 0.55,
+            "height": 0.3,
+            "filled": true,
+            "fillColor": [
+              10,
+              47,
+              23,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "position": [
+              0.005,
+              -0.15
+            ]
+          },
+          {
+            "id": "LevelLine",
+            "type": "line",
+            "start": [
+              -0.275,
+              0
+            ],
+            "end": [
+              0.275,
+              0
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002,
+            "position": [
+              0.005,
+              -0.15
+            ]
+          },
+          {
+            "id": "FillMask0",
+            "type": "polyline",
+            "points": [
+              [
+                0.281,
+                0.151
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.281,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "FillMask1",
+            "type": "polyline",
+            "points": [
+              [
+                -0.23,
+                -0.151
+              ],
+              [
+                -0.271,
+                -0.151
+              ],
+              [
+                -0.27,
+                0.15
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "TankOutline",
+            "type": "polyline",
+            "points": [
+              [
+                0.28,
+                -0.15
+              ],
+              [
+                -0.23,
+                -0.15
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.28,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "color": [
+              175,
+              235,
+              242,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "ValueText",
+            "type": "text",
+            "text": "0",
+            "fontSize": 0.063,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "position": [
+              0,
+              -0.06
+            ]
+          },
+          {
+            "id": "Caption",
+            "type": "text",
+            "text": "R MAIN",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              231,
+              239,
+              241,
+              255
+            ],
+            "position": [
+              0,
+              -0.205
+            ]
+          },
+          {
+            "id": "Unit",
+            "type": "text",
+            "text": "KG",
+            "fontSize": 0.02,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              108,
+              200,
+              218,
+              255
+            ],
+            "position": [
+              0,
+              -0.246
+            ]
+          },
+          {
+            "id": "LeftPump",
+            "type": "rectangle",
+            "width": 0.033,
+            "height": 0.045,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.0015,
+            "position": [
+              -0.043,
+              0.102
+            ]
+          },
+          {
+            "id": "RightPump",
+            "type": "rectangle",
+            "width": 0.033,
+            "height": 0.045,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.0015,
+            "position": [
+              0.043,
+              0.102
+            ]
+          },
+          {
+            "id": "PumpHeader",
+            "type": "line",
+            "start": [
+              -0.043,
+              0.125
+            ],
+            "end": [
+              0.043,
+              0.125
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "LeftPumpInlet",
+            "type": "line",
+            "start": [
+              -0.043,
+              0.08
+            ],
+            "end": [
+              -0.043,
+              0.035
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "RightPumpInlet",
+            "type": "line",
+            "start": [
+              0.043,
+              0.08
+            ],
+            "end": [
+              0.043,
+              0.035
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "FeedPort",
+            "type": "line",
+            "start": [
+              0,
+              0.125
+            ],
+            "end": [
+              0,
+              0.17
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.0025
+          }
+        ]
+      },
+      "bindings": [
+        {
+          "primitive": "ValueText",
+          "target": "text",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "primitive": "Fill",
+          "target": "scaleY",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "primitive": "Fill",
+          "target": "positionY",
+          "from": -0.15,
+          "to": 0
+        },
+        {
+          "primitive": "LevelLine",
+          "target": "positionY",
+          "from": -0.15,
+          "to": 0.15
+        }
+      ]
+    },
+    {
+      "state": "checked",
+      "reticle": {
+        "id": "rightTankVisual",
+        "elements": [
+          {
+            "id": "TankBackdrop",
+            "type": "polyline",
+            "points": [
+              [
+                0.28,
+                -0.15
+              ],
+              [
+                -0.23,
+                -0.15
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.28,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "Fill",
+            "type": "rectangle",
+            "width": 0.55,
+            "height": 0.3,
+            "filled": true,
+            "fillColor": [
+              10,
+              47,
+              23,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "position": [
+              0.005,
+              -0.15
+            ]
+          },
+          {
+            "id": "LevelLine",
+            "type": "line",
+            "start": [
+              -0.275,
+              0
+            ],
+            "end": [
+              0.275,
+              0
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002,
+            "position": [
+              0.005,
+              -0.15
+            ]
+          },
+          {
+            "id": "FillMask0",
+            "type": "polyline",
+            "points": [
+              [
+                0.281,
+                0.151
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.281,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "FillMask1",
+            "type": "polyline",
+            "points": [
+              [
+                -0.23,
+                -0.151
+              ],
+              [
+                -0.271,
+                -0.151
+              ],
+              [
+                -0.27,
+                0.15
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "TankOutline",
+            "type": "polyline",
+            "points": [
+              [
+                0.28,
+                -0.15
+              ],
+              [
+                -0.23,
+                -0.15
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.28,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "color": [
+              231,
+              239,
+              241,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "ValueText",
+            "type": "text",
+            "text": "0",
+            "fontSize": 0.063,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "position": [
+              0,
+              -0.06
+            ]
+          },
+          {
+            "id": "Caption",
+            "type": "text",
+            "text": "R MAIN",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              231,
+              239,
+              241,
+              255
+            ],
+            "position": [
+              0,
+              -0.205
+            ]
+          },
+          {
+            "id": "Unit",
+            "type": "text",
+            "text": "KG",
+            "fontSize": 0.02,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              108,
+              200,
+              218,
+              255
+            ],
+            "position": [
+              0,
+              -0.246
+            ]
+          },
+          {
+            "id": "LeftPump",
+            "type": "rectangle",
+            "width": 0.033,
+            "height": 0.045,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.0015,
+            "position": [
+              -0.043,
+              0.102
+            ]
+          },
+          {
+            "id": "RightPump",
+            "type": "rectangle",
+            "width": 0.033,
+            "height": 0.045,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.0015,
+            "position": [
+              0.043,
+              0.102
+            ]
+          },
+          {
+            "id": "PumpHeader",
+            "type": "line",
+            "start": [
+              -0.043,
+              0.125
+            ],
+            "end": [
+              0.043,
+              0.125
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "LeftPumpInlet",
+            "type": "line",
+            "start": [
+              -0.043,
+              0.08
+            ],
+            "end": [
+              -0.043,
+              0.035
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "RightPumpInlet",
+            "type": "line",
+            "start": [
+              0.043,
+              0.08
+            ],
+            "end": [
+              0.043,
+              0.035
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "FeedPort",
+            "type": "line",
+            "start": [
+              0,
+              0.125
+            ],
+            "end": [
+              0,
+              0.17
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.0025
+          }
+        ]
+      },
+      "bindings": [
+        {
+          "primitive": "ValueText",
+          "target": "text",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "primitive": "Fill",
+          "target": "scaleY",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "primitive": "Fill",
+          "target": "positionY",
+          "from": -0.15,
+          "to": 0
+        },
+        {
+          "primitive": "LevelLine",
+          "target": "positionY",
+          "from": -0.15,
+          "to": 0.15
+        }
+      ]
+    },
+    {
+      "state": "disabled",
+      "reticle": {
+        "id": "rightTankVisual",
+        "elements": [
+          {
+            "id": "TankBackdrop",
+            "type": "polyline",
+            "points": [
+              [
+                0.28,
+                -0.15
+              ],
+              [
+                -0.23,
+                -0.15
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.28,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "Fill",
+            "type": "rectangle",
+            "width": 0.55,
+            "height": 0.3,
+            "filled": true,
+            "fillColor": [
+              10,
+              47,
+              23,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "position": [
+              0.005,
+              -0.15
+            ]
+          },
+          {
+            "id": "LevelLine",
+            "type": "line",
+            "start": [
+              -0.275,
+              0
+            ],
+            "end": [
+              0.275,
+              0
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002,
+            "position": [
+              0.005,
+              -0.15
+            ]
+          },
+          {
+            "id": "FillMask0",
+            "type": "polyline",
+            "points": [
+              [
+                0.281,
+                0.151
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.281,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "FillMask1",
+            "type": "polyline",
+            "points": [
+              [
+                -0.23,
+                -0.151
+              ],
+              [
+                -0.271,
+                -0.151
+              ],
+              [
+                -0.27,
+                0.15
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "TankOutline",
+            "type": "polyline",
+            "points": [
+              [
+                0.28,
+                -0.15
+              ],
+              [
+                -0.23,
+                -0.15
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.28,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "color": [
+              57,
+              77,
+              85,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "ValueText",
+            "type": "text",
+            "text": "0",
+            "fontSize": 0.063,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "position": [
+              0,
+              -0.06
+            ]
+          },
+          {
+            "id": "Caption",
+            "type": "text",
+            "text": "R MAIN",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              130,
+              151,
+              158,
+              255
+            ],
+            "position": [
+              0,
+              -0.205
+            ]
+          },
+          {
+            "id": "Unit",
+            "type": "text",
+            "text": "KG",
+            "fontSize": 0.02,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              108,
+              200,
+              218,
+              255
+            ],
+            "position": [
+              0,
+              -0.246
+            ]
+          },
+          {
+            "id": "LeftPump",
+            "type": "rectangle",
+            "width": 0.033,
+            "height": 0.045,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.0015,
+            "position": [
+              -0.043,
+              0.102
+            ]
+          },
+          {
+            "id": "RightPump",
+            "type": "rectangle",
+            "width": 0.033,
+            "height": 0.045,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.0015,
+            "position": [
+              0.043,
+              0.102
+            ]
+          },
+          {
+            "id": "PumpHeader",
+            "type": "line",
+            "start": [
+              -0.043,
+              0.125
+            ],
+            "end": [
+              0.043,
+              0.125
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "LeftPumpInlet",
+            "type": "line",
+            "start": [
+              -0.043,
+              0.08
+            ],
+            "end": [
+              -0.043,
+              0.035
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "RightPumpInlet",
+            "type": "line",
+            "start": [
+              0.043,
+              0.08
+            ],
+            "end": [
+              0.043,
+              0.035
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "FeedPort",
+            "type": "line",
+            "start": [
+              0,
+              0.125
+            ],
+            "end": [
+              0,
+              0.17
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.0025
+          }
+        ]
+      },
+      "bindings": [
+        {
+          "primitive": "ValueText",
+          "target": "text",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "primitive": "Fill",
+          "target": "scaleY",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "primitive": "Fill",
+          "target": "positionY",
+          "from": -0.15,
+          "to": 0
+        },
+        {
+          "primitive": "LevelLine",
+          "target": "positionY",
+          "from": -0.15,
+          "to": 0.15
+        }
+      ]
+    },
+    {
+      "state": "warning",
+      "reticle": {
+        "id": "rightTankVisual",
+        "elements": [
+          {
+            "id": "TankBackdrop",
+            "type": "polyline",
+            "points": [
+              [
+                0.28,
+                -0.15
+              ],
+              [
+                -0.23,
+                -0.15
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.28,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "Fill",
+            "type": "rectangle",
+            "width": 0.55,
+            "height": 0.3,
+            "filled": true,
+            "fillColor": [
+              82,
+              53,
+              13,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "position": [
+              0.005,
+              -0.15
+            ]
+          },
+          {
+            "id": "LevelLine",
+            "type": "line",
+            "start": [
+              -0.275,
+              0
+            ],
+            "end": [
+              0.275,
+              0
+            ],
+            "color": [
+              255,
+              164,
+              61,
+              255
+            ],
+            "thickness": 0.002,
+            "position": [
+              0.005,
+              -0.15
+            ]
+          },
+          {
+            "id": "FillMask0",
+            "type": "polyline",
+            "points": [
+              [
+                0.281,
+                0.151
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.281,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "FillMask1",
+            "type": "polyline",
+            "points": [
+              [
+                -0.23,
+                -0.151
+              ],
+              [
+                -0.271,
+                -0.151
+              ],
+              [
+                -0.27,
+                0.15
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "TankOutline",
+            "type": "polyline",
+            "points": [
+              [
+                0.28,
+                -0.15
+              ],
+              [
+                -0.23,
+                -0.15
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.28,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "color": [
+              255,
+              164,
+              61,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "ValueText",
+            "type": "text",
+            "text": "0",
+            "fontSize": 0.063,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              255,
+              164,
+              61,
+              255
+            ],
+            "position": [
+              0,
+              -0.06
+            ]
+          },
+          {
+            "id": "Caption",
+            "type": "text",
+            "text": "R MAIN",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              231,
+              239,
+              241,
+              255
+            ],
+            "position": [
+              0,
+              -0.205
+            ]
+          },
+          {
+            "id": "Unit",
+            "type": "text",
+            "text": "KG",
+            "fontSize": 0.02,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              108,
+              200,
+              218,
+              255
+            ],
+            "position": [
+              0,
+              -0.246
+            ]
+          },
+          {
+            "id": "LeftPump",
+            "type": "rectangle",
+            "width": 0.033,
+            "height": 0.045,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              255,
+              164,
+              61,
+              255
+            ],
+            "thickness": 0.0015,
+            "position": [
+              -0.043,
+              0.102
+            ]
+          },
+          {
+            "id": "RightPump",
+            "type": "rectangle",
+            "width": 0.033,
+            "height": 0.045,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              255,
+              164,
+              61,
+              255
+            ],
+            "thickness": 0.0015,
+            "position": [
+              0.043,
+              0.102
+            ]
+          },
+          {
+            "id": "PumpHeader",
+            "type": "line",
+            "start": [
+              -0.043,
+              0.125
+            ],
+            "end": [
+              0.043,
+              0.125
+            ],
+            "color": [
+              255,
+              164,
+              61,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "LeftPumpInlet",
+            "type": "line",
+            "start": [
+              -0.043,
+              0.08
+            ],
+            "end": [
+              -0.043,
+              0.035
+            ],
+            "color": [
+              255,
+              164,
+              61,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "RightPumpInlet",
+            "type": "line",
+            "start": [
+              0.043,
+              0.08
+            ],
+            "end": [
+              0.043,
+              0.035
+            ],
+            "color": [
+              255,
+              164,
+              61,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "FeedPort",
+            "type": "line",
+            "start": [
+              0,
+              0.125
+            ],
+            "end": [
+              0,
+              0.17
+            ],
+            "color": [
+              255,
+              164,
+              61,
+              255
+            ],
+            "thickness": 0.0025
+          }
+        ]
+      },
+      "bindings": [
+        {
+          "primitive": "ValueText",
+          "target": "text",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "primitive": "Fill",
+          "target": "scaleY",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "primitive": "Fill",
+          "target": "positionY",
+          "from": -0.15,
+          "to": 0
+        },
+        {
+          "primitive": "LevelLine",
+          "target": "positionY",
+          "from": -0.15,
+          "to": 0.15
+        }
+      ]
+    },
+    {
+      "state": "pending",
+      "reticle": {
+        "id": "rightTankVisual",
+        "elements": [
+          {
+            "id": "TankBackdrop",
+            "type": "polyline",
+            "points": [
+              [
+                0.28,
+                -0.15
+              ],
+              [
+                -0.23,
+                -0.15
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.28,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "Fill",
+            "type": "rectangle",
+            "width": 0.55,
+            "height": 0.3,
+            "filled": true,
+            "fillColor": [
+              10,
+              47,
+              23,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "position": [
+              0.005,
+              -0.15
+            ]
+          },
+          {
+            "id": "LevelLine",
+            "type": "line",
+            "start": [
+              -0.275,
+              0
+            ],
+            "end": [
+              0.275,
+              0
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002,
+            "position": [
+              0.005,
+              -0.15
+            ]
+          },
+          {
+            "id": "FillMask0",
+            "type": "polyline",
+            "points": [
+              [
+                0.281,
+                0.151
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.281,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "FillMask1",
+            "type": "polyline",
+            "points": [
+              [
+                -0.23,
+                -0.151
+              ],
+              [
+                -0.271,
+                -0.151
+              ],
+              [
+                -0.27,
+                0.15
+              ]
+            ],
+            "closed": true,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "TankOutline",
+            "type": "polyline",
+            "points": [
+              [
+                0.28,
+                -0.15
+              ],
+              [
+                -0.23,
+                -0.15
+              ],
+              [
+                -0.27,
+                0.15
+              ],
+              [
+                0.28,
+                -0.005
+              ]
+            ],
+            "closed": true,
+            "color": [
+              246,
+              192,
+              66,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "ValueText",
+            "type": "text",
+            "text": "0",
+            "fontSize": 0.063,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "position": [
+              0,
+              -0.06
+            ]
+          },
+          {
+            "id": "Caption",
+            "type": "text",
+            "text": "R MAIN",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              231,
+              239,
+              241,
+              255
+            ],
+            "position": [
+              0,
+              -0.205
+            ]
+          },
+          {
+            "id": "Unit",
+            "type": "text",
+            "text": "KG",
+            "fontSize": 0.02,
+            "letterSpacing": 0.0008,
+            "align": "center",
+            "color": [
+              108,
+              200,
+              218,
+              255
+            ],
+            "position": [
+              0,
+              -0.246
+            ]
+          },
+          {
+            "id": "LeftPump",
+            "type": "rectangle",
+            "width": 0.033,
+            "height": 0.045,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.0015,
+            "position": [
+              -0.043,
+              0.102
+            ]
+          },
+          {
+            "id": "RightPump",
+            "type": "rectangle",
+            "width": 0.033,
+            "height": 0.045,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.0015,
+            "position": [
+              0.043,
+              0.102
+            ]
+          },
+          {
+            "id": "PumpHeader",
+            "type": "line",
+            "start": [
+              -0.043,
+              0.125
+            ],
+            "end": [
+              0.043,
+              0.125
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "LeftPumpInlet",
+            "type": "line",
+            "start": [
+              -0.043,
+              0.08
+            ],
+            "end": [
+              -0.043,
+              0.035
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "RightPumpInlet",
+            "type": "line",
+            "start": [
+              0.043,
+              0.08
+            ],
+            "end": [
+              0.043,
+              0.035
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.002
+          },
+          {
+            "id": "FeedPort",
+            "type": "line",
+            "start": [
+              0,
+              0.125
+            ],
+            "end": [
+              0,
+              0.17
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.0025
+          }
+        ]
+      },
+      "bindings": [
+        {
+          "primitive": "ValueText",
+          "target": "text",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "primitive": "Fill",
+          "target": "scaleY",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "primitive": "Fill",
+          "target": "positionY",
+          "from": -0.15,
+          "to": 0
+        },
+        {
+          "primitive": "LevelLine",
+          "target": "positionY",
+          "from": -0.15,
+          "to": 0.15
+        }
+      ]
+    }
+  ]
+}

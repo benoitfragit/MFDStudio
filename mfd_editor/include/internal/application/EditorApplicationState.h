@@ -393,6 +393,10 @@ struct PreviewState
     bool previewTextureReady = false;
     bool previewTextureStencilReady = false;
     std::vector<int> orderedStaticReticleIndices {};
+    /** @brief Last valid widget layout reused by semantic pointer input in the same preview frame. */
+    std::vector<mfd::api1::ContainerLayoutNode> widgetInteractionLayouts {};
+    /** @brief Whether widgetInteractionLayouts belongs to the active page rendered this frame. */
+    bool widgetInteractionLayoutValid = false;
     mfd::BezierPolylineCache previewBezierCache {};
     mfd::ImageTextureCache previewImageCache {};
     mfd::ExternalStreamRegistry externalStreams {};

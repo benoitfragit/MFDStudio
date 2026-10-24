@@ -1,0 +1,536 @@
+{
+  "schemaVersion": 1,
+  "id": "valve",
+  "type": "toggle",
+  "preferredSize": [
+    0.11,
+    0.11
+  ],
+  "hitRegion": {
+    "position": [
+      0,
+      0
+    ],
+    "size": [
+      0.11,
+      0.11
+    ]
+  },
+  "range": {
+    "min": 0,
+    "max": 100,
+    "step": 1,
+    "decimals": 0
+  },
+  "defaults": {
+    "text": "S1",
+    "checked": false,
+    "value": 25
+  },
+  "visuals": [
+    {
+      "state": "normal",
+      "reticle": {
+        "id": "valveVisual",
+        "elements": [
+          {
+            "id": "ValveBody",
+            "type": "circle",
+            "radius": 0.038,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "Blade",
+            "type": "line",
+            "start": [
+              -0.038,
+              0
+            ],
+            "end": [
+              0.038,
+              0
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "Text",
+            "type": "text",
+            "text": "S1",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              231,
+              239,
+              241,
+              255
+            ],
+            "position": [
+              0.063,
+              0
+            ]
+          }
+        ]
+      },
+      "bindings": [
+        {
+          "primitive": "Text",
+          "target": "text",
+          "from": 0,
+          "to": 1
+        }
+      ]
+    },
+    {
+      "state": "hover",
+      "reticle": {
+        "id": "valveVisual",
+        "elements": [
+          {
+            "id": "ValveBody",
+            "type": "circle",
+            "radius": 0.038,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              175,
+              235,
+              242,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "Blade",
+            "type": "line",
+            "start": [
+              -0.038,
+              0
+            ],
+            "end": [
+              0.038,
+              0
+            ],
+            "color": [
+              175,
+              235,
+              242,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "Text",
+            "type": "text",
+            "text": "S1",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              231,
+              239,
+              241,
+              255
+            ],
+            "position": [
+              0.063,
+              0
+            ]
+          }
+        ]
+      },
+      "bindings": [
+        {
+          "primitive": "Text",
+          "target": "text",
+          "from": 0,
+          "to": 1
+        }
+      ]
+    },
+    {
+      "state": "pressed",
+      "reticle": {
+        "id": "valveVisual",
+        "elements": [
+          {
+            "id": "ValveBody",
+            "type": "circle",
+            "radius": 0.038,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              175,
+              235,
+              242,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "Blade",
+            "type": "line",
+            "start": [
+              0,
+              -0.038
+            ],
+            "end": [
+              0,
+              0.038
+            ],
+            "color": [
+              175,
+              235,
+              242,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "Text",
+            "type": "text",
+            "text": "S1",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              231,
+              239,
+              241,
+              255
+            ],
+            "position": [
+              0.063,
+              0
+            ]
+          }
+        ]
+      },
+      "bindings": [
+        {
+          "primitive": "Text",
+          "target": "text",
+          "from": 0,
+          "to": 1
+        }
+      ]
+    },
+    {
+      "state": "checked",
+      "reticle": {
+        "id": "valveVisual",
+        "elements": [
+          {
+            "id": "ValveBody",
+            "type": "circle",
+            "radius": 0.038,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "Blade",
+            "type": "line",
+            "start": [
+              0,
+              -0.038
+            ],
+            "end": [
+              0,
+              0.038
+            ],
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "Text",
+            "type": "text",
+            "text": "S1",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              231,
+              239,
+              241,
+              255
+            ],
+            "position": [
+              0.063,
+              0
+            ]
+          }
+        ]
+      },
+      "bindings": [
+        {
+          "primitive": "Text",
+          "target": "text",
+          "from": 0,
+          "to": 1
+        }
+      ]
+    },
+    {
+      "state": "disabled",
+      "reticle": {
+        "id": "valveVisual",
+        "elements": [
+          {
+            "id": "ValveBody",
+            "type": "circle",
+            "radius": 0.038,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              57,
+              77,
+              85,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "Blade",
+            "type": "line",
+            "start": [
+              -0.038,
+              0
+            ],
+            "end": [
+              0.038,
+              0
+            ],
+            "color": [
+              57,
+              77,
+              85,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "Text",
+            "type": "text",
+            "text": "S1",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              130,
+              151,
+              158,
+              255
+            ],
+            "position": [
+              0.063,
+              0
+            ]
+          }
+        ]
+      },
+      "bindings": [
+        {
+          "primitive": "Text",
+          "target": "text",
+          "from": 0,
+          "to": 1
+        }
+      ]
+    },
+    {
+      "state": "warning",
+      "reticle": {
+        "id": "valveVisual",
+        "elements": [
+          {
+            "id": "ValveBody",
+            "type": "circle",
+            "radius": 0.038,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              255,
+              164,
+              61,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "Blade",
+            "type": "line",
+            "start": [
+              -0.038,
+              0
+            ],
+            "end": [
+              0.038,
+              0
+            ],
+            "color": [
+              255,
+              164,
+              61,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "Text",
+            "type": "text",
+            "text": "S1",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              231,
+              239,
+              241,
+              255
+            ],
+            "position": [
+              0.063,
+              0
+            ]
+          }
+        ]
+      },
+      "bindings": [
+        {
+          "primitive": "Text",
+          "target": "text",
+          "from": 0,
+          "to": 1
+        }
+      ]
+    },
+    {
+      "state": "pending",
+      "reticle": {
+        "id": "valveVisual",
+        "elements": [
+          {
+            "id": "ValveBody",
+            "type": "circle",
+            "radius": 0.038,
+            "filled": true,
+            "fillColor": [
+              4,
+              7,
+              9,
+              255
+            ],
+            "color": [
+              246,
+              192,
+              66,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "Blade",
+            "type": "line",
+            "start": [
+              -0.038,
+              0
+            ],
+            "end": [
+              0.038,
+              0
+            ],
+            "color": [
+              246,
+              192,
+              66,
+              255
+            ],
+            "thickness": 0.003
+          },
+          {
+            "id": "Text",
+            "type": "text",
+            "text": "S1",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              231,
+              239,
+              241,
+              255
+            ],
+            "position": [
+              0.063,
+              0
+            ]
+          }
+        ]
+      },
+      "bindings": [
+        {
+          "primitive": "Text",
+          "target": "text",
+          "from": 0,
+          "to": 1
+        }
+      ]
+    }
+  ]
+}

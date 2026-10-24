@@ -9,23 +9,44 @@ cmake --build --preset debug-win32
 .\Scripts\Start-APILevel1Widgets.bat
 ```
 
-The window listens on command port 47330 and feedback port 47331. RootAction
-is a root button; RootToggle shares the nested ToggleA definition. Panel owns
-Grid, whose CellCanvas contains a clipped, scrollable Linear with ToggleA and
-ScrollLabel. Resize these containers in the editor to inspect placement. The
-catalog includes all eleven semantic types with compact avionics-inspired visuals:
-button, switch, checkbox, radio, slider, knob, gauge, progress bar, indicator,
-numeric display and label. ToggleA and ToggleB share one definition and start
-with different independent values. PrivateButton is interactive with
-`exposed: false`: its numeric event identity remains available.
+The launcher starts both the visible Window and its generated client; the client
+executable by itself is intentionally headless. The Window listens on command
+port 47330 and feedback port 47331. The Page is a fuel-management cockpit rather
+than a control catalog: one root Canvas owns an interactive transfer synoptic,
+left/right feed panels, a Grid of fuel instruments, a lower Overlay annunciator
+rail, and a clipped scrollable pump-status region. Resize the containers in the
+editor to inspect the same hierarchy used at runtime.
 
-The SYS/STAT demo uses a near-black instrument background, thin green bezels,
-restrained legends, slender controls, and amber warning/pending indications.
-Labels reference generic aircraft systems such as hydraulics, navigation,
-engine indication and electrical buses. All values are illustrative: this
-showcase is not a certified display or an aircraft-system model. The eleven
-semantic types, state bindings, transport identifiers, and client behavior are
-unchanged by this presentation-only theme.
+All eleven semantic types remain present: button, switch, checkbox, radio,
+slider, knob, gauge, progress bar, indicator, numeric display and label. ToggleA
+and ToggleB share one definition but keep independent values. PrivateButton is
+interactive with `exposed: false`; its numeric event identity remains available.
+
+The central schematic follows an aircraft fuel page: two tapered wing tanks join
+the center tank along one continuous white silhouette. Quantities and thin
+orthogonal feed lines use green; units and interactive accents use cyan. The
+bundled Share Tech Mono font keeps small labels readable (SIL Open Font License
+included in assets/fonts). Three circular valves remain independent widgets.
+Seven short classic Page reticles connect the ports, manifold and engine feeds;
+none crosses a valve's central click target. Buttons share one compact rectangular
+profile around the perimeter, and switches use squircle tracks. The authored
+schematic has no generic widget cards or page-title overlay.
+
+Each tank is a progress-bar widget. Its level rises from the fixed lower edge and
+is cropped by two local convex polygons to follow the inclined wing walls, including
+at empty and full capacity. The masks belong to the widget visual, not to a
+page-sized reticle. Quantities and the BINGO threshold use kilograms (2000 kg per
+tank, 6000 kg total); transfer flow uses kg/min. Values are illustrative.
+
+The generated client makes the panel live immediately. Main tanks consume fuel;
+an open S1/S2 valve transfers fuel from the center tank to its associated main tank
+when CTR PUMPS and the central S3 valve are enabled.
+The transfer-rate knob changes the flow and the **BINGO** slider sets the warning
+threshold. **REFUEL** fills all three tanks continuously; press **STOP FILL** to
+stop early, or let it stop automatically at capacity. Normal consumption resumes
+afterwards. **XFER TEST** runs a short annunciator sequence. Updates publish at a
+bounded 10 Hz cadence and are batched so the animation does not become one UDP
+packet or allocation per widget and render frame.
 
 The example assets have one deterministic source. Regenerate them after an
 intentional showcase change, or check that committed JSON still matches it:
@@ -35,9 +56,10 @@ py -3 .\examples\apilevel1\widgets\generate_showcase_assets.py
 py -3 .\examples\apilevel1\widgets\generate_showcase_assets.py --check
 ```
 
-The script targets Python 3.7 or newer. It preserves the instance identifiers
-used by the generated client and tests. Combo boxes and trees are not emulated:
-API LEVEL 1 currently has no corresponding semantic widget types.
+The script targets Python 3.7 or newer. It preserves the original instance
+identifiers used by the generated client and adds named tank/valve handles.
+Combo boxes, list boxes and trees are not emulated: API LEVEL 1 currently has no
+corresponding semantic widget types.
 
 The generated C++ client activates the Page, receives typed input intent and
 confirms state through the existing command channel. It exits after ten minutes
@@ -54,6 +76,7 @@ for shared visual editing, instance overrides, parent layout, import/export and
 loss-aware downgrade. See [the handbook](../../../docs/src/handbook/widgets.md)
 for bounded feedback semantics and compatibility limits.
 
-Slider proposals above 90 are deliberately rejected; accepted values also drive
-Gauge, ProgressBar and NumericDisplay. This illustrates client authority without
-putting policy in the widget framework.
+In the editor, enable the pointer-and-response-ring tool in the Page preview to
+test buttons, toggles, checkboxes, radio controls, sliders and knobs directly.
+This session-only mode uses the runtime state machine but never mutates JSON or
+undo history; disable it to restore selection and geometry gestures.

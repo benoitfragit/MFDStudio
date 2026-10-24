@@ -3,8 +3,8 @@
   "id": "gauge",
   "type": "gauge",
   "preferredSize": [
-    0.46,
-    0.26
+    0.48,
+    0.24
   ],
   "hitRegion": {
     "position": [
@@ -12,20 +12,20 @@
       0
     ],
     "size": [
-      0.46,
-      0.26
+      0.48,
+      0.24
     ]
   },
   "range": {
     "min": 0,
-    "max": 100,
+    "max": 6000,
     "step": 1,
     "decimals": 0
   },
   "defaults": {
-    "text": "N1",
+    "text": "FUEL ON BOARD",
     "checked": false,
-    "value": 68
+    "value": 3520
   },
   "visuals": [
     {
@@ -34,173 +34,100 @@
         "id": "gaugeVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.442,
-            "height": 0.24,
-            "filled": true,
-            "fillColor": [
-              11,
-              22,
-              25,
-              255
-            ],
-            "color": [
-              47,
-              78,
-              64,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "N1",
-            "fontSize": 0.024,
+            "text": "FUEL ON BOARD",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              135,
-              169,
-              145,
+              231,
+              239,
+              241,
               255
             ],
             "position": [
-              -0.195,
-              0.095
+              -0.21,
+              0.075
             ]
           },
           {
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.026,
+            "fontSize": 0.068,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "position": [
+              -0.21,
+              -0.01
+            ]
+          },
+          {
+            "id": "Unit",
+            "type": "text",
+            "text": "KG",
+            "fontSize": 0.027,
+            "letterSpacing": 0.0008,
             "align": "right",
             "color": [
-              225,
-              241,
-              229,
+              108,
+              200,
+              218,
               255
             ],
             "position": [
-              0.195,
-              0.095
+              0.2,
+              -0.01
             ]
           },
           {
-            "id": "Scale",
-            "type": "arc",
-            "radius": 0.08,
-            "startAngleDegrees": -120,
-            "endAngleDegrees": 120,
-            "segments": 32,
-            "color": [
-              75,
-              100,
-              89,
-              255
-            ],
-            "thickness": 0.0045,
-            "position": [
-              0,
-              -0.035
-            ]
-          },
-          {
-            "id": "LowTick",
+            "id": "Track",
             "type": "line",
             "start": [
-              -0.075,
-              -0.06
+              -0.21,
+              -0.072
             ],
             "end": [
-              -0.06,
-              -0.05
+              0.21,
+              -0.072
             ],
             "color": [
-              135,
-              169,
-              145,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.004
-          },
-          {
-            "id": "HighTick",
-            "type": "line",
-            "start": [
-              0.075,
-              -0.06
-            ],
-            "end": [
-              0.06,
-              -0.05
-            ],
-            "color": [
-              135,
-              169,
-              145,
-              255
-            ],
-            "thickness": 0.004
+            "thickness": 0.003
           },
           {
             "id": "Needle",
             "type": "line",
             "start": [
               0,
-              0
+              -0.081
             ],
             "end": [
               0,
-              0.068
+              -0.063
             ],
             "color": [
-              98,
-              204,
-              142,
+              65,
+              239,
+              93,
               255
             ],
             "thickness": 0.004,
             "position": [
-              0,
-              -0.035
+              -0.21,
+              0
             ]
-          },
-          {
-            "id": "Hub",
-            "type": "circle",
-            "radius": 0.007,
-            "filled": true,
-            "fillColor": [
-              225,
-              241,
-              229,
-              255
-            ],
-            "position": [
-              0,
-              -0.035
-            ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.195,
-              0.11
-            ],
-            "end": [
-              -0.105,
-              0.11
-            ],
-            "color": [
-              98,
-              204,
-              142,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -213,9 +140,9 @@
         },
         {
           "primitive": "Needle",
-          "target": "rotation",
-          "from": -120,
-          "to": 120
+          "target": "positionX",
+          "from": -0.21,
+          "to": 0.21
         }
       ]
     },
@@ -225,173 +152,100 @@
         "id": "gaugeVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.442,
-            "height": 0.24,
-            "filled": true,
-            "fillColor": [
-              15,
-              34,
-              32,
-              255
-            ],
-            "color": [
-              169,
-              239,
-              191,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "N1",
-            "fontSize": 0.024,
+            "text": "FUEL ON BOARD",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              135,
-              169,
-              145,
+              231,
+              239,
+              241,
               255
             ],
             "position": [
-              -0.195,
-              0.095
+              -0.21,
+              0.075
             ]
           },
           {
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.026,
+            "fontSize": 0.068,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              175,
+              235,
+              242,
+              255
+            ],
+            "position": [
+              -0.21,
+              -0.01
+            ]
+          },
+          {
+            "id": "Unit",
+            "type": "text",
+            "text": "KG",
+            "fontSize": 0.027,
+            "letterSpacing": 0.0008,
             "align": "right",
             "color": [
-              225,
-              241,
-              229,
+              108,
+              200,
+              218,
               255
             ],
             "position": [
-              0.195,
-              0.095
+              0.2,
+              -0.01
             ]
           },
           {
-            "id": "Scale",
-            "type": "arc",
-            "radius": 0.08,
-            "startAngleDegrees": -120,
-            "endAngleDegrees": 120,
-            "segments": 32,
-            "color": [
-              75,
-              100,
-              89,
-              255
-            ],
-            "thickness": 0.0045,
-            "position": [
-              0,
-              -0.035
-            ]
-          },
-          {
-            "id": "LowTick",
+            "id": "Track",
             "type": "line",
             "start": [
-              -0.075,
-              -0.06
+              -0.21,
+              -0.072
             ],
             "end": [
-              -0.06,
-              -0.05
+              0.21,
+              -0.072
             ],
             "color": [
-              135,
-              169,
-              145,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.004
-          },
-          {
-            "id": "HighTick",
-            "type": "line",
-            "start": [
-              0.075,
-              -0.06
-            ],
-            "end": [
-              0.06,
-              -0.05
-            ],
-            "color": [
-              135,
-              169,
-              145,
-              255
-            ],
-            "thickness": 0.004
+            "thickness": 0.003
           },
           {
             "id": "Needle",
             "type": "line",
             "start": [
               0,
-              0
+              -0.081
             ],
             "end": [
               0,
-              0.068
+              -0.063
             ],
             "color": [
-              169,
+              65,
               239,
-              191,
+              93,
               255
             ],
             "thickness": 0.004,
             "position": [
-              0,
-              -0.035
+              -0.21,
+              0
             ]
-          },
-          {
-            "id": "Hub",
-            "type": "circle",
-            "radius": 0.007,
-            "filled": true,
-            "fillColor": [
-              225,
-              241,
-              229,
-              255
-            ],
-            "position": [
-              0,
-              -0.035
-            ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.195,
-              0.11
-            ],
-            "end": [
-              -0.105,
-              0.11
-            ],
-            "color": [
-              169,
-              239,
-              191,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -404,9 +258,9 @@
         },
         {
           "primitive": "Needle",
-          "target": "rotation",
-          "from": -120,
-          "to": 120
+          "target": "positionX",
+          "from": -0.21,
+          "to": 0.21
         }
       ]
     },
@@ -416,173 +270,100 @@
         "id": "gaugeVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.442,
-            "height": 0.24,
-            "filled": true,
-            "fillColor": [
-              18,
-              49,
-              36,
-              255
-            ],
-            "color": [
-              169,
-              239,
-              191,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "N1",
-            "fontSize": 0.024,
+            "text": "FUEL ON BOARD",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              135,
-              169,
-              145,
+              231,
+              239,
+              241,
               255
             ],
             "position": [
-              -0.195,
-              0.095
+              -0.21,
+              0.075
             ]
           },
           {
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.026,
+            "fontSize": 0.068,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              175,
+              235,
+              242,
+              255
+            ],
+            "position": [
+              -0.21,
+              -0.01
+            ]
+          },
+          {
+            "id": "Unit",
+            "type": "text",
+            "text": "KG",
+            "fontSize": 0.027,
+            "letterSpacing": 0.0008,
             "align": "right",
             "color": [
-              225,
-              241,
-              229,
+              108,
+              200,
+              218,
               255
             ],
             "position": [
-              0.195,
-              0.095
+              0.2,
+              -0.01
             ]
           },
           {
-            "id": "Scale",
-            "type": "arc",
-            "radius": 0.08,
-            "startAngleDegrees": -120,
-            "endAngleDegrees": 120,
-            "segments": 32,
-            "color": [
-              75,
-              100,
-              89,
-              255
-            ],
-            "thickness": 0.0045,
-            "position": [
-              0,
-              -0.035
-            ]
-          },
-          {
-            "id": "LowTick",
+            "id": "Track",
             "type": "line",
             "start": [
-              -0.075,
-              -0.06
+              -0.21,
+              -0.072
             ],
             "end": [
-              -0.06,
-              -0.05
+              0.21,
+              -0.072
             ],
             "color": [
-              135,
-              169,
-              145,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.004
-          },
-          {
-            "id": "HighTick",
-            "type": "line",
-            "start": [
-              0.075,
-              -0.06
-            ],
-            "end": [
-              0.06,
-              -0.05
-            ],
-            "color": [
-              135,
-              169,
-              145,
-              255
-            ],
-            "thickness": 0.004
+            "thickness": 0.003
           },
           {
             "id": "Needle",
             "type": "line",
             "start": [
               0,
-              0
+              -0.081
             ],
             "end": [
               0,
-              0.068
+              -0.063
             ],
             "color": [
-              169,
+              65,
               239,
-              191,
+              93,
               255
             ],
             "thickness": 0.004,
             "position": [
-              0,
-              -0.035
+              -0.21,
+              0
             ]
-          },
-          {
-            "id": "Hub",
-            "type": "circle",
-            "radius": 0.007,
-            "filled": true,
-            "fillColor": [
-              225,
-              241,
-              229,
-              255
-            ],
-            "position": [
-              0,
-              -0.035
-            ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.195,
-              0.11
-            ],
-            "end": [
-              -0.105,
-              0.11
-            ],
-            "color": [
-              169,
-              239,
-              191,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -595,9 +376,9 @@
         },
         {
           "primitive": "Needle",
-          "target": "rotation",
-          "from": -120,
-          "to": 120
+          "target": "positionX",
+          "from": -0.21,
+          "to": 0.21
         }
       ]
     },
@@ -607,173 +388,100 @@
         "id": "gaugeVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.442,
-            "height": 0.24,
-            "filled": true,
-            "fillColor": [
-              11,
-              22,
-              25,
-              255
-            ],
-            "color": [
-              66,
-              222,
-              126,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "N1",
-            "fontSize": 0.024,
+            "text": "FUEL ON BOARD",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              135,
-              169,
-              145,
+              231,
+              239,
+              241,
               255
             ],
             "position": [
-              -0.195,
-              0.095
+              -0.21,
+              0.075
             ]
           },
           {
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.026,
+            "fontSize": 0.068,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              65,
+              239,
+              93,
+              255
+            ],
+            "position": [
+              -0.21,
+              -0.01
+            ]
+          },
+          {
+            "id": "Unit",
+            "type": "text",
+            "text": "KG",
+            "fontSize": 0.027,
+            "letterSpacing": 0.0008,
             "align": "right",
             "color": [
-              225,
-              241,
-              229,
+              108,
+              200,
+              218,
               255
             ],
             "position": [
-              0.195,
-              0.095
+              0.2,
+              -0.01
             ]
           },
           {
-            "id": "Scale",
-            "type": "arc",
-            "radius": 0.08,
-            "startAngleDegrees": -120,
-            "endAngleDegrees": 120,
-            "segments": 32,
-            "color": [
-              75,
-              100,
-              89,
-              255
-            ],
-            "thickness": 0.0045,
-            "position": [
-              0,
-              -0.035
-            ]
-          },
-          {
-            "id": "LowTick",
+            "id": "Track",
             "type": "line",
             "start": [
-              -0.075,
-              -0.06
+              -0.21,
+              -0.072
             ],
             "end": [
-              -0.06,
-              -0.05
+              0.21,
+              -0.072
             ],
             "color": [
-              135,
-              169,
-              145,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.004
-          },
-          {
-            "id": "HighTick",
-            "type": "line",
-            "start": [
-              0.075,
-              -0.06
-            ],
-            "end": [
-              0.06,
-              -0.05
-            ],
-            "color": [
-              135,
-              169,
-              145,
-              255
-            ],
-            "thickness": 0.004
+            "thickness": 0.003
           },
           {
             "id": "Needle",
             "type": "line",
             "start": [
               0,
-              0
+              -0.081
             ],
             "end": [
               0,
-              0.068
+              -0.063
             ],
             "color": [
-              66,
-              222,
-              126,
+              65,
+              239,
+              93,
               255
             ],
             "thickness": 0.004,
             "position": [
-              0,
-              -0.035
+              -0.21,
+              0
             ]
-          },
-          {
-            "id": "Hub",
-            "type": "circle",
-            "radius": 0.007,
-            "filled": true,
-            "fillColor": [
-              225,
-              241,
-              229,
-              255
-            ],
-            "position": [
-              0,
-              -0.035
-            ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.195,
-              0.11
-            ],
-            "end": [
-              -0.105,
-              0.11
-            ],
-            "color": [
-              66,
-              222,
-              126,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -786,9 +494,9 @@
         },
         {
           "primitive": "Needle",
-          "target": "rotation",
-          "from": -120,
-          "to": 120
+          "target": "positionX",
+          "from": -0.21,
+          "to": 0.21
         }
       ]
     },
@@ -798,173 +506,100 @@
         "id": "gaugeVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.442,
-            "height": 0.24,
-            "filled": true,
-            "fillColor": [
-              25,
-              30,
-              29,
-              255
-            ],
-            "color": [
-              47,
-              78,
-              64,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "N1",
-            "fontSize": 0.024,
+            "text": "FUEL ON BOARD",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              135,
-              169,
-              145,
+              130,
+              151,
+              158,
               255
             ],
             "position": [
-              -0.195,
-              0.095
+              -0.21,
+              0.075
             ]
           },
           {
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.026,
+            "fontSize": 0.068,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              57,
+              77,
+              85,
+              255
+            ],
+            "position": [
+              -0.21,
+              -0.01
+            ]
+          },
+          {
+            "id": "Unit",
+            "type": "text",
+            "text": "KG",
+            "fontSize": 0.027,
+            "letterSpacing": 0.0008,
             "align": "right",
             "color": [
-              135,
-              169,
-              145,
+              108,
+              200,
+              218,
               255
             ],
             "position": [
-              0.195,
-              0.095
+              0.2,
+              -0.01
             ]
           },
           {
-            "id": "Scale",
-            "type": "arc",
-            "radius": 0.08,
-            "startAngleDegrees": -120,
-            "endAngleDegrees": 120,
-            "segments": 32,
-            "color": [
-              75,
-              100,
-              89,
-              255
-            ],
-            "thickness": 0.0045,
-            "position": [
-              0,
-              -0.035
-            ]
-          },
-          {
-            "id": "LowTick",
+            "id": "Track",
             "type": "line",
             "start": [
-              -0.075,
-              -0.06
+              -0.21,
+              -0.072
             ],
             "end": [
-              -0.06,
-              -0.05
+              0.21,
+              -0.072
             ],
             "color": [
-              135,
-              169,
-              145,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.004
-          },
-          {
-            "id": "HighTick",
-            "type": "line",
-            "start": [
-              0.075,
-              -0.06
-            ],
-            "end": [
-              0.06,
-              -0.05
-            ],
-            "color": [
-              135,
-              169,
-              145,
-              255
-            ],
-            "thickness": 0.004
+            "thickness": 0.003
           },
           {
             "id": "Needle",
             "type": "line",
             "start": [
               0,
-              0
+              -0.081
             ],
             "end": [
               0,
-              0.068
+              -0.063
             ],
             "color": [
-              75,
-              100,
-              89,
+              65,
+              239,
+              93,
               255
             ],
             "thickness": 0.004,
             "position": [
-              0,
-              -0.035
+              -0.21,
+              0
             ]
-          },
-          {
-            "id": "Hub",
-            "type": "circle",
-            "radius": 0.007,
-            "filled": true,
-            "fillColor": [
-              135,
-              169,
-              145,
-              255
-            ],
-            "position": [
-              0,
-              -0.035
-            ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.195,
-              0.11
-            ],
-            "end": [
-              -0.105,
-              0.11
-            ],
-            "color": [
-              47,
-              78,
-              64,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -977,9 +612,9 @@
         },
         {
           "primitive": "Needle",
-          "target": "rotation",
-          "from": -120,
-          "to": 120
+          "target": "positionX",
+          "from": -0.21,
+          "to": 0.21
         }
       ]
     },
@@ -989,173 +624,100 @@
         "id": "gaugeVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.442,
-            "height": 0.24,
-            "filled": true,
-            "fillColor": [
-              11,
-              22,
-              25,
-              255
-            ],
-            "color": [
-              233,
-              114,
-              69,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "N1",
-            "fontSize": 0.024,
+            "text": "FUEL ON BOARD",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              135,
-              169,
-              145,
+              231,
+              239,
+              241,
               255
             ],
             "position": [
-              -0.195,
-              0.095
+              -0.21,
+              0.075
             ]
           },
           {
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.026,
+            "fontSize": 0.068,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              255,
+              164,
+              61,
+              255
+            ],
+            "position": [
+              -0.21,
+              -0.01
+            ]
+          },
+          {
+            "id": "Unit",
+            "type": "text",
+            "text": "KG",
+            "fontSize": 0.027,
+            "letterSpacing": 0.0008,
             "align": "right",
             "color": [
-              225,
-              241,
-              229,
+              108,
+              200,
+              218,
               255
             ],
             "position": [
-              0.195,
-              0.095
+              0.2,
+              -0.01
             ]
           },
           {
-            "id": "Scale",
-            "type": "arc",
-            "radius": 0.08,
-            "startAngleDegrees": -120,
-            "endAngleDegrees": 120,
-            "segments": 32,
-            "color": [
-              75,
-              100,
-              89,
-              255
-            ],
-            "thickness": 0.0045,
-            "position": [
-              0,
-              -0.035
-            ]
-          },
-          {
-            "id": "LowTick",
+            "id": "Track",
             "type": "line",
             "start": [
-              -0.075,
-              -0.06
+              -0.21,
+              -0.072
             ],
             "end": [
-              -0.06,
-              -0.05
+              0.21,
+              -0.072
             ],
             "color": [
-              135,
-              169,
-              145,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.004
-          },
-          {
-            "id": "HighTick",
-            "type": "line",
-            "start": [
-              0.075,
-              -0.06
-            ],
-            "end": [
-              0.06,
-              -0.05
-            ],
-            "color": [
-              135,
-              169,
-              145,
-              255
-            ],
-            "thickness": 0.004
+            "thickness": 0.003
           },
           {
             "id": "Needle",
             "type": "line",
             "start": [
               0,
-              0
+              -0.081
             ],
             "end": [
               0,
-              0.068
+              -0.063
             ],
             "color": [
-              233,
-              114,
-              69,
+              65,
+              239,
+              93,
               255
             ],
             "thickness": 0.004,
             "position": [
-              0,
-              -0.035
+              -0.21,
+              0
             ]
-          },
-          {
-            "id": "Hub",
-            "type": "circle",
-            "radius": 0.007,
-            "filled": true,
-            "fillColor": [
-              225,
-              241,
-              229,
-              255
-            ],
-            "position": [
-              0,
-              -0.035
-            ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.195,
-              0.11
-            ],
-            "end": [
-              -0.105,
-              0.11
-            ],
-            "color": [
-              233,
-              114,
-              69,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -1168,9 +730,9 @@
         },
         {
           "primitive": "Needle",
-          "target": "rotation",
-          "from": -120,
-          "to": 120
+          "target": "positionX",
+          "from": -0.21,
+          "to": 0.21
         }
       ]
     },
@@ -1180,173 +742,100 @@
         "id": "gaugeVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.442,
-            "height": 0.24,
-            "filled": true,
-            "fillColor": [
-              11,
-              22,
-              25,
-              255
-            ],
-            "color": [
-              237,
-              181,
-              67,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "N1",
-            "fontSize": 0.024,
+            "text": "FUEL ON BOARD",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              135,
-              169,
-              145,
+              231,
+              239,
+              241,
               255
             ],
             "position": [
-              -0.195,
-              0.095
+              -0.21,
+              0.075
             ]
           },
           {
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.026,
+            "fontSize": 0.068,
+            "letterSpacing": 0.0008,
+            "align": "left",
+            "color": [
+              246,
+              192,
+              66,
+              255
+            ],
+            "position": [
+              -0.21,
+              -0.01
+            ]
+          },
+          {
+            "id": "Unit",
+            "type": "text",
+            "text": "KG",
+            "fontSize": 0.027,
+            "letterSpacing": 0.0008,
             "align": "right",
             "color": [
-              225,
-              241,
-              229,
+              108,
+              200,
+              218,
               255
             ],
             "position": [
-              0.195,
-              0.095
+              0.2,
+              -0.01
             ]
           },
           {
-            "id": "Scale",
-            "type": "arc",
-            "radius": 0.08,
-            "startAngleDegrees": -120,
-            "endAngleDegrees": 120,
-            "segments": 32,
-            "color": [
-              75,
-              100,
-              89,
-              255
-            ],
-            "thickness": 0.0045,
-            "position": [
-              0,
-              -0.035
-            ]
-          },
-          {
-            "id": "LowTick",
+            "id": "Track",
             "type": "line",
             "start": [
-              -0.075,
-              -0.06
+              -0.21,
+              -0.072
             ],
             "end": [
-              -0.06,
-              -0.05
+              0.21,
+              -0.072
             ],
             "color": [
-              135,
-              169,
-              145,
+              57,
+              77,
+              85,
               255
             ],
-            "thickness": 0.004
-          },
-          {
-            "id": "HighTick",
-            "type": "line",
-            "start": [
-              0.075,
-              -0.06
-            ],
-            "end": [
-              0.06,
-              -0.05
-            ],
-            "color": [
-              135,
-              169,
-              145,
-              255
-            ],
-            "thickness": 0.004
+            "thickness": 0.003
           },
           {
             "id": "Needle",
             "type": "line",
             "start": [
               0,
-              0
+              -0.081
             ],
             "end": [
               0,
-              0.068
+              -0.063
             ],
             "color": [
-              237,
-              181,
-              67,
+              65,
+              239,
+              93,
               255
             ],
             "thickness": 0.004,
             "position": [
-              0,
-              -0.035
+              -0.21,
+              0
             ]
-          },
-          {
-            "id": "Hub",
-            "type": "circle",
-            "radius": 0.007,
-            "filled": true,
-            "fillColor": [
-              225,
-              241,
-              229,
-              255
-            ],
-            "position": [
-              0,
-              -0.035
-            ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.195,
-              0.11
-            ],
-            "end": [
-              -0.105,
-              0.11
-            ],
-            "color": [
-              237,
-              181,
-              67,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -1359,9 +848,9 @@
         },
         {
           "primitive": "Needle",
-          "target": "rotation",
-          "from": -120,
-          "to": 120
+          "target": "positionX",
+          "from": -0.21,
+          "to": 0.21
         }
       ]
     }

@@ -3,8 +3,8 @@
   "id": "checkbox",
   "type": "checkbox",
   "preferredSize": [
-    0.46,
-    0.18
+    0.28,
+    0.11
   ],
   "hitRegion": {
     "position": [
@@ -12,8 +12,8 @@
       0
     ],
     "size": [
-      0.46,
-      0.18
+      0.28,
+      0.11
     ]
   },
   "range": {
@@ -23,7 +23,7 @@
     "decimals": 0
   },
   "defaults": {
-    "text": "AUTO TRIM",
+    "text": "CTR PUMPS",
     "checked": false,
     "value": 25
   },
@@ -34,84 +34,46 @@
         "id": "checkboxVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.442,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              11,
-              22,
-              25,
-              255
-            ],
-            "color": [
-              47,
-              78,
-              64,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Box",
             "type": "rectangle",
-            "width": 0.054,
-            "height": 0.054,
+            "width": 0.036,
+            "height": 0.036,
             "filled": true,
             "fillColor": [
-              6,
-              12,
-              16,
+              4,
+              7,
+              9,
               255
             ],
             "color": [
-              98,
-              204,
-              142,
+              108,
+              200,
+              218,
               255
             ],
             "thickness": 0.002,
             "position": [
-              -0.165,
+              -0.1,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "AUTO TRIM",
-            "fontSize": 0.029,
+            "text": "CTR PUMPS",
+            "fontSize": 0.024,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              225,
+              231,
+              239,
               241,
-              229,
               255
             ],
             "position": [
-              -0.105,
+              -0.067,
               0
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.195,
-              0.07
-            ],
-            "end": [
-              -0.105,
-              0.07
-            ],
-            "color": [
-              98,
-              204,
-              142,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -130,84 +92,46 @@
         "id": "checkboxVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.442,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              15,
-              34,
-              32,
-              255
-            ],
-            "color": [
-              169,
-              239,
-              191,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Box",
             "type": "rectangle",
-            "width": 0.054,
-            "height": 0.054,
+            "width": 0.036,
+            "height": 0.036,
             "filled": true,
             "fillColor": [
-              6,
-              12,
-              16,
+              4,
+              7,
+              9,
               255
             ],
             "color": [
-              169,
-              239,
-              191,
+              175,
+              235,
+              242,
               255
             ],
             "thickness": 0.002,
             "position": [
-              -0.165,
+              -0.1,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "AUTO TRIM",
-            "fontSize": 0.029,
+            "text": "CTR PUMPS",
+            "fontSize": 0.024,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              225,
+              231,
+              239,
               241,
-              229,
               255
             ],
             "position": [
-              -0.105,
+              -0.067,
               0
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.195,
-              0.07
-            ],
-            "end": [
-              -0.105,
-              0.07
-            ],
-            "color": [
-              169,
-              239,
-              191,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -226,84 +150,46 @@
         "id": "checkboxVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.442,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              18,
-              49,
-              36,
-              255
-            ],
-            "color": [
-              169,
-              239,
-              191,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Box",
             "type": "rectangle",
-            "width": 0.054,
-            "height": 0.054,
+            "width": 0.036,
+            "height": 0.036,
             "filled": true,
             "fillColor": [
-              6,
-              12,
-              16,
+              4,
+              7,
+              9,
               255
             ],
             "color": [
-              169,
-              239,
-              191,
+              175,
+              235,
+              242,
               255
             ],
             "thickness": 0.002,
             "position": [
-              -0.165,
+              -0.1,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "AUTO TRIM",
-            "fontSize": 0.029,
+            "text": "CTR PUMPS",
+            "fontSize": 0.024,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              225,
+              231,
+              239,
               241,
-              229,
               255
             ],
             "position": [
-              -0.105,
+              -0.067,
               0
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.195,
-              0.07
-            ],
-            "end": [
-              -0.105,
-              0.07
-            ],
-            "color": [
-              169,
-              239,
-              191,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -322,63 +208,44 @@
         "id": "checkboxVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.442,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              11,
-              22,
-              25,
-              255
-            ],
-            "color": [
-              66,
-              222,
-              126,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Box",
             "type": "rectangle",
-            "width": 0.054,
-            "height": 0.054,
+            "width": 0.036,
+            "height": 0.036,
             "filled": true,
             "fillColor": [
-              6,
-              12,
-              16,
+              4,
+              7,
+              9,
               255
             ],
             "color": [
-              66,
-              222,
-              126,
+              65,
+              239,
+              93,
               255
             ],
             "thickness": 0.002,
             "position": [
-              -0.165,
+              -0.1,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "AUTO TRIM",
-            "fontSize": 0.029,
+            "text": "CTR PUMPS",
+            "fontSize": 0.024,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              225,
+              231,
+              239,
               241,
-              229,
               255
             ],
             "position": [
-              -0.105,
+              -0.067,
               0
             ]
           },
@@ -387,48 +254,29 @@
             "type": "polyline",
             "points": [
               [
-                -0.019,
+                -0.012,
                 0
               ],
               [
-                -0.004,
-                -0.014
+                -0.003,
+                -0.01
               ],
               [
-                0.021,
-                0.019
+                0.013,
+                0.012
               ]
             ],
             "color": [
-              66,
-              222,
-              126,
+              65,
+              239,
+              93,
               255
             ],
-            "thickness": 0.005,
+            "thickness": 0.003,
             "position": [
-              -0.165,
+              -0.1,
               0
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.195,
-              0.07
-            ],
-            "end": [
-              -0.105,
-              0.07
-            ],
-            "color": [
-              66,
-              222,
-              126,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -447,84 +295,46 @@
         "id": "checkboxVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.442,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              25,
-              30,
-              29,
-              255
-            ],
-            "color": [
-              47,
-              78,
-              64,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Box",
             "type": "rectangle",
-            "width": 0.054,
-            "height": 0.054,
+            "width": 0.036,
+            "height": 0.036,
             "filled": true,
             "fillColor": [
-              6,
-              12,
-              16,
+              4,
+              7,
+              9,
               255
             ],
             "color": [
-              75,
-              100,
-              89,
+              57,
+              77,
+              85,
               255
             ],
             "thickness": 0.002,
             "position": [
-              -0.165,
+              -0.1,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "AUTO TRIM",
-            "fontSize": 0.029,
+            "text": "CTR PUMPS",
+            "fontSize": 0.024,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              135,
-              169,
-              145,
+              130,
+              151,
+              158,
               255
             ],
             "position": [
-              -0.105,
+              -0.067,
               0
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.195,
-              0.07
-            ],
-            "end": [
-              -0.105,
-              0.07
-            ],
-            "color": [
-              47,
-              78,
-              64,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -543,84 +353,46 @@
         "id": "checkboxVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.442,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              11,
-              22,
-              25,
-              255
-            ],
-            "color": [
-              233,
-              114,
-              69,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Box",
             "type": "rectangle",
-            "width": 0.054,
-            "height": 0.054,
+            "width": 0.036,
+            "height": 0.036,
             "filled": true,
             "fillColor": [
-              6,
-              12,
-              16,
+              4,
+              7,
+              9,
               255
             ],
             "color": [
-              233,
-              114,
-              69,
+              255,
+              164,
+              61,
               255
             ],
             "thickness": 0.002,
             "position": [
-              -0.165,
+              -0.1,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "AUTO TRIM",
-            "fontSize": 0.029,
+            "text": "CTR PUMPS",
+            "fontSize": 0.024,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              225,
+              231,
+              239,
               241,
-              229,
               255
             ],
             "position": [
-              -0.105,
+              -0.067,
               0
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.195,
-              0.07
-            ],
-            "end": [
-              -0.105,
-              0.07
-            ],
-            "color": [
-              233,
-              114,
-              69,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -639,63 +411,44 @@
         "id": "checkboxVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.442,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              11,
-              22,
-              25,
-              255
-            ],
-            "color": [
-              237,
-              181,
-              67,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
             "id": "Box",
             "type": "rectangle",
-            "width": 0.054,
-            "height": 0.054,
+            "width": 0.036,
+            "height": 0.036,
             "filled": true,
             "fillColor": [
-              6,
-              12,
-              16,
+              4,
+              7,
+              9,
               255
             ],
             "color": [
-              237,
-              181,
-              67,
+              246,
+              192,
+              66,
               255
             ],
             "thickness": 0.002,
             "position": [
-              -0.165,
+              -0.1,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "AUTO TRIM",
-            "fontSize": 0.029,
+            "text": "CTR PUMPS",
+            "fontSize": 0.024,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              225,
+              231,
+              239,
               241,
-              229,
               255
             ],
             "position": [
-              -0.105,
+              -0.067,
               0
             ]
           },
@@ -703,43 +456,24 @@
             "id": "PendingMark",
             "type": "line",
             "start": [
-              -0.022,
+              -0.01,
               0
             ],
             "end": [
-              0.022,
+              0.01,
               0
             ],
             "color": [
-              237,
-              181,
-              67,
+              246,
+              192,
+              66,
               255
             ],
-            "thickness": 0.007,
+            "thickness": 0.003,
             "position": [
-              -0.165,
+              -0.1,
               0
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.195,
-              0.07
-            ],
-            "end": [
-              -0.105,
-              0.07
-            ],
-            "color": [
-              237,
-              181,
-              67,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },

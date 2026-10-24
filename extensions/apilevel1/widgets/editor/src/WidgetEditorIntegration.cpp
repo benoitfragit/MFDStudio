@@ -26,6 +26,85 @@ std::string WidgetParent(const mfd::PageDefinition& page, const std::string& id)
             if (edge.kind == mfd::api1::ContainerChildKind::Widget && edge.childId == id) return container.id;
     return {};
 }
+
+const mfd::api1::ContainerChildPlacement* WidgetPlacement(const mfd::PageDefinition& page,
+                                                          const std::string_view id) noexcept
+{
+    for (const mfd::api1::ContainerDefinition& container : page.containers)
+    {
+        for (const mfd::api1::ContainerChildPlacement& edge : container.children)
+        {
+            if (edge.kind == mfd::api1::ContainerChildKind::Widget && edge.childId == id)
+            {
+                return &edge;
+            }
+        }
+    }
+    return nullptr;
+}
+
+bool SameOptionalSize(const std::optional<mfd::Vec2>& first,
+                      const std::optional<mfd::Vec2>& second) noexcept
+{
+    return first.has_value() == second.has_value() &&
+           (!first.has_value() || (first->x == second->x && first->y == second->y));
+}
+
+bool SamePlacement(const mfd::api1::ContainerChildPlacement& first,
+                   const mfd::api1::ContainerChildPlacement& second) noexcept
+{
+    return first.resizeMode == second.resizeMode &&
+           first.horizontalAlignment == second.horizontalAlignment &&
+           first.verticalAlignment == second.verticalAlignment && first.row == second.row &&
+           first.column == second.column && first.rowSpan == second.rowSpan &&
+           first.columnSpan == second.columnSpan && first.renderOrder == second.renderOrder;
+}
+
+bool HasValidStateOnlyOverrides(const mfd::api1::WidgetInstance& widget) noexcept
+{
+    if (!widget.definition)
+    {
+        return false;
+    }
+    if (widget.overrides.value &&
+        (!std::isfinite(*widget.overrides.value) || *widget.overrides.value < widget.definition->range.minimum ||
+         *widget.overrides.value > widget.definition->range.maximum))
+    {
+        return false;
+    }
+    return !widget.overrides.text ||
+           (widget.overrides.text->size() <= mfd::api1::kMaximumWidgetTextBytes &&
+            widget.overrides.text->find('\0') == std::string::npos);
+}
+
+bool IsStateOnlyWidgetEdit(const mfd::PageDefinition& page,
+                           const mfd::api1::WidgetInstance& current,
+                           const mfd::api1::WidgetInstance& replacement,
+                           const std::string_view parent,
+                           const mfd::api1::ContainerChildPlacement& placement)
+{
+    if (current.id != replacement.id || current.position.x != replacement.position.x ||
+        current.position.y != replacement.position.y || !SameOptionalSize(current.size, replacement.size) ||
+        WidgetParent(page, current.id) != parent || !HasValidStateOnlyOverrides(replacement))
+    {
+        return false;
+    }
+    if (parent.empty())
+    {
+        return true;
+    }
+    const mfd::api1::ContainerChildPlacement* currentPlacement = WidgetPlacement(page, current.id);
+    return currentPlacement != nullptr && SamePlacement(*currentPlacement, placement);
+}
+
+void ApplyWidgetStateOnlyEdit(mfd::api1::WidgetInstance& target,
+                              const mfd::api1::WidgetInstance& replacement)
+{
+    target.visible = replacement.visible;
+    target.enabled = replacement.enabled;
+    target.exposed = replacement.exposed;
+    target.overrides = replacement.overrides;
+}
 }
 mfd::api1::WidgetInstance* EditorApplication::SelectedWidget() noexcept
 {
@@ -44,11 +123,11 @@ void EditorApplication::SelectWidget(const int pageIndex, std::string id)
 }
 void EditorApplication::DrawSidebarWidgetsSection(const float height)
 {
-    ImGui::BeginChild("SidebarWidgets", ImVec2(0, std::max(1.0f, height)), false);
+    ImGui::BeginChild("SidebarWidgetsSection", ImVec2(0, std::max(1.0f, height)), false);
     auto* page = ActivePage();
     const auto count = page ? page->widgets.size() : 0;
-    const std::string title = "Widgets (" + std::to_string(count) + ")###WidgetsSection";
-    if (ImGui::CollapsingHeader(title.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+    const std::string title = "Widgets (" + std::to_string(count) + ")###SidebarWidgetsHeader";
+    if (editor::ui::BeginNavigationSection(title.c_str(), false))
     {
         if (ImGui::Button("+##Widget")) AddWidgetDefinition(false);
         ImGui::SameLine();
@@ -60,7 +139,11 @@ void EditorApplication::DrawSidebarWidgetsSection(const float height)
             if (ImGui::Button("Remove##Widget")) DeleteWidget();
         }
         if (!widgetVisualTemplate_.empty() && ImGui::Button("Apply edited visual")) ApplyWidgetVisual();
-        ImGui::BeginChild("WidgetsList", ImVec2(0, std::max(1.0f, ImGui::GetContentRegionAvail().y)), false);
+        ImGui::Spacing();
+        ImGui::BeginChild(
+            "SidebarWidgetsScrollRegion",
+            ImVec2(0, std::max(1.0f, ImGui::GetContentRegionAvail().y)),
+            false);
         page = ActivePage();
         if (!page || page->widgets.empty()) ImGui::TextDisabled("No widget. Use + or the definition library.");
         if (page)
@@ -283,17 +366,21 @@ void EditorApplication::ApplyWidgetInspector(const std::uint32_t actions, const 
     auto* page = ActivePage();
     const auto* widget = definitionOnly ? &preview : SelectedWidget();
     if (!page || !widget) return;
-    const auto before = CaptureCurrentSnapshot();
-    auto candidate = documentState_.loaded.document;
-    auto& candidatePage = candidate.pages[documentState_.selection.pageIndex];
     const auto& draft = widgetDraft_;
-    const std::array<double, 17> numbers {draft.x, draft.y, draft.width, draft.height, draft.value,
+    const std::array<double, 21> numbers {draft.x, draft.y, draft.width, draft.height, draft.value,
         draft.row, draft.column, draft.row_span, draft.column_span, draft.render_order,
-        draft.minimum, draft.maximum, draft.step, draft.decimals, draft.hit_x, draft.hit_y, draft.hit_width};
+        draft.minimum, draft.maximum, draft.step, draft.decimals, draft.hit_x, draft.hit_y, draft.hit_width,
+        draft.hit_height, draft.preferred_width, draft.preferred_height, draft.default_value};
     if (!std::all_of(numbers.begin(), numbers.end(), [](const double value) { return std::isfinite(value); }) ||
-        !std::isfinite(draft.hit_height) || draft.row < 0 || draft.row > 4095 || draft.column < 0 || draft.column > 4095 ||
+        draft.row < 0 || draft.row > 4095 || draft.column < 0 || draft.column > 4095 ||
         draft.row_span < 0 || draft.row_span > 4096 || draft.column_span < 0 || draft.column_span > 4096 ||
         std::abs(draft.render_order) > 1000000 || draft.decimals < 0 || draft.decimals > 9 ||
+        draft.type < 0 || draft.type > static_cast<int>(mfd::api1::WidgetType::Label) ||
+        draft.resize_mode < 0 || draft.resize_mode > static_cast<int>(mfd::api1::ChildResizeMode::Stretch) ||
+        draft.horizontal_alignment < 0 ||
+        draft.horizontal_alignment > static_cast<int>(mfd::api1::ContainerAlignment::Stretch) ||
+        draft.vertical_alignment < 0 ||
+        draft.vertical_alignment > static_cast<int>(mfd::api1::ContainerAlignment::Stretch) ||
         std::floor(draft.row) != draft.row || std::floor(draft.column) != draft.column ||
         std::floor(draft.row_span) != draft.row_span || std::floor(draft.column_span) != draft.column_span ||
         std::floor(draft.render_order) != draft.render_order || std::floor(draft.decimals) != draft.decimals)
@@ -321,8 +408,39 @@ void EditorApplication::ApplyWidgetInspector(const std::uint32_t actions, const 
     edge.row = static_cast<std::uint32_t>(draft.row); edge.column = static_cast<std::uint32_t>(draft.column);
     edge.rowSpan = std::max(1U, static_cast<std::uint32_t>(draft.row_span)); edge.columnSpan = std::max(1U, static_cast<std::uint32_t>(draft.column_span));
     edge.renderOrder = static_cast<int>(draft.render_order);
-    if (!definitionOnly && !mfd::api1::WidgetEditorModel::Replace(candidatePage, previousId, replacement, draft.parent, &edge, error))
-    { RebuildStatus(error, true); return; }
+
+    const auto before = CaptureCurrentSnapshot();
+    const bool changesDefinition = (actions & 2U) != 0U;
+    if (!definitionOnly && !changesDefinition)
+    {
+        if (IsStateOnlyWidgetEdit(*page, *widget, replacement, draft.parent, edge))
+        {
+            mfd::api1::WidgetInstance* liveWidget = mfd::api1::WidgetEditorModel::Find(*page, previousId);
+            if (liveWidget == nullptr)
+            {
+                RebuildStatus("The selected widget no longer exists.", true);
+                return;
+            }
+            ApplyWidgetStateOnlyEdit(*liveWidget, replacement);
+        }
+        else if (!mfd::api1::WidgetEditorModel::Replace(*page, previousId, replacement, draft.parent, &edge, error))
+        {
+            RebuildStatus(error, true);
+            return;
+        }
+        PushUndoSnapshot(before);
+        SelectWidget(documentState_.selection.pageIndex, replacement.id);
+        return;
+    }
+
+    auto candidate = documentState_.loaded.document;
+    auto& candidatePage = candidate.pages[documentState_.selection.pageIndex];
+    if (!definitionOnly && !mfd::api1::WidgetEditorModel::Replace(
+            candidatePage, previousId, replacement, draft.parent, &edge, error))
+    {
+        RebuildStatus(error, true);
+        return;
+    }
     if (actions & 2U)
     {
         auto definition = std::make_shared<mfd::api1::WidgetDefinition>(*replacement.definition);
@@ -504,6 +622,34 @@ bool EditorApplication::UpdateWidgetPreviewGesture(const ViewportState& viewport
     if (mfd::api1::WidgetEditorModel::ApplyGesture(*page, widgetGestureStart_, delta, widgetGestureResize_, error))
         widgetGestureChanged_ = true;
     else if (!error.empty()) RebuildStatus(error, true);
+    return true;
+}
+
+bool EditorApplication::HandleWidgetPreviewTestInteraction(const mfd::PageDefinition& page,
+                                                           const ViewportState& viewport,
+                                                           const ImVec2 mousePosition,
+                                                           const bool pointerBlocked)
+{
+    if (!widgetPreviewController_.Enabled())
+    {
+        return false;
+    }
+
+    if (!previewState_.widgetInteractionLayoutValid)
+    {
+        widgetPreviewController_.CancelPointerInteraction();
+        return true;
+    }
+
+    editor::app::WidgetPreviewPointerSample sample;
+    sample.pointer = viewport.ToLogical(mousePosition);
+    sample.down = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+    sample.began = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+    sample.released = IsMouseButtonReleased(MOUSE_BUTTON_LEFT);
+    sample.cancel = IsKeyPressed(KEY_ESCAPE) || !IsWindowFocused();
+    sample.blocked = pointerBlocked;
+    widgetPreviewController_.Update(
+        page.containers, previewState_.widgetInteractionLayouts, page.widgets, sample);
     return true;
 }
 

@@ -75,6 +75,31 @@ SidebarSectionLayoutResult ComputeSidebarSectionLayout(const SidebarSectionLayou
     return result;
 }
 
+float ResolveContentAwareSidebarPreferredHeight(const float distributableHeight,
+                                                 const float preferredFirstFraction,
+                                                 const bool firstHasContent,
+                                                 const bool secondHasContent,
+                                                 const float firstMinimumHeight,
+                                                 const float secondMinimumHeight) noexcept
+{
+    const float safeHeight = SanitizeNonNegativeDimension(distributableHeight);
+    const float safeFirstMinimum = SanitizeNonNegativeDimension(firstMinimumHeight);
+    const float safeSecondMinimum = SanitizeNonNegativeDimension(secondMinimumHeight);
+    if (firstHasContent && !secondHasContent)
+    {
+        return std::max(0.0f, safeHeight - safeSecondMinimum);
+    }
+    if (!firstHasContent && secondHasContent)
+    {
+        return std::min(safeFirstMinimum, safeHeight);
+    }
+
+    const float safeFraction = std::isfinite(preferredFirstFraction)
+                                   ? std::clamp(preferredFirstFraction, 0.0f, 1.0f)
+                                   : 0.5f;
+    return safeHeight * safeFraction;
+}
+
 float ResolveSidebarPagesFraction(
     const float currentPagesHeight, const float dragDeltaY, const float distributableHeight) noexcept
 {

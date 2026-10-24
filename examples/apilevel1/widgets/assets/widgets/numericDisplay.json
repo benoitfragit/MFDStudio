@@ -3,8 +3,8 @@
   "id": "numericDisplay",
   "type": "numericDisplay",
   "preferredSize": [
-    0.42,
-    0.22
+    0.48,
+    0.24
   ],
   "hitRegion": {
     "position": [
@@ -12,20 +12,20 @@
       0
     ],
     "size": [
-      0.42,
-      0.22
+      0.48,
+      0.24
     ]
   },
   "range": {
     "min": 0,
-    "max": 100,
+    "max": 2880,
     "step": 1,
     "decimals": 0
   },
   "defaults": {
-    "text": "OIL PRESS",
+    "text": "XFER FLOW",
     "checked": false,
-    "value": 68
+    "value": 0
   },
   "visuals": [
     {
@@ -34,111 +34,58 @@
         "id": "numericDisplayVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.402,
-            "height": 0.2,
-            "filled": true,
-            "fillColor": [
-              11,
-              22,
-              25,
-              255
-            ],
-            "color": [
-              47,
-              78,
-              64,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
-            "id": "Accent",
-            "type": "rectangle",
-            "width": 0.005,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              98,
-              204,
-              142,
-              255
-            ],
-            "position": [
-              -0.185,
-              0
-            ]
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "OIL PRESS",
-            "fontSize": 0.022,
+            "text": "XFER FLOW",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              135,
-              169,
-              145,
+              231,
+              239,
+              241,
               255
             ],
             "position": [
-              -0.145,
-              0.065
+              -0.21,
+              0.075
             ]
           },
           {
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.04,
+            "fontSize": 0.068,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              225,
-              241,
-              229,
+              65,
+              239,
+              93,
               255
             ],
             "position": [
-              -0.145,
-              -0.02
+              -0.21,
+              -0.01
             ]
           },
           {
             "id": "Unit",
             "type": "text",
-            "text": "PSI",
-            "fontSize": 0.022,
+            "text": "KG/MIN",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
             "align": "right",
             "color": [
-              98,
-              204,
-              142,
+              108,
+              200,
+              218,
               255
             ],
             "position": [
-              0.165,
-              -0.03
+              0.22,
+              -0.01
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.175,
-              0.09
-            ],
-            "end": [
-              -0.085,
-              0.09
-            ],
-            "color": [
-              98,
-              204,
-              142,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -157,111 +104,58 @@
         "id": "numericDisplayVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.402,
-            "height": 0.2,
-            "filled": true,
-            "fillColor": [
-              15,
-              34,
-              32,
-              255
-            ],
-            "color": [
-              169,
-              239,
-              191,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
-            "id": "Accent",
-            "type": "rectangle",
-            "width": 0.005,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              169,
-              239,
-              191,
-              255
-            ],
-            "position": [
-              -0.185,
-              0
-            ]
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "OIL PRESS",
-            "fontSize": 0.022,
+            "text": "XFER FLOW",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              135,
-              169,
-              145,
+              231,
+              239,
+              241,
               255
             ],
             "position": [
-              -0.145,
-              0.065
+              -0.21,
+              0.075
             ]
           },
           {
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.04,
+            "fontSize": 0.068,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              225,
-              241,
-              229,
+              175,
+              235,
+              242,
               255
             ],
             "position": [
-              -0.145,
-              -0.02
+              -0.21,
+              -0.01
             ]
           },
           {
             "id": "Unit",
             "type": "text",
-            "text": "PSI",
-            "fontSize": 0.022,
+            "text": "KG/MIN",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
             "align": "right",
             "color": [
-              169,
-              239,
-              191,
+              108,
+              200,
+              218,
               255
             ],
             "position": [
-              0.165,
-              -0.03
+              0.22,
+              -0.01
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.175,
-              0.09
-            ],
-            "end": [
-              -0.085,
-              0.09
-            ],
-            "color": [
-              169,
-              239,
-              191,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -280,111 +174,58 @@
         "id": "numericDisplayVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.402,
-            "height": 0.2,
-            "filled": true,
-            "fillColor": [
-              18,
-              49,
-              36,
-              255
-            ],
-            "color": [
-              169,
-              239,
-              191,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
-            "id": "Accent",
-            "type": "rectangle",
-            "width": 0.005,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              169,
-              239,
-              191,
-              255
-            ],
-            "position": [
-              -0.185,
-              0
-            ]
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "OIL PRESS",
-            "fontSize": 0.022,
+            "text": "XFER FLOW",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              135,
-              169,
-              145,
+              231,
+              239,
+              241,
               255
             ],
             "position": [
-              -0.145,
-              0.065
+              -0.21,
+              0.075
             ]
           },
           {
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.04,
+            "fontSize": 0.068,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              225,
-              241,
-              229,
+              175,
+              235,
+              242,
               255
             ],
             "position": [
-              -0.145,
-              -0.02
+              -0.21,
+              -0.01
             ]
           },
           {
             "id": "Unit",
             "type": "text",
-            "text": "PSI",
-            "fontSize": 0.022,
+            "text": "KG/MIN",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
             "align": "right",
             "color": [
-              169,
-              239,
-              191,
+              108,
+              200,
+              218,
               255
             ],
             "position": [
-              0.165,
-              -0.03
+              0.22,
+              -0.01
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.175,
-              0.09
-            ],
-            "end": [
-              -0.085,
-              0.09
-            ],
-            "color": [
-              169,
-              239,
-              191,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -403,111 +244,58 @@
         "id": "numericDisplayVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.402,
-            "height": 0.2,
-            "filled": true,
-            "fillColor": [
-              11,
-              22,
-              25,
-              255
-            ],
-            "color": [
-              66,
-              222,
-              126,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
-            "id": "Accent",
-            "type": "rectangle",
-            "width": 0.005,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              66,
-              222,
-              126,
-              255
-            ],
-            "position": [
-              -0.185,
-              0
-            ]
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "OIL PRESS",
-            "fontSize": 0.022,
+            "text": "XFER FLOW",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              135,
-              169,
-              145,
+              231,
+              239,
+              241,
               255
             ],
             "position": [
-              -0.145,
-              0.065
+              -0.21,
+              0.075
             ]
           },
           {
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.04,
+            "fontSize": 0.068,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              225,
-              241,
-              229,
+              65,
+              239,
+              93,
               255
             ],
             "position": [
-              -0.145,
-              -0.02
+              -0.21,
+              -0.01
             ]
           },
           {
             "id": "Unit",
             "type": "text",
-            "text": "PSI",
-            "fontSize": 0.022,
+            "text": "KG/MIN",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
             "align": "right",
             "color": [
-              66,
-              222,
-              126,
+              108,
+              200,
+              218,
               255
             ],
             "position": [
-              0.165,
-              -0.03
+              0.22,
+              -0.01
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.175,
-              0.09
-            ],
-            "end": [
-              -0.085,
-              0.09
-            ],
-            "color": [
-              66,
-              222,
-              126,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -526,111 +314,58 @@
         "id": "numericDisplayVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.402,
-            "height": 0.2,
-            "filled": true,
-            "fillColor": [
-              25,
-              30,
-              29,
-              255
-            ],
-            "color": [
-              47,
-              78,
-              64,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
-            "id": "Accent",
-            "type": "rectangle",
-            "width": 0.005,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              75,
-              100,
-              89,
-              255
-            ],
-            "position": [
-              -0.185,
-              0
-            ]
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "OIL PRESS",
-            "fontSize": 0.022,
+            "text": "XFER FLOW",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              135,
-              169,
-              145,
+              130,
+              151,
+              158,
               255
             ],
             "position": [
-              -0.145,
-              0.065
+              -0.21,
+              0.075
             ]
           },
           {
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.04,
+            "fontSize": 0.068,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              135,
-              169,
-              145,
+              57,
+              77,
+              85,
               255
             ],
             "position": [
-              -0.145,
-              -0.02
+              -0.21,
+              -0.01
             ]
           },
           {
             "id": "Unit",
             "type": "text",
-            "text": "PSI",
-            "fontSize": 0.022,
+            "text": "KG/MIN",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
             "align": "right",
             "color": [
-              75,
-              100,
-              89,
+              108,
+              200,
+              218,
               255
             ],
             "position": [
-              0.165,
-              -0.03
+              0.22,
+              -0.01
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.175,
-              0.09
-            ],
-            "end": [
-              -0.085,
-              0.09
-            ],
-            "color": [
-              47,
-              78,
-              64,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -649,111 +384,58 @@
         "id": "numericDisplayVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.402,
-            "height": 0.2,
-            "filled": true,
-            "fillColor": [
-              11,
-              22,
-              25,
-              255
-            ],
-            "color": [
-              233,
-              114,
-              69,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
-            "id": "Accent",
-            "type": "rectangle",
-            "width": 0.005,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              233,
-              114,
-              69,
-              255
-            ],
-            "position": [
-              -0.185,
-              0
-            ]
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "OIL PRESS",
-            "fontSize": 0.022,
+            "text": "XFER FLOW",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              135,
-              169,
-              145,
+              231,
+              239,
+              241,
               255
             ],
             "position": [
-              -0.145,
-              0.065
+              -0.21,
+              0.075
             ]
           },
           {
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.04,
+            "fontSize": 0.068,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              225,
-              241,
-              229,
+              255,
+              164,
+              61,
               255
             ],
             "position": [
-              -0.145,
-              -0.02
+              -0.21,
+              -0.01
             ]
           },
           {
             "id": "Unit",
             "type": "text",
-            "text": "PSI",
-            "fontSize": 0.022,
+            "text": "KG/MIN",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
             "align": "right",
             "color": [
-              233,
-              114,
-              69,
+              108,
+              200,
+              218,
               255
             ],
             "position": [
-              0.165,
-              -0.03
+              0.22,
+              -0.01
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.175,
-              0.09
-            ],
-            "end": [
-              -0.085,
-              0.09
-            ],
-            "color": [
-              233,
-              114,
-              69,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -772,111 +454,58 @@
         "id": "numericDisplayVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.402,
-            "height": 0.2,
-            "filled": true,
-            "fillColor": [
-              11,
-              22,
-              25,
-              255
-            ],
-            "color": [
-              237,
-              181,
-              67,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
-            "id": "Accent",
-            "type": "rectangle",
-            "width": 0.005,
-            "height": 0.16,
-            "filled": true,
-            "fillColor": [
-              237,
-              181,
-              67,
-              255
-            ],
-            "position": [
-              -0.185,
-              0
-            ]
-          },
-          {
             "id": "Caption",
             "type": "text",
-            "text": "OIL PRESS",
-            "fontSize": 0.022,
+            "text": "XFER FLOW",
+            "fontSize": 0.026,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              135,
-              169,
-              145,
+              231,
+              239,
+              241,
               255
             ],
             "position": [
-              -0.145,
-              0.065
+              -0.21,
+              0.075
             ]
           },
           {
             "id": "ValueText",
             "type": "text",
             "text": "0",
-            "fontSize": 0.04,
+            "fontSize": 0.068,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              225,
-              241,
-              229,
+              246,
+              192,
+              66,
               255
             ],
             "position": [
-              -0.145,
-              -0.02
+              -0.21,
+              -0.01
             ]
           },
           {
             "id": "Unit",
             "type": "text",
-            "text": "PSI",
-            "fontSize": 0.022,
+            "text": "KG/MIN",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
             "align": "right",
             "color": [
-              237,
-              181,
-              67,
+              108,
+              200,
+              218,
               255
             ],
             "position": [
-              0.165,
-              -0.03
+              0.22,
+              -0.01
             ]
-          },
-          {
-            "id": "Index",
-            "type": "line",
-            "start": [
-              -0.175,
-              0.09
-            ],
-            "end": [
-              -0.085,
-              0.09
-            ],
-            "color": [
-              237,
-              181,
-              67,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },

@@ -23,5 +23,6 @@ an acknowledgement from the Window. If only the Window was launched, run
 
 ## Widget sibling
 
-[widgets/](./widgets/README.md) adds the independent LEVEL 1 Widgets demonstrator
-and generated client without changing these container assets or their mappings.
+[widgets/](./widgets/README.md) adds a live cockpit demonstrator that combines
+Canvas, Linear, Grid, Overlay, scrolling and all LEVEL 1 widget semantics. The
+focused container-only assets above remain unchanged for layout diagnostics.

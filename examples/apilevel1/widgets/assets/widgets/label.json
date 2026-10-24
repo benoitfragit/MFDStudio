@@ -3,8 +3,8 @@
   "id": "label",
   "type": "label",
   "preferredSize": [
-    0.5,
-    0.16
+    0.56,
+    0.09
   ],
   "hitRegion": {
     "position": [
@@ -12,8 +12,8 @@
       0
     ],
     "size": [
-      0.5,
-      0.16
+      0.56,
+      0.09
     ]
   },
   "range": {
@@ -23,7 +23,7 @@
     "decimals": 0
   },
   "defaults": {
-    "text": "FLT CTRL OK",
+    "text": "FUEL SYSTEM NORMAL",
     "checked": false,
     "value": 25
   },
@@ -34,76 +34,44 @@
         "id": "labelVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.5,
-            "height": 0.16,
+            "id": "Status",
+            "type": "circle",
+            "radius": 0.006,
             "filled": true,
             "fillColor": [
-              11,
-              22,
-              25,
+              108,
+              200,
+              218,
               255
             ],
             "color": [
-              47,
-              78,
-              64,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
-            "id": "Status",
-            "type": "circle",
-            "radius": 0.009,
-            "filled": true,
-            "fillColor": [
-              98,
-              204,
-              142,
-              255
+              0,
+              0,
+              0,
+              0
             ],
             "position": [
-              -0.215,
+              -0.265,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "FLT CTRL OK",
-            "fontSize": 0.027,
+            "text": "FUEL SYSTEM NORMAL",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              225,
+              231,
+              239,
               241,
-              229,
               255
             ],
             "position": [
-              -0.18,
+              -0.24,
               0
             ]
-          },
-          {
-            "id": "Rule",
-            "type": "line",
-            "start": [
-              -0.215,
-              -0.055
-            ],
-            "end": [
-              0.215,
-              -0.055
-            ],
-            "color": [
-              98,
-              204,
-              142,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -122,76 +90,44 @@
         "id": "labelVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.5,
-            "height": 0.16,
+            "id": "Status",
+            "type": "circle",
+            "radius": 0.006,
             "filled": true,
             "fillColor": [
-              15,
-              34,
-              32,
+              175,
+              235,
+              242,
               255
             ],
             "color": [
-              47,
-              78,
-              64,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
-            "id": "Status",
-            "type": "circle",
-            "radius": 0.009,
-            "filled": true,
-            "fillColor": [
-              169,
-              239,
-              191,
-              255
+              0,
+              0,
+              0,
+              0
             ],
             "position": [
-              -0.215,
+              -0.265,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "FLT CTRL OK",
-            "fontSize": 0.027,
+            "text": "FUEL SYSTEM NORMAL",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              225,
+              231,
+              239,
               241,
-              229,
               255
             ],
             "position": [
-              -0.18,
+              -0.24,
               0
             ]
-          },
-          {
-            "id": "Rule",
-            "type": "line",
-            "start": [
-              -0.215,
-              -0.055
-            ],
-            "end": [
-              0.215,
-              -0.055
-            ],
-            "color": [
-              169,
-              239,
-              191,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -210,76 +146,44 @@
         "id": "labelVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.5,
-            "height": 0.16,
+            "id": "Status",
+            "type": "circle",
+            "radius": 0.006,
             "filled": true,
             "fillColor": [
-              18,
-              49,
-              36,
+              175,
+              235,
+              242,
               255
             ],
             "color": [
-              47,
-              78,
-              64,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
-            "id": "Status",
-            "type": "circle",
-            "radius": 0.009,
-            "filled": true,
-            "fillColor": [
-              169,
-              239,
-              191,
-              255
+              0,
+              0,
+              0,
+              0
             ],
             "position": [
-              -0.215,
+              -0.265,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "FLT CTRL OK",
-            "fontSize": 0.027,
+            "text": "FUEL SYSTEM NORMAL",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              225,
+              231,
+              239,
               241,
-              229,
               255
             ],
             "position": [
-              -0.18,
+              -0.24,
               0
             ]
-          },
-          {
-            "id": "Rule",
-            "type": "line",
-            "start": [
-              -0.215,
-              -0.055
-            ],
-            "end": [
-              0.215,
-              -0.055
-            ],
-            "color": [
-              169,
-              239,
-              191,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -298,76 +202,44 @@
         "id": "labelVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.5,
-            "height": 0.16,
+            "id": "Status",
+            "type": "circle",
+            "radius": 0.006,
             "filled": true,
             "fillColor": [
-              11,
-              22,
-              25,
+              65,
+              239,
+              93,
               255
             ],
             "color": [
-              47,
-              78,
-              64,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
-            "id": "Status",
-            "type": "circle",
-            "radius": 0.009,
-            "filled": true,
-            "fillColor": [
-              66,
-              222,
-              126,
-              255
+              0,
+              0,
+              0,
+              0
             ],
             "position": [
-              -0.215,
+              -0.265,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "FLT CTRL OK",
-            "fontSize": 0.027,
+            "text": "FUEL SYSTEM NORMAL",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              225,
+              231,
+              239,
               241,
-              229,
               255
             ],
             "position": [
-              -0.18,
+              -0.24,
               0
             ]
-          },
-          {
-            "id": "Rule",
-            "type": "line",
-            "start": [
-              -0.215,
-              -0.055
-            ],
-            "end": [
-              0.215,
-              -0.055
-            ],
-            "color": [
-              66,
-              222,
-              126,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -386,76 +258,44 @@
         "id": "labelVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.5,
-            "height": 0.16,
+            "id": "Status",
+            "type": "circle",
+            "radius": 0.006,
             "filled": true,
             "fillColor": [
-              25,
-              30,
-              29,
+              57,
+              77,
+              85,
               255
             ],
             "color": [
-              47,
-              78,
-              64,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
-            "id": "Status",
-            "type": "circle",
-            "radius": 0.009,
-            "filled": true,
-            "fillColor": [
-              75,
-              100,
-              89,
-              255
+              0,
+              0,
+              0,
+              0
             ],
             "position": [
-              -0.215,
+              -0.265,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "FLT CTRL OK",
-            "fontSize": 0.027,
+            "text": "FUEL SYSTEM NORMAL",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              135,
-              169,
-              145,
+              130,
+              151,
+              158,
               255
             ],
             "position": [
-              -0.18,
+              -0.24,
               0
             ]
-          },
-          {
-            "id": "Rule",
-            "type": "line",
-            "start": [
-              -0.215,
-              -0.055
-            ],
-            "end": [
-              0.215,
-              -0.055
-            ],
-            "color": [
-              75,
-              100,
-              89,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -474,76 +314,44 @@
         "id": "labelVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.5,
-            "height": 0.16,
+            "id": "Status",
+            "type": "circle",
+            "radius": 0.006,
             "filled": true,
             "fillColor": [
-              11,
-              22,
-              25,
+              255,
+              164,
+              61,
               255
             ],
             "color": [
-              47,
-              78,
-              64,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
-            "id": "Status",
-            "type": "circle",
-            "radius": 0.009,
-            "filled": true,
-            "fillColor": [
-              233,
-              114,
-              69,
-              255
+              0,
+              0,
+              0,
+              0
             ],
             "position": [
-              -0.215,
+              -0.265,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "FLT CTRL OK",
-            "fontSize": 0.027,
+            "text": "FUEL SYSTEM NORMAL",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              225,
+              231,
+              239,
               241,
-              229,
               255
             ],
             "position": [
-              -0.18,
+              -0.24,
               0
             ]
-          },
-          {
-            "id": "Rule",
-            "type": "line",
-            "start": [
-              -0.215,
-              -0.055
-            ],
-            "end": [
-              0.215,
-              -0.055
-            ],
-            "color": [
-              233,
-              114,
-              69,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
@@ -562,76 +370,44 @@
         "id": "labelVisual",
         "elements": [
           {
-            "id": "Surface",
-            "type": "rectangle",
-            "width": 0.5,
-            "height": 0.16,
+            "id": "Status",
+            "type": "circle",
+            "radius": 0.006,
             "filled": true,
             "fillColor": [
-              11,
-              22,
-              25,
+              246,
+              192,
+              66,
               255
             ],
             "color": [
-              47,
-              78,
-              64,
-              255
-            ],
-            "thickness": 0.0015
-          },
-          {
-            "id": "Status",
-            "type": "circle",
-            "radius": 0.009,
-            "filled": true,
-            "fillColor": [
-              237,
-              181,
-              67,
-              255
+              0,
+              0,
+              0,
+              0
             ],
             "position": [
-              -0.215,
+              -0.265,
               0
             ]
           },
           {
             "id": "Text",
             "type": "text",
-            "text": "FLT CTRL OK",
-            "fontSize": 0.027,
+            "text": "FUEL SYSTEM NORMAL",
+            "fontSize": 0.025,
+            "letterSpacing": 0.0008,
             "align": "left",
             "color": [
-              225,
+              231,
+              239,
               241,
-              229,
               255
             ],
             "position": [
-              -0.18,
+              -0.24,
               0
             ]
-          },
-          {
-            "id": "Rule",
-            "type": "line",
-            "start": [
-              -0.215,
-              -0.055
-            ],
-            "end": [
-              0.215,
-              -0.055
-            ],
-            "color": [
-              237,
-              181,
-              67,
-              255
-            ],
-            "thickness": 0.002
           }
         ]
       },
