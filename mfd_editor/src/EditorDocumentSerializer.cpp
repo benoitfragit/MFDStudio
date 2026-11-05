@@ -450,6 +450,10 @@ void WritePrimitiveGeometry(json& node, const mfd::Primitive& primitive, const s
     {
         node["text"] = text->text;
         node["size"] = text->fontSize;
+        if (text->useStrokeThickness)
+        {
+            node["useStrokeThickness"] = true;
+        }
         if (std::abs(text->letterSpacing - mfd::kDefaultTextLetterSpacing) >= 0.0001f)
         {
             node["letterSpacing"] = text->letterSpacing;
@@ -465,6 +469,10 @@ void WritePrimitiveGeometry(json& node, const mfd::Primitive& primitive, const s
     {
         node["format"] = time->format;
         node["size"] = time->fontSize;
+        if (time->useStrokeThickness)
+        {
+            node["useStrokeThickness"] = true;
+        }
         if (std::abs(time->letterSpacing - mfd::kDefaultTextLetterSpacing) >= 0.0001f)
         {
             node["letterSpacing"] = time->letterSpacing;

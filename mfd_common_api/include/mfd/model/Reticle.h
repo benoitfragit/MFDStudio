@@ -109,6 +109,8 @@ struct TextGeometry
     float letterSpacing = kDefaultTextLetterSpacing;
     /** @brief Horizontal alignment used when the text width changes. */
     Align align = Align::Center;
+    /** @brief Render glyph centerlines with the effective primitive stroke thickness. */
+    bool useStrokeThickness = false;
 };
 
 /**
@@ -229,6 +231,8 @@ struct TimeGeometry
     float letterSpacing = kDefaultTextLetterSpacing;
     /** @brief Horizontal alignment used when the rendered time width changes. */
     Align align = Align::Center;
+    /** @brief Render glyph centerlines with the effective primitive stroke thickness. */
+    bool useStrokeThickness = false;
 };
 
 /**

@@ -511,7 +511,8 @@ void SampleEllipseInto(const EllipseGeometry& geometry, const int segments, std:
     }
 }
 
-void DrawAlignedTextReserved(const std::string& text,
+void DrawAlignedTextReserved(TextLayoutCache& cache, const float width,
+                             const std::string& text,
                              const Font& font,
                              const float fontSize,
                              const float letterSpacing,
@@ -521,7 +522,13 @@ void DrawAlignedTextReserved(const std::string& text,
                              const Color color)
 {
     const Vector2 snappedScreenPosition = detail::SnapTextAnchor(screenPosition);
-    DrawTextPro(font,
+    const Font& drawFont = cache.SelectFont(font, fontSize);
+    if (width > 0.0f && cache.StrokeRenderer(drawFont).Draw(text, drawFont, fontSize, letterSpacing, snappedScreenPosition,
+                                                   origin, rotationDegrees, color, width))
+    {
+        return;
+    }
+    DrawTextPro(drawFont,
                 text.c_str(),
                 snappedScreenPosition,
                 origin,
@@ -531,7 +538,7 @@ void DrawAlignedTextReserved(const std::string& text,
                 color);
 }
 
-void DrawStaticTextLayout(TextLayoutCache& layoutCache,
+void DrawStaticTextLayout(TextLayoutCache& layoutCache, const float strokeWidth,
                           const std::string& text,
                           const Font& font,
                           const float fontSize,
@@ -554,10 +561,10 @@ void DrawStaticTextLayout(TextLayoutCache& layoutCache,
     }
 
     DrawAlignedTextReserved(
-        layout.text, font, fontSize, letterSpacing, screenPosition, layout.origin, rotationDegrees, color);
+        layoutCache, strokeWidth, layout.text, font, fontSize, letterSpacing, screenPosition, layout.origin, rotationDegrees, color);
 }
 
-void DrawTimeTextLayout(TextLayoutCache& layoutCache,
+void DrawTimeTextLayout(TextLayoutCache& layoutCache, const float strokeWidth,
                         const TimeGeometry& time,
                         const Font& font,
                         const float fontSize,
@@ -579,7 +586,7 @@ void DrawTimeTextLayout(TextLayoutCache& layoutCache,
     }
 
     DrawAlignedTextReserved(
-        layout.text, font, fontSize, letterSpacing, screenPosition, layout.origin, rotationDegrees, color);
+        layoutCache, strokeWidth, layout.text, font, fontSize, letterSpacing, screenPosition, layout.origin, rotationDegrees, color);
 }
 } // namespace
 
@@ -1028,15 +1035,16 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             break;
         }
 
+        const float glyphThickness = text->useStrokeThickness ? strokeThickness : 0.0f;
         if (textLayoutCache_ != nullptr)
         {
-            DrawStaticTextLayout(*textLayoutCache_, text->text, font, fontSize, letterSpacing, text->align,
+            DrawStaticTextLayout(*textLayoutCache_, glyphThickness, text->text, font, fontSize, letterSpacing, text->align,
                                 screenPosition, -combinedTransform.rotationDegrees, strokeColor, drawBudget_);
         }
         else
         {
             TextLayoutCache localTextLayoutCache;
-            DrawStaticTextLayout(localTextLayoutCache, text->text, font, fontSize, letterSpacing, text->align,
+            DrawStaticTextLayout(localTextLayoutCache, glyphThickness, text->text, font, fontSize, letterSpacing, text->align,
                                 screenPosition, -combinedTransform.rotationDegrees, strokeColor, drawBudget_);
         }
         break;
@@ -1062,15 +1070,16 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
             break;
         }
 
+        const float glyphThickness = time->useStrokeThickness ? strokeThickness : 0.0f;
         if (textLayoutCache_ != nullptr)
         {
-            DrawTimeTextLayout(*textLayoutCache_, *time, font, fontSize, letterSpacing,
+            DrawTimeTextLayout(*textLayoutCache_, glyphThickness, *time, font, fontSize, letterSpacing,
                               screenPosition, -combinedTransform.rotationDegrees, strokeColor, drawBudget_);
         }
         else
         {
             TextLayoutCache localTextLayoutCache;
-            DrawTimeTextLayout(localTextLayoutCache, *time, font, fontSize, letterSpacing,
+            DrawTimeTextLayout(localTextLayoutCache, glyphThickness, *time, font, fontSize, letterSpacing,
                               screenPosition, -combinedTransform.rotationDegrees, strokeColor, drawBudget_);
         }
         break;

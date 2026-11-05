@@ -585,6 +585,7 @@ struct MfdRenderer::Impl
 
         ResetTextFont();
         fontFile = std::move(path);
+        textLayoutCache.SetOutlineFontSource(fontFile);
     }
 
     bool EnsureTextFont()

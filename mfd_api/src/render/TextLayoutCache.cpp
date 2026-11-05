@@ -9,6 +9,8 @@
  */
 
 #include "TextLayoutCache.h"
+
+#include <rlgl.h>
 #include "TimeFormatValidation.h"
 
 #include <algorithm>
@@ -245,11 +247,12 @@ TextLayoutCache::TextLayoutCache(const MeasureTextCallback measureText,
 }
 
 const CachedTextLayout& TextLayoutCache::ResolveStaticText(const std::string_view text,
-                                                           const Font& font,
+                                                           const Font& nativeFont,
                                                            const float fontSize,
                                                            const float letterSpacing,
                                                            const Align align)
 {
+    const Font& font = SelectFont(nativeFont, fontSize);
     StaticKey key;
     key.text = std::string(text);
     key.fontFingerprint = ComputeFontFingerprint(font);
@@ -278,11 +281,12 @@ const CachedTextLayout& TextLayoutCache::ResolveStaticText(const std::string_vie
 }
 
 const CachedTextLayout& TextLayoutCache::ResolveTimeText(const TimeGeometry& geometry,
-                                                         const Font& font,
+                                                         const Font& nativeFont,
                                                          const float fontSize,
                                                          const float letterSpacing,
                                                          const std::chrono::system_clock::time_point now)
 {
+    const Font& font = SelectFont(nativeFont, fontSize);
     TimeKey key;
     key.format = geometry.format;
     key.utc = EffectiveUtc(geometry);
@@ -325,8 +329,56 @@ const CachedTextLayout& TextLayoutCache::ResolveTimeText(const TimeGeometry& geo
     return timeEntries_.emplace(std::move(key), std::move(entry)).first->second.layout;
 }
 
+TextLayoutCache::~TextLayoutCache()
+{
+    Clear();
+}
+
+void TextLayoutCache::SetOutlineFontSource(const std::filesystem::path& source)
+{
+    Clear();
+    outlineFontSource_ = source;
+}
+
+const Font& TextLayoutCache::SelectFont(const Font& native, const float pixelSize)
+{
+    if (pixelSize <= native.baseSize || outlineFontSource_.empty() || !IsWindowReady()) return native;
+    // Promote only when necessary. Alternating small and large labels never rebuilds an atlas per frame.
+    int resolution = 128;
+    while (pixelSize > resolution && resolution < 512) resolution *= 2;
+    if (resolution > attemptedAtlasSize_)
+    {
+        attemptedAtlasSize_ = resolution;
+        const std::string path = outlineFontSource_.string();
+        if (IsFileExtension(path.c_str(), ".ttf") || IsFileExtension(path.c_str(), ".otf"))
+        {
+            Font replacement = LoadDisplayFont(path.c_str(), resolution);
+            if (replacement.texture.id)
+            {
+                largeStrokes_.Clear();
+                if (largeFont_.texture.id)
+                {
+                    rlDrawRenderBatchActive();
+                    UnloadFont(largeFont_);
+                }
+                largeFont_ = replacement;
+            }
+        }
+    }
+    return largeFont_.texture.id ? largeFont_ : native;
+}
+
 void TextLayoutCache::Clear() noexcept
 {
+    nativeStrokes_.Clear();
+    largeStrokes_.Clear();
+    if (largeFont_.texture.id && IsWindowReady())
+    {
+        rlDrawRenderBatchActive();
+        UnloadFont(largeFont_);
+    }
+    largeFont_ = {};
+    attemptedAtlasSize_ = 0;
     staticEntries_.clear();
     timeEntries_.clear();
     nextUseSerial_ = 1U;

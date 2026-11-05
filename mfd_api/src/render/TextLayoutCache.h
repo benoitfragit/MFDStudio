@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <ctime>
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -21,6 +22,7 @@
 #include <raylib.h>
 
 #include "mfd/model/Reticle.h"
+#include "GlyphStrokeRenderer.h"
 
 namespace mfd
 {
@@ -111,9 +113,20 @@ public:
                                                 std::chrono::system_clock::now());
 
     /**
-     * @brief Clears every cached text and time layout.
+     * @brief Clears layouts and releases cached font and stroke textures.
      */
     void Clear() noexcept;
+
+    ~TextLayoutCache();
+    /** @brief Sets the configured outline font used for large text in this rendering context. */
+    void SetOutlineFontSource(const std::filesystem::path& source);
+    /** @brief Selects the rasterization resolution used by both measurement and drawing. */
+    const Font& SelectFont(const Font& native, float pixelSize);
+
+    GlyphStrokeRenderer& StrokeRenderer(const Font& font) noexcept
+    {
+        return largeFont_.texture.id && font.texture.id == largeFont_.texture.id ? largeStrokes_ : nativeStrokes_;
+    }
 
     /**
      * @brief Returns the number of cached static-text layouts currently retained.
@@ -134,6 +147,11 @@ public:
     [[nodiscard]] Stats CacheStats() const noexcept;
 
 private:
+    GlyphStrokeRenderer nativeStrokes_;
+    GlyphStrokeRenderer largeStrokes_;
+    std::filesystem::path outlineFontSource_;
+    Font largeFont_ {};
+    int attemptedAtlasSize_ = 0;
     struct StaticKey
     {
         std::string text {};

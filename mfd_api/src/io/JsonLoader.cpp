@@ -1311,6 +1311,7 @@ Primitive ParsePrimitive(const json& node, const std::filesystem::path& baseFold
         TextGeometry geometry;
         geometry.text = node.value("text", "");
         geometry.fontSize = node.value("fontSize", node.value("size", kDefaultTextFontSize));
+        geometry.useStrokeThickness = node.value("useStrokeThickness", false);
         if (const auto letterSpacing = ParseLetterSpacingField(node); letterSpacing.has_value())
         {
             geometry.letterSpacing = *letterSpacing;
@@ -1328,6 +1329,7 @@ Primitive ParsePrimitive(const json& node, const std::filesystem::path& baseFold
         geometry.format = node.value("format", node.value("pattern", geometry.format));
         geometry.utc = node.value("utc", node.value("useUtc", geometry.utc));
         geometry.fontSize = node.value("fontSize", node.value("size", kDefaultTextFontSize));
+        geometry.useStrokeThickness = node.value("useStrokeThickness", false);
         if (const auto letterSpacing = ParseLetterSpacingField(node); letterSpacing.has_value())
         {
             geometry.letterSpacing = *letterSpacing;

@@ -3332,6 +3332,7 @@ void EditorApplication::ApplyPreviewFontFile(std::filesystem::path fontFile)
     InvalidateLayerPreviewThumbnails();
     ReleasePreviewFont();
     previewState_.previewFontFile = std::move(fontFile);
+    previewState_.previewTextLayoutCache.SetOutlineFontSource(previewState_.previewFontFile);
     previewState_.previewFontLoadAttempted = false;
 }
 

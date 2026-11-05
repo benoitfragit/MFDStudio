@@ -413,6 +413,41 @@ std::string InvalidTimeFormatMessage(const std::string_view format)
 }
 }
 
+void EditorApplication::EditGlyphStroke(mfd::ReticleGroup& source, const mfd::Primitive& primitive, bool enabled)
+{
+    float width = primitive.style.thickness;
+    const auto index = static_cast<std::size_t>(documentState_.selection.primitiveIndex);
+    if (ImGui::Checkbox("Use stroke thickness", &enabled))
+    {
+        PushUndoSnapshot();
+        editor::app::ApplyTemplateGlyphStroke(documentState_.loaded.document, source, index, enabled, width);
+    }
+    ShowItemTooltip("Draw this font along its centerlines with a width independent of Font size.");
+    if (!enabled) return;
+    if (source.overrides.thickness)
+    {
+        ImGui::TextDisabled("Thickness %.4f (reticle default)", static_cast<double>(*source.overrides.thickness));
+        ShowItemTooltip("Edit Default thickness on the template reticle to change this inherited width.");
+        return;
+    }
+
+    const ImGuiID gesture = ImGui::GetID("GlyphThicknessUndo");
+    ImGuiStorage* storage = ImGui::GetStateStorage();
+    const bool changed = ImGui::DragFloat("Thickness", &width, 0.0001f, 0.0001f, 0.25f, "%.4f",
+                                          ImGuiSliderFlags_AlwaysClamp);
+    if (ImGui::IsItemActivated()) storage->SetBool(gesture, false);
+    if (changed && std::isfinite(width) && width != primitive.style.thickness)
+    {
+        if (!storage->GetBool(gesture))
+        {
+            PushUndoSnapshot();
+            storage->SetBool(gesture, true);
+        }
+        editor::app::ApplyTemplateGlyphStroke(documentState_.loaded.document, source, index, true, width);
+    }
+    ShowItemTooltip("Glyph stroke width in logical page units. Ctrl+click to enter a precise value.");
+}
+
 void EditorApplication::EditTimeFormatField(const std::string& label,
                                             const char* const tooltip,
                                             mfd::TimeGeometry& geometry)
@@ -3966,15 +4001,24 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
     }
     ShowItemTooltip("Stroke color used to render this primitive.");
 
-    if (ImGui::DragFloat("Thickness", &primitive->style.thickness, 0.0002f, 0.0005f, 0.05f, "%.4f"))
+    const auto* textStyle = std::get_if<mfd::TextGeometry>(&primitive->geometry);
+    const auto* timeStyle = std::get_if<mfd::TimeGeometry>(&primitive->geometry);
+    if (textStyle || timeStyle)
     {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        primitive->style.thickness = std::max(0.0005f, primitive->style.thickness);
+        EditGlyphStroke(*reticle, *primitive, textStyle ? textStyle->useStrokeThickness : timeStyle->useStrokeThickness);
     }
-    ShowItemTooltip("Stroke thickness used by this primitive.");
+    else
+    {
+        if (ImGui::DragFloat("Thickness", &primitive->style.thickness, 0.0002f, 0.0005f, 0.05f, "%.4f"))
+        {
+            if (ImGui::IsItemActivated())
+            {
+                PushUndoSnapshot();
+            }
+            primitive->style.thickness = std::max(0.0005f, primitive->style.thickness);
+        }
+        ShowItemTooltip("Stroke thickness used by this primitive.");
+    }
 
     if (SupportsPrimitiveLineStyle(primitive->type))
     {

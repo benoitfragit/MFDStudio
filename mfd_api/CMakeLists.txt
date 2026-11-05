@@ -188,6 +188,7 @@ set(MFD_RENDER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ExternalStreamRegistry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/BezierPolylineCache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/CanvasDrawWork.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/GlyphStrokeRenderer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/Canvas2D.cpp
     ${MFD_APILEVEL1_ROOT_DIR}/runtime/src/ContainerDecorationRenderer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ImageTextureCache.cpp

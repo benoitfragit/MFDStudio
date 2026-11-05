@@ -10,6 +10,7 @@ set(MFD_EDITOR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorSidebarLayout.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorViewportGrid.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorResizeGesture.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorTemplateGlyphStroke.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorViewportSnap.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorWidgetPreviewController.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationShell.cpp
