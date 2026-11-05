@@ -56,3 +56,29 @@ TEST(EditorInspectorEdit, PageOverrideResolvesTheNamedPrimitiveAfterReordering)
     reticle.primitives[2].geometry = mfd::TimeGeometry {};
     EXPECT_EQ(editor::app::FindPageTextOverride(reticle, {}), 2);
 }
+
+TEST(EditorInspectorEdit, RemovingAnyPolylinePointPreservesOrderAndClosure)
+{
+    for (bool closed : {false, true})
+    {
+        for (std::size_t removed : {0U, 1U, 3U})
+        {
+            mfd::PolylineGeometry path;
+            path.closed = closed;
+            path.points = {{0, 0}, {1, 2}, {2, 4}, {3, 6}};
+            ASSERT_TRUE(editor::app::RemovePolylinePoint(path, removed));
+            ASSERT_EQ(path.points.size(), 3U);
+            EXPECT_EQ(path.closed, closed);
+            for (std::size_t i = 0; i < path.points.size(); ++i)
+            {
+                const float expected = static_cast<float>(i < removed ? i : i + 1U);
+                EXPECT_EQ(path.points[i].x, expected);
+                EXPECT_EQ(path.points[i].y, 2 * expected);
+            }
+            EXPECT_FALSE(editor::app::RemovePolylinePoint(path, 3));
+            EXPECT_TRUE(editor::app::RemovePolylinePoint(path, 1));
+            EXPECT_FALSE(editor::app::RemovePolylinePoint(path, 0));
+            EXPECT_EQ(path.points.size(), 2U);
+        }
+    }
+}
