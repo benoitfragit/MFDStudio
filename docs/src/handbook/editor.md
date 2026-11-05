@@ -238,6 +238,8 @@ competing for space.
 
 All authored colors use the same current-color button, including creation dialogs, page titles and external-stream replacement colors. Click it to open the standard RGBA selector with exactly eight preset shortcuts on the right. Both RGBA edits and presets apply immediately; click outside or press Escape to close. Each continuous edit can be undone in one step. See [Color presets](../reference/colors.md#editor). The guided progress-bar exposure step teaches opening the selector, choosing Yellow, observing the preview and closing the selector.
 
+Window titles and time formats commit on Enter or when leaving the field. Escape cancels the edit. An invalid time format leaves the previous value and Undo history intact.
+
 ## Recovery snapshots and rename failures
 
 Recovery snapshots keep their existing filename and JSON bundle format. A new

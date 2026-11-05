@@ -361,7 +361,20 @@ private:
     void EditPointArrayField(const char* label, mfd::Vec2& value);
     /** @brief Edits one time-format field and only commits complete supported directives when editing finishes. */
     void EditGlyphStroke(mfd::ReticleGroup& source, const mfd::Primitive& primitive, bool enabled);
-    void EditTimeFormatField(const std::string& label, const char* tooltip, mfd::TimeGeometry& geometry);
+    void EditTimeFormatField(const std::string& label, const char* tooltip, mfd::TimeGeometry& geometry, int index);
+    void EditInspectorString(const char* label, std::string& value, int primitiveIndex);
+    void FinishInspectorStringEdit();
+    void FinishInspectorStringOnBlur();
+    struct InspectorStringEdit
+    {
+        Selection owner;
+        int primitiveIndex;
+        std::string original;
+        std::string requested;
+        ImVec2 fieldMin;
+        ImVec2 fieldMax;
+    };
+    std::optional<InspectorStringEdit> inspectorStringEdit_;
 
     /** @brief Draws the current page into the main preview viewport. */
     void DrawPagePreview(const ViewportState& viewport);
