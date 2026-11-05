@@ -13,6 +13,8 @@
 #include "internal/application/EditorApplicationState.h"
 #include "internal/application/EditorApplicationAuthoringSupport.h"
 
+#include "EditorUndoHistory.h"
+
 #include <gtest/gtest.h>
 
 #include <vector>
@@ -536,4 +538,46 @@ TEST(EditorApplicationInternalTests, ForEachPrimitiveBoundsLocalPointHonorsLeftA
     EXPECT_FLOAT_EQ(rightPoints[1].x, 0.0f);
     EXPECT_FLOAT_EQ(rightPoints[2].x, 0.0f);
     EXPECT_FLOAT_EQ(rightPoints[3].x, -rightWidth);
+}
+
+TEST(EditorApplicationInternalTests, GlyphStrokeEditUpdatesMatchingInstancesAndUndoesInOneStep)
+{
+    mfd::MfdDocument document;
+    auto& source = document.reticleLibrary["caption"];
+    source.id = "caption";
+    mfd::Primitive label;
+    label.id = "label";
+    label.type = mfd::PrimitiveType::Text;
+    label.geometry = mfd::TextGeometry {};
+    mfd::Primitive clock;
+    clock.type = mfd::PrimitiveType::Time;
+    clock.geometry = mfd::TimeGeometry {};
+    source.primitives = {label, clock};
+
+    auto& page = document.pages.emplace_back();
+    page.staticReticles.push_back(mfd::InstantiateReticle(source, "instance", {}, {}));
+    page.strobes.emplace_back().reticle = mfd::InstantiateReticle(source, "strobe", {}, {});
+    page.staticReticles.push_back(source); // Inline reticle with the same primitive ids.
+    std::swap(page.staticReticles[0].primitives[0], page.staticReticles[0].primitives[1]);
+    editor::UndoHistory<mfd::MfdDocument> history;
+    history.Record(document);
+    editor::app::ApplyTemplateGlyphStroke(document, source, 0U, true, 0.017f);
+    const auto& instanceLabel = std::get<mfd::TextGeometry>(page.staticReticles[0].primitives[1].geometry);
+    EXPECT_EQ(instanceLabel.useStrokeThickness, true);
+    EXPECT_EQ(std::get<mfd::TextGeometry>(page.staticReticles[1].primitives[0].geometry).useStrokeThickness,
+              false);
+    EXPECT_FLOAT_EQ(page.staticReticles[0].primitives[1].style.thickness, 0.017f);
+    const auto previous = history.Undo(document);
+    ASSERT_TRUE(previous.has_value());
+    EXPECT_EQ(std::get<mfd::TextGeometry>(previous->pages[0].strobes[0].reticle.primitives[0].geometry).useStrokeThickness,
+              false);
+    const auto next = history.Redo(*previous);
+    ASSERT_TRUE(next.has_value());
+    EXPECT_EQ(std::get<mfd::TextGeometry>(next->pages[0].strobes[0].reticle.primitives[0].geometry).useStrokeThickness,
+              true);
+
+    editor::app::ApplyTemplateGlyphStroke(document, source, 1U, true, 0.003f);
+    EXPECT_EQ(std::get<mfd::TimeGeometry>(page.strobes[0].reticle.primitives[1].geometry).useStrokeThickness,
+              true);
+    EXPECT_EQ(instanceLabel.useStrokeThickness, true);
 }

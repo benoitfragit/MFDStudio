@@ -276,6 +276,66 @@ std::vector<std::filesystem::path> ChangedFiles(
 }
 } // namespace
 
+TEST(ReticleRenameServiceTests, RejectsUnchangedAndBlankTemplateIdsWithoutWriting)
+{
+    ScopedTempDir tempDir;
+    const std::filesystem::path assetsRoot = tempDir.Path() / "assets";
+    const std::filesystem::path reticleFolder = assetsRoot / "reticles";
+    const std::filesystem::path windowFile = assetsRoot / "windows" / "current.json";
+    const std::filesystem::path templateFile = reticleFolder / "track_box.json";
+
+    WriteWindowJson(windowFile, reticleFolder, {}, {});
+    WriteTemplateJson(templateFile, "track_box");
+    auto [loaded, files] = MakeLoadedWindow(windowFile, reticleFolder, {});
+    AddTemplate(loaded, files, templateFile, MakeTemplate("track_box"));
+    const std::string originalTemplate = ReadTextFile(templateFile);
+
+    editor::ReticleRenameService service;
+    for (const std::string& newId : {"track_box", " TRACK_BOX ", ""})
+    {
+        const editor::RenameReticlePlan plan = service.BuildPlan(
+            loaded,
+            files,
+            editor::RenameReticleRequest {"track_box", newId, assetsRoot, true});
+        EXPECT_FALSE(plan.canExecute) << newId;
+        EXPECT_FALSE(plan.error.empty()) << newId;
+        EXPECT_EQ(ReadTextFile(templateFile), originalTemplate);
+    }
+}
+
+TEST(ReticleRenameServiceTests, RenamesUnreferencedTemplateAfterExplicitReview)
+{
+    ScopedTempDir tempDir;
+    const std::filesystem::path assetsRoot = tempDir.Path() / "assets";
+    const std::filesystem::path reticleFolder = assetsRoot / "reticles";
+    const std::filesystem::path windowFile = assetsRoot / "windows" / "current.json";
+    const std::filesystem::path templateFile = reticleFolder / "track_box.json";
+
+    WriteWindowJson(windowFile, reticleFolder, {}, {});
+    WriteTemplateJson(templateFile, "track_box");
+    auto [loaded, files] = MakeLoadedWindow(windowFile, reticleFolder, {});
+    AddTemplate(loaded, files, templateFile, MakeTemplate("track_box"));
+
+    editor::ReticleRenameService service;
+    const editor::RenameReticlePlan plan = service.BuildPlan(
+        loaded,
+        files,
+        editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, true});
+    ASSERT_TRUE(plan.canExecute) << plan.error;
+    EXPECT_TRUE(plan.references.empty());
+    EXPECT_EQ(json::parse(ReadTextFile(templateFile)).at("id"), "track_box");
+    EXPECT_TRUE(std::filesystem::exists(templateFile));
+    EXPECT_FALSE(std::filesystem::exists(plan.targetTemplateFile));
+
+    std::string error;
+    ASSERT_TRUE(service.Execute(plan, loaded, files, nullptr, &error)) << error;
+    EXPECT_FALSE(std::filesystem::exists(templateFile));
+    EXPECT_EQ(json::parse(ReadTextFile(plan.targetTemplateFile)).at("id"), "threat_box");
+    EXPECT_EQ(files.templateFiles.at("threat_box"), plan.targetTemplateFile);
+    EXPECT_EQ(loaded.document.reticleLibrary.count("threat_box"), 1U);
+    EXPECT_EQ(loaded.document.reticleLibrary.count("track_box"), 0U);
+}
+
 TEST(ReticleRenameServiceTests, RenamesReticleUsedByOnePage)
 {
     ScopedTempDir tempDir;

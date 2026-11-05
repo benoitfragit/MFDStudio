@@ -64,6 +64,9 @@ Once one window is loaded, the normal authoring workspace takes over:
 
 ## Authoring model
 
+To resize a page reticle, drag a corner handle. A click or slight pointer jitter
+leaves its scale and Undo history untouched. One resize drag takes one Undo step.
+
 The editor writes text and time alignment (`left`, `center`, `right`) directly
 into the asset model, matching what both the preview gizmos and `mfd_window`
 render at runtime. It keeps one shared editor-only visible grid, snap toggle,
@@ -132,6 +135,13 @@ The top half of the sidebar is where page authoring stays anchored:
 - the selected page stays highlighted in the tree and mirrored in the inspector
 - the quick-action row keeps the most common page actions close to the tree
 
+To rename an existing page, select it and edit **Page settings > Name** in the right
+inspector. Press Enter or **Review rename...** to open the global rename review.
+Alternatively, use the pencil icon or **Page > Rename current page globally...**.
+The new name is not applied until the review confirms all references and
+collisions. If confirmation is disabled, read the error message in that popup;
+save the source window and page assets if they have not been saved yet.
+
 The **Pages** and **Reticle library** headers show live counts of entries passing
 the current filter, and a line near the filter surfaces pending validation
 problems (click it to open the Problems panel).
@@ -158,6 +168,14 @@ The lower half keeps the library reticles separate from page instances:
 - the library list stays reusable across every page of the current window
 - selecting one template opens its shared definition without mutating page-local ids
 - the lower quick-action row keeps library-specific actions near the template list
+
+To rename a **shared library reticle template**, select it, edit **Template id**
+in the right inspector, and press Enter or **Review rename...**. The pencil icon
+and **Reticle > Rename selected library reticle globally...** open the same
+review dialogue. Confirm only after checking references and the optional
+**Rename template JSON file too** setting. Cancel leaves the template and its
+page references unchanged. The page-local reticle instance id is different
+from the shared template id.
 
 ## Page preview toolbar
 

@@ -42,6 +42,7 @@
 #include "EditorReticleUsageHighlightService.h"
 #include "EditorUndoHistory.h"
 #include "internal/application/EditorFocusedStudio.h"
+#include "internal/application/EditorResizeGesture.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/Reticle.h"
 #include "BezierPolylineCache.h"
@@ -252,12 +253,29 @@ struct PageImportPopupState
     std::filesystem::path sourcePageFile {};
 };
 
+/** @brief Transient name entered in the page inspector, without modifying the page document. */
+struct PageNameDraftState
+{
+    int pageIndex = -1;
+    std::filesystem::path pageFile {};
+    std::string originalName {};
+    std::array<char, 128> newName {};
+};
+
 /** @brief UI state driving the global page-rename review popup. */
 struct PageRenamePopupState
 {
     bool openRequested = false;
     int pageIndex = -1;
     std::array<char, 128> newName {};
+};
+
+/** @brief Transient library-template id entered in the inspector without changing the document. */
+struct ReticleNameDraftState
+{
+    std::string templateId {};
+    std::filesystem::path templateFile {};
+    std::array<char, 128> newId {};
 };
 
 /** @brief UI state driving the global reticle-template rename review popup. */
@@ -442,7 +460,9 @@ struct WorkflowState
     DuplicateLibraryReticleDraft duplicateLibraryReticleDraft {};
     PageManagementPopupState pageManagementPopup {};
     PageImportPopupState pageImportPopup {};
+    PageNameDraftState pageNameDraft {};
     PageRenamePopupState pageRenamePopup {};
+    ReticleNameDraftState reticleNameDraft {};
     ReticleRenamePopupState reticleRenamePopup {};
     ContainerRenamePopupState containerRenamePopup {};
     ReticleExtractionPopupState reticleExtractionPopup {};
@@ -488,16 +508,14 @@ struct InteractionState
     std::vector<mfd::Transform2D> startReticleTransforms {};
     mfd::Primitive startPrimitive {};
     mfd::api1::ContainerRect startContainerGeometry {};
-    /** @brief Prevents one continuous container resize from recording more than one undo snapshot. */
-    bool containerResizeUndoRecorded = false;
     std::string containerId {};
     mfd::Vec2 startMouseLogical {};
     mfd::Vec2 startMouseReticleLocal {};
     mfd::Vec2 startMousePrimitiveLocal {};
+    EditorResizeGesture resizeGesture {};
+    bool resizeUndoRecorded = false;
     float startAngleDegrees = 0.0f;
-    float startDistance = 0.0f;
     mfd::Vec2 startReticleVisualCenterLocal {};
-    ImVec2 startCenterScreen {};
     ImVec2 startCornerScreen {};
 };
 

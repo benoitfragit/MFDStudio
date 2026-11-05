@@ -10,6 +10,7 @@
  */
 
 #include "EditorDocumentSerializer.h"
+#include "mfd/io/JsonLoader.h"
 #include "mfd/ipc/UdpLimits.h"
 #include "mfd/model/RuntimeBudgets.h"
 
@@ -1613,4 +1614,61 @@ TEST(EditorDocumentSerializerTests, PaletteAndCustomAlphaSurviveJsonRoundTrip)
     EXPECT_EQ(style.fillColor.g, 160);
     EXPECT_EQ(style.fillColor.b, 255);
     EXPECT_EQ(style.fillColor.a, 180);
+}
+
+TEST(EditorDocumentSerializerTests, TextAndClockStrokeWidthsRoundTripAndInheritFromTemplate)
+{
+    ScopedTempDir folder;
+    const auto file = folder.Path() / "caption.json";
+    {
+        std::ofstream output(file);
+        output << R"({"id":"caption","elements":[{"type":"text","text":"UTC"},{"type":"time"}]})";
+    }
+    const mfd::JsonLoader loader;
+    auto reticle = loader.LoadReticleAssets(folder.Path()).at("caption");
+    ASSERT_EQ(reticle.primitives.size(), 2U);
+    auto& text = std::get<mfd::TextGeometry>(reticle.primitives[0].geometry);
+    auto& clock = std::get<mfd::TimeGeometry>(reticle.primitives[1].geometry);
+    EXPECT_FALSE(text.useStrokeThickness);
+    EXPECT_FALSE(clock.useStrokeThickness);
+    const auto legacy = nlohmann::json::parse(editor::SerializeReticleTemplateToJsonString(reticle));
+    for (const auto& element : legacy.at("elements"))
+    {
+        EXPECT_FALSE(element.contains("useStrokeThickness"));
+    }
+
+    text.useStrokeThickness = true;
+    reticle.primitives[0].style.thickness = 0.007f;
+    clock.useStrokeThickness = true;
+    reticle.primitives[1].style.thickness = 0.003f;
+    {
+        std::ofstream output(file);
+        output << editor::SerializeReticleTemplateToJsonString(reticle);
+    }
+    const auto reloaded = loader.LoadReticleAssets(folder.Path()).at("caption");
+    const auto instance = mfd::InstantiateReticle(reloaded, "instance", {}, {});
+    EXPECT_TRUE(std::get<mfd::TextGeometry>(instance.primitives[0].geometry).useStrokeThickness);
+    EXPECT_FLOAT_EQ(instance.primitives[0].style.thickness, 0.007f);
+    EXPECT_TRUE(std::get<mfd::TimeGeometry>(instance.primitives[1].geometry).useStrokeThickness);
+    EXPECT_FLOAT_EQ(instance.primitives[1].style.thickness, 0.003f);
+}
+
+TEST(EditorDocumentSerializerTests, RejectsInvalidAuthoredStrokeWidthsOnBothPrimitiveTypes)
+{
+    ScopedTempDir folder;
+    const auto file = folder.Path() / "invalid.json";
+    for (const char* type : {"text", "time"})
+    {
+        for (const nlohmann::json& invalid : nlohmann::json::array({0, 1, 0.5, "true", nullptr}))
+        {
+            const nlohmann::json element {{"type", type}, {"useStrokeThickness", invalid}};
+            const nlohmann::json asset {{"id", "invalid"}, {"elements", nlohmann::json::array({element})}};
+            {
+                std::ofstream output(file);
+                output << asset;
+            }
+            EXPECT_THROW(mfd::JsonLoader().LoadReticleAssets(folder.Path()), std::runtime_error)
+                << type << " useStrokeThickness " << invalid;
+        }
+    }
 }

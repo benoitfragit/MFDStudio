@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <string>
 #include <utility>
 
@@ -287,4 +288,65 @@ TEST(CanvasTextRenderTests, LeftAndRightAlignedTextKeepTheirAnchoredSideWhenWidt
     EXPECT_GT(leftLongSpan.maxX, leftShortSpan.maxX + 1);
     EXPECT_LE(std::abs(rightShortSpan.maxX - rightLongSpan.maxX), 1);
     EXPECT_LT(rightLongSpan.minX, rightShortSpan.minX - 1);
+}
+TEST(CanvasTextRenderTests, LargeConfiguredFontKeepsIndependentMeasuredStemWidths)
+{
+    const auto path = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path()
+                    / "examples/apilevel1/widgets/assets/fonts/ShareTechMono-Regular.ttf";
+    ASSERT_TRUE(std::filesystem::exists(path));
+    SetConfigFlags(FLAG_WINDOW_HIDDEN);
+    InitWindow(kRenderSize, kRenderSize, "large font stroke width");
+    ASSERT_TRUE(IsWindowReady());
+    const Font native = LoadFont(path.string().c_str());
+    ASSERT_NE(native.texture.id, GetFontDefault().texture.id);
+    {
+        mfd::TextLayoutCache cache;
+        cache.SetOutlineFontSource(path);
+        EXPECT_EQ(cache.SelectFont(native, 16).texture.id, native.texture.id);
+        EXPECT_GE(cache.SelectFont(native, 96).baseSize, 96);
+
+        for (const auto type : {mfd::PrimitiveType::Text, mfd::PrimitiveType::Time})
+        {
+            for (const float height : {64.0f, 112.0f})
+            {
+                for (const float width : {2.0f, 5.0f})
+                {
+                    auto reticle = MakeAlignedTextReticle("I", mfd::Align::Center, {});
+                    auto& primitive = reticle.primitives.front();
+                    primitive.type = type;
+                    if (type == mfd::PrimitiveType::Text)
+                    {
+                        auto& text = std::get<mfd::TextGeometry>(primitive.geometry);
+                        text.useStrokeThickness = true;
+                        text.fontSize = height / (kRenderSize / 2);
+                    }
+                    else
+                    {
+                        mfd::TimeGeometry clock {"I", true, height / (kRenderSize / 2), 0.0f};
+                        clock.useStrokeThickness = true;
+                        primitive.geometry = clock;
+                    }
+                    reticle.overrides.thickness = width / (kRenderSize / 2);
+                    BeginDrawing();
+                    ClearBackground(BLACK);
+                    mfd::Canvas2D canvas(kRenderSize, kRenderSize, {}, &native, BLACK, false, nullptr, nullptr, &cache);
+                    canvas.DrawReticle(reticle);
+                    const auto frame = mfd::OpenGlFramebufferReader::ReadRgba32();
+                    EndDrawing();
+
+                    float ink = 0.0f;
+                    for (int x = 0; x < kRenderSize; ++x)
+                    {
+                        ink += frame.pixels[(kRenderSize / 2) * kRenderSize + x].g / 255.0f;
+                    }
+                    EXPECT_NEAR(ink, width, 0.6f) << "Character height " << height;
+                }
+            }
+        }
+        const Font enlarged = cache.SelectFont(native, 232.0f);
+        EXPECT_GE(enlarged.baseSize, 232);
+        EXPECT_EQ(cache.SelectFont(native, 64.0f).texture.id, enlarged.texture.id);
+    }
+    UnloadFont(native);
+    CloseWindow();
 }

@@ -413,6 +413,41 @@ std::string InvalidTimeFormatMessage(const std::string_view format)
 }
 }
 
+void EditorApplication::EditGlyphStroke(mfd::ReticleGroup& source, const mfd::Primitive& primitive, bool enabled)
+{
+    float width = primitive.style.thickness;
+    const auto index = static_cast<std::size_t>(documentState_.selection.primitiveIndex);
+    if (ImGui::Checkbox("Use stroke thickness", &enabled))
+    {
+        PushUndoSnapshot();
+        editor::app::ApplyTemplateGlyphStroke(documentState_.loaded.document, source, index, enabled, width);
+    }
+    ShowItemTooltip("Draw this font along its centerlines with a width independent of Font size.");
+    if (!enabled) return;
+    if (source.overrides.thickness)
+    {
+        ImGui::TextDisabled("Thickness %.4f (reticle default)", static_cast<double>(*source.overrides.thickness));
+        ShowItemTooltip("Edit Default thickness on the template reticle to change this inherited width.");
+        return;
+    }
+
+    const ImGuiID gesture = ImGui::GetID("GlyphThicknessUndo");
+    ImGuiStorage* storage = ImGui::GetStateStorage();
+    const bool changed = ImGui::DragFloat("Thickness", &width, 0.0001f, 0.0001f, 0.25f, "%.4f",
+                                          ImGuiSliderFlags_AlwaysClamp);
+    if (ImGui::IsItemActivated()) storage->SetBool(gesture, false);
+    if (changed && std::isfinite(width) && width != primitive.style.thickness)
+    {
+        if (!storage->GetBool(gesture))
+        {
+            PushUndoSnapshot();
+            storage->SetBool(gesture, true);
+        }
+        editor::app::ApplyTemplateGlyphStroke(documentState_.loaded.document, source, index, true, width);
+    }
+    ShowItemTooltip("Glyph stroke width in logical page units. Ctrl+click to enter a precise value.");
+}
+
 void EditorApplication::EditTimeFormatField(const std::string& label,
                                             const char* const tooltip,
                                             mfd::TimeGeometry& geometry)
@@ -871,19 +906,45 @@ void EditorApplication::DrawPageInspector()
     InspectorHelpMarker(
         "Pencil renames the page globally, eject removes it from the window, trash deletes the asset, clipboard pastes copied reticles (Ctrl+V).");
 
-    std::array<char, 128> name {};
+    const std::filesystem::path pageFile =
+        activePageIndex >= 0 && activePageIndex < static_cast<int>(documentState_.files.pageFiles.size())
+            ? documentState_.files.pageFiles[static_cast<std::size_t>(activePageIndex)]
+            : std::filesystem::path {};
+    editor::app::PageNameDraftState& pageNameDraft = workflowState_.pageNameDraft;
+    if (pageNameDraft.pageIndex != activePageIndex ||
+        pageNameDraft.pageFile != pageFile ||
+        pageNameDraft.originalName != page->name)
+    {
+        pageNameDraft.pageIndex = activePageIndex;
+        pageNameDraft.pageFile = pageFile;
+        pageNameDraft.originalName = page->name;
+        CopyTextBuffer(pageNameDraft.newName, page->name);
+    }
+
     std::array<char, 128> title {};
-    CopyTextBuffer(name, page->name);
     CopyTextBuffer(title, page->title);
     ImVec4 background = ToImGuiColor(page->backgroundColor);
 
     if (BeginInspectorSection("section_page_settings", "Page settings", true, sectionForceOpen))
     {
         BeginInspectorField("Name");
-        ImGui::InputText("##value", name.data(), name.size(), ImGuiInputTextFlags_ReadOnly);
+        const bool renameFromEnter =
+            ImGui::InputText("##value",
+                             pageNameDraft.newName.data(),
+                             pageNameDraft.newName.size(),
+                             ImGuiInputTextFlags_EnterReturnsTrue);
         EndInspectorField();
-        ShowItemTooltip("Internal page id used in JSON and API references.");
-        DisabledTextWrapped("Use 'Rename page globally...' to change this id safely.");
+        ShowItemTooltip("Page identifier used by JSON and the generated client API. Press Enter to review a global rename.");
+        const bool pageNameChanged = !mfd::PageNamesEqual(pageNameDraft.newName.data(), page->name);
+        ImGui::BeginDisabled(!pageNameChanged);
+        const bool renameFromButton = ImGui::SmallButton("Review rename...##page_name_review");
+        ImGui::EndDisabled();
+        ShowItemTooltip("Review affected assets and confirm a safe global page rename.");
+        if ((renameFromEnter || renameFromButton) && pageNameChanged)
+        {
+            OpenPageRenamePopup(activePageIndex);
+            return;
+        }
 
         BeginInspectorField("Title");
         const bool titleChanged = ImGui::InputText("##value", title.data(), title.size());
@@ -3483,8 +3544,36 @@ void EditorApplication::DrawLibraryReticleInspector()
     const ScopedImGuiId scopedId("LibraryReticleInspector");
 
     DrawInspectorHeading("Library reticle", "Edit a reusable template shared by page instances.");
-    ImGui::Text("Template id: %s", reticle->id.c_str());
-    if (const auto fileIt = documentState_.files.templateFiles.find(reticle->id); fileIt != documentState_.files.templateFiles.end())
+    const std::string& templateId = reticle->id;
+    const auto fileIt = documentState_.files.templateFiles.find(templateId);
+    const std::filesystem::path templateFile =
+        fileIt == documentState_.files.templateFiles.end() ? std::filesystem::path {} : fileIt->second;
+    editor::app::ReticleNameDraftState& nameDraft = workflowState_.reticleNameDraft;
+    if (nameDraft.templateId != templateId || nameDraft.templateFile != templateFile)
+    {
+        nameDraft.templateId = templateId;
+        nameDraft.templateFile = templateFile;
+        CopyTextBuffer(nameDraft.newId, templateId);
+    }
+
+    ImGui::TextDisabled("Template id");
+    const bool renameFromEnter =
+        ImGui::InputText("##library_template_id",
+                        nameDraft.newId.data(),
+                        nameDraft.newId.size(),
+                        ImGuiInputTextFlags_EnterReturnsTrue);
+    ShowItemTooltip("Internal template id used by page references. Press Enter to review a safe global rename.");
+    const bool templateIdChanged = !mfd::PageNamesEqual(nameDraft.newId.data(), templateId);
+    ImGui::BeginDisabled(!templateIdChanged);
+    const bool renameFromButton = ImGui::SmallButton("Review rename...##reticle_template_name_review");
+    ImGui::EndDisabled();
+    ShowItemTooltip("Review referenced pages, template file changes, and possible collisions.");
+    if ((renameFromEnter || renameFromButton) && templateIdChanged)
+    {
+        OpenReticleRenamePopup(templateId);
+        return;
+    }
+    if (fileIt != documentState_.files.templateFiles.end())
     {
         ImGui::TextDisabled("File: %s", fileIt->second.filename().string().c_str());
     }
@@ -3966,15 +4055,24 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
     }
     ShowItemTooltip("Stroke color used to render this primitive.");
 
-    if (ImGui::DragFloat("Thickness", &primitive->style.thickness, 0.0002f, 0.0005f, 0.05f, "%.4f"))
+    const auto* textStyle = std::get_if<mfd::TextGeometry>(&primitive->geometry);
+    const auto* timeStyle = std::get_if<mfd::TimeGeometry>(&primitive->geometry);
+    if (textStyle || timeStyle)
     {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        primitive->style.thickness = std::max(0.0005f, primitive->style.thickness);
+        EditGlyphStroke(*reticle, *primitive, textStyle ? textStyle->useStrokeThickness : timeStyle->useStrokeThickness);
     }
-    ShowItemTooltip("Stroke thickness used by this primitive.");
+    else
+    {
+        if (ImGui::DragFloat("Thickness", &primitive->style.thickness, 0.0002f, 0.0005f, 0.05f, "%.4f"))
+        {
+            if (ImGui::IsItemActivated())
+            {
+                PushUndoSnapshot();
+            }
+            primitive->style.thickness = std::max(0.0005f, primitive->style.thickness);
+        }
+        ShowItemTooltip("Stroke thickness used by this primitive.");
+    }
 
     if (SupportsPrimitiveLineStyle(primitive->type))
     {

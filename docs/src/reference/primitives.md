@@ -59,6 +59,9 @@ primitives can always be patched directly through the generated client API.
   (`spacing`/`tracking`), `align` (`left`/`center`/`right`, default `center`).
 - **`time`** — `format` (alias `pattern`, `strftime`-style), `utc` (alias
   `useUtc`), plus the same font/spacing/align fields as `text`.
+  For either type, optional `useStrokeThickness: true` draws the centerlines of
+  the chosen font using the effective `lineWidth` in logical units (one screen
+  pixel minimum). Omit it or set it to false for the natural filled font.
 - **`line`** — `start` (alias `from`), `end` (alias `to`).
 - **`circle`** — `radius`.
 - **`ring`** — `outerRadius` (alias `radius`), `innerRadius` (alias

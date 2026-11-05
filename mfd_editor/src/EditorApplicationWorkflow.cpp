@@ -137,9 +137,20 @@ void EditorApplication::OpenPageRenamePopup(const int pageIndex)
         return;
     }
 
+    const mfd::PageDefinition& page = documentState_.loaded.document.pages[static_cast<std::size_t>(pageIndex)];
+    const std::filesystem::path pageFile =
+        pageIndex < static_cast<int>(documentState_.files.pageFiles.size())
+            ? documentState_.files.pageFiles[static_cast<std::size_t>(pageIndex)]
+            : std::filesystem::path {};
+    const editor::app::PageNameDraftState& nameDraft = workflowState_.pageNameDraft;
+    const bool useInspectorDraft = nameDraft.pageIndex == pageIndex &&
+                                   nameDraft.pageFile == pageFile &&
+                                   nameDraft.originalName == page.name;
+
     workflowState_.pageRenamePopup.pageIndex = pageIndex;
     workflowState_.pageRenamePopup.openRequested = true;
-    CopyTextBuffer(workflowState_.pageRenamePopup.newName, documentState_.loaded.document.pages[static_cast<std::size_t>(pageIndex)].name);
+    CopyTextBuffer(workflowState_.pageRenamePopup.newName,
+                   useInspectorDraft ? std::string_view(nameDraft.newName.data()) : std::string_view(page.name));
 }
 
 editor::PageImportRequest EditorApplication::BuildPageImportRequest(const std::filesystem::path& sourcePageFile) const
@@ -178,10 +189,19 @@ void EditorApplication::OpenReticleRenamePopup(std::string templateId)
         return;
     }
 
+    const std::string currentTemplateId = iterator->second.id.empty() ? iterator->first : iterator->second.id;
+    const auto fileIt = documentState_.files.templateFiles.find(templateId);
+    const std::filesystem::path templateFile =
+        fileIt == documentState_.files.templateFiles.end() ? std::filesystem::path {} : fileIt->second;
+    const editor::app::ReticleNameDraftState& nameDraft = workflowState_.reticleNameDraft;
+    const bool useInspectorDraft = nameDraft.templateId == currentTemplateId &&
+                                   nameDraft.templateFile == templateFile;
+
     workflowState_.reticleRenamePopup.currentTemplateId = std::move(templateId);
     workflowState_.reticleRenamePopup.openRequested = true;
     workflowState_.reticleRenamePopup.renameTemplateFile = true;
-    CopyTextBuffer(workflowState_.reticleRenamePopup.newName, iterator->second.id.empty() ? iterator->first : iterator->second.id);
+    CopyTextBuffer(workflowState_.reticleRenamePopup.newName,
+                   useInspectorDraft ? std::string_view(nameDraft.newId.data()) : std::string_view(currentTemplateId));
 }
 
 void EditorApplication::OpenContainerRenamePopup(std::string containerId)

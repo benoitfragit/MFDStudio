@@ -367,6 +367,74 @@ TEST(PageRenameServiceTests, ReportsInvalidWindowJsonClearly)
     EXPECT_NE(plan.error.find("valid window JSON files"), std::string::npos);
 }
 
+
+TEST(PageRenameServiceTests, RenamesSharedPageThroughAllSupportedWindowPageListAliases)
+{
+    ScopedTempDir tempDir;
+    const std::filesystem::path assetRoot = tempDir.Path() / "assets";
+    const std::filesystem::path mainWindow = assetRoot / "windows" / "main.json";
+    const std::filesystem::path pageFilesWindow = assetRoot / "windows" / "files.json";
+    const std::filesystem::path pageJsonsWindow = assetRoot / "windows" / "jsons.json";
+    const std::filesystem::path jsonEntryWindow = assetRoot / "windows" / "object.json";
+    const std::filesystem::path pageFile = assetRoot / "pages" / "radar.json";
+
+    WriteTextFile(mainWindow, R"json({"pages":["../pages/radar.json"],"defaultPage":"Radar"})json");
+    WriteTextFile(pageFilesWindow,
+                  R"json({"pageFiles":[{"file":"../pages/radar.json"}],"defaultPage":"Radar","custom":"keep"})json");
+    WriteTextFile(pageJsonsWindow,
+                  R"json({"pageJsons":[{"path":"../pages/radar.json"}],"defaultPage":"Radar"})json");
+    WriteTextFile(jsonEntryWindow,
+                  R"json({"pageJsons":[{"json":"../pages/radar.json"}],"defaultPage":"Radar"})json");
+    WriteTextFile(pageFile, R"json({"name":"Radar","staticReticles":[]})json");
+
+    auto [loaded, files] = MakeLoadedWindow(mainWindow, {{pageFile, "Radar", true}});
+    editor::PageRenameService service;
+    const editor::RenamePagePlan plan = service.BuildPlan(loaded, files, {0, "Tactical", assetRoot});
+    ASSERT_TRUE(plan.canExecute) << plan.error;
+    EXPECT_EQ(plan.references.size(), 4U);
+    EXPECT_EQ(plan.filesToModify.size(), 5U);
+
+    std::string error;
+    ASSERT_TRUE(service.Execute(plan, loaded, files, nullptr, &error)) << error;
+    EXPECT_EQ(loaded.document.pages.front().name, "Tactical");
+    EXPECT_EQ(json::parse(ReadTextFile(pageFile)).at("name"), "Tactical");
+    for (const auto& windowFile : {mainWindow, pageFilesWindow, pageJsonsWindow, jsonEntryWindow})
+    {
+        EXPECT_EQ(json::parse(ReadTextFile(windowFile)).at("defaultPage"), "Tactical");
+    }
+    const json renamedWindow = json::parse(ReadTextFile(pageFilesWindow));
+    EXPECT_EQ(renamedWindow.at("pageFiles").at(0).at("file"), "../pages/radar.json");
+    EXPECT_EQ(renamedWindow.at("custom"), "keep");
+    EXPECT_EQ(json::parse(ReadTextFile(pageJsonsWindow)).at("pageJsons").at(0).at("path"),
+              "../pages/radar.json");
+    EXPECT_EQ(json::parse(ReadTextFile(jsonEntryWindow)).at("pageJsons").at(0).at("json"),
+              "../pages/radar.json");
+}
+
+TEST(PageRenameServiceTests, RejectsNameCollisionInSharedWindowUsingPageFilesAlias)
+{
+    ScopedTempDir tempDir;
+    const std::filesystem::path assetRoot = tempDir.Path() / "assets";
+    const std::filesystem::path mainWindow = assetRoot / "windows" / "main.json";
+    const std::filesystem::path sharedWindow = assetRoot / "windows" / "shared.json";
+    const std::filesystem::path radarFile = assetRoot / "pages" / "radar.json";
+    const std::filesystem::path tacticalFile = assetRoot / "pages" / "tactical.json";
+
+    WriteTextFile(mainWindow, R"json({"pages":["../pages/radar.json"],"defaultPage":"Radar"})json");
+    WriteTextFile(sharedWindow,
+                  R"json({"pageFiles":["../pages/radar.json","../pages/tactical.json"],"defaultPage":"Radar"})json");
+    WriteTextFile(radarFile, R"json({"name":"Radar","staticReticles":[]})json");
+    WriteTextFile(tacticalFile, R"json({"name":"Tactical","staticReticles":[]})json");
+
+    auto [loaded, files] = MakeLoadedWindow(mainWindow, {{radarFile, "Radar", true}});
+    editor::PageRenameService service;
+    const editor::RenamePagePlan plan = service.BuildPlan(loaded, files, {0, "Tactical", assetRoot});
+    EXPECT_FALSE(plan.canExecute);
+    EXPECT_FALSE(plan.collisions.empty());
+    EXPECT_NE(plan.error.find("already contains page name"), std::string::npos);
+    EXPECT_EQ(json::parse(ReadTextFile(radarFile)).at("name"), "Radar");
+}
+
 TEST(PageRenameServiceTests, BuildPlanDoesNotModifyFiles)
 {
     ScopedTempDir tempDir;

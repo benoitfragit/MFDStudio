@@ -218,7 +218,8 @@ to the Page preview. During normal rendering the focused layout is evaluated onc
 and reused by rendering, overlays and hit-testing, avoiding repeated full-tree work
 on idle frames.
 
-Selecting a container displays an outline and corner gizmo in Container Studio. A resize
+Selecting a container displays an outline and corner gizmo in Container Studio. In both the Page preview and Container Studio,
+a corner press leaves the layout untouched until the pointer crosses the drag threshold. A resize
 captures authored geometry once, creates one undo snapshot, and applies the final
 parent size through the same layout engine used by runtime preview. Layout-driven
 children are recomputed once; proportional children use `layoutReferenceSize`.

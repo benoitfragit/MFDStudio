@@ -186,6 +186,14 @@ For visibility and styling you can use:
 - `fill` or `fillColor`
 - `thickness`, `lineWidth`, or `strokeWidth`
 
+For large labels, choose a TTF or OTF window font. The editor and runtime use a
+higher-resolution atlas when a character exceeds the native font size.
+To set an exact stroke width, select a Text or Time primitive in Reticle Studio,
+open **Stroke & fill**, enable **Use stroke thickness**, then adjust **Thickness**
+(Ctrl+click for numeric input). Increasing **Font size** now changes the height
+while preserving the logical stroke width. Page zoom scales both together.
+A reticle-level thickness override takes precedence, just as it does for lines.
+
 ## Step 7 - Time primitive options
 
 `time` supports:

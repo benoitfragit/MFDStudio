@@ -360,6 +360,7 @@ private:
     /** @brief Draws one editable 2D point field and records undo activation when needed. */
     void EditPointArrayField(const char* label, mfd::Vec2& value);
     /** @brief Edits one time-format field and only commits complete supported directives when editing finishes. */
+    void EditGlyphStroke(mfd::ReticleGroup& source, const mfd::Primitive& primitive, bool enabled);
     void EditTimeFormatField(const std::string& label, const char* tooltip, mfd::TimeGeometry& geometry);
 
     /** @brief Draws the current page into the main preview viewport. */
@@ -502,13 +503,16 @@ private:
     void HandleLibraryPreviewInteraction(const ViewportState& viewport);
     /** @brief Clears the page-preview drag interaction state. */
     void CancelPreviewInteraction() noexcept;
-    /** @brief Begins a rotate/scale handle interaction for the selected page reticle. */
-    void BeginReticleHandleInteraction(InteractionMode mode,
-                                       ImVec2 cornerScreen,
-                                       const ViewportState& viewport,
-                                       ImVec2 mouse,
-                                       const mfd::Transform2D& selectedTransform,
-                                       const mfd::ReticleGroup& selectedPreviewReticle);
+    /** @brief Captures a container corner press in either editing viewport. */
+    void BeginContainerResize(const mfd::api1::ContainerDefinition& container, ImVec2 mouse, ImVec2 center);
+    /** @brief Captures the document immediately before the first geometry change of a resize. */
+    void RecordResizeUndoOnce();
+    /** @brief Begins a move, rotate or scale interaction for the selected page reticle. */
+    void BeginReticleInteraction(InteractionMode mode,
+                                 const ViewportState& viewport,
+                                 ImVec2 mouse,
+                                 const mfd::Transform2D& selectedTransform,
+                                 const mfd::ReticleGroup& selectedPreviewReticle);
     /** @brief Clears the library-preview primitive handle interaction state. */
     void CancelLibraryPreviewInteraction() noexcept;
     /** @brief Draws the clip menu items for one hovered page-reticle primitive. */

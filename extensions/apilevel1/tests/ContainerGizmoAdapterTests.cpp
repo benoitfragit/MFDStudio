@@ -49,3 +49,14 @@ TEST(ContainerGizmoAdapterTests, RejectsNonFiniteScaleWithoutMutatingGeometry)
     EXPECT_FLOAT_EQ(unchanged.size.x, initial.size.x);
     EXPECT_FLOAT_EQ(unchanged.size.y, initial.size.y);
 }
+
+TEST(ContainerGizmoAdapterTests, FullyContentFittedContainerKeepsBothAuthoredDimensions)
+{
+    const mfd::api1::ContainerGizmoAdapter adapter;
+    const mfd::api1::ContainerRect initial {{0.2f, -0.3f}, {0.8f, 0.4f}};
+    const auto result = adapter.ResizeAroundCenter(initial, {}, 1.5f, mfd::api1::ContainerSizeMode::FitContent);
+    EXPECT_FLOAT_EQ(result.size.x, initial.size.x);
+    EXPECT_FLOAT_EQ(result.size.y, initial.size.y);
+    EXPECT_FLOAT_EQ(result.center.x, initial.center.x);
+    EXPECT_FLOAT_EQ(result.center.y, initial.center.y);
+}

@@ -23,6 +23,10 @@
 
 namespace editor::app
 {
+/** @brief Updates the selected glyph stroke and the corresponding materialized page/strobe instances. */
+void ApplyTemplateGlyphStroke(mfd::MfdDocument& document, mfd::ReticleGroup& source,
+                              std::size_t primitiveIndex, bool enabled, float thickness);
+
 /** @brief Assigns a valid default source ID when creating an external-stream primitive.
  * @param primitive Newly authored primitive; other primitive types are left intact.
  * @param ownerId Reticle identifier used to distinguish independent authored sources.
