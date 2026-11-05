@@ -179,6 +179,8 @@ review dialogue. Confirm only after checking references and the optional
 page references unchanged. The page-local reticle instance id is different
 from the shared template id.
 
+Clear **Visible** on a page reticle to hide its drawing, name and selection handles. Select it in the page tree to show it again.
+
 ## Page preview toolbar
 
 The page-preview header carries a compact glyph toolbar to the left of the help
