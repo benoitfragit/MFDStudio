@@ -135,6 +135,13 @@ The top half of the sidebar is where page authoring stays anchored:
 - the selected page stays highlighted in the tree and mirrored in the inspector
 - the quick-action row keeps the most common page actions close to the tree
 
+To rename an existing page, select it and edit **Page settings > Name** in the right
+inspector. Press Enter or **Review rename...** to open the global rename review.
+Alternatively, use the pencil icon or **Page > Rename current page globally...**.
+The new name is not applied until the review confirms all references and
+collisions. If confirmation is disabled, read the error message in that popup;
+save the source window and page assets if they have not been saved yet.
+
 The **Pages** and **Reticle library** headers show live counts of entries passing
 the current filter, and a line near the filter surfaces pending validation
 problems (click it to open the Problems panel).

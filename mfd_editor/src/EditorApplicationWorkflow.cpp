@@ -137,9 +137,20 @@ void EditorApplication::OpenPageRenamePopup(const int pageIndex)
         return;
     }
 
+    const mfd::PageDefinition& page = documentState_.loaded.document.pages[static_cast<std::size_t>(pageIndex)];
+    const std::filesystem::path pageFile =
+        pageIndex < static_cast<int>(documentState_.files.pageFiles.size())
+            ? documentState_.files.pageFiles[static_cast<std::size_t>(pageIndex)]
+            : std::filesystem::path {};
+    const editor::app::PageNameDraftState& nameDraft = workflowState_.pageNameDraft;
+    const bool useInspectorDraft = nameDraft.pageIndex == pageIndex &&
+                                   nameDraft.pageFile == pageFile &&
+                                   nameDraft.originalName == page.name;
+
     workflowState_.pageRenamePopup.pageIndex = pageIndex;
     workflowState_.pageRenamePopup.openRequested = true;
-    CopyTextBuffer(workflowState_.pageRenamePopup.newName, documentState_.loaded.document.pages[static_cast<std::size_t>(pageIndex)].name);
+    CopyTextBuffer(workflowState_.pageRenamePopup.newName,
+                   useInspectorDraft ? std::string_view(nameDraft.newName.data()) : std::string_view(page.name));
 }
 
 editor::PageImportRequest EditorApplication::BuildPageImportRequest(const std::filesystem::path& sourcePageFile) const

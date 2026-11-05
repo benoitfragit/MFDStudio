@@ -906,19 +906,45 @@ void EditorApplication::DrawPageInspector()
     InspectorHelpMarker(
         "Pencil renames the page globally, eject removes it from the window, trash deletes the asset, clipboard pastes copied reticles (Ctrl+V).");
 
-    std::array<char, 128> name {};
+    const std::filesystem::path pageFile =
+        activePageIndex >= 0 && activePageIndex < static_cast<int>(documentState_.files.pageFiles.size())
+            ? documentState_.files.pageFiles[static_cast<std::size_t>(activePageIndex)]
+            : std::filesystem::path {};
+    editor::app::PageNameDraftState& pageNameDraft = workflowState_.pageNameDraft;
+    if (pageNameDraft.pageIndex != activePageIndex ||
+        pageNameDraft.pageFile != pageFile ||
+        pageNameDraft.originalName != page->name)
+    {
+        pageNameDraft.pageIndex = activePageIndex;
+        pageNameDraft.pageFile = pageFile;
+        pageNameDraft.originalName = page->name;
+        CopyTextBuffer(pageNameDraft.newName, page->name);
+    }
+
     std::array<char, 128> title {};
-    CopyTextBuffer(name, page->name);
     CopyTextBuffer(title, page->title);
     ImVec4 background = ToImGuiColor(page->backgroundColor);
 
     if (BeginInspectorSection("section_page_settings", "Page settings", true, sectionForceOpen))
     {
         BeginInspectorField("Name");
-        ImGui::InputText("##value", name.data(), name.size(), ImGuiInputTextFlags_ReadOnly);
+        const bool renameFromEnter =
+            ImGui::InputText("##value",
+                             pageNameDraft.newName.data(),
+                             pageNameDraft.newName.size(),
+                             ImGuiInputTextFlags_EnterReturnsTrue);
         EndInspectorField();
-        ShowItemTooltip("Internal page id used in JSON and API references.");
-        DisabledTextWrapped("Use 'Rename page globally...' to change this id safely.");
+        ShowItemTooltip("Page identifier used by JSON and the generated client API. Press Enter to review a global rename.");
+        const bool pageNameChanged = !mfd::PageNamesEqual(pageNameDraft.newName.data(), page->name);
+        ImGui::BeginDisabled(!pageNameChanged);
+        const bool renameFromButton = ImGui::SmallButton("Review rename...##page_name_review");
+        ImGui::EndDisabled();
+        ShowItemTooltip("Review affected assets and confirm a safe global page rename.");
+        if ((renameFromEnter || renameFromButton) && pageNameChanged)
+        {
+            OpenPageRenamePopup(activePageIndex);
+            return;
+        }
 
         BeginInspectorField("Title");
         const bool titleChanged = ImGui::InputText("##value", title.data(), title.size());

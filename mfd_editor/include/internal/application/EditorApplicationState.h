@@ -253,6 +253,15 @@ struct PageImportPopupState
     std::filesystem::path sourcePageFile {};
 };
 
+/** @brief Transient name entered in the page inspector, without modifying the page document. */
+struct PageNameDraftState
+{
+    int pageIndex = -1;
+    std::filesystem::path pageFile {};
+    std::string originalName {};
+    std::array<char, 128> newName {};
+};
+
 /** @brief UI state driving the global page-rename review popup. */
 struct PageRenamePopupState
 {
@@ -443,6 +452,7 @@ struct WorkflowState
     DuplicateLibraryReticleDraft duplicateLibraryReticleDraft {};
     PageManagementPopupState pageManagementPopup {};
     PageImportPopupState pageImportPopup {};
+    PageNameDraftState pageNameDraft {};
     PageRenamePopupState pageRenamePopup {};
     ReticleRenamePopupState reticleRenamePopup {};
     ContainerRenamePopupState containerRenamePopup {};

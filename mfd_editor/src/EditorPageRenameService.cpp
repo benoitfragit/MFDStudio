@@ -288,21 +288,28 @@ std::vector<std::filesystem::path> ParseWindowPageFiles(const json& document, co
         throw std::runtime_error("Window JSON root must be one object.");
     }
 
-    if (!document.contains("pages"))
+    const json* pages = nullptr;
+    for (const char* fieldName : {"pageFiles", "pages", "pageJsons"})
     {
-        throw std::runtime_error("Window JSON must define one pages array.");
+        if (document.contains(fieldName))
+        {
+            pages = &document.at(fieldName);
+            break;
+        }
     }
-
-    const json& pages = document.at("pages");
-    if (!pages.is_array())
+    if (pages == nullptr)
     {
-        throw std::runtime_error("Window pages field must be a JSON array.");
+        throw std::runtime_error("Window JSON must define one pages, pageFiles or pageJsons array.");
+    }
+    if (!pages->is_array())
+    {
+        throw std::runtime_error("Window page list must be a JSON array.");
     }
 
     std::vector<std::filesystem::path> pageFiles;
-    pageFiles.reserve(pages.size());
+    pageFiles.reserve(pages->size());
 
-    for (const auto& entry : pages)
+    for (const auto& entry : *pages)
     {
         if (entry.is_string())
         {
