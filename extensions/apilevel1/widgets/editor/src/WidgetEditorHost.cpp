@@ -34,18 +34,32 @@ bool IsWidgetEditorDraftValidAfterDraw(const MfdWidgetEditorDraftV1& draft) noex
            HasNullTerminator(draft.default_text, sizeof(draft.default_text)) &&
            HasNullTerminator(draft.binding_primitive, sizeof(draft.binding_primitive));
 }
+bool DrawWidgetTextField(TextFieldBounds& bounds, const char* label, char* value, std::size_t capacity)
+{
+    if (!value || capacity == 0 || capacity > 4097) return 0;
+    editor::ui::BeginInspectorField(label);
+    std::array<char, 4097> original;
+    std::memcpy(original.data(), value, capacity);
+    const bool entered = ImGui::InputText("##value", value, capacity, ImGuiInputTextFlags_EnterReturnsTrue);
+    const bool cancelled = ImGui::IsItemDeactivated() && ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+    if (cancelled) std::memcpy(value, original.data(), capacity);
+    const bool changed = !cancelled && (entered || ImGui::IsItemDeactivatedAfterEdit()) &&
+                         std::strncmp(original.data(), value, capacity) != 0;
+    if (ImGui::IsItemActive())
+    {
+        bounds = {ImGui::GetItemRectMin(), ImGui::GetItemRectMax()};
+    }
+    editor::ui::EndInspectorField();
+    return changed;
+}
 } // namespace internal
 
 namespace
 {
 void MFD_WIDGET_EDITOR_CALL Text(void*, const char* label) { ImGui::TextWrapped("%s", label); }
-std::uint8_t MFD_WIDGET_EDITOR_CALL Input(void*, const char* label, char* value, std::size_t capacity)
+std::uint8_t MFD_WIDGET_EDITOR_CALL Input(void* context, const char* label, char* value, std::size_t capacity)
 {
-    if (!value || capacity == 0 || capacity > 4097) return 0;
-    editor::ui::BeginInspectorField(label);
-    const bool changed = ImGui::InputText("##value", value, capacity, ImGuiInputTextFlags_EnterReturnsTrue);
-    editor::ui::EndInspectorField();
-    return changed;
+    return internal::DrawWidgetTextField(*static_cast<internal::TextFieldBounds*>(context), label, value, capacity);
 }
 std::uint8_t MFD_WIDGET_EDITOR_CALL Checkbox(void*, const char* label, std::uint8_t* value)
 {
@@ -86,6 +100,7 @@ public:
 #if defined(_WIN32)
     HMODULE module = nullptr;
 #endif
+    internal::TextFieldBounds textBounds {};
     MfdWidgetEditorApiV1 api {};
 };
 WidgetEditorHost::WidgetEditorHost() : impl_(std::make_unique<Impl>()) {}
@@ -130,10 +145,20 @@ bool WidgetEditorHost::EnsureLoaded(const std::filesystem::path& windowFile)
 #endif
     return Load(windowFile.parent_path() / "mfd_editor_widgets_api1.dll");
 }
+bool WidgetEditorHost::LeavingTextField() const noexcept
+{
+    const auto& bounds = impl_->textBounds;
+    const ImVec2 mouse = ImGui::GetMousePos();
+    const bool outside = mouse.x < bounds.min.x || mouse.x >= bounds.max.x ||
+                         mouse.y < bounds.min.y || mouse.y >= bounds.max.y;
+    return ImGui::GetIO().AppFocusLost ||
+           (outside && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right)));
+}
+
 std::uint32_t WidgetEditorHost::Draw(MfdWidgetEditorDraftV1& draft) const
 {
     if (!IsLoaded()) return 0;
-    const MfdWidgetEditorUiV1 ui {sizeof(ui), 1U, nullptr, Text, Input, Checkbox, Number, Combo, Button};
+    const MfdWidgetEditorUiV1 ui {sizeof(ui), 1U, &impl_->textBounds, Text, Input, Checkbox, Number, Combo, Button};
     const std::uint32_t actions = impl_->api.draw(&ui, &draft);
     return internal::IsWidgetEditorDraftValidAfterDraw(draft) ? actions & 127U : 0U;
 }

@@ -1743,6 +1743,7 @@ int EditorApplication::Run()
     {
         if (WindowShouldClose())
         {
+            FinishWidgetTextEdit();
             if (HasOpenWindow() && workflowState_.documentDirty)
             {
                 // Defer the close so the unsaved-changes modal can offer to save first.
@@ -1762,6 +1763,7 @@ int EditorApplication::Run()
         {
             rlImGuiBegin();
             imguiBegun = true;
+            if (pendingWidgetTextAction_ && widgetEditorHost_.LeavingTextField()) FinishWidgetTextEdit();
             HandleShortcuts();
             DrawMenuBar();
             DrawRootLayout();
@@ -1838,6 +1840,7 @@ bool EditorApplication::LoadWindowConfiguration(const std::filesystem::path& pat
             [](const mfd::PageDefinition& page) { return !page.widgets.empty(); });
         if (requiresWidgets && !widgetEditorHost_.EnsureLoaded(candidate.window.sourceFile))
             throw std::runtime_error(widgetEditorHost_.Diagnostic());
+        pendingWidgetTextAction_ = 0;
         documentState_.loaded = std::move(candidate);
         for (auto& page : documentState_.loaded.document.pages)
         {
@@ -1887,6 +1890,7 @@ bool EditorApplication::LoadWindowConfiguration(const std::filesystem::path& pat
 
 bool EditorApplication::SaveAll()
 {
+    FinishWidgetTextEdit();
     if (!HasOpenWindow())
     {
         RebuildStatus("No window asset is open yet. Create or open one before saving.", true);
@@ -2061,6 +2065,7 @@ EditorApplication::UndoSnapshot EditorApplication::CaptureCurrentSnapshot() cons
 void EditorApplication::RestoreSnapshot(UndoSnapshot snapshot)
 {
     lastContainerInspectorGesture_ = 0U;
+    pendingWidgetTextAction_ = 0;
     documentState_.loaded = std::move(snapshot.loaded);
     documentState_.files = std::move(snapshot.files);
     documentState_.selection = std::move(snapshot.selection);

@@ -13,6 +13,8 @@
 #include "WidgetEditorHostInternal.h"
 
 #include <algorithm>
+#include <array>
+#include <string>
 #include <filesystem>
 
 #include <gtest/gtest.h>
@@ -61,6 +63,37 @@ protected:
         return draft;
     }
 
+    bool DrawTextFrame()
+    {
+        ImGui::NewFrame();
+        ImGui::SetNextWindowPos({0, 0});
+        ImGui::SetNextWindowSize({600, 250});
+        ImGui::Begin("Text field");
+        std::array<char, 64> draft {};
+        std::copy(committed_.begin(), committed_.end(), draft.begin());
+        const bool commit = mfd::api1::internal::DrawWidgetTextField(bounds_, "Text", draft.data(), draft.size());
+        if (commit) committed_ = draft.data();
+        field_ = ImGui::GetItemRectMin();
+        ImGui::End();
+        ImGui::Render();
+        return commit;
+    }
+
+    void TypeIntoField()
+    {
+        ImGuiIO& io = ImGui::GetIO();
+        io.AddMousePosEvent(field_.x + 8, field_.y + 8);
+        io.AddMouseButtonEvent(0, true);
+        DrawTextFrame();
+        io.AddMouseButtonEvent(0, false);
+        DrawTextFrame();
+        io.AddInputCharactersUTF8("A");
+        EXPECT_FALSE(DrawTextFrame());
+    }
+
+    std::string committed_;
+    ImVec2 field_ {};
+    mfd::api1::internal::TextFieldBounds bounds_ {};
     ImGuiContext* context_ = nullptr;
 };
 } // namespace
@@ -121,4 +154,38 @@ TEST(WidgetEditorHostValidation, RejectsAChangedDraftStructureSize)
     draft.struct_size = sizeof(draft) - 1U;
 
     EXPECT_FALSE(mfd::api1::internal::IsWidgetEditorDraftValidAfterDraw(draft));
+}
+
+TEST(WidgetEditorHostValidation, ChangedTextTargetsOnlyItsOwner)
+{
+    MfdWidgetEditorDraftV1 draft {};
+    using mfd::api1::internal::WidgetTextAction;
+    EXPECT_EQ(WidgetTextAction(draft, "", "", "", "", ""), 0U);
+    draft.text[0] = 'A';
+    EXPECT_EQ(WidgetTextAction(draft, "", "", "", "", ""), 1U);
+    draft.definition_only = 1U;
+    EXPECT_EQ(WidgetTextAction(draft, "", "", "", "", ""), 0U);
+    draft.default_text[0] = 'B';
+    EXPECT_EQ(WidgetTextAction(draft, "", "", "", "", ""), 2U);
+}
+
+TEST_F(WidgetEditorHostFrame, TextCommitsOnBlurAndEscapeRestoresTheOriginal)
+{
+    DrawTextFrame();
+    DrawTextFrame();
+    TypeIntoField();
+    ImGuiIO& io = ImGui::GetIO();
+    io.AddKeyEvent(ImGuiKey_Escape, true);
+    EXPECT_FALSE(DrawTextFrame());
+    EXPECT_TRUE(committed_.empty());
+    io.AddKeyEvent(ImGuiKey_Escape, false);
+    DrawTextFrame();
+
+    TypeIntoField();
+    io.AddMousePosEvent(30, 180);
+    io.AddMouseButtonEvent(0, true);
+    EXPECT_TRUE(DrawTextFrame());
+    EXPECT_EQ(committed_, "A");
+    io.AddMouseButtonEvent(0, false);
+    EXPECT_FALSE(DrawTextFrame());
 }

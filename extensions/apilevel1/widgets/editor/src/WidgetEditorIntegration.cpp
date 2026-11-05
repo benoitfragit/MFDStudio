@@ -1,4 +1,6 @@
 #include "EditorApplication.h"
+#include "WidgetEditorHostInternal.h"
+#include <utility>
 #include "EditorFileDialogs.h"
 #include "EditorIcons.h"
 #include "mfd/apilevel1/widgets/WidgetAssetService.h"
@@ -410,7 +412,8 @@ void EditorApplication::DrawWidgetInspector(const bool definitionOnly)
     draft.struct_size = sizeof(draft);
     draft.definition_only = definitionOnly;
     CopyWidgetText(draft.id, sizeof(draft.id), widget->id);
-    CopyWidgetText(draft.parent, sizeof(draft.parent), WidgetParent(*page, widget->id));
+    const auto parent = WidgetParent(*page, widget->id);
+    CopyWidgetText(draft.parent, sizeof(draft.parent), parent);
     CopyWidgetText(draft.text, sizeof(draft.text), value.text);
     CopyWidgetText(draft.definition_id, sizeof(draft.definition_id), definition.id);
     draft.visible = widget->visible; draft.enabled = widget->enabled; draft.exposed = widget->exposed;
@@ -440,13 +443,40 @@ void EditorApplication::DrawWidgetInspector(const bool definitionOnly)
                 draft.row = edge.row; draft.column = edge.column; draft.row_span = edge.rowSpan; draft.column_span = edge.columnSpan;
                 draft.render_order = edge.renderOrder;
             }
+    ImGui::PushID(documentState_.selection.pageIndex);
+    ImGui::PushID(definitionOnly ? "definition" : "instance");
+    ImGui::PushID(widget->id.c_str());
     const auto actions = widgetEditorHost_.Draw(draft);
+    ImGui::PopID();
+    ImGui::PopID();
+    ImGui::PopID();
+    pendingWidgetTextAction_ = 0;
+    if (!mfd::api1::internal::IsWidgetEditorDraftValidAfterDraw(draft)) return;
+    const auto textAction = mfd::api1::internal::WidgetTextAction(
+        draft, widget->id, parent, value.text, definition.id, definition.defaults.text);
+    if (textAction != 0U && !(actions & textAction))
+    {
+        pendingWidgetTextAction_ = textAction;
+        widgetTextOwner_ = documentState_.selection;
+    }
     if (actions & 19U) ApplyWidgetInspector(actions, definitionOnly);
     if (actions & 4U) EditWidgetVisual(definitionOnly);
     if (actions & 8U) ApplyWidgetVisual();
     if (actions & 32U) ApplyWidgetBinding(false, definitionOnly);
     if (actions & 64U) ApplyWidgetBinding(true, definitionOnly);
 }
+void EditorApplication::FinishWidgetTextEdit()
+{
+    const auto action = std::exchange(pendingWidgetTextAction_, 0U);
+    const auto& selected = documentState_.selection;
+    if (action == 0U || selected.kind != widgetTextOwner_.kind || selected.pageIndex != widgetTextOwner_.pageIndex ||
+        selected.widgetId != widgetTextOwner_.widgetId || selected.widgetDefinitionIndex != widgetTextOwner_.widgetDefinitionIndex)
+    {
+        return;
+    }
+    ApplyWidgetInspector(action, selected.kind == SelectionKind::WidgetDefinition);
+}
+
 void EditorApplication::ApplyWidgetInspector(const std::uint32_t actions, const bool definitionOnly)
 {
     mfd::api1::WidgetInstance preview;

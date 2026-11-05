@@ -837,6 +837,9 @@ private:
     std::size_t widgetLibrarySelected_ = 0;
     std::array<char, 256> widgetLibraryFilter_ {};
     MfdWidgetEditorDraftV1 widgetDraft_ {};
+    std::uint32_t pendingWidgetTextAction_ = 0;
+    editor::app::Selection widgetTextOwner_ {};
+    void FinishWidgetTextEdit();
     std::optional<UndoSnapshot> widgetGestureBefore_;
     mfd::api1::WidgetInstance widgetGestureStart_;
     mfd::Vec2 widgetGesturePointer_ {};

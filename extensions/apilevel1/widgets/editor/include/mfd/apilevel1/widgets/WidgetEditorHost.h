@@ -16,6 +16,8 @@ public:
     bool EnsureLoaded(const std::filesystem::path& windowFile);
     bool IsLoaded() const noexcept;
     const std::string& Diagnostic() const noexcept;
+    /** @brief Detect focus loss before a canvas or sidebar click replaces the inspected widget. */
+    bool LeavingTextField() const noexcept;
     std::uint32_t Draw(MfdWidgetEditorDraftV1& draft) const;
     void Unload() noexcept;
 private:
