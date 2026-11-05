@@ -551,6 +551,7 @@ struct LayoutState
     bool focusPageTextOverride = false;
     ImGuiTextFilter pageTextOverrideFilter;
     bool libraryStudioShowGizmos = true;
+    bool showLineEndpointMarkers = true;
     bool focusedStudioShowLabels = true;
     bool focusedStudioShowGizmos = true;
     editor::PagePreviewViewOptions pagePreviewViewOptions {};

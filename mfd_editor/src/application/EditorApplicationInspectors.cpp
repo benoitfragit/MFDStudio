@@ -4395,8 +4395,10 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
 
     if (auto* line = std::get_if<mfd::LineGeometry>(&primitive->geometry))
     {
-        EditPointArrayField("Start", line->start);
-        EditPointArrayField("End", line->end);
+        ImGui::Checkbox("Show endpoint markers", &layoutState_.showLineEndpointMarkers);
+        ShowItemTooltip("Show 1 = Start and 2 = End on the selected line when gizmos are visible.");
+        EditPointArrayField("1 - Start", line->start);
+        EditPointArrayField("2 - End", line->end);
         return;
     }
 

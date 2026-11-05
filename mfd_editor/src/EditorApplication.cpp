@@ -55,6 +55,7 @@
 #include "EditorWorkspaceLayout.h"
 #include "internal/application/EditorApplicationAuthoringSupport.h"
 #include "internal/application/EditorFocusedStudio.h"
+#include "internal/application/EditorLineEndpointMarkers.h"
 #include "mfd/model/Types.h"
 #include "mfd/ipc/UdpLimits.h"
 #include "mfd/model/RuntimeBudgets.h"
@@ -589,6 +590,26 @@ void DrawSelectionHandle(ImDrawList* const drawList,
 {
     drawList->AddCircleFilled(point, radius, color, 16);
     drawList->AddCircle(point, radius, IM_COL32(10, 18, 24, 255), 16, 1.5f);
+}
+
+void DrawLineEndpointMarkers(ImDrawList& drawList, const editor::app::ViewportState& viewport,
+                             ImVec2 start, ImVec2 end)
+{
+    const float radius = ImGui::GetFontSize() * 0.72f;
+    const ImVec2 max(viewport.origin.x + viewport.size.x, viewport.origin.y + viewport.size.y);
+    const auto pins = editor::app::PlaceLineEndpointMarkers(viewport.origin, max, start, end, radius);
+    const std::array<ImVec2, 2> anchors {start, end};
+    const std::array<ImU32, 2> colors {IM_COL32(124, 196, 255, 255), IM_COL32(255, 198, 95, 255)};
+    const std::array<const char*, 2> labels {"1", "2"};
+    for (std::size_t i = 0; i < pins.size(); ++i)
+    {
+        if (!pins[i]) continue;
+        const ImVec2 center = *pins[i];
+        drawList.AddLine(anchors[i], center, colors[i], 1.5f);
+        DrawSelectionHandle(&drawList, center, colors[i], radius);
+        const ImVec2 size = ImGui::CalcTextSize(labels[i]);
+        drawList.AddText(ImVec2(center.x - size.x / 2, center.y - size.y / 2), IM_COL32(12, 20, 28, 255), labels[i]);
+    }
 }
 
 mfd::Vec2 InversePrimitiveWorldPoint(const mfd::ReticleGroup& reticle,
@@ -5137,8 +5158,11 @@ void EditorApplication::DrawLibraryPreviewOverlays(const ViewportState& viewport
 
         if (const auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry))
         {
-            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, line->start), IM_COL32(255, 140, 92, 255));
-            DrawSelectionHandle(drawList, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, line->end), IM_COL32(255, 140, 92, 255));
+            const auto start = PrimitiveHandleScreenPoint(viewport, *reticle, primitive, line->start);
+            const auto end = PrimitiveHandleScreenPoint(viewport, *reticle, primitive, line->end);
+            DrawSelectionHandle(drawList, start, IM_COL32(255, 140, 92, 255));
+            DrawSelectionHandle(drawList, end, IM_COL32(255, 140, 92, 255));
+            if (layoutState_.showLineEndpointMarkers) DrawLineEndpointMarkers(*drawList, viewport, start, end);
             continue;
         }
 
