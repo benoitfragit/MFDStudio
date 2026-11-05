@@ -4534,10 +4534,27 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         }
         ShowItemTooltip("Close the polyline by linking the last point back to the first.");
 
-        for (int index = 0; index < static_cast<int>(polyline->points.size()); ++index)
+        std::optional<std::size_t> removeIndex;
+        for (std::size_t index = 0; index < polyline->points.size(); ++index)
         {
             const std::string label = "Point " + std::to_string(index + 1);
-            EditPointArrayField(label.c_str(), polyline->points[static_cast<std::size_t>(index)]);
+            ImGui::PushID(static_cast<int>(index));
+            const float reserved = ImGui::CalcTextSize(label.c_str()).x + ImGui::GetFrameHeight() +
+                                   ImGui::GetStyle().ItemInnerSpacing.x + ImGui::GetStyle().ItemSpacing.x;
+            ImGui::SetNextItemWidth(std::max(1.0f, ImGui::GetContentRegionAvail().x - reserved));
+            EditPointArrayField(label.c_str(), polyline->points[index]);
+            ImGui::SameLine();
+            const bool canRemove = polyline->points.size() > 2U;
+            const std::string tooltip = canRemove ? "Delete point " + std::to_string(index + 1) + " from this polyline"
+                                                  : "A polyline needs at least two points.";
+            if (IconButton("##delete_point", EditorIcon::Delete, tooltip.c_str(), canRemove))
+                removeIndex = index;
+            ImGui::PopID();
+        }
+        if (removeIndex)
+        {
+            auto before = CaptureCurrentSnapshot();
+            if (editor::app::RemovePolylinePoint(*polyline, *removeIndex)) PushUndoSnapshot(std::move(before));
         }
 
         const std::size_t maximumPointCount = polyline->closed
@@ -4551,13 +4568,6 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         }
         ImGui::EndDisabled();
         ShowItemTooltip("Append one new point to the end of the polyline.");
-        ImGui::SameLine();
-        if (ImGui::Button("Remove last point") && !polyline->points.empty())
-        {
-            PushUndoSnapshot();
-            polyline->points.pop_back();
-        }
-        ShowItemTooltip("Remove the last point from the polyline.");
         return;
     }
 

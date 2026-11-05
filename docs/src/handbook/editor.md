@@ -220,6 +220,8 @@ Opening one library reticle replaces the page preview with the reticle studio:
 - the right inspector edits default appearance plus the primitive list
 - the left library remains available so you can jump to another shared template quickly
 
+Use the trash icon beside **Point N** to remove that vertex from a polyline. The remaining vertices keep their order. An open polyline ends at its last vertex. The trash icons become disabled at two vertices.
+
 Widget visual states reuse this exact primitive editor: **Edit visual in Reticle
 studio** opens a working reticle, and applying the result returns to Widget Studio.
 

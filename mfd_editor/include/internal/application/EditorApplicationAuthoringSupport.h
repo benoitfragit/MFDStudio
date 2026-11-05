@@ -11,6 +11,7 @@
  */
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <limits>
@@ -23,6 +24,14 @@
 
 namespace editor::app
 {
+/** @brief Erase one vertex while preserving the authored order, closure and two-point minimum. */
+inline bool RemovePolylinePoint(mfd::PolylineGeometry& polyline, std::size_t index)
+{
+    if (polyline.points.size() <= 2U || index >= polyline.points.size()) return false;
+    polyline.points.erase(polyline.points.begin() + static_cast<std::ptrdiff_t>(index));
+    return true;
+}
+
 /** @brief Page instance overrides are keyed by named text and time primitives. */
 inline bool IsPageTextOverride(const mfd::Primitive& primitive) noexcept
 {
