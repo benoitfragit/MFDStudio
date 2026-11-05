@@ -116,6 +116,7 @@ struct Selection
     std::string libraryBrowserReticleId {};
     int primitiveIndex = -1;
     std::string widgetId {};
+    std::string pageTextOverrideId {};
     /** @brief Index of the selected shared widget definition, or `size_t` maximum when absent. */
     std::size_t widgetDefinitionIndex = std::numeric_limits<std::size_t>::max();
 };
@@ -513,7 +514,7 @@ struct InteractionState
     mfd::Vec2 startMouseReticleLocal {};
     mfd::Vec2 startMousePrimitiveLocal {};
     EditorResizeGesture resizeGesture {};
-    bool resizeUndoRecorded = false;
+    bool transformUndoRecorded = false;
     float startAngleDegrees = 0.0f;
     mfd::Vec2 startReticleVisualCenterLocal {};
     ImVec2 startCornerScreen {};
@@ -547,6 +548,8 @@ struct LayoutState
     bool sidebarWidgetsExpanded = true;
     std::map<std::string, bool> inspectorSectionOpen {};
     bool libraryStudioShowPrimitiveLabels = true;
+    bool focusPageTextOverride = false;
+    ImGuiTextFilter pageTextOverrideFilter;
     bool libraryStudioShowGizmos = true;
     bool focusedStudioShowLabels = true;
     bool focusedStudioShowGizmos = true;

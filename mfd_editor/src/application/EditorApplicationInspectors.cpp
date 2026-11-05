@@ -460,6 +460,7 @@ void EditorApplication::FinishInspectorStringEdit()
         return;
 
     std::string* target = nullptr;
+    bool timeFormat = false;
     if (selected.kind == SelectionKind::Window)
     {
         target = &documentState_.loaded.window.title;
@@ -474,11 +475,14 @@ void EditorApplication::FinishInspectorStringEdit()
             primitive = reticle && index < reticle->primitives.size() ? &reticle->primitives[index] : nullptr;
         }
         auto* time = primitive ? std::get_if<mfd::TimeGeometry>(&primitive->geometry) : nullptr;
-        if (!time) return;
-        target = &time->format;
+        auto* text = primitive ? std::get_if<mfd::TextGeometry>(&primitive->geometry) : nullptr;
+        timeFormat = time != nullptr;
+        if (time) target = &time->format;
+        else if (text) target = &text->text;
+        else return;
     }
     const auto decision = editor::app::CheckInspectorStringEdit(*target, edit.original, edit.requested,
-                                                                selected.kind != SelectionKind::Window);
+                                                                timeFormat);
     if (decision == editor::app::StringEditDecision::RejectFormat)
         RebuildStatus(InvalidTimeFormatMessage(edit.requested), true);
     if (decision != editor::app::StringEditDecision::Commit) return;
@@ -2796,134 +2800,153 @@ void EditorApplication::DrawPageReticleInspector()
     ShowItemTooltip("Override the template stroke thickness for this page reticle instance.");
     }
 
-    if (BeginInspectorSection("section_page_reticle_text", "Text & time overrides", true, sectionForceOpen))
+    if (BeginInspectorSection("section_page_reticle_text", "Text & time overrides", true,
+                              sectionForceOpen || layoutState_.focusPageTextOverride))
     {
-    for (int index = 0; index < static_cast<int>(reticle->primitives.size()); ++index)
-    {
-        auto& primitive = reticle->primitives[static_cast<std::size_t>(index)];
-        auto* text = std::get_if<mfd::TextGeometry>(&primitive.geometry);
-        auto* time = std::get_if<mfd::TimeGeometry>(&primitive.geometry);
-        if ((text == nullptr && time == nullptr) || primitive.id.empty())
-        {
-            continue;
-        }
-
-        if (text != nullptr)
-        {
-            std::array<char, 128> buffer {};
-            CopyTextBuffer(buffer, text->text);
-            const std::string label = "Text##" + primitive.id;
-            const bool changed = ImGui::InputText(label.c_str(), buffer.data(), buffer.size());
-            ShowItemTooltip("Override the literal text for this text primitive on the page instance.");
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            if (changed)
-            {
-                text->text = buffer.data();
-            }
-
-            const std::string alignLabel = "Alignment##" + primitive.id;
-            if (ImGui::BeginCombo(alignLabel.c_str(), AlignLabel(text->align)))
-            {
-                for (const mfd::Align candidate : kSupportedTextAlignments)
-                {
-                    const bool selected = text->align == candidate;
-                    if (ImGui::Selectable(AlignLabel(candidate), selected) && !selected)
-                    {
-                        PushUndoSnapshot();
-                        ApplyPrimitiveTextAlignmentChange(
-                            primitive,
-                            *text,
-                            candidate,
-                            MeasurePreviewTextWidthLogical(*text));
-                    }
-                    if (selected)
-                    {
-                        ImGui::SetItemDefaultFocus();
-                    }
-                }
-
-                ImGui::EndCombo();
-            }
-            ShowItemTooltip("Choose whether this text grows left, right, or stays centered around its current anchor.");
-
-            float letterSpacing = text->letterSpacing;
-            const std::string spacingLabel = "Letter spacing##" + primitive.id;
-            const bool spacingChanged =
-                ImGui::DragFloat(spacingLabel.c_str(), &letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f");
-            ShowItemTooltip("Override the letter spacing for this text primitive on the page instance.");
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            if (spacingChanged)
-            {
-                text->letterSpacing = letterSpacing;
-            }
-            continue;
-        }
-
-        if (time != nullptr)
-        {
-            const std::string formatLabel = "Time format##" + primitive.id;
-            EditTimeFormatField(formatLabel,
-                                "Override the strftime-style format used by this time primitive. "
-                                "Changes apply when the field loses focus and invalid directives are rejected.",
-                                *time, index);
-
-            const std::string alignLabel = "Alignment##" + primitive.id;
-            if (ImGui::BeginCombo(alignLabel.c_str(), AlignLabel(time->align)))
-            {
-                for (const mfd::Align candidate : kSupportedTextAlignments)
-                {
-                    const bool selected = time->align == candidate;
-                    if (ImGui::Selectable(AlignLabel(candidate), selected) && !selected)
-                    {
-                        PushUndoSnapshot();
-                        ApplyPrimitiveTextAlignmentChange(
-                            primitive,
-                            *time,
-                            candidate,
-                            MeasurePreviewTextWidthLogical(*time));
-                    }
-                    if (selected)
-                    {
-                        ImGui::SetItemDefaultFocus();
-                    }
-                }
-
-                ImGui::EndCombo();
-            }
-            ShowItemTooltip("Choose whether this time display grows left, right, or stays centered around its current anchor.");
-
-            bool utc = time->utc;
-            const std::string utcLabel = "UTC##" + primitive.id;
-            if (ImGui::Checkbox(utcLabel.c_str(), &utc))
-            {
-                PushUndoSnapshot();
-                time->utc = utc;
-            }
-            ShowItemTooltip("Render this time primitive in UTC instead of local time.");
-
-            float letterSpacing = time->letterSpacing;
-            const std::string spacingLabel = "Letter spacing##" + primitive.id;
-            const bool spacingChanged =
-                ImGui::DragFloat(spacingLabel.c_str(), &letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f");
-            ShowItemTooltip("Override the character spacing for this time primitive on the page instance.");
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            if (spacingChanged)
-            {
-                time->letterSpacing = letterSpacing;
-            }
-        }
+        DrawPageTextOverrides(*reticle);
     }
+}
+
+void EditorApplication::DrawPageTextOverrides(mfd::ReticleGroup& reticle)
+{
+    auto& selectedId = documentState_.selection.pageTextOverrideId;
+    int index = editor::app::FindPageTextOverride(reticle, selectedId);
+    if (index < 0) index = editor::app::FindPageTextOverride(reticle, {});
+    if (index < 0)
+    {
+        layoutState_.focusPageTextOverride = false;
+        ImGui::TextDisabled("No named text or time primitives.");
+        return;
+    }
+    if (ImGui::BeginCombo("Primitive", reticle.primitives[static_cast<std::size_t>(index)].id.c_str()))
+    {
+        auto& filter = layoutState_.pageTextOverrideFilter;
+        if (ImGui::IsWindowAppearing()) filter.Clear();
+        filter.Draw("Search");
+        for (std::size_t candidate = 0; candidate < reticle.primitives.size(); ++candidate)
+        {
+            const auto& primitive = reticle.primitives[candidate];
+            if (!editor::app::IsPageTextOverride(primitive) || !filter.PassFilter(primitive.id.c_str())) continue;
+            if (ImGui::Selectable(primitive.id.c_str(), candidate == static_cast<std::size_t>(index)))
+            {
+                index = static_cast<int>(candidate);
+                selectedId = primitive.id;
+                layoutState_.focusPageTextOverride = true;
+            }
+        }
+        ImGui::EndCombo();
+    }
+    auto& primitive = reticle.primitives[static_cast<std::size_t>(index)];
+    auto* text = std::get_if<mfd::TextGeometry>(&primitive.geometry);
+    auto* time = std::get_if<mfd::TimeGeometry>(&primitive.geometry);
+    if (layoutState_.focusPageTextOverride)
+    {
+        ImGui::SetScrollHereY(0.35f);
+        ImGui::SetKeyboardFocusHere();
+        layoutState_.focusPageTextOverride = false;
+    }
+    if (text != nullptr)
+    {
+        const std::string label = "Text##" + primitive.id;
+        EditInspectorString(label.c_str(), text->text, index);
+        ShowItemTooltip("Override the literal text for this text primitive on the page instance.");
+        const std::string alignLabel = "Alignment##" + primitive.id;
+        if (ImGui::BeginCombo(alignLabel.c_str(), AlignLabel(text->align)))
+        {
+            for (const mfd::Align candidate : kSupportedTextAlignments)
+            {
+                const bool selected = text->align == candidate;
+                if (ImGui::Selectable(AlignLabel(candidate), selected) && !selected)
+                {
+                    PushUndoSnapshot();
+                    ApplyPrimitiveTextAlignmentChange(
+                        primitive,
+                        *text,
+                        candidate,
+                        MeasurePreviewTextWidthLogical(*text));
+                }
+                if (selected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+
+            ImGui::EndCombo();
+        }
+        ShowItemTooltip("Choose whether this text grows left, right, or stays centered around its current anchor.");
+
+        float letterSpacing = text->letterSpacing;
+        const std::string spacingLabel = "Letter spacing##" + primitive.id;
+        const bool spacingChanged =
+            ImGui::DragFloat(spacingLabel.c_str(), &letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f");
+        ShowItemTooltip("Override the letter spacing for this text primitive on the page instance.");
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+        if (spacingChanged)
+        {
+            text->letterSpacing = letterSpacing;
+        }
+        return;
     }
 
+    if (time != nullptr)
+    {
+        const std::string formatLabel = "Time format##" + primitive.id;
+        EditTimeFormatField(formatLabel,
+                            "Override the strftime-style format used by this time primitive. "
+                            "Changes apply when the field loses focus and invalid directives are rejected.",
+                            *time, index);
+
+        const std::string alignLabel = "Alignment##" + primitive.id;
+        if (ImGui::BeginCombo(alignLabel.c_str(), AlignLabel(time->align)))
+        {
+            for (const mfd::Align candidate : kSupportedTextAlignments)
+            {
+                const bool selected = time->align == candidate;
+                if (ImGui::Selectable(AlignLabel(candidate), selected) && !selected)
+                {
+                    PushUndoSnapshot();
+                    ApplyPrimitiveTextAlignmentChange(
+                        primitive,
+                        *time,
+                        candidate,
+                        MeasurePreviewTextWidthLogical(*time));
+                }
+                if (selected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+
+            ImGui::EndCombo();
+        }
+        ShowItemTooltip("Choose whether this time display grows left, right, or stays centered around its current anchor.");
+
+        bool utc = time->utc;
+        const std::string utcLabel = "UTC##" + primitive.id;
+        if (ImGui::Checkbox(utcLabel.c_str(), &utc))
+        {
+            PushUndoSnapshot();
+            time->utc = utc;
+        }
+        ShowItemTooltip("Render this time primitive in UTC instead of local time.");
+
+        float letterSpacing = time->letterSpacing;
+        const std::string spacingLabel = "Letter spacing##" + primitive.id;
+        const bool spacingChanged =
+            ImGui::DragFloat(spacingLabel.c_str(), &letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f");
+        ShowItemTooltip("Override the character spacing for this time primitive on the page instance.");
+        if (ImGui::IsItemActivated())
+        {
+            PushUndoSnapshot();
+        }
+        if (spacingChanged)
+        {
+            time->letterSpacing = letterSpacing;
+        }
+    }
 }
 
 mfd::Vec2 EditorApplication::PageTitleVisualCenterLocal(const mfd::PageDefinition& page) const

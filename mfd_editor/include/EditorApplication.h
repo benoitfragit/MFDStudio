@@ -328,6 +328,8 @@ private:
     void DrawPageDynamicTemplateInspector(mfd::PageDefinition& page);
     /** @brief Draws the inspector for one page reticle instance. */
     void DrawPageReticleInspector();
+    void DrawPageTextOverrides(mfd::ReticleGroup& reticle);
+    void FocusPageTextAt(const mfd::ReticleGroup& reticle, const ViewportState& viewport, ImVec2 mouse);
     /** @brief Returns the current visual center of the page-title preview reticle. */
     [[nodiscard]] mfd::Vec2 PageTitleVisualCenterLocal(const mfd::PageDefinition& page) const;
     /** @brief Draws the inspector for the selected page title chrome. */
@@ -519,7 +521,7 @@ private:
     /** @brief Captures a container corner press in either editing viewport. */
     void BeginContainerResize(const mfd::api1::ContainerDefinition& container, ImVec2 mouse, ImVec2 center);
     /** @brief Captures the document immediately before the first geometry change of a resize. */
-    void RecordResizeUndoOnce();
+    void RecordTransformUndoOnce();
     /** @brief Begins a move, rotate or scale interaction for the selected page reticle. */
     void BeginReticleInteraction(InteractionMode mode,
                                  const ViewportState& viewport,

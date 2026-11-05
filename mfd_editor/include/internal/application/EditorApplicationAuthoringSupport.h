@@ -23,6 +23,23 @@
 
 namespace editor::app
 {
+/** @brief Page instance overrides are keyed by named text and time primitives. */
+inline bool IsPageTextOverride(const mfd::Primitive& primitive) noexcept
+{
+    return !primitive.id.empty() && (std::holds_alternative<mfd::TextGeometry>(primitive.geometry) ||
+                                     std::holds_alternative<mfd::TimeGeometry>(primitive.geometry));
+}
+
+inline int FindPageTextOverride(const mfd::ReticleGroup& reticle, std::string_view id) noexcept
+{
+    for (std::size_t index = 0; index < reticle.primitives.size(); ++index)
+    {
+        const auto& primitive = reticle.primitives[index];
+        if (IsPageTextOverride(primitive) && (id.empty() || primitive.id == id)) return static_cast<int>(index);
+    }
+    return -1;
+}
+
 /** @brief Updates the selected glyph stroke and the corresponding materialized page/strobe instances. */
 void ApplyTemplateGlyphStroke(mfd::MfdDocument& document, mfd::ReticleGroup& source,
                               std::size_t primitiveIndex, bool enabled, float thickness);
