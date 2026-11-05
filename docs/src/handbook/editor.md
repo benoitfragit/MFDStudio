@@ -169,6 +169,14 @@ The lower half keeps the library reticles separate from page instances:
 - selecting one template opens its shared definition without mutating page-local ids
 - the lower quick-action row keeps library-specific actions near the template list
 
+To rename a **shared library reticle template**, select it, edit **Template id**
+in the right inspector, and press Enter or **Review rename...**. The pencil icon
+and **Reticle > Rename selected library reticle globally...** open the same
+review dialogue. Confirm only after checking references and the optional
+**Rename template JSON file too** setting. Cancel leaves the template and its
+page references unchanged. The page-local reticle instance id is different
+from the shared template id.
+
 ## Page preview toolbar
 
 The page-preview header carries a compact glyph toolbar to the left of the help

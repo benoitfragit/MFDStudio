@@ -3544,8 +3544,36 @@ void EditorApplication::DrawLibraryReticleInspector()
     const ScopedImGuiId scopedId("LibraryReticleInspector");
 
     DrawInspectorHeading("Library reticle", "Edit a reusable template shared by page instances.");
-    ImGui::Text("Template id: %s", reticle->id.c_str());
-    if (const auto fileIt = documentState_.files.templateFiles.find(reticle->id); fileIt != documentState_.files.templateFiles.end())
+    const std::string& templateId = reticle->id;
+    const auto fileIt = documentState_.files.templateFiles.find(templateId);
+    const std::filesystem::path templateFile =
+        fileIt == documentState_.files.templateFiles.end() ? std::filesystem::path {} : fileIt->second;
+    editor::app::ReticleNameDraftState& nameDraft = workflowState_.reticleNameDraft;
+    if (nameDraft.templateId != templateId || nameDraft.templateFile != templateFile)
+    {
+        nameDraft.templateId = templateId;
+        nameDraft.templateFile = templateFile;
+        CopyTextBuffer(nameDraft.newId, templateId);
+    }
+
+    ImGui::TextDisabled("Template id");
+    const bool renameFromEnter =
+        ImGui::InputText("##library_template_id",
+                        nameDraft.newId.data(),
+                        nameDraft.newId.size(),
+                        ImGuiInputTextFlags_EnterReturnsTrue);
+    ShowItemTooltip("Internal template id used by page references. Press Enter to review a safe global rename.");
+    const bool templateIdChanged = !mfd::PageNamesEqual(nameDraft.newId.data(), templateId);
+    ImGui::BeginDisabled(!templateIdChanged);
+    const bool renameFromButton = ImGui::SmallButton("Review rename...##reticle_template_name_review");
+    ImGui::EndDisabled();
+    ShowItemTooltip("Review referenced pages, template file changes, and possible collisions.");
+    if ((renameFromEnter || renameFromButton) && templateIdChanged)
+    {
+        OpenReticleRenamePopup(templateId);
+        return;
+    }
+    if (fileIt != documentState_.files.templateFiles.end())
     {
         ImGui::TextDisabled("File: %s", fileIt->second.filename().string().c_str());
     }

@@ -270,6 +270,14 @@ struct PageRenamePopupState
     std::array<char, 128> newName {};
 };
 
+/** @brief Transient library-template id entered in the inspector without changing the document. */
+struct ReticleNameDraftState
+{
+    std::string templateId {};
+    std::filesystem::path templateFile {};
+    std::array<char, 128> newId {};
+};
+
 /** @brief UI state driving the global reticle-template rename review popup. */
 struct ReticleRenamePopupState
 {
@@ -454,6 +462,7 @@ struct WorkflowState
     PageImportPopupState pageImportPopup {};
     PageNameDraftState pageNameDraft {};
     PageRenamePopupState pageRenamePopup {};
+    ReticleNameDraftState reticleNameDraft {};
     ReticleRenamePopupState reticleRenamePopup {};
     ContainerRenamePopupState containerRenamePopup {};
     ReticleExtractionPopupState reticleExtractionPopup {};
