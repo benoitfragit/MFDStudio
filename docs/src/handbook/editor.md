@@ -62,6 +62,8 @@ Once one window is loaded, the normal authoring workspace takes over:
 - the right inspector follows the current selection
 - the shared filter helps you jump between pages and reticles without leaving the workspace
 
+Widget text fields accept Enter or a click outside the field. Escape restores the original text. Instance overrides and shared defaults are edited separately.
+
 ## Authoring model
 
 To resize a page reticle, drag a corner handle. A click or slight pointer jitter
