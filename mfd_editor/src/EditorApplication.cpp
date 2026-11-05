@@ -2882,7 +2882,8 @@ void EditorApplication::DrawPageTree(const editor::SidebarFilterQuery& filter,
                 if (!reticle.layerId.empty())
                 {
                     ImGui::SameLine();
-                    const bool layerVisible = IsReticleVisibleInEditor(page, reticle);
+                    const auto* layer = editor::app::FindEditorLayer(page, reticle.layerId);
+                    const bool layerVisible = !layer || layer->visible;
                     ImGui::TextDisabled("[%s%s]",
                                         reticle.layerId.c_str(),
                                         layerVisible ? "" : " hidden");
@@ -3246,7 +3247,7 @@ const RenderTexture2D* EditorApplication::RenderLayerPreviewThumbnail(const std:
 
     for (const mfd::ReticleGroup& reticle : page.staticReticles)
     {
-        const bool matchesEntry = entry.fullView ? IsReticleVisibleInEditor(page, reticle) : reticle.layerId == entry.layerId;
+        const bool matchesEntry = entry.fullView ? IsReticleVisibleInEditor(page, reticle) : (reticle.visible && reticle.layerId == entry.layerId);
         if (matchesEntry)
         {
             IncludeLogicalBounds(bounds, ComputeReticleWorldBounds(reticle));
@@ -3301,7 +3302,7 @@ const RenderTexture2D* EditorApplication::RenderLayerPreviewThumbnail(const std:
         for (const int reticleIndex : orderedIndices)
         {
             const mfd::ReticleGroup& reticle = page.staticReticles[static_cast<std::size_t>(reticleIndex)];
-            const bool matchesEntry = entry.fullView ? IsReticleVisibleInEditor(page, reticle) : reticle.layerId == entry.layerId;
+            const bool matchesEntry = entry.fullView ? IsReticleVisibleInEditor(page, reticle) : (reticle.visible && reticle.layerId == entry.layerId);
             if (!matchesEntry)
             {
                 continue;
@@ -3765,7 +3766,7 @@ void EditorApplication::RedrawEarlierThumbnailReticles(const mfd::PageDefinition
     {
         const mfd::ReticleGroup& reticle = page.staticReticles[static_cast<std::size_t>(reticleIndex)];
         const bool matchesEntry =
-            entry.fullView ? IsReticleVisibleInEditor(page, reticle) : reticle.layerId == entry.layerId;
+            entry.fullView ? IsReticleVisibleInEditor(page, reticle) : (reticle.visible && reticle.layerId == entry.layerId);
         if (!matchesEntry || PageLayerRenderOrder(page, reticle.layerId) >= currentLayerOrder)
         {
             continue;
@@ -5772,8 +5773,9 @@ void EditorApplication::DrawReticleUsageHighlightPlaceholder(const ViewportState
                 continue;
             }
 
-            const ReticleScreenBounds bounds =
-                ComputeReticleScreenBounds(page->staticReticles[static_cast<std::size_t>(reticleIndex)], viewport);
+            const auto& reticle = page->staticReticles[static_cast<std::size_t>(reticleIndex)];
+            if (!IsReticleVisibleInEditor(*page, reticle)) continue;
+            const ReticleScreenBounds bounds = ComputeReticleScreenBounds(reticle, viewport);
             if (!bounds.valid)
             {
                 continue;
@@ -9603,10 +9605,11 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
                     continue;
                 }
 
+                auto& movedReticle = page->staticReticles[static_cast<std::size_t>(movedReticleIndex)];
+                if (!IsReticleVisibleInEditor(*page, movedReticle)) continue;
                 mfd::Transform2D nextTransform = interactionState_.startReticleTransforms[index];
                 nextTransform.position = nextTransform.position + appliedDelta;
-                mfd::Transform2D& currentTransform =
-                    page->staticReticles[static_cast<std::size_t>(movedReticleIndex)].transform;
+                mfd::Transform2D& currentTransform = movedReticle.transform;
                 previewContentChanged = previewContentChanged ||
                                         currentTransform.position.x != nextTransform.position.x ||
                                         currentTransform.position.y != nextTransform.position.y;

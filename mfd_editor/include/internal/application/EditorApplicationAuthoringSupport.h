@@ -589,6 +589,7 @@ inline const mfd::EditorLayerDefinition* FindEditorLayer(const mfd::PageDefiniti
  */
 inline bool IsReticleVisibleInEditor(const mfd::PageDefinition& page, const mfd::ReticleGroup& reticle)
 {
+    if (!reticle.visible) return false;
     if (const mfd::EditorLayerDefinition* layer = FindEditorLayer(page, reticle.layerId); layer != nullptr)
     {
         return layer->visible;
