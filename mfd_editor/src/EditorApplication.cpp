@@ -6170,6 +6170,16 @@ void EditorApplication::DrawPagePreviewGizmos(const ViewportState& viewport, con
         return;
     }
 
+    const auto& overrideId = documentState_.selection.pageTextOverrideId;
+    if (!overrideId.empty())
+    {
+        const int index = editor::app::FindPageTextOverride(*reticle, overrideId);
+        if (index >= 0)
+        {
+            const auto field = ComputePrimitiveScreenBounds(*reticle, reticle->primitives[static_cast<std::size_t>(index)], viewport);
+            if (field.valid) drawList->AddRect(field.min, field.max, IM_COL32(255, 209, 102, 255), 2.0f, 0, 2.0f);
+        }
+    }
     drawSingleSelectionHandles(*reticle, bounds);
 }
 
@@ -6427,16 +6437,16 @@ void EditorApplication::BeginContainerResize(const mfd::api1::ContainerDefinitio
     interactionState_.containerId = container.id;
     interactionState_.startContainerGeometry = container.geometry;
     interactionState_.resizeGesture.Begin(mouse, center);
-    interactionState_.resizeUndoRecorded = false;
+    interactionState_.transformUndoRecorded = false;
     interactionState_.mode = InteractionMode::ResizeContainer;
 }
 
-void EditorApplication::RecordResizeUndoOnce()
+void EditorApplication::RecordTransformUndoOnce()
 {
-    if (!interactionState_.resizeUndoRecorded)
+    if (!interactionState_.transformUndoRecorded)
     {
         PushUndoSnapshot();
-        interactionState_.resizeUndoRecorded = true;
+        interactionState_.transformUndoRecorded = true;
     }
 }
 
@@ -6452,6 +6462,7 @@ void EditorApplication::BeginReticleInteraction(const InteractionMode mode,
     interactionState_.startReticleTransforms.clear();
     if (documentState_.selection.kind == SelectionKind::PageReticle)
     {
+        FocusPageTextAt(selectedPreviewReticle, viewport, mouse);
         interactionState_.reticleIndices = {documentState_.selection.pageReticleIndex};
         interactionState_.startReticleTransforms = {selectedTransform};
     }
@@ -6464,15 +6475,9 @@ void EditorApplication::BeginReticleInteraction(const InteractionMode mode,
         std::atan2(interactionState_.startMouseLogical.y - interactionPivotLogical.y,
                    interactionState_.startMouseLogical.x - interactionPivotLogical.x) *
         180.0f / 3.14159265f;
+    interactionState_.transformUndoRecorded = false;
     if (mode == InteractionMode::ScaleReticle)
-    {
         interactionState_.resizeGesture.Begin(mouse, viewport.ToScreen(interactionPivotLogical));
-        interactionState_.resizeUndoRecorded = false;
-    }
-    else
-    {
-        PushUndoSnapshot();
-    }
     interactionState_.mode = mode;
 }
 
@@ -6888,7 +6893,7 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
                 page->staticReticles[static_cast<std::size_t>(reticleIndex)].transform);
         }
         interactionState_.startMouseLogical = viewport.ToLogical(mouse);
-        PushUndoSnapshot();
+        interactionState_.transformUndoRecorded = false;
         interactionState_.mode = InteractionMode::MoveReticle;
         return;
     }
@@ -7851,6 +7856,12 @@ void EditorApplication::SelectPageReticle(const int pageIndex, const int reticle
         return;
     }
 
+    if (documentState_.selection.kind != SelectionKind::PageReticle ||
+        documentState_.selection.pageIndex != pageIndex || documentState_.selection.pageReticleIndex != reticleIndex)
+    {
+        documentState_.selection.pageTextOverrideId.clear();
+        layoutState_.focusPageTextOverride = false;
+    }
     documentState_.selection.kind = SelectionKind::PageReticle;
     documentState_.selection.pageIndex = pageIndex;
     documentState_.selection.pageReticleIndex = reticleIndex;
@@ -8092,6 +8103,8 @@ void EditorApplication::TogglePageReticleSelection(const int pageIndex, const in
         return;
     }
 
+    documentState_.selection.pageTextOverrideId.clear();
+    layoutState_.focusPageTextOverride = false;
     auto& indices = documentState_.selection.pageReticleIndices;
     auto iterator = std::find(indices.begin(), indices.end(), reticleIndex);
     if (iterator == indices.end())
@@ -9167,6 +9180,22 @@ const mfd::ReticleGroup& EditorApplication::BuildPageTitlePreviewReticle(const m
     return previewState_.pageTitlePreviewReticleCache.reticle;
 }
 
+void EditorApplication::FocusPageTextAt(const mfd::ReticleGroup& reticle, const ViewportState& viewport, const ImVec2 mouse)
+{
+    // Later primitives paint over earlier ones.
+    for (auto it = reticle.primitives.rbegin(); it != reticle.primitives.rend(); ++it)
+    {
+        if (!editor::app::IsPageTextOverride(*it)) continue;
+        const auto bounds = ComputePrimitiveScreenBounds(reticle, *it, viewport);
+        if (bounds.valid && IsPointInsideRect(mouse, bounds.min, bounds.max))
+        {
+            documentState_.selection.pageTextOverrideId = it->id;
+            layoutState_.focusPageTextOverride = true;
+            return;
+        }
+    }
+}
+
 void EditorApplication::UpdateReticleSelectionFromClick(const ViewportState& viewport, const bool additiveSelection)
 {
     const mfd::PageDefinition* page = ActivePage();
@@ -9513,7 +9542,7 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
         {
             return;
         }
-        RecordResizeUndoOnce();
+        RecordTransformUndoOnce();
         container->geometry = nextGeometry;
         InvalidateFocusedLevel1StudioLayout();
         return;
@@ -9610,9 +9639,10 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
                 mfd::Transform2D nextTransform = interactionState_.startReticleTransforms[index];
                 nextTransform.position = nextTransform.position + appliedDelta;
                 mfd::Transform2D& currentTransform = movedReticle.transform;
-                previewContentChanged = previewContentChanged ||
-                                        currentTransform.position.x != nextTransform.position.x ||
-                                        currentTransform.position.y != nextTransform.position.y;
+                if (currentTransform.position.x == nextTransform.position.x &&
+                    currentTransform.position.y == nextTransform.position.y) continue;
+                RecordTransformUndoOnce();
+                previewContentChanged = true;
                 currentTransform = nextTransform;
             }
         }
@@ -9625,6 +9655,7 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
             }
             previewContentChanged = reticleTransform->position.x != nextPosition.x ||
                                     reticleTransform->position.y != nextPosition.y;
+            if (previewContentChanged) RecordTransformUndoOnce();
             reticleTransform->position = nextPosition;
         }
         break;
@@ -9648,6 +9679,7 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
         previewContentChanged = reticleTransform->position.x != nextTransform.position.x ||
                                 reticleTransform->position.y != nextTransform.position.y ||
                                 reticleTransform->rotationDegrees != nextTransform.rotationDegrees;
+        if (previewContentChanged) RecordTransformUndoOnce();
         *reticleTransform = nextTransform;
         break;
     }
@@ -9676,7 +9708,7 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
                                 reticleTransform->scale.y != nextTransform.scale.y;
         if (previewContentChanged)
         {
-            RecordResizeUndoOnce();
+            RecordTransformUndoOnce();
             *reticleTransform = nextTransform;
         }
         break;

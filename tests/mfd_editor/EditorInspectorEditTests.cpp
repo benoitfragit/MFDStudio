@@ -36,3 +36,23 @@ TEST(EditorInspectorEdit, BothInstanceAndLayerMustBeVisibleOnThePageCanvas)
     page.editor.layers.front().visible = false;
     EXPECT_FALSE(editor::app::IsReticleVisibleInEditor(page, reticle));
 }
+
+TEST(EditorInspectorEdit, PageOverrideResolvesTheNamedPrimitiveAfterReordering)
+{
+    mfd::ReticleGroup reticle;
+    for (const char* id : {"one", "two", "three"})
+    {
+        mfd::Primitive primitive;
+        primitive.id = id;
+        primitive.geometry = mfd::TextGeometry {};
+        reticle.primitives.push_back(primitive);
+    }
+    EXPECT_EQ(editor::app::FindPageTextOverride(reticle, "two"), 1);
+    std::swap(reticle.primitives[0], reticle.primitives[1]);
+    EXPECT_EQ(editor::app::FindPageTextOverride(reticle, "two"), 0);
+    reticle.primitives[0].geometry = mfd::LineGeometry {};
+    EXPECT_EQ(editor::app::FindPageTextOverride(reticle, "two"), -1);
+    reticle.primitives[1].id.clear();
+    reticle.primitives[2].geometry = mfd::TimeGeometry {};
+    EXPECT_EQ(editor::app::FindPageTextOverride(reticle, {}), 2);
+}
