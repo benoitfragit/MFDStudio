@@ -4,6 +4,7 @@
  * Repository: https://github.com/benoitfragit/MFDStudio
  */
 #include "internal/application/EditorInspectorStringEdit.h"
+#include "internal/application/EditorLineEndpointMarkers.h"
 
 #include "internal/application/EditorApplicationAuthoringSupport.h"
 
@@ -81,4 +82,24 @@ TEST(EditorInspectorEdit, RemovingAnyPolylinePointPreservesOrderAndClosure)
             EXPECT_EQ(path.points.size(), 2U);
         }
     }
+}
+
+TEST(EditorInspectorEdit, EndpointPinsSeparateCoincidentCornersAndSkipOffscreenAnchors)
+{
+    for (ImVec2 point : {ImVec2(0, 0), ImVec2(100, 100), ImVec2(50, 50)})
+    {
+        const auto pins = editor::app::PlaceLineEndpointMarkers({0, 0}, {100, 100}, point, point, 10);
+        ASSERT_TRUE(pins[0] && pins[1]);
+        EXPECT_GE(std::hypot(pins[0]->x - pins[1]->x, pins[0]->y - pins[1]->y), 20);
+        for (const auto& pin : pins)
+        {
+            EXPECT_GE(pin->x, 10);
+            EXPECT_LE(pin->x, 90);
+            EXPECT_GE(pin->y, 10);
+            EXPECT_LE(pin->y, 90);
+        }
+    }
+    const auto pins = editor::app::PlaceLineEndpointMarkers({0, 0}, {100, 100}, {-1, 0}, {50, 50}, 10);
+    EXPECT_FALSE(pins[0]);
+    EXPECT_TRUE(pins[1]);
 }
