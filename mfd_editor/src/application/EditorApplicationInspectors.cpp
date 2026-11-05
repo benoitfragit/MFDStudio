@@ -27,7 +27,7 @@
 #include "EditorIcons.h"
 #include "EditorUiTheme.h"
 #include "internal/application/EditorApplicationAuthoringSupport.h"
-#include "TimeFormatValidation.h"
+#include "internal/application/EditorInspectorStringEdit.h"
 #include "mfd/ipc/UdpLimits.h"
 #include "mfd/model/RuntimeBudgets.h"
 #include "mfd/apilevel1/ContainerLayoutEngine.h"
@@ -448,32 +448,99 @@ void EditorApplication::EditGlyphStroke(mfd::ReticleGroup& source, const mfd::Pr
     ShowItemTooltip("Glyph stroke width in logical page units. Ctrl+click to enter a precise value.");
 }
 
-void EditorApplication::EditTimeFormatField(const std::string& label,
-                                            const char* const tooltip,
-                                            mfd::TimeGeometry& geometry)
+void EditorApplication::FinishInspectorStringEdit()
 {
-    std::array<char, 128> buffer {};
-    CopyTextBuffer(buffer, geometry.format);
-    ImGui::InputText(label.c_str(), buffer.data(), buffer.size());
+    if (!inspectorStringEdit_) return;
+    auto edit = std::move(*inspectorStringEdit_);
+    inspectorStringEdit_.reset();
+    const auto& selected = documentState_.selection;
+    if (selected.kind != edit.owner.kind || selected.pageIndex != edit.owner.pageIndex ||
+        selected.pageReticleIndex != edit.owner.pageReticleIndex ||
+        selected.libraryReticleId != edit.owner.libraryReticleId || selected.primitiveIndex != edit.owner.primitiveIndex)
+        return;
+
+    std::string* target = nullptr;
+    if (selected.kind == SelectionKind::Window)
+    {
+        target = &documentState_.loaded.window.title;
+    }
+    else
+    {
+        auto* primitive = SelectedLibraryPrimitive();
+        if (selected.kind == SelectionKind::PageReticle || selected.kind == SelectionKind::PageStrobe)
+        {
+            const auto index = static_cast<std::size_t>(edit.primitiveIndex);
+            auto* reticle = selected.kind == SelectionKind::PageReticle ? SelectedPageReticle() : SelectedPageStrobeReticle();
+            primitive = reticle && index < reticle->primitives.size() ? &reticle->primitives[index] : nullptr;
+        }
+        auto* time = primitive ? std::get_if<mfd::TimeGeometry>(&primitive->geometry) : nullptr;
+        if (!time) return;
+        target = &time->format;
+    }
+    const auto decision = editor::app::CheckInspectorStringEdit(*target, edit.original, edit.requested,
+                                                                selected.kind != SelectionKind::Window);
+    if (decision == editor::app::StringEditDecision::RejectFormat)
+        RebuildStatus(InvalidTimeFormatMessage(edit.requested), true);
+    if (decision != editor::app::StringEditDecision::Commit) return;
+    PushUndoSnapshot();
+    *target = std::move(edit.requested);
+}
+
+void EditorApplication::FinishInspectorStringOnBlur()
+{
+    if (!inspectorStringEdit_) return;
+    const auto& edit = *inspectorStringEdit_;
+    const bool outside = !ImGui::IsMouseHoveringRect(edit.fieldMin, edit.fieldMax, false);
+    if (ImGui::GetIO().AppFocusLost ||
+        (outside && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right))))
+        FinishInspectorStringEdit();
+}
+
+void EditorApplication::EditInspectorString(const char* label, std::string& value, const int primitiveIndex)
+{
+    std::array<char, 128> shortBuffer {};
+    std::string longBuffer;
+    char* buffer = shortBuffer.data();
+    std::size_t capacity = shortBuffer.size();
+    if (value.size() < capacity)
+    {
+        CopyTextBuffer(shortBuffer, value);
+    }
+    else
+    {
+        // Older assets can contain values larger than the normal inspector input buffer.
+        longBuffer = value;
+        buffer = longBuffer.data();
+        capacity = longBuffer.size() + 1;
+    }
+    ImGui::PushID(&value);
+    const bool entered = ImGui::InputText(label, buffer, capacity, ImGuiInputTextFlags_EnterReturnsTrue);
+    const bool finished = entered || ImGui::IsItemDeactivatedAfterEdit();
+    if (ImGui::IsItemDeactivated() && ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+    {
+        inspectorStringEdit_.reset();
+    }
+    else if (ImGui::IsItemEdited() || finished || (inspectorStringEdit_ && ImGui::IsItemActive()))
+    {
+        if (value != buffer)
+        {
+            inspectorStringEdit_ = InspectorStringEdit {documentState_.selection, primitiveIndex, value, buffer,
+                                                        ImGui::GetItemRectMin(), ImGui::GetItemRectMax()};
+        }
+        else
+        {
+            inspectorStringEdit_.reset();
+        }
+        if (finished) FinishInspectorStringEdit();
+    }
+    ImGui::PopID();
+}
+
+void EditorApplication::EditTimeFormatField(const std::string& label, const char* tooltip,
+                                           mfd::TimeGeometry& geometry, const int index)
+{
+    EditInspectorString(label.c_str(), geometry.format, index);
     ShowItemTooltip(tooltip);
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
-
-    if (!ImGui::IsItemDeactivatedAfterEdit())
-    {
-        return;
-    }
-
-    std::string requestedFormat(buffer.data());
-    if (!mfd::detail::IsValidTimeFormatString(requestedFormat))
-    {
-        RebuildStatus(InvalidTimeFormatMessage(requestedFormat), true);
-        return;
-    }
-
-    geometry.format = std::move(requestedFormat);
 }
 
 void EditorApplication::DrawWindowInspector()
@@ -488,25 +555,15 @@ void EditorApplication::DrawWindowInspector()
     ImGui::TextDisabled("Source file: %s", documentState_.loaded.window.sourceFile.string().c_str());
     ImGui::TextDisabled("Loaded pages: %d", static_cast<int>(documentState_.loaded.document.pages.size()));
 
-    std::array<char, 128> title {};
     std::array<char, kPathTextCapacity> fontFile {};
     std::array<char, kPathTextCapacity> reticleLibraryFolder {};
-    CopyTextBuffer(title, documentState_.loaded.window.title);
     CopyTextBuffer(fontFile, documentState_.loaded.window.fontFile.string());
     CopyTextBuffer(reticleLibraryFolder, documentState_.loaded.window.reticleLibraryFolder.string());
 
     BeginInspectorField("Window title");
-    const bool titleChanged = ImGui::InputText("##value", title.data(), title.size());
+    EditInspectorString("##value", documentState_.loaded.window.title, -1);
     EndInspectorField();
     ShowItemTooltip("Human-readable title stored in the root window JSON.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
-    if (titleChanged)
-    {
-        documentState_.loaded.window.title = title.data();
-    }
 
     const bool level1Selected = documentState_.loaded.window.apiLevel == mfd::ApiLevel::Level1;
     const char* apiLevelPreview = level1Selected ? u8"1 \u2014 Containers + Widgets" : u8"0 \u2014 Legacy";
@@ -2741,8 +2798,9 @@ void EditorApplication::DrawPageReticleInspector()
 
     if (BeginInspectorSection("section_page_reticle_text", "Text & time overrides", true, sectionForceOpen))
     {
-    for (auto& primitive : reticle->primitives)
+    for (int index = 0; index < static_cast<int>(reticle->primitives.size()); ++index)
     {
+        auto& primitive = reticle->primitives[static_cast<std::size_t>(index)];
         auto* text = std::get_if<mfd::TextGeometry>(&primitive.geometry);
         auto* time = std::get_if<mfd::TimeGeometry>(&primitive.geometry);
         if ((text == nullptr && time == nullptr) || primitive.id.empty())
@@ -2813,7 +2871,7 @@ void EditorApplication::DrawPageReticleInspector()
             EditTimeFormatField(formatLabel,
                                 "Override the strftime-style format used by this time primitive. "
                                 "Changes apply when the field loses focus and invalid directives are rejected.",
-                                *time);
+                                *time, index);
 
             const std::string alignLabel = "Alignment##" + primitive.id;
             if (ImGui::BeginCombo(alignLabel.c_str(), AlignLabel(time->align)))
@@ -3385,7 +3443,7 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
             EditTimeFormatField(formatLabel,
                                 "Override the strftime-style format used by this time primitive on the page strobe. "
                                 "Changes apply when the field loses focus and invalid directives are rejected.",
-                                *time);
+                                *time, primitiveIndex);
 
             const std::string alignLabel = hasPrimitiveId ? "Alignment##strobe_" + primitive.id
                                                           : "Alignment #" + std::to_string(fallbackIndex) +
@@ -4260,7 +4318,7 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         EditTimeFormatField("Format",
                             "strftime-style format string used by this time primitive. "
                             "Changes apply when the field loses focus and invalid directives are rejected.",
-                            *time);
+                            *time, documentState_.selection.primitiveIndex);
 
         if (ImGui::BeginCombo("Alignment", AlignLabel(time->align)))
         {
