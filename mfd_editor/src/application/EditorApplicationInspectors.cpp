@@ -28,6 +28,7 @@
 #include "EditorUiTheme.h"
 #include "internal/application/EditorApplicationAuthoringSupport.h"
 #include "internal/application/EditorInspectorStringEdit.h"
+#include "internal/application/EditorPrimitiveInspectorScope.h"
 #include "mfd/ipc/UdpLimits.h"
 #include "mfd/model/RuntimeBudgets.h"
 #include "mfd/apilevel1/ContainerLayoutEngine.h"
@@ -3961,7 +3962,8 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         return;
     }
 
-    const ScopedImGuiId scopedId("LibraryPrimitiveInspector");
+    const editor::app::PrimitiveInspectorScope scope(documentState_.windowFile, reticle->id,
+                                                    documentState_.selection.primitiveIndex);
     const bool tutorialExposedPrimitiveSelected =
         tutorial_->IsExposedPrimitiveTutorialSelection(documentState_.selection.libraryReticleId, primitive->id);
     const bool tutorialAlternativeStrobeLabelSelected =
