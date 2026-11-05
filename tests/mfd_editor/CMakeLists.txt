@@ -40,6 +40,7 @@ set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorUiStatePersistenceTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorUndoHistoryTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/WidgetEditorHostTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorResizeGestureTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorViewportSnapTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorViewportGridTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorWidgetPreviewControllerTests.cpp)
@@ -123,7 +124,9 @@ target_sources(mfd_editor_tests
         ${MFD_ROOT_DIR}/mfd_editor/include/internal/application/EditorSidebarLayout.h
         ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorSidebarLayout.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorViewportGrid.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/include/internal/application/EditorResizeGesture.h
         ${MFD_ROOT_DIR}/mfd_editor/include/internal/application/EditorViewportSnap.h
+        ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorResizeGesture.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorViewportSnap.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/internal/application/EditorWidgetPreviewController.h
         ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorWidgetPreviewController.cpp

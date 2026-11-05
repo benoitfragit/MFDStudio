@@ -64,6 +64,9 @@ Once one window is loaded, the normal authoring workspace takes over:
 
 ## Authoring model
 
+To resize a page reticle, drag a corner handle. A click or slight pointer jitter
+leaves its scale and Undo history untouched. One resize drag takes one Undo step.
+
 The editor writes text and time alignment (`left`, `center`, `right`) directly
 into the asset model, matching what both the preview gizmos and `mfd_window`
 render at runtime. It keeps one shared editor-only visible grid, snap toggle,

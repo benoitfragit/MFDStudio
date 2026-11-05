@@ -9,6 +9,7 @@ set(MFD_EDITOR_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorFocusedStudio.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorSidebarLayout.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorViewportGrid.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorResizeGesture.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorViewportSnap.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorWidgetPreviewController.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/application/EditorApplicationShell.cpp
@@ -80,6 +81,7 @@ set(MFD_EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorFocusedStudio.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorSidebarLayout.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorViewportGrid.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorResizeGesture.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorViewportSnap.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/internal/application/EditorWidgetPreviewController.h)
 

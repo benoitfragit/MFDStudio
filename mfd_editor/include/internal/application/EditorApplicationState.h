@@ -42,6 +42,7 @@
 #include "EditorReticleUsageHighlightService.h"
 #include "EditorUndoHistory.h"
 #include "internal/application/EditorFocusedStudio.h"
+#include "internal/application/EditorResizeGesture.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/model/Reticle.h"
 #include "BezierPolylineCache.h"
@@ -494,6 +495,8 @@ struct InteractionState
     mfd::Vec2 startMouseLogical {};
     mfd::Vec2 startMouseReticleLocal {};
     mfd::Vec2 startMousePrimitiveLocal {};
+    EditorResizeGesture resizeGesture {};
+    bool resizeUndoRecorded = false;
     float startAngleDegrees = 0.0f;
     float startDistance = 0.0f;
     mfd::Vec2 startReticleVisualCenterLocal {};

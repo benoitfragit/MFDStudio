@@ -6416,12 +6416,11 @@ void EditorApplication::FitActivePageContentToPageBorder()
     RebuildStatus("Fit to page: scaled and centered the page content inside the page border.", false);
 }
 
-void EditorApplication::BeginReticleHandleInteraction(const InteractionMode mode,
-                                                      const ImVec2 cornerScreen,
-                                                      const ViewportState& viewport,
-                                                      const ImVec2 mouse,
-                                                      const mfd::Transform2D& selectedTransform,
-                                                      const mfd::ReticleGroup& selectedPreviewReticle)
+void EditorApplication::BeginReticleInteraction(const InteractionMode mode,
+                                                const ViewportState& viewport,
+                                                const ImVec2 mouse,
+                                                const mfd::Transform2D& selectedTransform,
+                                                const mfd::ReticleGroup& selectedPreviewReticle)
 {
     interactionState_.reticleIndex =
         documentState_.selection.kind == SelectionKind::PageReticle ? documentState_.selection.pageReticleIndex : -1;
@@ -6441,14 +6440,15 @@ void EditorApplication::BeginReticleHandleInteraction(const InteractionMode mode
         std::atan2(interactionState_.startMouseLogical.y - interactionPivotLogical.y,
                    interactionState_.startMouseLogical.x - interactionPivotLogical.x) *
         180.0f / 3.14159265f;
-    interactionState_.startDistance = std::max(
-        0.001f,
-        std::sqrt(
-            std::pow(interactionState_.startMouseLogical.x - interactionPivotLogical.x, 2.0f) +
-            std::pow(interactionState_.startMouseLogical.y - interactionPivotLogical.y, 2.0f)));
-    interactionState_.startCenterScreen = viewport.ToScreen(interactionPivotLogical);
-    interactionState_.startCornerScreen = cornerScreen;
-    PushUndoSnapshot();
+    if (mode == InteractionMode::ScaleReticle)
+    {
+        interactionState_.resizeGesture.Begin(mouse, viewport.ToScreen(interactionPivotLogical));
+        interactionState_.resizeUndoRecorded = false;
+    }
+    else
+    {
+        PushUndoSnapshot();
+    }
     interactionState_.mode = mode;
 }
 
@@ -6829,12 +6829,11 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
                 {
                     if (Distance(mouse, selectedRotateHandle) <= 16.0f)
                     {
-                        BeginReticleHandleInteraction(InteractionMode::RotateReticle,
-                                                      selectedBounds.center,
-                                                      viewport,
-                                                      mouse,
-                                                      *selectedTransform,
-                                                      *selectedPreviewReticle);
+                        BeginReticleInteraction(InteractionMode::RotateReticle,
+                                                viewport,
+                                                mouse,
+                                                *selectedTransform,
+                                                *selectedPreviewReticle);
                         return;
                     }
 
@@ -6842,12 +6841,11 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
                     {
                         if (Distance(mouse, corner) <= 16.0f)
                         {
-                            BeginReticleHandleInteraction(InteractionMode::ScaleReticle,
-                                                          corner,
-                                                          viewport,
-                                                          mouse,
-                                                          *selectedTransform,
-                                                          *selectedPreviewReticle);
+                            BeginReticleInteraction(InteractionMode::ScaleReticle,
+                                                    viewport,
+                                                    mouse,
+                                                    *selectedTransform,
+                                                    *selectedPreviewReticle);
                             return;
                         }
                     }
@@ -6925,7 +6923,6 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         return;
     }
 
-    const ImVec2 center = bounds.center;
     const std::array<ImVec2, 4> corners {
         bounds.min,
         ImVec2(bounds.max.x, bounds.min.y),
@@ -6933,36 +6930,10 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
         ImVec2(bounds.min.x, bounds.max.y)};
     const ImVec2 rotateHandle((bounds.min.x + bounds.max.x) * 0.5f, bounds.min.y - 26.0f);
 
-    interactionState_.reticleIndex =
-        documentState_.selection.kind == SelectionKind::PageReticle ? documentState_.selection.pageReticleIndex : -1;
-    interactionState_.reticleIndices.clear();
-    interactionState_.startReticleTransforms.clear();
-    if (documentState_.selection.kind == SelectionKind::PageReticle)
-    {
-        interactionState_.reticleIndices = {documentState_.selection.pageReticleIndex};
-        interactionState_.startReticleTransforms = {*selectedTransform};
-    }
-    interactionState_.startTransform = *selectedTransform;
-    interactionState_.startReticleVisualCenterLocal = ReticleVisualCenterLocal(*selectedPreviewReticle);
-    interactionState_.startMouseLogical = viewport.ToLogical(mouse);
-    const mfd::Vec2 interactionPivotLogical =
-        mfd::ApplyTransform(interactionState_.startReticleVisualCenterLocal, interactionState_.startTransform);
-    interactionState_.startAngleDegrees =
-        std::atan2(interactionState_.startMouseLogical.y - interactionPivotLogical.y,
-                   interactionState_.startMouseLogical.x - interactionPivotLogical.x) *
-        180.0f / 3.14159265f;
-    interactionState_.startDistance = std::max(
-        0.001f,
-        std::sqrt(
-            std::pow(interactionState_.startMouseLogical.x - interactionPivotLogical.x, 2.0f) +
-            std::pow(interactionState_.startMouseLogical.y - interactionPivotLogical.y, 2.0f)));
-    interactionState_.startCenterScreen = viewport.ToScreen(interactionPivotLogical);
-    interactionState_.startCornerScreen = center;
-
     if (layoutState_.pagePreviewViewOptions.showGizmos && Distance(mouse, rotateHandle) <= 16.0f)
     {
-        PushUndoSnapshot();
-        interactionState_.mode = InteractionMode::RotateReticle;
+        BeginReticleInteraction(InteractionMode::RotateReticle, viewport, mouse,
+                                *selectedTransform, *selectedPreviewReticle);
     }
     else if (mouse.x >= bounds.min.x - 8.0f && mouse.x <= bounds.max.x + 8.0f &&
              mouse.y >= bounds.min.y - 8.0f && mouse.y <= bounds.max.y + 8.0f)
@@ -6973,16 +6944,15 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
             {
                 if (Distance(mouse, corner) <= 16.0f)
                 {
-                    PushUndoSnapshot();
-                    interactionState_.mode = InteractionMode::ScaleReticle;
-                    interactionState_.startCornerScreen = corner;
+                    BeginReticleInteraction(InteractionMode::ScaleReticle, viewport, mouse,
+                                            *selectedTransform, *selectedPreviewReticle);
                     return;
                 }
             }
         }
 
-        PushUndoSnapshot();
-        interactionState_.mode = InteractionMode::MoveReticle;
+        BeginReticleInteraction(InteractionMode::MoveReticle, viewport, mouse,
+                                *selectedTransform, *selectedPreviewReticle);
     }
     else
     {
@@ -9671,23 +9641,35 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
 
     case InteractionMode::ScaleReticle:
     {
-        const ImVec2 mouseScreen = ImGui::GetMousePos();
-        const float startDistance = std::max(8.0f, Distance(interactionState_.startCornerScreen, interactionState_.startCenterScreen));
-        const float currentDistance = std::max(4.0f, Distance(mouseScreen, interactionState_.startCenterScreen));
-        const float factor = std::clamp(currentDistance / startDistance, 0.1f, 10.0f);
-        const mfd::Vec2 nextScale {
-            std::max(0.05f, interactionState_.startTransform.scale.x * factor),
-            std::max(0.05f, interactionState_.startTransform.scale.y * factor)};
-        const mfd::Transform2D nextTransform = BuildTransformKeepingLocalPointWorldPosition(
-            interactionState_.startTransform,
-            interactionState_.startReticleVisualCenterLocal,
-            interactionState_.startTransform.rotationDegrees,
-            nextScale);
+        const auto factor = interactionState_.resizeGesture.ScaleAt(
+            ImGui::GetMousePos(), ImGui::GetIO().MouseDragThreshold);
+        if (!factor)
+        {
+            break;
+        }
+        const mfd::Transform2D& start = interactionState_.startTransform;
+        mfd::Transform2D nextTransform = start;
+        if (factor.value() != 1.0f)
+        {
+            const mfd::Vec2 scale {
+                std::max(0.05f, start.scale.x * factor.value()),
+                std::max(0.05f, start.scale.y * factor.value())};
+            nextTransform = BuildTransformKeepingLocalPointWorldPosition(
+                start, interactionState_.startReticleVisualCenterLocal, start.rotationDegrees, scale);
+        }
         previewContentChanged = reticleTransform->position.x != nextTransform.position.x ||
                                 reticleTransform->position.y != nextTransform.position.y ||
                                 reticleTransform->scale.x != nextTransform.scale.x ||
                                 reticleTransform->scale.y != nextTransform.scale.y;
-        *reticleTransform = nextTransform;
+        if (previewContentChanged)
+        {
+            if (!interactionState_.resizeUndoRecorded)
+            {
+                PushUndoSnapshot();
+                interactionState_.resizeUndoRecorded = true;
+            }
+            *reticleTransform = nextTransform;
+        }
         break;
     }
 
