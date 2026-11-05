@@ -5,6 +5,7 @@ include(GoogleTest)
 
 set(MFD_EDITOR_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorInspectorEditTests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/EditorPrimitiveInspectorScopeTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorApplicationInternalTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorFocusedStudioTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EditorSidebarLayoutTests.cpp
