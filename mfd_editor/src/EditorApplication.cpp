@@ -4772,14 +4772,7 @@ void EditorApplication::HandleFocusedLevel1StudioInteraction(const ViewportState
             {
                 break;
             }
-            interactionState_.containerId = container->id;
-            interactionState_.startContainerGeometry = container->geometry;
-            interactionState_.startMouseLogical = viewport.ToLogical(mouse);
-            interactionState_.startCenterScreen = center;
-            interactionState_.startCornerScreen = corner;
-            interactionState_.startDistance = std::max(8.0f, Distance(corner, center));
-            interactionState_.containerResizeUndoRecorded = false;
-            interactionState_.mode = InteractionMode::ResizeContainer;
+            BeginContainerResize(*container, mouse, center);
             return;
         }
     }
@@ -6174,7 +6167,6 @@ void EditorApplication::CancelPreviewInteraction() noexcept
     interactionState_.reticleIndices.clear();
     interactionState_.startReticleTransforms.clear();
     interactionState_.containerId.clear();
-    interactionState_.containerResizeUndoRecorded = false;
 }
 
 bool EditorApplication::HandleArmedPreviewToolInteraction(const ViewportState& viewport, const ImVec2 mouse)
@@ -6414,6 +6406,25 @@ void EditorApplication::FitActivePageContentToPageBorder()
     }
 
     RebuildStatus("Fit to page: scaled and centered the page content inside the page border.", false);
+}
+
+void EditorApplication::BeginContainerResize(const mfd::api1::ContainerDefinition& container,
+                                            const ImVec2 mouse, const ImVec2 center)
+{
+    interactionState_.containerId = container.id;
+    interactionState_.startContainerGeometry = container.geometry;
+    interactionState_.resizeGesture.Begin(mouse, center);
+    interactionState_.resizeUndoRecorded = false;
+    interactionState_.mode = InteractionMode::ResizeContainer;
+}
+
+void EditorApplication::RecordResizeUndoOnce()
+{
+    if (!interactionState_.resizeUndoRecorded)
+    {
+        PushUndoSnapshot();
+        interactionState_.resizeUndoRecorded = true;
+    }
 }
 
 void EditorApplication::BeginReticleInteraction(const InteractionMode mode,
@@ -6745,14 +6756,7 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
                     const mfd::api1::ContainerDefinition* selected = SelectedContainer();
                     if (selected == nullptr) return;
                     if (selected->sizeMode == mfd::api1::ContainerSizeMode::FitContent) break;
-                    interactionState_.containerId = selected->id;
-                    interactionState_.startContainerGeometry = selected->geometry;
-                    interactionState_.startMouseLogical = interactiveViewport.ToLogical(mouse);
-                    interactionState_.startCenterScreen = center;
-                    interactionState_.startCornerScreen = corner;
-                    interactionState_.startDistance = std::max(8.0f, Distance(corner, center));
-                    interactionState_.containerResizeUndoRecorded = false;
-                    interactionState_.mode = InteractionMode::ResizeContainer;
+                    BeginContainerResize(*selected, mouse, center);
                     return;
                 }
             }
@@ -9483,25 +9487,20 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
             CancelPreviewInteraction();
             return;
         }
-        const float currentDistance = std::max(
-            4.0f,
-            Distance(ImGui::GetMousePos(), interactionState_.startCenterScreen));
-        const float factor = std::clamp(
-            currentDistance / std::max(8.0f, interactionState_.startDistance),
-            0.1f,
-            10.0f);
+        const auto factor = interactionState_.resizeGesture.ScaleAt(
+            ImGui::GetMousePos(), ImGui::GetIO().MouseDragThreshold);
+        if (!factor)
+        {
+            return;
+        }
         const mfd::api1::ContainerGizmoAdapter gizmo;
         const mfd::api1::ContainerRect nextGeometry = gizmo.ResizeAroundCenter(
-            interactionState_.startContainerGeometry, container->minimumSize, factor, container->sizeMode);
+            interactionState_.startContainerGeometry, container->minimumSize, *factor, container->sizeMode);
         if (!editor::app::ContainerGeometryChanged(container->geometry, nextGeometry))
         {
             return;
         }
-        if (!interactionState_.containerResizeUndoRecorded)
-        {
-            PushUndoSnapshot();
-            interactionState_.containerResizeUndoRecorded = true;
-        }
+        RecordResizeUndoOnce();
         container->geometry = nextGeometry;
         InvalidateFocusedLevel1StudioLayout();
         return;
@@ -9663,11 +9662,7 @@ void EditorApplication::ApplyMouseTransform(const ViewportState& viewport)
                                 reticleTransform->scale.y != nextTransform.scale.y;
         if (previewContentChanged)
         {
-            if (!interactionState_.resizeUndoRecorded)
-            {
-                PushUndoSnapshot();
-                interactionState_.resizeUndoRecorded = true;
-            }
+            RecordResizeUndoOnce();
             *reticleTransform = nextTransform;
         }
         break;

@@ -502,6 +502,10 @@ private:
     void HandleLibraryPreviewInteraction(const ViewportState& viewport);
     /** @brief Clears the page-preview drag interaction state. */
     void CancelPreviewInteraction() noexcept;
+    /** @brief Captures a container corner press in either editing viewport. */
+    void BeginContainerResize(const mfd::api1::ContainerDefinition& container, ImVec2 mouse, ImVec2 center);
+    /** @brief Captures the document immediately before the first geometry change of a resize. */
+    void RecordResizeUndoOnce();
     /** @brief Begins a move, rotate or scale interaction for the selected page reticle. */
     void BeginReticleInteraction(InteractionMode mode,
                                  const ViewportState& viewport,

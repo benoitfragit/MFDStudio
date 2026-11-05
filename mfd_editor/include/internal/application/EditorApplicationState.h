@@ -489,8 +489,6 @@ struct InteractionState
     std::vector<mfd::Transform2D> startReticleTransforms {};
     mfd::Primitive startPrimitive {};
     mfd::api1::ContainerRect startContainerGeometry {};
-    /** @brief Prevents one continuous container resize from recording more than one undo snapshot. */
-    bool containerResizeUndoRecorded = false;
     std::string containerId {};
     mfd::Vec2 startMouseLogical {};
     mfd::Vec2 startMouseReticleLocal {};
@@ -498,9 +496,7 @@ struct InteractionState
     EditorResizeGesture resizeGesture {};
     bool resizeUndoRecorded = false;
     float startAngleDegrees = 0.0f;
-    float startDistance = 0.0f;
     mfd::Vec2 startReticleVisualCenterLocal {};
-    ImVec2 startCenterScreen {};
     ImVec2 startCornerScreen {};
 };
 
