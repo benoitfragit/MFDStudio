@@ -130,6 +130,7 @@ target_sources(mfd_editor_tests
         ${MFD_ROOT_DIR}/mfd_editor/include/internal/application/EditorViewportSnap.h
         ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorResizeGesture.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorTemplateGlyphStroke.cpp
+        ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorPrimitiveRename.cpp
         ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorViewportSnap.cpp
         ${MFD_ROOT_DIR}/mfd_editor/include/internal/application/EditorWidgetPreviewController.h
         ${MFD_ROOT_DIR}/mfd_editor/src/application/EditorWidgetPreviewController.cpp

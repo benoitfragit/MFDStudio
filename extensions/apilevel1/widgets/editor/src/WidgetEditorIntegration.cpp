@@ -1,4 +1,5 @@
 #include "EditorApplication.h"
+#include "internal/application/EditorApplicationAuthoringSupport.h"
 #include "WidgetEditorHostInternal.h"
 #include <utility>
 #include "EditorFileDialogs.h"
@@ -122,6 +123,10 @@ void EditorApplication::SelectWidget(const int pageIndex, std::string id)
     const bool selectionChanged = documentState_.selection.kind != SelectionKind::Widget ||
                                   documentState_.selection.pageIndex != pageIndex ||
                                   documentState_.selection.widgetId != id;
+    if (selectionChanged)
+    {
+        widgetDraft_.edit_definition = 0;
+    }
     documentState_.selection = {};
     documentState_.selection.kind = SelectionKind::Widget;
     documentState_.selection.pageIndex = pageIndex;
@@ -230,7 +235,7 @@ void EditorApplication::DrawWidgetActionToolbar()
         DeleteWidget();
     }
 
-    if (!widgetVisualTemplate_.empty())
+    if (!documentState_.widgetVisual.templateId.empty())
     {
         ImGui::SameLine();
         if (IconButton("##sidebar_apply_widget_visual",
@@ -305,7 +310,7 @@ void EditorApplication::DrawWidgetLibrary()
         if (ImGui::Button("Save library and document")) SaveAll();
         ImGui::TextDisabled("Select the definition to edit it in Widget Studio and the inspector.");
     }
-    if (!widgetVisualTemplate_.empty() && ImGui::Button("Apply edited visual")) ApplyWidgetVisual();
+    if (!documentState_.widgetVisual.templateId.empty() && ImGui::Button("Apply edited visual")) ApplyWidgetVisual();
     ImGui::End();
 }
 void EditorApplication::AddWidgetDefinition(const bool duplicate)
@@ -486,6 +491,12 @@ void EditorApplication::ApplyWidgetInspector(const std::uint32_t actions, const 
     auto* page = ActivePage();
     const auto* widget = definitionOnly ? &preview : SelectedWidget();
     if (!page || !widget) return;
+    const auto& overrides = widget->overrides;
+    if ((actions & 19U) == 16U && !widget->size && !overrides.checked && !overrides.warning &&
+        !overrides.value && !overrides.text)
+    {
+        return;
+    }
     const auto& draft = widgetDraft_;
     const std::array<double, 21> numbers {draft.x, draft.y, draft.width, draft.height, draft.value,
         draft.row, draft.column, draft.row_span, draft.column_span, draft.render_order,
@@ -601,33 +612,52 @@ void EditorApplication::EditWidgetVisual(const bool definitionOnly)
     composition.id = id;
     composition.sourceTemplateId.clear();
     documentState_.loaded.document.reticleLibrary.emplace(id, std::move(composition));
-    widgetVisualTemplate_ = id; widgetVisualDefinition_ = definition.sourceFile; widgetVisualState_ = state;
+    documentState_.widgetVisual = {id, definition.sourceFile, state, {}};
     PushUndoSnapshot(before);
     SelectLibraryReticle(id);
     RebuildStatus("Edit primitives in Reticle studio, then use Apply edited visual in Widgets.", false);
 }
 void EditorApplication::ApplyWidgetVisual()
 {
-    const auto source = documentState_.loaded.document.reticleLibrary.find(widgetVisualTemplate_);
+    const auto source = documentState_.loaded.document.reticleLibrary.find(documentState_.widgetVisual.templateId);
     if (source == documentState_.loaded.document.reticleLibrary.end()) return;
     const auto& library = documentState_.loaded.document.widgetLibrary;
     const auto found = std::find_if(library.begin(), library.end(), [this](const auto& definition)
-        { return definition->sourceFile == widgetVisualDefinition_; });
+        { return definition->sourceFile == documentState_.widgetVisual.definitionFile; });
     if (found == library.end()) { RebuildStatus("The edited widget definition is no longer in this document.", true); return; }
     auto replacement = std::make_shared<mfd::api1::WidgetDefinition>(**found);
     auto visual = std::find_if(replacement->visuals.begin(), replacement->visuals.end(), [this](const auto& value)
-        { return value.state == widgetVisualState_; });
+        { return value.state == documentState_.widgetVisual.state; });
+    std::size_t removedBindingCount = 0U;
     if (visual == replacement->visuals.end())
-    { replacement->visuals.push_back({widgetVisualState_, source->second, {}}); }
-    else visual->composition = source->second;
+    { replacement->visuals.push_back({documentState_.widgetVisual.state, source->second, {}}); }
+    else
+    {
+        visual->composition = source->second;
+        for (const auto& rename : documentState_.widgetVisual.renames)
+        {
+            if (rename.templateId != documentState_.widgetVisual.templateId) continue;
+            for (auto& binding : visual->bindings)
+            {
+                if (binding.primitiveId == rename.previous) binding.primitiveId = rename.next;
+            }
+        }
+        removedBindingCount = editor::app::PruneOrphanedWidgetBindings(*visual);
+    }
     const auto before = CaptureCurrentSnapshot();
     const std::size_t definitionIndex = static_cast<std::size_t>(found - library.begin());
     std::string error;
     if (!mfd::api1::WidgetEditorModel::ReplaceDefinition(documentState_.loaded.document, replacement, error))
     { RebuildStatus(error, true); return; }
+    documentState_.widgetVisual.renames.clear();
     PushUndoSnapshot(before);
     SelectWidgetDefinition(definitionIndex);
-    RebuildStatus("Shared widget visual updated; instance overrides retained.", false);
+    std::string status = "Shared widget visual updated; instance overrides retained.";
+    if (removedBindingCount != 0U)
+    {
+        status += " Removed " + std::to_string(removedBindingCount) + " binding(s) for deleted primitives.";
+    }
+    RebuildStatus(status, false);
 }
 
 void EditorApplication::ImportWidgetDefinition()

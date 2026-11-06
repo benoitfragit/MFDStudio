@@ -899,6 +899,8 @@ void EditorApplication::OpenDuplicateLibraryReticlePopup()
         return;
     }
 
+    workflowState_.duplicateLibraryReticleDraft.error.clear();
+    workflowState_.duplicateLibraryReticleDraft.refocus = true;
     CopyTextBuffer(workflowState_.duplicateLibraryReticleDraft.id, MakeUniqueLibraryReticleId(reticle->id + "_copy"));
     workflowState_.showDuplicateLibraryReticlePopup = true;
 }
@@ -2243,6 +2245,9 @@ bool EditorApplication::CreateNewWindow()
     }
 
     PushUndoSnapshot();
+    documentState_.pageDrafts = {};
+    rejectedPrimitiveId_.reset();
+    documentState_.widgetVisual = {};
     documentState_.loaded = std::move(next);
     documentState_.files = std::move(nextFiles);
     documentState_.windowFile = documentState_.loaded.window.sourceFile;
@@ -2371,26 +2376,26 @@ bool EditorApplication::CreateNewLibraryReticleFromPrimitive()
     return true;
 }
 
-void EditorApplication::DuplicateSelectedLibraryReticle()
+bool EditorApplication::DuplicateSelectedLibraryReticle()
 {
     const mfd::ReticleGroup* source = SelectedLibraryReticle();
     if (source == nullptr)
     {
         RebuildStatus("No library reticle selected.", true);
-        return;
+        return false;
     }
 
     const std::string newId = workflowState_.duplicateLibraryReticleDraft.id.data();
-    if (newId.empty())
+    if (mfd::NormalizePageName(newId).empty())
     {
         RebuildStatus("Duplicate id cannot be empty.", true);
-        return;
+        return false;
     }
 
     if (ReticleLibraryIdExistsNormalized(documentState_.loaded.document.reticleLibrary, newId))
     {
         RebuildStatus("Library reticle id '" + newId + "' already exists after normalization.", true);
-        return;
+        return false;
     }
 
     PushUndoSnapshot();
@@ -2401,12 +2406,13 @@ void EditorApplication::DuplicateSelectedLibraryReticle()
     if (!inserted)
     {
         RebuildStatus("Library reticle id '" + newId + "' already exists.", true);
-        return;
+        return false;
     }
 
     documentState_.files.templateFiles[newId] = editor::DefaultTemplateFilePath(documentState_.loaded.window.reticleLibraryFolder, newId);
     SelectLibraryReticle(createdIterator->first);
     RebuildStatus("Library reticle duplicated as '" + newId + "'.", false);
+    return true;
 }
 
 void EditorApplication::CopySelectedLibraryReticle()

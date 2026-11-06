@@ -313,6 +313,8 @@ private:
                                      mfd::api1::ContainerChildPlacement* placement);
     /** @brief Draws the page-level strobe selector and its basic configuration. */
     void DrawPageStrobeInspector(mfd::PageDefinition& page);
+    bool CommitStrobeName(mfd::PageDefinition& page, mfd::PageStrobeDefinition& strobe,
+                          const std::string& requested);
     /** @brief Draws the editor-only layer manager for the active page. */
     void DrawPageLayerInspector(mfd::PageDefinition& page);
     /**
@@ -349,6 +351,17 @@ private:
     void ApplyPageReticleIdEdit(mfd::PageDefinition& page, mfd::ReticleGroup& reticle, std::string_view requestedId);
     /** @brief Draws the inspector for one reticle template from the library. */
     void DrawLibraryReticleInspector();
+    /** @brief Commits a validated identifier and rewrites references in the loaded document. */
+    bool CommitLibraryPrimitiveId(const mfd::ReticleGroup& source, const std::string& requested);
+    /** @brief Deletes one catalog row and restores a valid studio selection. */
+    void RemoveLibraryPrimitive(mfd::ReticleGroup& reticle, int index);
+    struct RejectedPrimitiveId
+    {
+        ImGuiID field;
+        std::string original;
+        std::string requested;
+    };
+    std::optional<RejectedPrimitiveId> rejectedPrimitiveId_;
     /** @brief Draws the inspector for one primitive inside a library reticle. */
     void DrawLibraryPrimitiveInspector();
     /** @brief Applies a live color edit, capturing undo at the first change of a gesture. */
@@ -359,13 +372,18 @@ private:
     void ApplySelectedPageStrobeClipping(mfd::ReticleGroup& reticle,
                                          mfd::ReticleClipMode mode,
                                          std::string primitiveId);
+    void RecordInspectorDrag(const char* label, bool changed);
+    bool DragInspectorFloat(const char* label, float& value, float speed, float minimum, float maximum, const char* format);
+    bool DragInspectorPair(const char* label, float& x, float& y, float speed, float minimum, float maximum, const char* format);
     /** @brief Draws one editable 2D point field and records undo activation when needed. */
     void EditPointArrayField(const char* label, mfd::Vec2& value);
     /** @brief Edits one time-format field and only commits complete supported directives when editing finishes. */
     void EditGlyphStroke(mfd::ReticleGroup& source, const mfd::Primitive& primitive, bool enabled);
     void EditTimeFormatField(const std::string& label, const char* tooltip, mfd::TimeGeometry& geometry, int index);
-    void EditInspectorString(const char* label, std::string& value, int primitiveIndex);
-    void FinishInspectorStringEdit();
+    enum class InspectorStringField { Value, StrobeName, PrimitiveId };
+    void EditInspectorString(const char* label, std::string& value, int index,
+                             InspectorStringField field = InspectorStringField::Value);
+    bool FinishInspectorStringEdit();
     void FinishInspectorStringOnBlur();
     struct InspectorStringEdit
     {
@@ -375,6 +393,8 @@ private:
         std::string requested;
         ImVec2 fieldMin;
         ImVec2 fieldMax;
+        InspectorStringField field = InspectorStringField::Value;
+        ImGuiID item = 0;
     };
     std::optional<InspectorStringEdit> inspectorStringEdit_;
 
@@ -515,6 +535,7 @@ private:
     /** @brief Draws overlays specific to the library-studio preview. */
     void DrawLibraryPreviewOverlays(const ViewportState& viewport);
     /** @brief Handles drag interactions in the library-studio preview. */
+    bool HitLibraryHandle(const ViewportState& viewport, ImVec2 mouse, ImVec2 handle);
     void HandleLibraryPreviewInteraction(const ViewportState& viewport);
     /** @brief Clears the page-preview drag interaction state. */
     void CancelPreviewInteraction() noexcept;
@@ -626,7 +647,7 @@ private:
     /** @brief Creates a new reticle template initialized with one primitive. */
     bool CreateNewLibraryReticleFromPrimitive();
     /** @brief Duplicates the selected library reticle under a new id. */
-    void DuplicateSelectedLibraryReticle();
+    bool DuplicateSelectedLibraryReticle();
     /** @brief Copies the selected library reticle into the editor clipboard. */
     void CopySelectedLibraryReticle();
     /** @brief Pastes the copied library reticle as one new template. */
@@ -860,9 +881,6 @@ private:
     mfd::Vec2 widgetGesturePointer_ {};
     bool widgetGestureResize_ = false;
     bool widgetGestureChanged_ = false;
-    std::string widgetVisualTemplate_;
-    std::filesystem::path widgetVisualDefinition_;
-    mfd::api1::WidgetVisualState widgetVisualState_ = mfd::api1::WidgetVisualState::Normal;
     std::uint64_t lastContainerInspectorGesture_ = 0U;
 };
 

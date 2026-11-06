@@ -165,6 +165,23 @@ struct PageReticleHit
     editor::PagePreviewDrawOrderKey drawOrder {};
 };
 
+/** @brief A widget working visual defers its binding edits until Apply edited visual. */
+struct WidgetPrimitiveRename
+{
+    std::string templateId;
+    std::string previous;
+    std::string next;
+};
+
+/** @brief Keeps the active widget working copy and its deferred binding changes together. */
+struct WidgetVisualEdit
+{
+    std::string templateId;
+    std::filesystem::path definitionFile;
+    mfd::api1::WidgetVisualState state = mfd::api1::WidgetVisualState::Normal;
+    std::vector<WidgetPrimitiveRename> renames;
+};
+
 /** @brief Full undo snapshot storing the loaded document, file layout and current selection. */
 struct UndoSnapshot
 {
@@ -173,6 +190,7 @@ struct UndoSnapshot
     Selection selection;
     mfd::PageViewState pagePreviewView;
     mfd::PageViewState libraryPreviewView;
+    WidgetVisualEdit widgetVisual;
 };
 
 /** @brief Draft values used by the "new page" popup before the page is created. */
@@ -225,6 +243,8 @@ struct NewLibraryReticleDraft
 /** @brief Draft values used when duplicating one library reticle under a new id. */
 struct DuplicateLibraryReticleDraft
 {
+    std::string error;
+    bool refocus = false;
     std::array<char, 64> id {};
 };
 
@@ -397,9 +417,44 @@ struct PageTitlePreviewReticleCacheState
     mfd::ReticleGroup reticle {};
 };
 
+struct DynamicBindingDraftState
+{
+    std::string templateId;
+    std::string layerId;
+};
+
+struct StrobeDraftState
+{
+    std::string name;
+    std::string templateId;
+};
+
+struct PageInspectorDrafts
+{
+    std::map<std::string, DynamicBindingDraftState> bindings;
+    std::map<std::string, StrobeDraftState> strobes;
+
+    /** @brief Retain only drafts whose document and page survive the history operation. */
+    void RestoreFor(const mfd::LoadedWindowConfiguration& current, const mfd::LoadedWindowConfiguration& restored)
+    {
+        PageInspectorDrafts retained;
+        if (current.window.sourceFile == restored.window.sourceFile)
+        {
+            for (const auto& page : restored.document.pages)
+            {
+                retained.bindings.insert(bindings.extract(page.normalizedName));
+                retained.strobes.insert(strobes.extract(page.normalizedName.empty() ? page.name : page.normalizedName));
+            }
+        }
+        *this = std::move(retained);
+    }
+};
+
 /** @brief Document, file-layout and selection state owned by the editor shell. */
 struct DocumentState
 {
+    PageInspectorDrafts pageDrafts;
+    WidgetVisualEdit widgetVisual;
     std::filesystem::path windowFile {};
     mfd::JsonLoader loader {};
     editor::EditorAssetPathService assetPaths {};
@@ -422,7 +477,7 @@ struct PreviewState
     bool widgetInteractionLayoutValid = false;
     /** @brief Derived LEVEL 1 layout and visuals reused until an authored mutation invalidates them. */
     FocusedStudioLayoutCache focusedStudioLayoutCache {};
-    mfd::BezierPolylineCache previewBezierCache {};
+    mutable mfd::BezierPolylineCache previewBezierCache {};
     mfd::ImageTextureCache previewImageCache {};
     mfd::ExternalStreamRegistry externalStreams {};
     mfd::TextLayoutCache previewTextLayoutCache {};
@@ -513,6 +568,7 @@ struct InteractionState
     mfd::Vec2 startMouseLogical {};
     mfd::Vec2 startMouseReticleLocal {};
     mfd::Vec2 startMousePrimitiveLocal {};
+    mfd::Vec2 handleGrabOffset {};
     EditorResizeGesture resizeGesture {};
     bool transformUndoRecorded = false;
     float startAngleDegrees = 0.0f;
@@ -549,6 +605,7 @@ struct LayoutState
     std::map<std::string, bool> inspectorSectionOpen {};
     bool libraryStudioShowPrimitiveLabels = true;
     bool focusPageTextOverride = false;
+    bool focusPageLayers = false;
     ImGuiTextFilter pageTextOverrideFilter;
     bool libraryStudioShowGizmos = true;
     bool showLineEndpointMarkers = true;

@@ -10,6 +10,7 @@
  */
 
 #include "EditorDocumentSerializer.h"
+#include "internal/application/EditorApplicationAuthoringSupport.h"
 #include "mfd/io/JsonLoader.h"
 #include "mfd/ipc/UdpLimits.h"
 #include "mfd/model/RuntimeBudgets.h"
@@ -1130,6 +1131,7 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemov
     strobe.reticle.sourceTemplateId = "strobe_cursor";
     strobe.capture.shape = mfd::StrobeCaptureShape::Circle;
     strobe.capture.radius = 0.12f;
+    strobe.reticle.visible = false;
     strobe.magnet.enabled = true;
     strobe.magnet.radius = 0.2f;
     strobe.magnet.strength = 0.5f;
@@ -1196,6 +1198,7 @@ TEST(EditorDocumentSerializerTests, SaveEditorDocumentWritesCurrentFilesAndRemov
     EXPECT_EQ(pageJson.at("activeStrobe").get<std::string>(), "Default");
     EXPECT_EQ(pageJson.at("strobes").at(0).at("name").get<std::string>(), "Default");
     EXPECT_EQ(pageJson.at("strobes").at(0).at("template").get<std::string>(), "strobe_cursor");
+    EXPECT_FALSE(pageJson.at("strobes").at(0).at("visible").get<bool>());
     EXPECT_TRUE(pageJson.at("strobes").at(0).at("magnet").at("enabled").get<bool>());
     ASSERT_TRUE(pageJson.at("strobes").at(0).at("magnet").contains("visual"));
     EXPECT_TRUE(pageJson.at("strobes").at(0).at("magnet").at("visual").at("enabled").get<bool>());
@@ -1671,4 +1674,44 @@ TEST(EditorDocumentSerializerTests, RejectsInvalidAuthoredStrokeWidthsOnBothPrim
                 << type << " useStrokeThickness " << invalid;
         }
     }
+}
+
+TEST(EditorDocumentSerializerTests, RemovingTemplateMaskSurvivesPageAndStrobeReloadAndResave)
+{
+    ScopedTempDir temp;
+    const auto templates = temp.Path() / "reticles";
+    std::filesystem::create_directory(templates);
+    mfd::MfdDocument document;
+    auto& source = document.reticleLibrary["cursor"];
+    source.id = "cursor";
+    mfd::Primitive circle;
+    circle.id = "mask";
+    circle.type = mfd::PrimitiveType::Circle;
+    circle.geometry = mfd::CircleGeometry {};
+    source.primitives.push_back(circle);
+
+    auto& page = document.pages.emplace_back();
+    page.name = "Radar";
+    page.normalizedName = "radar";
+    page.layers.push_back(mfd::PageLayerDefinition {"default"});
+    auto& instance = page.staticReticles.emplace_back(mfd::InstantiateReticle(source, "scope"));
+    instance.clipping = {mfd::ReticleClipMode::Inner, "mask"};
+    instance.layerId = "default";
+    auto& strobe = page.strobes.emplace_back();
+    strobe.name = "Normal";
+    strobe.normalizedName = "normal";
+    strobe.reticle = instance;
+    strobe.reticle.id = "cursor_strobe";
+    editor::app::EraseTemplatePrimitive(document, source, 0, 0);
+    EXPECT_TRUE(instance.primitives.empty());
+    EXPECT_EQ(strobe.reticle.clipping.mode, mfd::ReticleClipMode::None);
+
+    editor::EditorFileLayout layout;
+    const auto path = temp.Path() / "page.json";
+    layout.pageFiles.push_back(path);
+    std::ofstream(templates / "cursor.json") << editor::SerializeReticleTemplateToJsonString(source);
+    std::ofstream(path) << editor::SerializePageToJsonString(page, document.reticleLibrary, layout, 0);
+    auto loaded = mfd::JsonLoader{}.LoadPageAsset(path, temp.Path(), templates);
+    ASSERT_EQ(loaded.pages.size(), 1U);
+    EXPECT_NO_THROW(editor::SerializePageToJsonString(loaded.pages.front(), loaded.reticleLibrary, layout, 0));
 }
