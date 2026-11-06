@@ -581,3 +581,61 @@ TEST(EditorApplicationInternalTests, GlyphStrokeEditUpdatesMatchingInstancesAndU
               true);
     EXPECT_EQ(instanceLabel.useStrokeThickness, true);
 }
+
+TEST(EditorApplicationInternalTests, UndoPreservesDraftsOnlyOnSurvivingPagesOfTheSameWindow)
+{
+    editor::app::PageInspectorDrafts drafts;
+    drafts.strobes["radar"].name = "incoming";
+    drafts.bindings["radar"].layerId = "hud";
+    drafts.strobes["removed"].name = "obsolete";
+    mfd::LoadedWindowConfiguration current;
+    current.window.sourceFile = "A/window.json";
+    auto restored = current;
+    restored.document.pages.emplace_back().normalizedName = "radar";
+    drafts.RestoreFor(current, restored);
+    ASSERT_EQ(drafts.strobes.size(), 1U);
+    EXPECT_EQ(drafts.strobes.at("radar").name, "incoming");
+    EXPECT_EQ(drafts.bindings.at("radar").layerId, "hud");
+    restored.window.sourceFile = "B/window.json";
+    drafts.RestoreFor(current, restored);
+    EXPECT_TRUE(drafts.strobes.empty());
+    EXPECT_TRUE(drafts.bindings.empty());
+}
+
+TEST(EditorApplicationInternalTests, UndoRestoresWidgetVisualTargetAndDeferredRenameTogether)
+{
+    editor::app::UndoSnapshot first;
+    first.widgetVisual = {"Visual_A", "A.json", mfd::api1::WidgetVisualState::Normal, {}};
+    first.widgetVisual.renames.push_back({"Visual_A", "before", "after"});
+    editor::UndoHistory<editor::app::UndoSnapshot> history;
+    history.Record(first);
+    editor::app::UndoSnapshot second;
+    second.widgetVisual = {"Visual_B", "B.json", mfd::api1::WidgetVisualState::Normal, {}};
+    const auto previous = history.Undo(second);
+    ASSERT_TRUE(previous);
+    EXPECT_EQ(previous->widgetVisual.templateId, "Visual_A");
+    EXPECT_EQ(previous->widgetVisual.definitionFile, "A.json");
+    ASSERT_EQ(previous->widgetVisual.renames.size(), 1U);
+    EXPECT_EQ(previous->widgetVisual.renames[0].next, "after");
+    const auto next = history.Redo(*previous);
+    ASSERT_TRUE(next);
+    EXPECT_EQ(next->widgetVisual.templateId, "Visual_B");
+    EXPECT_TRUE(next->widgetVisual.renames.empty());
+}
+
+TEST(EditorApplicationInternalTests, ApplyingEditedWidgetVisualDropsBindingsToDeletedPrimitives)
+{
+    mfd::api1::WidgetVisual visual;
+    mfd::Primitive label;
+    label.id = "label";
+    label.type = mfd::PrimitiveType::Text;
+    label.geometry = mfd::TextGeometry {};
+    visual.composition.primitives.push_back(label);
+    visual.bindings.push_back({"label", mfd::api1::WidgetBindingTarget::Text, 0.0, 1.0});
+    visual.bindings.push_back({"removed", mfd::api1::WidgetBindingTarget::Text, 0.0, 1.0});
+
+    EXPECT_EQ(editor::app::PruneOrphanedWidgetBindings(visual), 1U);
+    ASSERT_EQ(visual.bindings.size(), 1U);
+    EXPECT_EQ(visual.bindings.front().primitiveId, "label");
+    EXPECT_EQ(editor::app::PruneOrphanedWidgetBindings(visual), 0U);
+}

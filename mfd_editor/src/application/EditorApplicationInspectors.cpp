@@ -13,6 +13,8 @@
  * @brief Editor inspector implementation extracted from `EditorApplication`.
  */
 
+#include <misc/cpp/imgui_stdlib.h>
+
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -390,18 +392,6 @@ struct TutorialDynamicTemplateInfo
     const char* reason;
 };
 
-struct DynamicBindingDraftState
-{
-    std::string templateId;
-    std::string layerId;
-};
-
-struct StrobeDraftState
-{
-    std::string name;
-    std::string templateId;
-};
-
 std::string DescribeRequestedTimeFormat(const std::string_view format)
 {
     return format.empty() ? std::string {"<empty>"} : std::string(format);
@@ -449,22 +439,46 @@ void EditorApplication::EditGlyphStroke(mfd::ReticleGroup& source, const mfd::Pr
     ShowItemTooltip("Glyph stroke width in logical page units. Ctrl+click to enter a precise value.");
 }
 
-void EditorApplication::FinishInspectorStringEdit()
+bool EditorApplication::FinishInspectorStringEdit()
 {
-    if (!inspectorStringEdit_) return;
+    if (!inspectorStringEdit_) return true;
     auto edit = std::move(*inspectorStringEdit_);
     inspectorStringEdit_.reset();
     const auto& selected = documentState_.selection;
     if (selected.kind != edit.owner.kind || selected.pageIndex != edit.owner.pageIndex ||
         selected.pageReticleIndex != edit.owner.pageReticleIndex ||
         selected.libraryReticleId != edit.owner.libraryReticleId || selected.primitiveIndex != edit.owner.primitiveIndex)
-        return;
+        return true;
 
+    if (edit.field == InspectorStringField::PrimitiveId)
+    {
+        const auto* source = SelectedLibraryReticle();
+        const auto* primitive = SelectedLibraryPrimitive();
+        if (!source || !primitive || primitive->id != edit.original) return true;
+        if (!CommitLibraryPrimitiveId(*source, edit.requested))
+        {
+            rejectedPrimitiveId_ = RejectedPrimitiveId {edit.item, edit.original, edit.requested};
+            return false;
+        }
+        rejectedPrimitiveId_.reset();
+        return true;
+    }
+    if (edit.field == InspectorStringField::StrobeName)
+    {
+        auto* page = ActivePage();
+        const auto index = static_cast<std::size_t>(edit.primitiveIndex);
+        if (!page || index >= page->strobes.size() || page->strobes[index].name != edit.original) return true;
+        return CommitStrobeName(*page, page->strobes[index], edit.requested);
+    }
     std::string* target = nullptr;
     bool timeFormat = false;
     if (selected.kind == SelectionKind::Window)
     {
         target = &documentState_.loaded.window.title;
+    }
+    else if (selected.kind == SelectionKind::Page && ActivePage())
+    {
+        target = &ActivePage()->title;
     }
     else
     {
@@ -480,15 +494,21 @@ void EditorApplication::FinishInspectorStringEdit()
         timeFormat = time != nullptr;
         if (time) target = &time->format;
         else if (text) target = &text->text;
-        else return;
+        else return true;
+    }
+    if (!mfd::runtime_validation::IsValidTextPayload(edit.requested))
+    {
+        RebuildStatus("Text exceeds the runtime UTF-8 byte limit.", true);
+        return true;
     }
     const auto decision = editor::app::CheckInspectorStringEdit(*target, edit.original, edit.requested,
                                                                 timeFormat);
     if (decision == editor::app::StringEditDecision::RejectFormat)
         RebuildStatus(InvalidTimeFormatMessage(edit.requested), true);
-    if (decision != editor::app::StringEditDecision::Commit) return;
+    if (decision != editor::app::StringEditDecision::Commit) return true;
     PushUndoSnapshot();
     *target = std::move(edit.requested);
+    return true;
 }
 
 void EditorApplication::FinishInspectorStringOnBlur()
@@ -501,25 +521,12 @@ void EditorApplication::FinishInspectorStringOnBlur()
         FinishInspectorStringEdit();
 }
 
-void EditorApplication::EditInspectorString(const char* label, std::string& value, const int primitiveIndex)
+void EditorApplication::EditInspectorString(const char* label, std::string& value, const int primitiveIndex,
+                                          const InspectorStringField field)
 {
-    std::array<char, 128> shortBuffer {};
-    std::string longBuffer;
-    char* buffer = shortBuffer.data();
-    std::size_t capacity = shortBuffer.size();
-    if (value.size() < capacity)
-    {
-        CopyTextBuffer(shortBuffer, value);
-    }
-    else
-    {
-        // Older assets can contain values larger than the normal inspector input buffer.
-        longBuffer = value;
-        buffer = longBuffer.data();
-        capacity = longBuffer.size() + 1;
-    }
+    std::string buffer = value;
     ImGui::PushID(&value);
-    const bool entered = ImGui::InputText(label, buffer, capacity, ImGuiInputTextFlags_EnterReturnsTrue);
+    const bool entered = ImGui::InputText(label, &buffer, ImGuiInputTextFlags_EnterReturnsTrue);
     const bool finished = entered || ImGui::IsItemDeactivatedAfterEdit();
     if (ImGui::IsItemDeactivated() && ImGui::IsKeyPressed(ImGuiKey_Escape, false))
     {
@@ -530,7 +537,7 @@ void EditorApplication::EditInspectorString(const char* label, std::string& valu
         if (value != buffer)
         {
             inspectorStringEdit_ = InspectorStringEdit {documentState_.selection, primitiveIndex, value, buffer,
-                                                        ImGui::GetItemRectMin(), ImGui::GetItemRectMax()};
+                                                        ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), field};
         }
         else
         {
@@ -572,6 +579,7 @@ void EditorApplication::DrawWindowInspector()
 
     const bool level1Selected = documentState_.loaded.window.apiLevel == mfd::ApiLevel::Level1;
     const char* apiLevelPreview = level1Selected ? u8"1 \u2014 Containers + Widgets" : u8"0 \u2014 Legacy";
+    bool requestDowngradeConfirmation = false;
     BeginInspectorField("API LEVEL");
     if (ImGui::BeginCombo("##value", apiLevelPreview))
     {
@@ -582,7 +590,7 @@ void EditorApplication::DrawWindowInspector()
                 documentState_.loaded.document.pages.begin(), documentState_.loaded.document.pages.end(),
                 [](const mfd::PageDefinition& page) { return !page.containers.empty() || !page.widgets.empty(); });
             if (hasContainers)
-                ImGui::OpenPopup("Downgrade to API LEVEL 0##confirm");
+                requestDowngradeConfirmation = true;
             else
             {
                 PushUndoSnapshot();
@@ -607,6 +615,10 @@ void EditorApplication::DrawWindowInspector()
     }
     EndInspectorField();
     ShowItemTooltip("The Window level is a capability ceiling. LEVEL 1 requires compatible runtime and editor extensions.");
+    if (requestDowngradeConfirmation)
+    {
+        ImGui::OpenPopup("Downgrade to API LEVEL 0##confirm");
+    }
     if (ImGui::BeginPopupModal("Downgrade to API LEVEL 0##confirm", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
     {
         ImGui::TextUnformatted("This Window contains API LEVEL 1 containers and/or widgets.");
@@ -743,12 +755,13 @@ void EditorApplication::DrawWindowInspector()
     if (documentState_.loaded.window.commandTransports.udp.has_value())
     {
         auto& commandUdp = *documentState_.loaded.window.commandTransports.udp;
-        ImGui::Checkbox("Enable command UDP", &commandUdp.enabled);
-        ShowItemTooltip("Enable or disable the runtime UDP command listener.");
-        if (ImGui::IsItemActivated())
+        bool enabled = commandUdp.enabled;
+        if (ImGui::Checkbox("Enable command UDP", &enabled))
         {
             PushUndoSnapshot();
+            commandUdp.enabled = enabled;
         }
+        ShowItemTooltip("Enable or disable the runtime command UDP endpoint.");
 
         std::array<char, 64> commandAddress {};
         CopyTextBuffer(commandAddress, commandUdp.address);
@@ -816,12 +829,13 @@ void EditorApplication::DrawWindowInspector()
     if (documentState_.loaded.window.feedbackTransports.udp.has_value())
     {
         auto& feedbackUdp = *documentState_.loaded.window.feedbackTransports.udp;
-        ImGui::Checkbox("Enable feedback UDP", &feedbackUdp.enabled);
-        ShowItemTooltip("Enable or disable the runtime UDP feedback stream.");
-        if (ImGui::IsItemActivated())
+        bool enabled = feedbackUdp.enabled;
+        if (ImGui::Checkbox("Enable feedback UDP", &enabled))
         {
             PushUndoSnapshot();
+            feedbackUdp.enabled = enabled;
         }
+        ShowItemTooltip("Enable or disable the runtime feedback UDP endpoint.");
 
         std::array<char, 64> feedbackAddress {};
         CopyTextBuffer(feedbackAddress, feedbackUdp.address);
@@ -866,12 +880,8 @@ void EditorApplication::DrawWindowInspector()
         }
 
         const bool fastIntervalChanged =
-            ImGui::DragFloat("Fast interval", &documentState_.loaded.window.feedbackFastIntervalSeconds, 0.001f, 0.001f, 10.0f, "%.3f s");
+            DragInspectorFloat("Fast interval", documentState_.loaded.window.feedbackFastIntervalSeconds, 0.001f, 0.001f, 10.0f, "%.3f s");
         ShowItemTooltip("Minimum cadence used when the active-page feedback state changes.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
         if (fastIntervalChanged)
         {
             documentState_.loaded.window.feedbackFastIntervalSeconds =
@@ -883,17 +893,12 @@ void EditorApplication::DrawWindowInspector()
         }
 
         const bool heartbeatIntervalChanged =
-            ImGui::DragFloat("Heartbeat interval",
-                             &documentState_.loaded.window.feedbackHeartbeatIntervalSeconds,
+            DragInspectorFloat("Heartbeat interval", documentState_.loaded.window.feedbackHeartbeatIntervalSeconds,
                              0.001f,
                              documentState_.loaded.window.feedbackFastIntervalSeconds,
                              10.0f,
                              "%.3f s");
         ShowItemTooltip("Minimum cadence used for unchanged active-page heartbeat snapshots.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
         if (heartbeatIntervalChanged)
         {
             documentState_.loaded.window.feedbackFastIntervalSeconds =
@@ -983,8 +988,6 @@ void EditorApplication::DrawPageInspector()
         CopyTextBuffer(pageNameDraft.newName, page->name);
     }
 
-    std::array<char, 128> title {};
-    CopyTextBuffer(title, page->title);
     ImVec4 background = ToImGuiColor(page->backgroundColor);
 
     if (BeginInspectorSection("section_page_settings", "Page settings", true, sectionForceOpen))
@@ -1009,18 +1012,9 @@ void EditorApplication::DrawPageInspector()
         }
 
         BeginInspectorField("Title");
-        const bool titleChanged = ImGui::InputText("##value", title.data(), title.size());
+        EditInspectorString("##value", page->title, -1);
         EndInspectorField();
         ShowItemTooltip("Human-readable title shown in the editor and optionally in the runtime page chrome.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        if (titleChanged)
-        {
-            page->title = title.data();
-        }
-
         if (ImGui::Button("Select title chrome"))
         {
             SelectPageTitle(documentState_.selection.pageIndex);
@@ -1048,15 +1042,11 @@ void EditorApplication::DrawPageInspector()
 
         BeginInspectorField("View center");
         const bool centerChanged =
-            ImGui::DragFloat2("##value", &page->view.center.x, 0.01f, -1.0f, 1.0f, "%.3f");
+            DragInspectorPair("##value", page->view.center.x, page->view.center.y, 0.01f, -1.0f, 1.0f, "%.3f");
         EndInspectorField();
         ShowItemTooltip(
             "Authored page camera center stored in the JSON.\n"
             "This is different from the temporary mouse-wheel zoom and pan used only by the editor preview.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
         if (centerChanged)
         {
             page->view.center.x = std::clamp(page->view.center.x, -1.0f, 1.0f);
@@ -1066,15 +1056,11 @@ void EditorApplication::DrawPageInspector()
         }
 
         BeginInspectorField("Zoom");
-        const bool zoomChanged = ImGui::DragFloat("##value", &page->view.zoom, 0.02f, 0.1f, 20.0f, "%.3f");
+        const bool zoomChanged = DragInspectorFloat("##value", page->view.zoom, 0.02f, 0.1f, 20.0f, "%.3f");
         EndInspectorField();
         ShowItemTooltip(
             "Authored default page zoom stored in the JSON.\n"
             "Mouse-wheel zoom in the preview does not change this value.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
         if (zoomChanged)
         {
             page->view.zoom = mfd::SanitizeZoom(page->view.zoom);
@@ -1107,8 +1093,13 @@ void EditorApplication::DrawPageInspector()
     {
         DrawPageBlinkInspector(*page);
     }
-    if (BeginInspectorSection("section_page_layers", "Editor layers", false, sectionForceOpen))
+    if (BeginInspectorSection("section_page_layers", "Editor layers", false, sectionForceOpen || layoutState_.focusPageLayers))
     {
+        if (layoutState_.focusPageLayers)
+        {
+            ImGui::SetScrollHereY(0.15f);
+            layoutState_.focusPageLayers = false;
+        }
         DrawPageLayerInspector(*page);
     }
     if (BeginInspectorSection("section_page_dynamic", "Dynamic reticles", false, sectionForceOpen))
@@ -1142,9 +1133,6 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
          "Bind the tutorial radar-track template to RadarTrackLayer on Page1 without touching the existing steering cue."},
     }};
 
-    static std::unordered_map<std::string, DynamicBindingDraftState, mfd::TransparentStringHash, mfd::TransparentStringEqual>
-        s_bindingDrafts;
-
     BootstrapEditorLayersForPage(page);
 
     ImGui::Spacing();
@@ -1162,7 +1150,7 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
     std::sort(templateIds.begin(), templateIds.end());
     templateIds.erase(std::unique(templateIds.begin(), templateIds.end()), templateIds.end());
 
-    DynamicBindingDraftState& draft = s_bindingDrafts[page.normalizedName];
+    auto& draft = documentState_.pageDrafts.bindings[page.normalizedName];
     if ((draft.layerId.empty() || mfd::FindPageLayerDefinition(page, draft.layerId) == nullptr) && !page.layers.empty())
     {
         draft.layerId = page.layers.front().id;
@@ -1362,7 +1350,7 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
             for (const mfd::PageLayerDefinition& layer : page.layers)
             {
                 const bool selected = binding.layerId == layer.id;
-                if (ImGui::Selectable(layer.id.c_str(), selected))
+                if (ImGui::Selectable(layer.id.c_str(), selected) && !selected)
                 {
                     PushUndoSnapshot();
                     binding.layerId = layer.id;
@@ -1428,6 +1416,30 @@ void EditorApplication::DrawPageDynamicTemplateInspector(mfd::PageDefinition& pa
 
 }
 
+bool EditorApplication::CommitStrobeName(mfd::PageDefinition& page, mfd::PageStrobeDefinition& strobe,
+                                       const std::string& requested)
+{
+    if (requested == strobe.name) return true;
+    if (mfd::PageNameIsBlank(requested) || !mfd::runtime_validation::IsValidTextPayload(requested))
+    {
+        RebuildStatus("Enter a non-empty strobe name within the runtime byte limit.", true);
+        return false;
+    }
+    const std::string name = MakeUniqueStrobeName(page, requested, strobe.name);
+    if (name == strobe.name) return true;
+    if (!mfd::runtime_validation::IsValidTextPayload(name))
+    {
+        RebuildStatus("The unique strobe name exceeds the runtime byte limit.", true);
+        return false;
+    }
+    const bool active = page.normalizedActiveStrobeName == strobe.normalizedName;
+    PushUndoSnapshot();
+    strobe.name = name;
+    strobe.normalizedName = mfd::NormalizePageName(name);
+    if (active) SetActivePageStrobe(page, strobe);
+    return true;
+}
+
 void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
 {
     using editor::tutorial::TutorialStepId;
@@ -1438,7 +1450,6 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
     constexpr std::string_view kTutorialAlternativeStrobeNameTargetId = "page_strobe_alternative_name";
     constexpr std::string_view kTutorialAlternativeStrobeTemplateTargetId = "page_strobe_alternative";
     constexpr std::string_view kTutorialAlternativeStrobeAddTargetId = "page_strobe_alternative_add";
-    static std::unordered_map<std::string, StrobeDraftState> s_strobeDrafts;
 
     const bool isDefaultStrobeTutorialStep = tutorial_->IsStep(static_cast<int>(TutorialStepId::AddPage1DefaultStrobe));
     const bool isAlternativeStrobeTutorialStep =
@@ -1496,7 +1507,7 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
     }
     std::sort(templateIds.begin(), templateIds.end());
 
-    StrobeDraftState& draft = s_strobeDrafts[page.normalizedName.empty() ? page.name : page.normalizedName];
+    auto& draft = documentState_.pageDrafts.strobes[page.normalizedName.empty() ? page.name : page.normalizedName];
     if (draft.name.empty())
     {
         draft.name = SuggestPageStrobeDraftName(page);
@@ -1676,28 +1687,8 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
         }
         ShowItemTooltip("Choose which authored strobe becomes active by default when the page loads.");
 
-        std::array<char, 128> strobeNameBuffer {};
-        CopyTextBuffer(strobeNameBuffer, strobe.name);
-        if (ImGui::InputText("Name##strobe_name", strobeNameBuffer.data(), strobeNameBuffer.size()))
-        {
-            const std::string previousNormalizedName = strobe.normalizedName;
-            std::string requestedName = strobeNameBuffer.data();
-            if (NormalizeEditorIdentifier(requestedName).empty())
-            {
-                requestedName = "Strobe";
-            }
-
-            strobe.name = MakeUniqueStrobeName(page, requestedName, strobe.name);
-            strobe.normalizedName = mfd::NormalizePageName(strobe.name);
-            if (page.normalizedActiveStrobeName == previousNormalizedName)
-            {
-                SetActivePageStrobe(page, strobe);
-            }
-        }
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
+        EditInspectorString("Name##strobe_name", strobe.name, static_cast<int>(strobeIndex),
+                            InspectorStringField::StrobeName);
         ShowItemTooltip("Rename this strobe. Names stay unique within the page.");
 
         ImGui::TextDisabled("Template: %s",
@@ -1849,24 +1840,16 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
 
     if (editedStrobe.capture.shape == mfd::StrobeCaptureShape::Circle)
     {
-        if (ImGui::DragFloat("Capture radius", &editedStrobe.capture.radius, 0.002f, 0.001f, 1.0f, "%.4f"))
+        if (DragInspectorFloat("Capture radius", editedStrobe.capture.radius, 0.002f, 0.001f, 1.0f, "%.4f"))
         {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
             editedStrobe.capture.radius = std::max(0.001f, editedStrobe.capture.radius);
         }
         ShowItemTooltip("Radius of the circular capture area around the strobe.");
     }
     else
     {
-        if (ImGui::DragFloat2("Capture size", &editedStrobe.capture.size.x, 0.002f, 0.001f, 2.0f, "%.4f"))
+        if (DragInspectorPair("Capture size", editedStrobe.capture.size.x, editedStrobe.capture.size.y, 0.002f, 0.001f, 2.0f, "%.4f"))
         {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
             editedStrobe.capture.size.x = std::max(0.001f, editedStrobe.capture.size.x);
             editedStrobe.capture.size.y = std::max(0.001f, editedStrobe.capture.size.y);
         }
@@ -1883,22 +1866,14 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
 
     if (editedStrobe.magnet.enabled)
     {
-        if (ImGui::DragFloat("Magnet radius", &editedStrobe.magnet.radius, 0.002f, 0.001f, 1.0f, "%.4f"))
+        if (DragInspectorFloat("Magnet radius", editedStrobe.magnet.radius, 0.002f, 0.001f, 1.0f, "%.4f"))
         {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
             editedStrobe.magnet.radius = std::max(0.001f, editedStrobe.magnet.radius);
         }
         ShowItemTooltip("Maximum distance used to snap the strobe toward nearby targets.");
 
-        if (ImGui::DragFloat("Magnet strength", &editedStrobe.magnet.strength, 0.01f, 0.0f, 1.0f, "%.2f"))
+        if (DragInspectorFloat("Magnet strength", editedStrobe.magnet.strength, 0.01f, 0.0f, 1.0f, "%.2f"))
         {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
             editedStrobe.magnet.strength = std::clamp(editedStrobe.magnet.strength, 0.0f, 1.0f);
         }
         ShowItemTooltip("Blend factor applied when the strobe is attracted toward one target.");
@@ -1942,17 +1917,12 @@ void EditorApplication::DrawPageStrobeInspector(mfd::PageDefinition& page)
         }
         ShowItemTooltip("Shape used only while the runtime reports this strobe as magnetized.");
 
-        if (ImGui::DragFloat("Magnetized visual size",
-                             &editedStrobe.magnet.visualShapeSize,
+        if (DragInspectorFloat("Magnetized visual size", editedStrobe.magnet.visualShapeSize,
                              0.002f,
                              0.001f,
                              1.0f,
                              "%.4f"))
         {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
             editedStrobe.magnet.visualShapeSize = std::max(0.001f, editedStrobe.magnet.visualShapeSize);
         }
         ShowItemTooltip("Logical diameter/side length of the optional magnetized visual cue.");
@@ -2202,7 +2172,7 @@ void EditorApplication::DrawPageBlinkInspector(mfd::PageDefinition& page)
         for (std::size_t index = 0; index < page.blinkTypes.size(); ++index)
         {
             const bool selected = index == effectiveDefaultIndex;
-            if (ImGui::Selectable(page.blinkTypes[index].name.c_str(), selected))
+            if (ImGui::Selectable(page.blinkTypes[index].name.c_str(), selected) && !selected)
             {
                 PushUndoSnapshot();
                 page.defaultBlinkTypeName = page.blinkTypes[index].name;
@@ -2552,7 +2522,7 @@ void EditorApplication::DrawPageReticleInspector()
             {
                 const bool selected = reticle->layerId == layer.id;
                 const std::string label = layer.id + (layer.visible ? "" : " (hidden)");
-                if (ImGui::Selectable(label.c_str(), selected))
+                if (ImGui::Selectable(label.c_str(), selected) && !selected)
                 {
                     PushUndoSnapshot();
                     reticle->layerId = layer.id;
@@ -2569,7 +2539,8 @@ void EditorApplication::DrawPageReticleInspector()
         ImGui::SameLine();
         if (ImGui::Button("Page layers..."))
         {
-            SelectPage(documentState_.selection.pageIndex);
+            SelectPage(documentState_.selection.pageIndex, false);
+            layoutState_.focusPageLayers = true;
             RebuildStatus("Layer editor opened for page '" + page->name + "'.", false);
             return;
         }
@@ -2737,12 +2708,8 @@ void EditorApplication::DrawPageReticleInspector()
 
     if (BeginInspectorSection("section_page_reticle_transform", "Transform & style", true, sectionForceOpen))
     {
-    const bool positionChanged = ImGui::DragFloat2("Position", &reticle->transform.position.x, 0.01f, -1.0f, 1.0f, "%.3f");
+    const bool positionChanged = DragInspectorPair("Position", reticle->transform.position.x, reticle->transform.position.y, 0.01f, -1.0f, 1.0f, "%.3f");
     ShowItemTooltip("Logical position of this page reticle on the active page.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
     if (positionChanged)
     {
         reticle->transform.position.x = std::clamp(reticle->transform.position.x, -1.0f, 1.0f);
@@ -2750,12 +2717,8 @@ void EditorApplication::DrawPageReticleInspector()
     }
 
     const mfd::Transform2D rotationStartTransform = reticle->transform;
-    if (ImGui::DragFloat("Rotation", &reticle->transform.rotationDegrees, 0.25f, -360.0f, 360.0f, "%.2f"))
+    if (DragInspectorFloat("Rotation", reticle->transform.rotationDegrees, 0.25f, -360.0f, 360.0f, "%.2f"))
     {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
         reticle->transform = BuildTransformKeepingLocalPointWorldPosition(
             rotationStartTransform,
             ReticleVisualCenterLocal(*reticle),
@@ -2765,12 +2728,8 @@ void EditorApplication::DrawPageReticleInspector()
     ShowItemTooltip("Rotation in degrees around the reticle visual center.");
 
     const mfd::Transform2D scaleStartTransform = reticle->transform;
-    if (ImGui::DragFloat2("Scale", &reticle->transform.scale.x, 0.01f, 0.05f, 10.0f, "%.3f"))
+    if (DragInspectorPair("Scale", reticle->transform.scale.x, reticle->transform.scale.y, 0.01f, 0.05f, 10.0f, "%.3f"))
     {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
         reticle->transform.scale.x = std::max(0.05f, reticle->transform.scale.x);
         reticle->transform.scale.y = std::max(0.05f, reticle->transform.scale.y);
         reticle->transform = BuildTransformKeepingLocalPointWorldPosition(
@@ -2790,12 +2749,8 @@ void EditorApplication::DrawPageReticleInspector()
     ShowItemTooltip("Override the template stroke color for this page reticle instance.");
 
     float thickness = reticle->overrides.thickness.value_or(0.0042f);
-    if (ImGui::DragFloat("Thickness", &thickness, 0.0002f, 0.0005f, 0.05f, "%.4f"))
+    if (DragInspectorFloat("Thickness", thickness, 0.0002f, 0.0005f, 0.05f, "%.4f"))
     {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
         reticle->overrides.thickness = std::max(0.0005f, thickness);
     }
     ShowItemTooltip("Override the template stroke thickness for this page reticle instance.");
@@ -2879,12 +2834,8 @@ void EditorApplication::DrawPageTextOverrides(mfd::ReticleGroup& reticle)
         float letterSpacing = text->letterSpacing;
         const std::string spacingLabel = "Letter spacing##" + primitive.id;
         const bool spacingChanged =
-            ImGui::DragFloat(spacingLabel.c_str(), &letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f");
+            DragInspectorFloat(spacingLabel.c_str(), letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f");
         ShowItemTooltip("Override the letter spacing for this text primitive on the page instance.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
         if (spacingChanged)
         {
             text->letterSpacing = letterSpacing;
@@ -2937,12 +2888,8 @@ void EditorApplication::DrawPageTextOverrides(mfd::ReticleGroup& reticle)
         float letterSpacing = time->letterSpacing;
         const std::string spacingLabel = "Letter spacing##" + primitive.id;
         const bool spacingChanged =
-            ImGui::DragFloat(spacingLabel.c_str(), &letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f");
+            DragInspectorFloat(spacingLabel.c_str(), letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f");
         ShowItemTooltip("Override the character spacing for this time primitive on the page instance.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
         if (spacingChanged)
         {
             time->letterSpacing = letterSpacing;
@@ -3083,12 +3030,8 @@ void EditorApplication::DrawSelectedPageTitleInspector()
     ShowItemTooltip("Outline pattern used by the underline or frame.");
 
     float lineWidth = titleDisplay->lineWidth;
-    if (ImGui::DragFloat("Line width", &lineWidth, 0.0002f, 0.0005f, 0.05f, "%.4f"))
+    if (DragInspectorFloat("Line width", lineWidth, 0.0002f, 0.0005f, 0.05f, "%.4f"))
     {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
         titleDisplay->lineWidth = std::max(0.0005f, lineWidth);
     }
     ShowItemTooltip("Stroke thickness used by the underline or the frame.");
@@ -3098,12 +3041,8 @@ void EditorApplication::DrawSelectedPageTitleInspector()
     if (BeginInspectorSection("section_title_transform", "Transform", true, sectionForceOpen))
     {
     const bool positionChanged =
-        ImGui::DragFloat2("Position", &titleDisplay->transform.position.x, 0.01f, -4.0f, 4.0f, "%.3f");
+        DragInspectorPair("Position", titleDisplay->transform.position.x, titleDisplay->transform.position.y, 0.01f, -4.0f, 4.0f, "%.3f");
     ShowItemTooltip("Logical page-space anchor of the title chrome.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
     if (positionChanged)
     {
         if (!std::isfinite(titleDisplay->transform.position.x))
@@ -3117,12 +3056,8 @@ void EditorApplication::DrawSelectedPageTitleInspector()
     }
 
     const mfd::Transform2D rotationStartTransform = titleDisplay->transform;
-    if (ImGui::DragFloat("Rotation", &titleDisplay->transform.rotationDegrees, 0.25f, -360.0f, 360.0f, "%.2f"))
+    if (DragInspectorFloat("Rotation", titleDisplay->transform.rotationDegrees, 0.25f, -360.0f, 360.0f, "%.2f"))
     {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
         titleDisplay->transform = BuildTransformKeepingLocalPointWorldPosition(
             rotationStartTransform,
             PageTitleVisualCenterLocal(*page),
@@ -3132,12 +3067,8 @@ void EditorApplication::DrawSelectedPageTitleInspector()
     ShowItemTooltip("Rotation in degrees around the title chrome visual center.");
 
     const mfd::Transform2D scaleStartTransform = titleDisplay->transform;
-    if (ImGui::DragFloat2("Scale", &titleDisplay->transform.scale.x, 0.01f, 0.05f, 10.0f, "%.3f"))
+    if (DragInspectorPair("Scale", titleDisplay->transform.scale.x, titleDisplay->transform.scale.y, 0.01f, 0.05f, 10.0f, "%.3f"))
     {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
         titleDisplay->transform.scale.x = std::max(0.05f, std::abs(titleDisplay->transform.scale.x));
         titleDisplay->transform.scale.y = std::max(0.05f, std::abs(titleDisplay->transform.scale.y));
         titleDisplay->transform = BuildTransformKeepingLocalPointWorldPosition(
@@ -3314,12 +3245,8 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
 
     if (BeginInspectorSection("section_strobe_transform", "Transform & style", true, sectionForceOpen))
     {
-    const bool positionChanged = ImGui::DragFloat2("Position", &reticle->transform.position.x, 0.01f, -1.0f, 1.0f, "%.3f");
+    const bool positionChanged = DragInspectorPair("Position", reticle->transform.position.x, reticle->transform.position.y, 0.01f, -1.0f, 1.0f, "%.3f");
     ShowItemTooltip("Logical position of this page strobe on the active page.");
-    if (ImGui::IsItemActivated())
-    {
-        PushUndoSnapshot();
-    }
     if (positionChanged)
     {
         reticle->transform.position.x = std::clamp(reticle->transform.position.x, -1.0f, 1.0f);
@@ -3327,12 +3254,8 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
     }
 
     const mfd::Transform2D rotationStartTransform = reticle->transform;
-    if (ImGui::DragFloat("Rotation", &reticle->transform.rotationDegrees, 0.25f, -360.0f, 360.0f, "%.2f"))
+    if (DragInspectorFloat("Rotation", reticle->transform.rotationDegrees, 0.25f, -360.0f, 360.0f, "%.2f"))
     {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
         reticle->transform = BuildTransformKeepingLocalPointWorldPosition(
             rotationStartTransform,
             ReticleVisualCenterLocal(*reticle),
@@ -3342,12 +3265,8 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
     ShowItemTooltip("Rotation in degrees around the strobe visual center.");
 
     const mfd::Transform2D scaleStartTransform = reticle->transform;
-    if (ImGui::DragFloat2("Scale", &reticle->transform.scale.x, 0.01f, 0.05f, 10.0f, "%.3f"))
+    if (DragInspectorPair("Scale", reticle->transform.scale.x, reticle->transform.scale.y, 0.01f, 0.05f, 10.0f, "%.3f"))
     {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
         reticle->transform.scale.x = std::max(0.05f, reticle->transform.scale.x);
         reticle->transform.scale.y = std::max(0.05f, reticle->transform.scale.y);
         reticle->transform = BuildTransformKeepingLocalPointWorldPosition(
@@ -3367,12 +3286,8 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
     ShowItemTooltip("Override the template stroke color for this page strobe instance.");
 
     float thickness = reticle->overrides.thickness.value_or(0.0042f);
-    if (ImGui::DragFloat("Thickness", &thickness, 0.0002f, 0.0005f, 0.05f, "%.4f"))
+    if (DragInspectorFloat("Thickness", thickness, 0.0002f, 0.0005f, 0.05f, "%.4f"))
     {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
         reticle->overrides.thickness = std::max(0.0005f, thickness);
     }
     ShowItemTooltip("Override the template stroke thickness for this page strobe instance.");
@@ -3396,21 +3311,11 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
         {
             const bool hasPrimitiveId = !primitive.id.empty();
             const int fallbackIndex = unnamedTextPrimitiveIndex++;
-            std::array<char, 128> buffer {};
-            CopyTextBuffer(buffer, text->text);
             const std::string label = hasPrimitiveId ? "Text##strobe_" + primitive.id
                                                      : "Text #" + std::to_string(fallbackIndex) + "##strobe_text_" +
                                                            std::to_string(primitiveIndex);
-            const bool changed = ImGui::InputText(label.c_str(), buffer.data(), buffer.size());
+            EditInspectorString(label.c_str(), text->text, static_cast<int>(primitiveIndex));
             ShowItemTooltip("Override the literal text for this text primitive on the page strobe instance.");
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-            if (changed)
-            {
-                text->text = buffer.data();
-            }
 
             const std::string alignLabel = hasPrimitiveId ? "Alignment##strobe_" + primitive.id
                                                           : "Alignment #" + std::to_string(fallbackIndex) +
@@ -3444,12 +3349,8 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
                                                             : "Letter spacing #" + std::to_string(fallbackIndex) +
                                                                   "##strobe_text_spacing_" + std::to_string(primitiveIndex);
             const bool spacingChanged =
-                ImGui::DragFloat(spacingLabel.c_str(), &letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f");
+                DragInspectorFloat(spacingLabel.c_str(), letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f");
             ShowItemTooltip("Override the letter spacing for this text primitive on the page strobe instance.");
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
             if (spacingChanged)
             {
                 text->letterSpacing = letterSpacing;
@@ -3513,12 +3414,8 @@ void EditorApplication::DrawSelectedPageStrobeInspector()
                                                                   "##strobe_time_spacing_" +
                                                                   std::to_string(primitiveIndex);
             const bool spacingChanged =
-                ImGui::DragFloat(spacingLabel.c_str(), &letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f");
+                DragInspectorFloat(spacingLabel.c_str(), letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f");
             ShowItemTooltip("Override the character spacing for this time primitive on the page strobe instance.");
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
             if (spacingChanged)
             {
                 time->letterSpacing = letterSpacing;
@@ -3579,7 +3476,7 @@ void EditorApplication::DrawPageReticleBlinkInspector(mfd::PageDefinition& page,
     {
         const std::string defaultItem = "<page default> - " + defaultBlinkName;
         const bool defaultSelected = reticle.blink.typeName.empty();
-        if (ImGui::Selectable(defaultItem.c_str(), defaultSelected))
+        if (ImGui::Selectable(defaultItem.c_str(), defaultSelected) && (!defaultSelected || !reticle.blink.enabled))
         {
             PushUndoSnapshot();
             reticle.blink.enabled = true;
@@ -3597,7 +3494,7 @@ void EditorApplication::DrawPageReticleBlinkInspector(mfd::PageDefinition& page,
             const bool selected = reticle.blink.normalizedTypeName == blinkType.normalizedName;
             const std::string label =
                 blinkType.name + " - " + std::to_string(blinkType.durationMs) + " ms";
-            if (ImGui::Selectable(label.c_str(), selected))
+            if (ImGui::Selectable(label.c_str(), selected) && (!selected || !reticle.blink.enabled))
             {
                 PushUndoSnapshot();
                 reticle.blink.enabled = true;
@@ -3612,6 +3509,52 @@ void EditorApplication::DrawPageReticleBlinkInspector(mfd::PageDefinition& page,
     ShowItemTooltip("Choose a page-local blink type, or keep using the page default blink.");
 
     ImGui::TextDisabled("Current effective duration: %u ms", reticle.blink.durationMs);
+}
+
+bool EditorApplication::CommitLibraryPrimitiveId(const mfd::ReticleGroup& source, const std::string& requested)
+{
+    const auto index = static_cast<std::size_t>(documentState_.selection.primitiveIndex);
+    if (index >= source.primitives.size()) return false;
+    if (requested == source.primitives[index].id) return true;
+    auto candidate = documentState_.loaded.document;
+    if (!editor::app::RenamePrimitiveInCandidate(candidate, source.id, index, requested))
+    {
+        RebuildStatus("Primitive ID must be non-empty, unique and within the runtime byte limit.", true);
+        return false;
+    }
+
+    PushUndoSnapshot();
+    if (source.id == documentState_.widgetVisual.templateId && !source.primitives[index].id.empty())
+    {
+        documentState_.widgetVisual.renames.push_back({source.id, source.primitives[index].id, requested});
+    }
+    documentState_.loaded.document = std::move(candidate);
+    return true;
+}
+
+void EditorApplication::RemoveLibraryPrimitive(mfd::ReticleGroup& reticle, const int index)
+{
+    if (index < 0 || static_cast<std::size_t>(index) >= reticle.primitives.size())
+    {
+        return;
+    }
+
+    if (inspectorStringEdit_ && inspectorStringEdit_->field == InspectorStringField::PrimitiveId)
+        inspectorStringEdit_.reset();
+    else
+        FinishInspectorStringEdit();
+    rejectedPrimitiveId_.reset();
+    PushUndoSnapshot();
+    const int selected = editor::app::EraseTemplatePrimitive(
+        documentState_.loaded.document, reticle, index, documentState_.selection.primitiveIndex);
+    if (selected >= 0)
+    {
+        SelectLibraryPrimitive(reticle.id, selected);
+    }
+    else
+    {
+        SelectLibraryReticle(reticle.id, false);
+    }
 }
 
 void EditorApplication::DrawLibraryReticleInspector()
@@ -3750,30 +3693,14 @@ void EditorApplication::DrawLibraryReticleInspector()
         ShowItemTooltip("Default draw tier used when this template is instantiated on a page.");
     }
 
-    if (ImGui::DragFloat2("Position", &reticle->transform.position.x, 0.01f, -1.0f, 1.0f, "%.3f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-    }
+    DragInspectorPair("Position", reticle->transform.position.x, reticle->transform.position.y, 0.01f, -1.0f, 1.0f, "%.3f");
     ShowItemTooltip("Default logical position inside the reticle template.");
 
-    if (ImGui::DragFloat("Rotation", &reticle->transform.rotationDegrees, 0.25f, -360.0f, 360.0f, "%.2f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-    }
+    DragInspectorFloat("Rotation", reticle->transform.rotationDegrees, 0.25f, -360.0f, 360.0f, "%.2f");
     ShowItemTooltip("Default template rotation in degrees.");
 
-    if (ImGui::DragFloat2("Scale", &reticle->transform.scale.x, 0.01f, 0.05f, 10.0f, "%.3f"))
+    if (DragInspectorPair("Scale", reticle->transform.scale.x, reticle->transform.scale.y, 0.01f, 0.05f, 10.0f, "%.3f"))
     {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
         reticle->transform.scale.x = std::max(0.05f, reticle->transform.scale.x);
         reticle->transform.scale.y = std::max(0.05f, reticle->transform.scale.y);
     }
@@ -3788,12 +3715,8 @@ void EditorApplication::DrawLibraryReticleInspector()
     ShowItemTooltip("Default stroke color inherited by page instances unless they override it.");
 
     float thickness = reticle->overrides.thickness.value_or(0.0042f);
-    if (ImGui::DragFloat("Default thickness", &thickness, 0.0002f, 0.0005f, 0.05f, "%.4f"))
+    if (DragInspectorFloat("Default thickness", thickness, 0.0002f, 0.0005f, 0.05f, "%.4f"))
     {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
         reticle->overrides.thickness = std::max(0.0005f, thickness);
     }
     ShowItemTooltip("Default stroke thickness inherited by page instances unless they override it.");
@@ -3829,25 +3752,42 @@ void EditorApplication::DrawLibraryReticleInspector()
     InspectorHelpMarker("Click a primitive below or directly in the studio preview to focus and edit it.");
 
     ImGui::BeginChild("PrimitiveCatalog", ImVec2(0.0f, 210.0f), true);
-    for (int index = 0; index < static_cast<int>(reticle->primitives.size()); ++index)
+    std::optional<int> removeIndex;
+    if (ImGui::BeginTable("##primitive_rows", 2, ImGuiTableFlags_SizingStretchProp))
     {
-        const auto& primitive = reticle->primitives[static_cast<std::size_t>(index)];
-        const bool selected = documentState_.selection.kind == SelectionKind::LibraryPrimitive &&
-                              documentState_.selection.libraryReticleId == reticle->id &&
-                              documentState_.selection.primitiveIndex == index;
-        const std::string header =
-            std::to_string(index + 1) + ". " +
-            (primitive.id.empty() ? PrimitiveTypeLabel(primitive.type) : primitive.id);
-        if (ImGui::Selectable((header + "##primitive_" + std::to_string(index)).c_str(), selected))
+        ImGui::TableSetupColumn("Primitive", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("Delete", ImGuiTableColumnFlags_WidthFixed, ImGui::GetFrameHeight());
+        for (int index = 0; index < static_cast<int>(reticle->primitives.size()); ++index)
         {
-            SelectLibraryPrimitive(reticle->id, index);
+            const auto& primitive = reticle->primitives[static_cast<std::size_t>(index)];
+            const bool selected = documentState_.selection.kind == SelectionKind::LibraryPrimitive &&
+                                  documentState_.selection.primitiveIndex == index;
+            const auto type = PrimitiveTypeLabel(primitive.type);
+            const std::string name = primitive.id.empty() ? type : primitive.id;
+            const std::string header = std::to_string(index + 1) + ". " + name + " [" + type + "]";
+            ImGui::PushID(index);
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            if (ImGui::Selectable(header.c_str(), selected, 0, ImVec2(0, ImGui::GetFrameHeight())))
+            {
+                SelectLibraryPrimitive(reticle->id, index);
+            }
+            ShowItemTooltip("Click to focus this primitive in the inspector and the reticle studio.");
+            ImGui::TableSetColumnIndex(1);
+            const std::string tooltip = "Delete " + name + " from this reticle.";
+            if (IconButton("##delete_primitive", EditorIcon::Delete, tooltip.c_str()))
+            {
+                removeIndex = index;
+            }
+            ImGui::PopID();
         }
-        ShowItemTooltip("Click to focus this primitive in the inspector and the reticle studio.");
-
-        ImGui::SameLine();
-        ImGui::TextDisabled("[%s]", PrimitiveTypeLabel(primitive.type).c_str());
+        ImGui::EndTable();
     }
     ImGui::EndChild();
+    if (removeIndex)
+    {
+        RemoveLibraryPrimitive(*reticle, *removeIndex);
+    }
 
     const bool hasSelectedPrimitive = documentState_.selection.kind == SelectionKind::LibraryPrimitive &&
                                       documentState_.selection.libraryReticleId == reticle->id &&
@@ -3906,7 +3846,7 @@ void EditorApplication::DrawLibraryReticleInspector()
         PushUndoSnapshot();
         mfd::ReticleGroup seed = MakePrimitiveReticle("seed", primitiveType);
         mfd::Primitive primitive = seed.primitives.front();
-        primitive.id = "primitive_" + std::to_string(reticle->primitives.size() + 1);
+        primitive.id = editor::app::NextLibraryPrimitiveId(*reticle);
         editor::app::InitializeExternalStreamIdentifier(primitive, reticle->id);
         if (tutorialAppendMatched)
         {
@@ -3925,31 +3865,52 @@ void EditorApplication::DrawLibraryReticleInspector()
         "Click Append primitive",
         tutorial_->LibraryAppendPrimitiveHaloReason());
 
-    ImGui::SameLine();
-    if (ImGui::Button("Remove selected primitive"))
+    }
+}
+
+void EditorApplication::RecordInspectorDrag(const char* label, bool changed)
+{
+    ImGui::PushID(label);
+    const ImGuiID key = ImGui::GetID("##undo_recorded");
+    ImGui::PopID();
+    ImGuiStorage* storage = ImGui::GetStateStorage();
+    if (ImGui::IsItemActivated()) storage->SetBool(key, false);
+    if (changed && !storage->GetBool(key))
     {
-        mfd::Primitive* primitive = SelectedLibraryPrimitive();
-        if (primitive != nullptr)
-        {
-            PushUndoSnapshot();
-            reticle->primitives.erase(reticle->primitives.begin() + documentState_.selection.primitiveIndex);
-            documentState_.selection.kind = SelectionKind::LibraryReticle;
-            documentState_.selection.primitiveIndex = -1;
-        }
+        PushUndoSnapshot();
+        storage->SetBool(key, true);
     }
-    ShowItemTooltip("Delete the currently selected primitive from this reticle.");
+    if (!ImGui::IsItemActive()) storage->SetBool(key, false);
+}
+
+bool EditorApplication::DragInspectorFloat(const char* label, float& value, float speed,
+                                          float minimum, float maximum, const char* format)
+{
+    float next = value;
+    const bool changed = ImGui::DragFloat(label, &next, speed, minimum, maximum, format) && next != value;
+    RecordInspectorDrag(label, changed);
+    if (changed) value = next;
+    return changed;
+}
+
+bool EditorApplication::DragInspectorPair(const char* label, float& x, float& y, float speed,
+                                         float minimum, float maximum, const char* format)
+{
+    float next[] = {x, y};
+    const bool changed = ImGui::DragFloat2(label, next, speed, minimum, maximum, format) &&
+                         (x != next[0] || y != next[1]);
+    RecordInspectorDrag(label, changed);
+    if (changed)
+    {
+        x = next[0];
+        y = next[1];
     }
+    return changed;
 }
 
 void EditorApplication::EditPointArrayField(const char* const label, mfd::Vec2& value)
 {
-    if (ImGui::DragFloat2(label, &value.x, 0.01f, -1.0f, 1.0f, "%.3f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-    }
+    DragInspectorPair(label, value.x, value.y, 0.01f, -1.0f, 1.0f, "%.3f");
 }
 
 void EditorApplication::DrawLibraryPrimitiveInspector()
@@ -3992,17 +3953,37 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         "Ctrl+C / Ctrl+V copies and pastes this primitive.\n"
         "In the studio: the green handle moves the primitive, the orange handles edit its geometry.");
 
-    std::array<char, 128> primitiveId {};
-    CopyTextBuffer(primitiveId, primitive->id);
-    const bool idChanged = ImGui::InputText("Primitive id", primitiveId.data(), primitiveId.size());
-    ShowItemTooltip("Primitive identifier stored in the template JSON.");
-    if (ImGui::IsItemActivated())
+    const ImGuiID field = ImGui::GetID("Primitive id");
+    if (rejectedPrimitiveId_ && (rejectedPrimitiveId_->field != field || rejectedPrimitiveId_->original != primitive->id))
     {
-        PushUndoSnapshot();
+        rejectedPrimitiveId_.reset();
     }
-    if (idChanged)
+    std::string requestedId = rejectedPrimitiveId_ ? rejectedPrimitiveId_->requested : primitive->id;
+    const bool enteredId = ImGui::InputText("Primitive id", &requestedId, ImGuiInputTextFlags_EnterReturnsTrue);
+    const bool cancelled = ImGui::IsItemDeactivated() && ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+    if (cancelled)
     {
-        primitive->id = primitiveId.data();
+        rejectedPrimitiveId_.reset();
+        inspectorStringEdit_.reset();
+    }
+    else if (ImGui::IsItemEdited() || ImGui::IsItemActive() || enteredId || ImGui::IsItemDeactivatedAfterEdit())
+    {
+        if (requestedId != primitive->id)
+        {
+            inspectorStringEdit_ = InspectorStringEdit {documentState_.selection, documentState_.selection.primitiveIndex,
+                primitive->id, requestedId, ImGui::GetItemRectMin(), ImGui::GetItemRectMax(),
+                InspectorStringField::PrimitiveId, field};
+            if ((enteredId || ImGui::IsItemDeactivatedAfterEdit()) && FinishInspectorStringEdit()) return;
+        }
+        else if (inspectorStringEdit_ && inspectorStringEdit_->item == field)
+        {
+            inspectorStringEdit_.reset();
+        }
+    }
+    ShowItemTooltip("Enter a unique primitive identifier. Press Enter or leave the field to apply.");
+    if (rejectedPrimitiveId_)
+    {
+        ImGui::TextWrapped("Enter a unique, non-empty primitive ID within the runtime byte limit.");
     }
 
     ImGui::TextDisabled("Type: %s", PrimitiveTypeLabel(primitive->type).c_str());
@@ -4098,30 +4079,14 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
 
     if (BeginInspectorSection("section_primitive_transform", "Transform", true, sectionForceOpen))
     {
-    if (ImGui::DragFloat2("Position", &primitive->transform.position.x, 0.01f, -1.0f, 1.0f, "%.3f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-    }
+    DragInspectorPair("Position", primitive->transform.position.x, primitive->transform.position.y, 0.01f, -1.0f, 1.0f, "%.3f");
     ShowItemTooltip("Logical position of this primitive inside the reticle template.");
 
-    if (ImGui::DragFloat("Rotation", &primitive->transform.rotationDegrees, 0.25f, -360.0f, 360.0f, "%.2f"))
-    {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-    }
+    DragInspectorFloat("Rotation", primitive->transform.rotationDegrees, 0.25f, -360.0f, 360.0f, "%.2f");
     ShowItemTooltip("Primitive rotation in degrees.");
 
-    if (ImGui::DragFloat2("Scale", &primitive->transform.scale.x, 0.01f, 0.05f, 10.0f, "%.3f"))
+    if (DragInspectorPair("Scale", primitive->transform.scale.x, primitive->transform.scale.y, 0.01f, 0.05f, 10.0f, "%.3f"))
     {
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
         primitive->transform.scale.x = std::max(0.05f, primitive->transform.scale.x);
         primitive->transform.scale.y = std::max(0.05f, primitive->transform.scale.y);
     }
@@ -4146,12 +4111,8 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
     }
     else
     {
-        if (ImGui::DragFloat("Thickness", &primitive->style.thickness, 0.0002f, 0.0005f, 0.05f, "%.4f"))
+        if (DragInspectorFloat("Thickness", primitive->style.thickness, 0.0002f, 0.0005f, 0.05f, "%.4f"))
         {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
             primitive->style.thickness = std::max(0.0005f, primitive->style.thickness);
         }
         ShowItemTooltip("Stroke thickness used by this primitive.");
@@ -4168,7 +4129,7 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
             for (const mfd::LineStyle candidate : kLineStyles)
             {
                 const bool selected = primitive->style.lineStyle == candidate;
-                if (ImGui::Selectable(LineStyleLabel(candidate), selected))
+                if (ImGui::Selectable(LineStyleLabel(candidate), selected) && !selected)
                 {
                     PushUndoSnapshot();
                     primitive->style.lineStyle = candidate;
@@ -4254,18 +4215,8 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
     {
     if (auto* text = std::get_if<mfd::TextGeometry>(&primitive->geometry))
     {
-        std::array<char, 128> buffer {};
-        CopyTextBuffer(buffer, text->text);
-        const bool changed = ImGui::InputText("Text", buffer.data(), buffer.size());
+        EditInspectorString("Text", text->text, documentState_.selection.primitiveIndex);
         ShowItemTooltip("Literal text displayed by this text primitive.");
-        if (ImGui::IsItemActivated())
-        {
-            PushUndoSnapshot();
-        }
-        if (changed)
-        {
-            text->text = buffer.data();
-        }
 
         const bool alignmentComboOpen = ImGui::BeginCombo("Alignment", AlignLabel(text->align));
         if (ImGui::IsItemClicked() && tutorial_->MatchesTarget("primitive_alignment"))
@@ -4319,21 +4270,9 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
                 "Choose the aircraft label alignment before the next transform-related tutorial steps.");
         }
 
-        if (ImGui::DragFloat("Font size", &text->fontSize, 0.002f, 0.01f, 0.25f, "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-        }
+        DragInspectorFloat("Font size", text->fontSize, 0.002f, 0.01f, 0.25f, "%.4f");
         ShowItemTooltip("Logical font size used for this text primitive.");
-        if (ImGui::DragFloat("Letter spacing", &text->letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-        }
+        DragInspectorFloat("Letter spacing", text->letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f");
         ShowItemTooltip("Additional spacing inserted between letters.");
         return;
     }
@@ -4376,21 +4315,9 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         }
         ShowItemTooltip("Render the time in UTC instead of local time.");
 
-        if (ImGui::DragFloat("Font size", &time->fontSize, 0.002f, 0.01f, 0.25f, "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-        }
+        DragInspectorFloat("Font size", time->fontSize, 0.002f, 0.01f, 0.25f, "%.4f");
         ShowItemTooltip("Logical font size used for this time primitive.");
-        if (ImGui::DragFloat("Letter spacing", &time->letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-        }
+        DragInspectorFloat("Letter spacing", time->letterSpacing, 0.0005f, -0.05f, 0.10f, "%.4f");
         ShowItemTooltip("Additional spacing inserted between characters.");
         return;
     }
@@ -4406,12 +4333,8 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
 
     if (auto* circle = std::get_if<mfd::CircleGeometry>(&primitive->geometry))
     {
-        if (ImGui::DragFloat("Radius", &circle->radius, 0.002f, 0.001f, 1.0f, "%.4f"))
+        if (DragInspectorFloat("Radius", circle->radius, 0.002f, 0.001f, 1.0f, "%.4f"))
         {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
             circle->radius = std::max(0.001f, circle->radius);
         }
         ShowItemTooltip("Circle radius in logical units.");
@@ -4420,22 +4343,14 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
 
     if (auto* ring = std::get_if<mfd::RingGeometry>(&primitive->geometry))
     {
-        if (ImGui::DragFloat("Inner radius", &ring->innerRadius, 0.002f, 0.001f, 1.0f, "%.4f"))
+        if (DragInspectorFloat("Inner radius", ring->innerRadius, 0.002f, 0.001f, 1.0f, "%.4f"))
         {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
             ring->innerRadius = std::clamp(ring->innerRadius, 0.001f, std::max(0.001f, ring->outerRadius - 0.001f));
         }
         ShowItemTooltip("Inner radius of the ring in logical units.");
 
-        if (ImGui::DragFloat("Outer radius", &ring->outerRadius, 0.002f, 0.001f, 1.0f, "%.4f"))
+        if (DragInspectorFloat("Outer radius", ring->outerRadius, 0.002f, 0.001f, 1.0f, "%.4f"))
         {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
             ring->outerRadius = std::max(ring->innerRadius + 0.001f, ring->outerRadius);
         }
         ShowItemTooltip("Outer radius of the ring in logical units.");
@@ -4454,12 +4369,8 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
 
     if (auto* rectangle = std::get_if<mfd::RectangleGeometry>(&primitive->geometry))
     {
-        if (ImGui::DragFloat2("Size", &rectangle->width, 0.002f, 0.001f, 1.0f, "%.4f"))
+        if (DragInspectorPair("Size", rectangle->width, rectangle->height, 0.002f, 0.001f, 1.0f, "%.4f"))
         {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
             rectangle->width = std::max(0.001f, rectangle->width);
             rectangle->height = std::max(0.001f, rectangle->height);
         }
@@ -4469,12 +4380,8 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
 
     if (auto* ellipse = std::get_if<mfd::EllipseGeometry>(&primitive->geometry))
     {
-        if (ImGui::DragFloat2("Size", &ellipse->width, 0.002f, 0.001f, 1.0f, "%.4f"))
+        if (DragInspectorPair("Size", ellipse->width, ellipse->height, 0.002f, 0.001f, 1.0f, "%.4f"))
         {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
             ellipse->width = std::max(0.001f, ellipse->width);
             ellipse->height = std::max(0.001f, ellipse->height);
         }
@@ -4487,12 +4394,8 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         // A square is uniform: a single side dimension drives both width and height
         // so the shape can never be deformed into a rectangle.
         float side = std::max(square->width, square->height);
-        if (ImGui::DragFloat("Size", &side, 0.002f, 0.001f, 1.0f, "%.4f"))
+        if (DragInspectorFloat("Size", side, 0.002f, 0.001f, 1.0f, "%.4f"))
         {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
             side = std::max(0.001f, side);
             square->width = side;
             square->height = side;
@@ -4503,12 +4406,8 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
 
     if (auto* diamond = std::get_if<mfd::DiamondGeometry>(&primitive->geometry))
     {
-        if (ImGui::DragFloat2("Size", &diamond->width, 0.002f, 0.001f, 1.0f, "%.4f"))
+        if (DragInspectorPair("Size", diamond->width, diamond->height, 0.002f, 0.001f, 1.0f, "%.4f"))
         {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
             diamond->width = std::max(0.001f, diamond->width);
             diamond->height = std::max(0.001f, diamond->height);
         }
@@ -4592,11 +4491,14 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
         ImGui::EndDisabled();
         ShowItemTooltip("Append one new control point to this bezier curve.");
         ImGui::SameLine();
-        if (ImGui::Button("Remove last control point") && !bezier->controlPoints.empty())
+        const bool canRemove = editor::app::CanRemoveBezierControl(*bezier);
+        ImGui::BeginDisabled(!canRemove);
+        if (ImGui::Button("Remove last control point") && canRemove)
         {
             PushUndoSnapshot();
             bezier->controlPoints.pop_back();
         }
+        ImGui::EndDisabled();
         ShowItemTooltip("Remove the last control point from this bezier curve.");
 
         if (ImGui::DragInt(
@@ -4615,32 +4517,16 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
 
     if (auto* arc = std::get_if<mfd::ArcGeometry>(&primitive->geometry))
     {
-        if (ImGui::DragFloat("Radius", &arc->radius, 0.002f, 0.001f, 1.0f, "%.4f"))
+        if (DragInspectorFloat("Radius", arc->radius, 0.002f, 0.001f, 1.0f, "%.4f"))
         {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
             arc->radius = std::max(0.001f, arc->radius);
         }
         ShowItemTooltip("Arc radius in logical units.");
 
-        if (ImGui::DragFloat("Start angle", &arc->startAngleDegrees, 0.5f, -720.0f, 720.0f, "%.1f deg"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-        }
+        DragInspectorFloat("Start angle", arc->startAngleDegrees, 0.5f, -720.0f, 720.0f, "%.1f deg");
         ShowItemTooltip("Arc start angle in degrees.");
 
-        if (ImGui::DragFloat("End angle", &arc->endAngleDegrees, 0.5f, -720.0f, 720.0f, "%.1f deg"))
-        {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
-        }
+        DragInspectorFloat("End angle", arc->endAngleDegrees, 0.5f, -720.0f, 720.0f, "%.1f deg");
         ShowItemTooltip("Arc end angle in degrees.");
 
         if (ImGui::DragInt("Segments", &arc->segments, 1.0f, 2, 256))
@@ -4689,12 +4575,8 @@ void EditorApplication::DrawLibraryPrimitiveInspector()
             BrowseSelectedPrimitiveImageFile();
         }
 
-        if (ImGui::DragFloat2("Size", &image->width, 0.002f, 0.001f, 2.0f, "%.4f"))
+        if (DragInspectorPair("Size", image->width, image->height, 0.002f, 0.001f, 2.0f, "%.4f"))
         {
-            if (ImGui::IsItemActivated())
-            {
-                PushUndoSnapshot();
-            }
             image->width = std::max(0.001f, image->width);
             image->height = std::max(0.001f, image->height);
         }

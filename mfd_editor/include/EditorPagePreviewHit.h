@@ -10,8 +10,31 @@
  * @brief Typed page-preview hit targets used by the editor selection logic.
  */
 
+#include <algorithm>
+#include <limits>
+
+#include "BezierPolylineCache.h"
+
 namespace editor
 {
+/** @brief Measures only consecutive rendered Bézier segments in screen coordinates. */
+template<typename Project, typename SegmentDistance>
+float BezierStrokeHitDistance(mfd::BezierPolylineCache& cache, const mfd::BezierGeometry& geometry,
+                             Project project, SegmentDistance distance)
+{
+    const auto& samples = cache.Resolve(geometry);
+    float closest = std::numeric_limits<float>::max();
+    if (samples.size() < 2U) return closest;
+    auto previous = project(samples.front());
+    for (std::size_t i = 1; i < samples.size(); ++i)
+    {
+        const auto next = project(samples[i]);
+        closest = std::min(closest, distance(previous, next));
+        previous = next;
+    }
+    return closest;
+}
+
 /**
  * @brief Distinguishes the authored object hit in the page preview.
  */

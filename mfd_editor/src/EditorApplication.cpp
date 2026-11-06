@@ -1865,6 +1865,9 @@ bool EditorApplication::LoadWindowConfiguration(const std::filesystem::path& pat
             throw std::runtime_error(widgetEditorHost_.Diagnostic());
         pendingWidgetTextAction_ = 0;
         inspectorStringEdit_.reset();
+        documentState_.pageDrafts = {};
+        rejectedPrimitiveId_.reset();
+        documentState_.widgetVisual = {};
         documentState_.loaded = std::move(candidate);
         for (auto& page : documentState_.loaded.document.pages)
         {
@@ -1915,7 +1918,7 @@ bool EditorApplication::LoadWindowConfiguration(const std::filesystem::path& pat
 bool EditorApplication::SaveAll()
 {
     FinishWidgetTextEdit();
-    FinishInspectorStringEdit();
+    if (!FinishInspectorStringEdit()) return false;
     if (!HasOpenWindow())
     {
         RebuildStatus("No window asset is open yet. Create or open one before saving.", true);
@@ -2084,14 +2087,19 @@ EditorApplication::UndoSnapshot EditorApplication::CaptureCurrentSnapshot() cons
         documentState_.files,
         documentState_.selection,
         layoutState_.pagePreviewView,
-        layoutState_.libraryPreviewView};
+        layoutState_.libraryPreviewView,
+        documentState_.widgetVisual};
 }
 
 void EditorApplication::RestoreSnapshot(UndoSnapshot snapshot)
 {
     lastContainerInspectorGesture_ = 0U;
     pendingWidgetTextAction_ = 0;
+    widgetDraft_.edit_definition = 0;
     inspectorStringEdit_.reset();
+    documentState_.pageDrafts.RestoreFor(documentState_.loaded, snapshot.loaded);
+    rejectedPrimitiveId_.reset();
+    documentState_.widgetVisual = std::move(snapshot.widgetVisual);
     documentState_.loaded = std::move(snapshot.loaded);
     documentState_.files = std::move(snapshot.files);
     documentState_.selection = std::move(snapshot.selection);
@@ -2213,24 +2221,24 @@ void EditorApplication::HandleShortcuts()
         }
     }
 
-    const bool undoShortcutTriggered =
-        ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Z, ImGuiInputFlags_RouteGlobal | ImGuiInputFlags_RouteOverActive) ||
-        IsRaylibControlChordPressed({KEY_Z, KEY_W});
-    const bool redoShortcutTriggered =
-        ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Y, ImGuiInputFlags_RouteGlobal | ImGuiInputFlags_RouteOverActive) ||
-        ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z, ImGuiInputFlags_RouteGlobal | ImGuiInputFlags_RouteOverActive) ||
-        IsRaylibControlChordPressed({KEY_Y});
-    if (redoShortcutTriggered)
-    {
-        Redo();
-    }
-    else if (undoShortcutTriggered)
-    {
-        Undo();
-    }
-
     if (!io.WantTextInput)
     {
+        const bool undoShortcutTriggered =
+            ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Z, ImGuiInputFlags_RouteGlobal | ImGuiInputFlags_RouteOverActive) ||
+            IsRaylibControlChordPressed({KEY_Z, KEY_W});
+        const bool redoShortcutTriggered =
+            ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_Y, ImGuiInputFlags_RouteGlobal | ImGuiInputFlags_RouteOverActive) ||
+            ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z, ImGuiInputFlags_RouteGlobal | ImGuiInputFlags_RouteOverActive) ||
+            IsRaylibControlChordPressed({KEY_Y});
+        if (redoShortcutTriggered)
+        {
+            Redo();
+        }
+        else if (undoShortcutTriggered)
+        {
+            Undo();
+        }
+
         const float nudgeStep = layoutState_.pagePreviewViewOptions.snapToGrid
                                     ? SharedGridStepLogical(layoutState_.pagePreviewViewOptions)
                                     : (io.KeyShift ? 0.05f : 0.01f);
@@ -7338,6 +7346,13 @@ void EditorApplication::CancelLibraryPreviewInteraction() noexcept
     interactionState_.handleIndex = -1;
 }
 
+bool EditorApplication::HitLibraryHandle(const ViewportState& viewport, const ImVec2 mouse, const ImVec2 handle)
+{
+    if (Distance(handle, mouse) > 12.0f) return false;
+    interactionState_.handleGrabOffset = viewport.ToLogical(handle) - viewport.ToLogical(mouse);
+    return true;
+}
+
 void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& viewport)
 {
     mfd::ReticleGroup* reticle = SelectedLibraryReticle();
@@ -7392,6 +7407,17 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             return;
         }
 
+        if (!interactionState_.transformUndoRecorded)
+        {
+            if (!leftMouseDown || !ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+            {
+                if (!leftMouseDown) CancelLibraryPreviewInteraction();
+                return;
+            }
+            PushUndoSnapshot();
+            interactionState_.transformUndoRecorded = true;
+        }
+
         mfd::Primitive& primitive = reticle->primitives[static_cast<std::size_t>(interactionState_.primitiveIndex)];
         const bool snapToGrid = layoutState_.pagePreviewViewOptions.snapToGrid;
         const float gridStep = SharedGridStepLogical(layoutState_.pagePreviewViewOptions);
@@ -7412,7 +7438,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             const mfd::Vec2 mousePrimitiveLocal = editor::app::ResolvePrimitiveHandleLocalPoint(
                 *reticle,
                 interactionState_.startPrimitive,
-                previewMouseLogical,
+                previewMouseLogical + interactionState_.handleGrabOffset,
                 snapToGrid,
                 gridStep);
 
@@ -7599,19 +7625,16 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
     interactionState_.handleKind = PrimitiveHandleKind::None;
     interactionState_.handleIndex = -1;
 
-    auto matchesHandle = [mouse](const ImVec2 handlePoint, const float radius = 12.0f)
-    {
-        return Distance(handlePoint, mouse) <= radius;
-    };
+    interactionState_.transformUndoRecorded = false;
 
     if (const auto* line = std::get_if<mfd::LineGeometry>(&primitive.geometry))
     {
         const std::array<mfd::Vec2, 2> points {line->start, line->end};
         for (int index = 0; index < 2; ++index)
         {
-            if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, points[static_cast<std::size_t>(index)])))
+            if (HitLibraryHandle(viewport, mouse, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, points[static_cast<std::size_t>(index)])))
             {
-                PushUndoSnapshot();
+
                 interactionState_.mode = InteractionMode::EditPrimitiveHandle;
                 interactionState_.handleKind = PrimitiveHandleKind::Point;
                 interactionState_.handleIndex = index;
@@ -7621,9 +7644,9 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
     }
     else if (const auto* circle = std::get_if<mfd::CircleGeometry>(&primitive.geometry))
     {
-        if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {circle->radius, 0.0f})))
+        if (HitLibraryHandle(viewport, mouse, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, {circle->radius, 0.0f})))
         {
-            PushUndoSnapshot();
+
             interactionState_.mode = InteractionMode::EditPrimitiveHandle;
             interactionState_.handleKind = PrimitiveHandleKind::Radius;
             interactionState_.handleIndex = 0;
@@ -7638,9 +7661,9 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         }};
         for (int index = 0; index < 2; ++index)
         {
-            if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, handles[static_cast<std::size_t>(index)])))
+            if (HitLibraryHandle(viewport, mouse, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, handles[static_cast<std::size_t>(index)])))
             {
-                PushUndoSnapshot();
+
                 interactionState_.mode = InteractionMode::EditPrimitiveHandle;
                 interactionState_.handleKind = PrimitiveHandleKind::Radius;
                 interactionState_.handleIndex = index;
@@ -7658,9 +7681,9 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         }};
         for (int index = 0; index < 4; ++index)
         {
-            if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, corners[static_cast<std::size_t>(index)])))
+            if (HitLibraryHandle(viewport, mouse, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, corners[static_cast<std::size_t>(index)])))
             {
-                PushUndoSnapshot();
+
                 interactionState_.mode = InteractionMode::EditPrimitiveHandle;
                 interactionState_.handleKind = PrimitiveHandleKind::RectangleCorner;
                 interactionState_.handleIndex = index;
@@ -7676,9 +7699,9 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         }};
         for (int index = 0; index < 2; ++index)
         {
-            if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, handles[static_cast<std::size_t>(index)])))
+            if (HitLibraryHandle(viewport, mouse, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, handles[static_cast<std::size_t>(index)])))
             {
-                PushUndoSnapshot();
+
                 interactionState_.mode = InteractionMode::EditPrimitiveHandle;
                 interactionState_.handleKind = PrimitiveHandleKind::Radius;
                 interactionState_.handleIndex = index;
@@ -7696,9 +7719,9 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         }};
         for (int index = 0; index < 4; ++index)
         {
-            if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, corners[static_cast<std::size_t>(index)])))
+            if (HitLibraryHandle(viewport, mouse, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, corners[static_cast<std::size_t>(index)])))
             {
-                PushUndoSnapshot();
+
                 interactionState_.mode = InteractionMode::EditPrimitiveHandle;
                 interactionState_.handleKind = PrimitiveHandleKind::RectangleCorner;
                 interactionState_.handleIndex = index;
@@ -7716,9 +7739,9 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         }};
         for (int index = 0; index < 4; ++index)
         {
-            if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, handles[static_cast<std::size_t>(index)])))
+            if (HitLibraryHandle(viewport, mouse, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, handles[static_cast<std::size_t>(index)])))
             {
-                PushUndoSnapshot();
+
                 interactionState_.mode = InteractionMode::EditPrimitiveHandle;
                 interactionState_.handleKind = PrimitiveHandleKind::DiamondAxis;
                 interactionState_.handleIndex = index;
@@ -7730,9 +7753,9 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
     {
         for (int index = 0; index < 3; ++index)
         {
-            if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, triangle->points[static_cast<std::size_t>(index)])))
+            if (HitLibraryHandle(viewport, mouse, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, triangle->points[static_cast<std::size_t>(index)])))
             {
-                PushUndoSnapshot();
+
                 interactionState_.mode = InteractionMode::EditPrimitiveHandle;
                 interactionState_.handleKind = PrimitiveHandleKind::Point;
                 interactionState_.handleIndex = index;
@@ -7744,9 +7767,9 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
     {
         for (int index = 0; index < static_cast<int>(polyline->points.size()); ++index)
         {
-            if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, polyline->points[static_cast<std::size_t>(index)])))
+            if (HitLibraryHandle(viewport, mouse, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, polyline->points[static_cast<std::size_t>(index)])))
             {
-                PushUndoSnapshot();
+
                 interactionState_.mode = InteractionMode::EditPrimitiveHandle;
                 interactionState_.handleKind = PrimitiveHandleKind::Point;
                 interactionState_.handleIndex = index;
@@ -7758,9 +7781,9 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
     {
         for (int index = 0; index < static_cast<int>(bezier->controlPoints.size()); ++index)
         {
-            if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, bezier->controlPoints[static_cast<std::size_t>(index)])))
+            if (HitLibraryHandle(viewport, mouse, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, bezier->controlPoints[static_cast<std::size_t>(index)])))
             {
-                PushUndoSnapshot();
+
                 interactionState_.mode = InteractionMode::EditPrimitiveHandle;
                 interactionState_.handleKind = PrimitiveHandleKind::Point;
                 interactionState_.handleIndex = index;
@@ -7778,27 +7801,27 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
             std::cos(middleAngleRadians) * std::abs(arc->radius),
             std::sin(middleAngleRadians) * std::abs(arc->radius)};
 
-        if (!arcPoints.empty() && matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, arcPoints.front())))
+        if (!arcPoints.empty() && HitLibraryHandle(viewport, mouse, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, arcPoints.front())))
         {
-            PushUndoSnapshot();
+
             interactionState_.mode = InteractionMode::EditPrimitiveHandle;
             interactionState_.handleKind = PrimitiveHandleKind::Point;
             interactionState_.handleIndex = 0;
             return;
         }
 
-        if (!arcPoints.empty() && matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, arcPoints.back())))
+        if (!arcPoints.empty() && HitLibraryHandle(viewport, mouse, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, arcPoints.back())))
         {
-            PushUndoSnapshot();
+
             interactionState_.mode = InteractionMode::EditPrimitiveHandle;
             interactionState_.handleKind = PrimitiveHandleKind::Point;
             interactionState_.handleIndex = 1;
             return;
         }
 
-        if (matchesHandle(PrimitiveHandleScreenPoint(viewport, *reticle, primitive, radiusHandle)))
+        if (HitLibraryHandle(viewport, mouse, PrimitiveHandleScreenPoint(viewport, *reticle, primitive, radiusHandle)))
         {
-            PushUndoSnapshot();
+
             interactionState_.mode = InteractionMode::EditPrimitiveHandle;
             interactionState_.handleKind = PrimitiveHandleKind::Radius;
             interactionState_.handleIndex = 2;
@@ -7811,7 +7834,7 @@ void EditorApplication::HandleLibraryPreviewInteraction(const ViewportState& vie
         mouse.x >= bounds.min.x - 8.0f && mouse.x <= bounds.max.x + 8.0f &&
         mouse.y >= bounds.min.y - 8.0f && mouse.y <= bounds.max.y + 8.0f)
     {
-        PushUndoSnapshot();
+
         interactionState_.mode = InteractionMode::MovePrimitive;
         return;
     }
@@ -8830,7 +8853,8 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
         return std::sqrt(dx * dx + dy * dy);
     };
 
-    float bestDistance = distanceToPoint(bounds.center);
+    float bestDistance = std::numeric_limits<float>::max();
+    const bool filled = mfd::MergeStyle(primitive.style, reticle.overrides).filled;
 
     if (const auto* text = std::get_if<mfd::TextGeometry>(&primitive.geometry))
     {
@@ -8907,7 +8931,7 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
         const float radiusPixels = std::max(1.0f, Distance(center, edge));
         const float centerDistance = distanceToPoint(center);
         bestDistance = std::min(bestDistance, std::abs(centerDistance - radiusPixels));
-        if (centerDistance <= radiusPixels + 6.0f)
+        if (filled && centerDistance <= radiusPixels + 6.0f)
         {
             bestDistance = std::min(bestDistance, 3.0f);
         }
@@ -8941,7 +8965,7 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
             ringDistance = std::min(centerDistance - innerRadiusPixels, outerRadiusPixels - centerDistance);
         }
 
-        if (centerDistance >= innerRadiusPixels - 6.0f && centerDistance <= outerRadiusPixels + 6.0f)
+        if (filled && centerDistance >= innerRadiusPixels - 6.0f && centerDistance <= outerRadiusPixels + 6.0f)
         {
             ringDistance = std::min(ringDistance, 2.0f);
         }
@@ -8965,7 +8989,7 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
             bestDistance = std::min(bestDistance, distanceToSegment(arcPoints[index], arcPoints[index + 1U]));
         }
 
-        if (primitive.style.filled && arcPoints.size() >= 2U)
+        if (filled && arcPoints.size() >= 2U)
         {
             std::vector<ImVec2> sectorPoints;
             sectorPoints.reserve(arcPoints.size() + 1U);
@@ -9039,6 +9063,7 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
 
         if (polyline->closed && points.size() > 2)
         {
+            if (filled && IsPointInsidePolygon(points, mousePosition)) return 0.0f;
             bestDistance = std::min(bestDistance, distanceToSegment(points.back(), points.front()));
         }
 
@@ -9046,10 +9071,9 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
     }
     else if (const auto* bezier = std::get_if<mfd::BezierGeometry>(&primitive.geometry))
     {
-        for (const auto& point : bezier->controlPoints)
-        {
-            points.push_back(PrimitiveHandleScreenPoint(viewport, reticle, primitive, point));
-        }
+        return editor::BezierStrokeHitDistance(previewState_.previewBezierCache, *bezier,
+            [&](mfd::Vec2 point) { return PrimitiveHandleScreenPoint(viewport, reticle, primitive, point); },
+            distanceToSegment);
     }
     else if (const auto* image = std::get_if<mfd::ImageGeometry>(&primitive.geometry))
     {
@@ -9080,7 +9104,7 @@ float EditorApplication::PrimitiveHitDistancePixels(const mfd::ReticleGroup& ret
     if (points.size() > 2)
     {
         bestDistance = std::min(bestDistance, distanceToSegment(points.back(), points.front()));
-        if (IsPointInsidePolygon(points, mousePosition))
+        if (filled && IsPointInsidePolygon(points, mousePosition))
         {
             bestDistance = std::min(bestDistance, 2.0f);
         }
@@ -9099,7 +9123,7 @@ float EditorApplication::ReticleHitDistancePixels(const mfd::ReticleGroup& retic
         return std::numeric_limits<float>::max();
     }
 
-    float bestDistance = Distance(bounds.center, mousePosition);
+    float bestDistance = std::numeric_limits<float>::max();
     for (const auto& primitive : reticle.primitives)
     {
         bestDistance = std::min(bestDistance, PrimitiveHitDistancePixels(reticle, primitive, viewport, mousePosition));
@@ -9152,6 +9176,10 @@ std::optional<EditorApplication::PageReticleHit> EditorApplication::BuildPageRet
 
 bool EditorApplication::PreferPageReticleHit(const PageReticleHit& lhs, const PageReticleHit& rhs) noexcept
 {
+    if (lhs.directHit != rhs.directHit)
+    {
+        return lhs.directHit && !rhs.directHit;
+    }
     if (lhs.drawOrder < rhs.drawOrder)
     {
         return false;
@@ -9160,10 +9188,6 @@ bool EditorApplication::PreferPageReticleHit(const PageReticleHit& lhs, const Pa
     if (rhs.drawOrder < lhs.drawOrder)
     {
         return true;
-    }
-    if (lhs.directHit != rhs.directHit)
-    {
-        return lhs.directHit && !rhs.directHit;
     }
     if (lhs.boundsHit != rhs.boundsHit)
     {
@@ -9787,7 +9811,7 @@ void EditorApplication::DrawPopups()
     if (ImGui::BeginPopupModal("Unsaved changes##exit", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
     {
         ImGui::TextUnformatted("This window has unsaved changes.");
-        DisabledTextWrapped("Save before quitting, or quit and discard the changes.");
+        DisabledTextWrapped("Save and quit, discard the changes, or cancel to continue editing.");
         ImGui::Separator();
         if (AccentButton("Save and quit"))
         {
@@ -9803,6 +9827,12 @@ void EditorApplication::DrawPopups()
         {
             workflowState_.unsavedExitRequested = false;
             workflowState_.exitConfirmed = true;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+        {
+            workflowState_.unsavedExitRequested = false;
             ImGui::CloseCurrentPopup();
         }
         ImGui::EndPopup();
@@ -10231,12 +10261,28 @@ void EditorApplication::DrawPopups()
 
     if (ImGui::BeginPopupModal("Duplicate library reticle", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
     {
-        ImGui::InputText("New reticle id", workflowState_.duplicateLibraryReticleDraft.id.data(), workflowState_.duplicateLibraryReticleDraft.id.size());
+        auto& draft = workflowState_.duplicateLibraryReticleDraft;
+        if (draft.refocus)
+        {
+            ImGui::SetKeyboardFocusHere();
+            draft.refocus = false;
+        }
+        if (ImGui::InputText("New reticle id", draft.id.data(), draft.id.size()))
+        {
+            draft.error.clear();
+        }
         ShowItemTooltip("New template id for the duplicated library reticle.");
         if (AccentButton("Duplicate"))
         {
-            DuplicateSelectedLibraryReticle();
-            ImGui::CloseCurrentPopup();
+            if (DuplicateSelectedLibraryReticle())
+            {
+                ImGui::CloseCurrentPopup();
+            }
+            else
+            {
+                draft.error = workflowState_.statusMessage;
+                draft.refocus = true;
+            }
         }
         ShowItemTooltip("Create a full copy of the selected library reticle under the new id.");
         ImGui::SameLine();
@@ -10245,6 +10291,10 @@ void EditorApplication::DrawPopups()
             ImGui::CloseCurrentPopup();
         }
         ShowItemTooltip("Close this dialog without duplicating the reticle.");
+        if (!draft.error.empty())
+        {
+            ImGui::TextWrapped("%s", draft.error.c_str());
+        }
         ImGui::EndPopup();
     }
 }

@@ -103,3 +103,78 @@ TEST(EditorInspectorEdit, EndpointPinsSeparateCoincidentCornersAndSkipOffscreenA
     EXPECT_FALSE(pins[0]);
     EXPECT_TRUE(pins[1]);
 }
+
+TEST(EditorInspectorEdit, CatalogDeletionPreservesTheSelectedPrimitiveAndOrder)
+{
+    mfd::ReticleGroup reticle;
+    reticle.primitives.resize(4);
+    for (std::size_t i = 0; i < reticle.primitives.size(); ++i)
+    {
+        reticle.primitives[i].id = std::to_string(i);
+    }
+
+    reticle.clipping.primitiveId = "2";
+    using editor::app::EraseLibraryPrimitive;
+    EXPECT_EQ(EraseLibraryPrimitive(reticle, -1, 2), 2);
+    EXPECT_EQ(EraseLibraryPrimitive(reticle, 4, 2), 2);
+    ASSERT_EQ(reticle.primitives.size(), 4U);
+    EXPECT_EQ(EraseLibraryPrimitive(reticle, 1, 2), 1);
+    ASSERT_EQ(reticle.primitives.size(), 3U);
+    EXPECT_EQ(reticle.primitives[0].id, "0");
+    EXPECT_EQ(reticle.primitives[1].id, "2");
+    EXPECT_EQ(reticle.primitives[2].id, "3");
+    EXPECT_EQ(EraseLibraryPrimitive(reticle, 2, 1), 1);
+    EXPECT_EQ(EraseLibraryPrimitive(reticle, 0, -1), -1);
+    ASSERT_EQ(reticle.primitives.size(), 1U);
+    EXPECT_EQ(reticle.primitives.front().id, "2");
+    EXPECT_EQ(reticle.clipping.primitiveId, "2");
+    EXPECT_EQ(EraseLibraryPrimitive(reticle, 0, 0), -1);
+    EXPECT_TRUE(reticle.primitives.empty());
+    EXPECT_TRUE(reticle.clipping.primitiveId.empty());
+}
+
+TEST(EditorInspectorEdit, BezierControlRemovalStopsAtTheSerializableMinimum)
+{
+    mfd::BezierGeometry curve;
+    for (std::size_t count = 0; count <= 3; ++count)
+    {
+        curve.controlPoints.resize(count);
+        EXPECT_EQ(editor::app::CanRemoveBezierControl(curve), count > 2);
+    }
+}
+
+TEST(EditorInspectorEdit, AppendSkipsOccupiedNormalizedPrimitiveIds)
+{
+    mfd::ReticleGroup group;
+    group.primitives.resize(2);
+    group.primitives[0].id = "PRIMITIVE_3";
+    group.primitives[1].id = "primitive_4";
+    EXPECT_EQ(editor::app::NextLibraryPrimitiveId(group), "primitive_5");
+}
+
+TEST(EditorInspectorEdit, RenameValidatesIdsAndPreservesExposedAndClippingReferences)
+{
+    mfd::MfdDocument document;
+    auto& source = document.reticleLibrary["template"];
+    source.id = "template";
+    source.primitives.resize(2);
+    source.primitives[0].id = "outline";
+    source.primitives[0].exposed = true;
+    source.primitives[1].id = "other";
+    source.clipping.primitiveId = "outline";
+    document.pages.emplace_back();
+    auto& page = document.pages.back();
+    page.staticReticles.push_back(source);
+    page.staticReticles.back().sourceTemplateId = source.id;
+    page.strobes.emplace_back();
+    page.strobes.back().reticle = page.staticReticles.back();
+    EXPECT_FALSE(editor::app::RenamePrimitiveInCandidate(document, "template", 0, " OTHER "));
+    EXPECT_FALSE(editor::app::RenamePrimitiveInCandidate(document, "template", 0, " "));
+    ASSERT_TRUE(editor::app::RenamePrimitiveInCandidate(document, "template", 0, "mask"));
+    for (const auto* group : {&source, &page.staticReticles.front(), &page.strobes.front().reticle})
+    {
+        EXPECT_EQ(group->primitives[0].id, "mask");
+        EXPECT_TRUE(group->primitives[0].exposed);
+        EXPECT_EQ(group->clipping.primitiveId, "mask");
+    }
+}

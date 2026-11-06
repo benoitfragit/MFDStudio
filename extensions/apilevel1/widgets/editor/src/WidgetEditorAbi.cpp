@@ -44,7 +44,9 @@ uint32_t MFD_WIDGET_EDITOR_CALL Draw(const MfdWidgetEditorUiV1* ui, MfdWidgetEdi
             result |= ui->number(context, "Column span", &draft->column_span, 1, 4096);
             result |= ui->number(context, "Render order", &draft->render_order, -1000000, 1000000);
         }
-        if (ui->button(context, "Reset instance overrides")) result |= 16U;
+        const bool hasOverrides = draft->override_size || draft->override_checked || draft->override_warning ||
+                                  draft->override_value || draft->override_text;
+        if (hasOverrides && ui->button(context, "Reset instance overrides")) result |= 16U;
         ui->checkbox(context, "Edit shared definition", &draft->edit_definition);
     }
     if (!draft->edit_definition && !draft->definition_only) return result;

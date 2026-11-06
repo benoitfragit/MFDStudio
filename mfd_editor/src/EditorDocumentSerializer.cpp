@@ -1209,6 +1209,11 @@ json SerializeStrobe(const mfd::PageStrobeDefinition& strobe,
     }
 
     const auto templateIterator = library.find(strobe.reticle.sourceTemplateId);
+    const bool inheritedVisibility = templateIterator == library.end() || templateIterator->second.visible;
+    if (strobe.reticle.visible != inheritedVisibility)
+    {
+        node["visible"] = strobe.reticle.visible;
+    }
     const mfd::Transform2D authoredTransform = templateIterator == library.end()
                                                    ? strobe.reticle.transform
                                                    : ResolveAuthoredTemplateTransform(strobe.reticle,

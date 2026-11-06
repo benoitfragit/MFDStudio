@@ -32,6 +32,101 @@ inline bool RemovePolylinePoint(mfd::PolylineGeometry& polyline, std::size_t ind
     return true;
 }
 
+/** @brief Allocate an unused primitive_N, including after deletion or manual renaming. */
+inline std::string NextLibraryPrimitiveId(const mfd::ReticleGroup& reticle)
+{
+    std::unordered_set<std::string> ids;
+    for (const auto& primitive : reticle.primitives)
+    {
+        ids.insert(mfd::NormalizePageName(primitive.id));
+    }
+    std::size_t suffix = reticle.primitives.size() + 1;
+    std::string candidate;
+    do
+    {
+        candidate = "primitive_" + std::to_string(suffix++);
+    } while (ids.count(candidate) != 0);
+    return candidate;
+}
+
+/** @brief Rename in a disposable document candidate. Discard the candidate if validation fails. */
+bool RenamePrimitiveInCandidate(mfd::MfdDocument& candidate, const std::string& templateId,
+                                std::size_t index, const std::string& name);
+
+/** @brief A serializable Bezier curve must retain its first two controls. */
+inline bool CanRemoveBezierControl(const mfd::BezierGeometry& curve) noexcept
+{
+    return curve.controlPoints.size() > 2U;
+}
+
+/** @brief Erases a catalog row and returns the surviving selection, or -1 for the template. */
+inline int EraseLibraryPrimitive(mfd::ReticleGroup& reticle, int index, int selected)
+{
+    if (index < 0 || static_cast<std::size_t>(index) >= reticle.primitives.size())
+    {
+        return selected;
+    }
+    if (!reticle.clipping.primitiveId.empty() && reticle.clipping.primitiveId == reticle.primitives[index].id)
+    {
+        reticle.clipping = {};
+    }
+    reticle.primitives.erase(reticle.primitives.begin() + index);
+    if (selected == index)
+    {
+        return -1;
+    }
+    return selected > index ? selected - 1 : selected;
+}
+
+/** @brief Removes a template element and its materialized copies before saving page overrides. */
+inline int EraseTemplatePrimitive(mfd::MfdDocument& document, mfd::ReticleGroup& source, int index, int selected)
+{
+    if (index < 0 || static_cast<std::size_t>(index) >= source.primitives.size()) return selected;
+    const auto& authored = source.primitives[index];
+    const auto eraseInstance = [&](mfd::ReticleGroup& instance)
+    {
+        if (instance.sourceTemplateId != source.id) return;
+        auto& elements = instance.primitives;
+        const auto matches = [&](const mfd::Primitive& item)
+        {
+            return item.id == authored.id && item.type == authored.type;
+        };
+        if (static_cast<std::size_t>(index) < elements.size() && matches(elements[index]))
+        {
+            EraseLibraryPrimitive(instance, index, -1);
+        }
+        else if (!authored.id.empty())
+        {
+            const auto found = std::find_if(elements.begin(), elements.end(), matches);
+            if (found != elements.end()) EraseLibraryPrimitive(instance, static_cast<int>(found - elements.begin()), -1);
+        }
+        if (!authored.id.empty() && instance.clipping.primitiveId == authored.id &&
+            mfd::FindPrimitive(instance, authored.id) == nullptr)
+        {
+            instance.clipping = {};
+        }
+    };
+    for (auto& page : document.pages)
+    {
+        for (auto& instance : page.staticReticles) eraseInstance(instance);
+        for (auto& strobe : page.strobes) eraseInstance(strobe.reticle);
+    }
+    return EraseLibraryPrimitive(source, index, selected);
+}
+
+/** @brief Drops bindings that refer to primitives removed from a widget working visual. */
+inline std::size_t PruneOrphanedWidgetBindings(mfd::api1::WidgetVisual& visual)
+{
+    auto& bindings = visual.bindings;
+    const std::size_t previousCount = bindings.size();
+    bindings.erase(std::remove_if(bindings.begin(), bindings.end(),
+        [&visual](const mfd::api1::WidgetBinding& binding)
+        {
+            return mfd::FindPrimitive(visual.composition, binding.primitiveId) == nullptr;
+        }), bindings.end());
+    return previousCount - bindings.size();
+}
+
 /** @brief Page instance overrides are keyed by named text and time primitives. */
 inline bool IsPageTextOverride(const mfd::Primitive& primitive) noexcept
 {

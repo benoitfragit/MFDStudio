@@ -224,6 +224,10 @@ You can type into one text primitive and select the next without pressing Enter.
 
 For a selected **Line**, the blue **1** marks **Start** and the amber **2** marks **End**. Drag the original handles to edit the line. Toggle **Show endpoint markers** in the inspector to hide the numbers.
 
+Primitive IDs must be unique within a template. Press Enter or leave the ID field to commit a rename. The editor updates clipping references and the loaded page and strobe instances. In a widget working visual, **Apply edited visual** commits the corresponding binding names.
+
+Use the trash icon on a primitive’s row to delete it. If you remove the selected primitive, the inspector returns to the template. Undo restores the deleted primitive. When applying an edited widget visual, bindings to deleted primitives are removed; surviving bindings are retained.
+
 Use the trash icon beside **Point N** to remove that vertex from a polyline. The remaining vertices keep their order. An open polyline ends at its last vertex. The trash icons become disabled at two vertices.
 
 Widget visual states reuse this exact primitive editor: **Edit visual in Reticle
