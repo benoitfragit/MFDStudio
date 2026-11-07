@@ -140,3 +140,38 @@ TEST(RenderWorkBudgetTests, NestedConsumersCannotExceedTheSharedLimit)
     EXPECT_EQ(budget.RemainingUnits(), 0U);
     EXPECT_FALSE(budget.TryConsume());
 }
+
+TEST(PolygonTriangulationTests, PentagramIsRejectedByBothFillPaths)
+{
+    constexpr float kPi = 3.14159265358979323846f;
+    std::vector<Vector2> polygon;
+    polygon.reserve(5U);
+    for (const int vertex : {0, 2, 4, 1, 3})
+    {
+        const float angle = 2.0f * kPi * static_cast<float>(vertex) / 5.0f;
+        polygon.push_back(Vector2 {std::cos(angle), std::sin(angle)});
+    }
+
+    std::vector<std::size_t> triangles;
+    EXPECT_FALSE(mfd::detail::PolygonIsConvex(polygon));
+    EXPECT_FALSE(mfd::detail::TriangulateSimplePolygon(polygon, triangles));
+    EXPECT_TRUE(triangles.empty());
+}
+
+TEST(PolygonTriangulationTests, PolygonIsConvexRejectsOversizedContoursWithoutUnboundedWork)
+{
+    std::vector<Vector2> polygon(513U, Vector2 {1.0f, 1.0f});
+    EXPECT_FALSE(mfd::detail::PolygonIsConvex(polygon));
+}
+
+TEST(PolygonTriangulationTests, TriangulationRejectsNonFiniteContours)
+{
+    const std::vector<Vector2> polygon {
+        Vector2 {0.0f, 0.0f},
+        Vector2 {1.0f, 0.0f},
+        Vector2 {std::numeric_limits<float>::infinity(), 1.0f},
+        Vector2 {0.0f, 1.0f}};
+    std::vector<std::size_t> triangles;
+    EXPECT_FALSE(mfd::detail::TriangulateSimplePolygon(polygon, triangles));
+    EXPECT_TRUE(triangles.empty());
+}
