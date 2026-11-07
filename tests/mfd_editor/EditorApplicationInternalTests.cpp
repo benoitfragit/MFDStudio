@@ -639,3 +639,57 @@ TEST(EditorApplicationInternalTests, ApplyingEditedWidgetVisualDropsBindingsToDe
     EXPECT_EQ(visual.bindings.front().primitiveId, "label");
     EXPECT_EQ(editor::app::PruneOrphanedWidgetBindings(visual), 0U);
 }
+
+TEST(EditorApplicationInternalTests, RemovingLastBlinkClearsBothDefaultIdentifiersAndSupportsUndoRedo)
+{
+    mfd::MfdDocument document;
+    mfd::PageDefinition page;
+    page.name = "Radar";
+    mfd::PageBlinkDefinition blink;
+    blink.name = "Pulse";
+    blink.normalizedName = "pulse";
+    blink.durationMs = 500U;
+    page.blinkTypes.push_back(blink);
+    page.defaultBlinkTypeName = "Pulse";
+    page.normalizedDefaultBlinkTypeName = "pulse";
+    document.pages.push_back(page);
+
+    editor::UndoHistory<mfd::MfdDocument> history;
+    history.Record(document);
+    auto& editedPage = document.pages.front();
+    editedPage.blinkTypes.clear();
+    editor::app::UpdateDefaultBlinkAfterRemoval(editedPage, "pulse");
+    editor::app::RefreshPageBlinkStateForEditor(editedPage);
+
+    EXPECT_TRUE(editedPage.defaultBlinkTypeName.empty());
+    EXPECT_TRUE(editedPage.normalizedDefaultBlinkTypeName.empty());
+
+    const auto previous = history.Undo(document);
+    ASSERT_TRUE(previous.has_value());
+    ASSERT_EQ(previous->pages.front().blinkTypes.size(), 1U);
+    EXPECT_EQ(previous->pages.front().defaultBlinkTypeName, "Pulse");
+    EXPECT_EQ(previous->pages.front().normalizedDefaultBlinkTypeName, "pulse");
+
+    const auto next = history.Redo(*previous);
+    ASSERT_TRUE(next.has_value());
+    EXPECT_TRUE(next->pages.front().blinkTypes.empty());
+    EXPECT_TRUE(next->pages.front().defaultBlinkTypeName.empty());
+    EXPECT_TRUE(next->pages.front().normalizedDefaultBlinkTypeName.empty());
+}
+
+TEST(EditorApplicationInternalTests, RemovingDefaultBlinkSelectsRemainingDefinition)
+{
+    mfd::PageDefinition page;
+    mfd::PageBlinkDefinition surviving;
+    surviving.name = "Slow";
+    surviving.normalizedName = "slow";
+    page.blinkTypes.push_back(surviving);
+    page.defaultBlinkTypeName = "Fast";
+    page.normalizedDefaultBlinkTypeName = "fast";
+
+    editor::app::UpdateDefaultBlinkAfterRemoval(page, "fast");
+    editor::app::RefreshPageBlinkStateForEditor(page);
+
+    EXPECT_EQ(page.defaultBlinkTypeName, "Slow");
+    EXPECT_EQ(page.normalizedDefaultBlinkTypeName, "slow");
+}
