@@ -23,7 +23,7 @@ namespace mfd::detail
 constexpr std::size_t kMaxTriangulationTests = 131072U;
 
 /**
- * @brief Returns whether every non-degenerate turn of a polygon uses the same orientation.
+ * @brief Returns whether a bounded, finite, simple polygon is convex.
  * @param points Polygon vertices in order.
  * @return `true` when the polygon is convex.
  */
