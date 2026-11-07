@@ -1337,6 +1337,7 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
 
         if (style.filled && polyline->closed)
         {
+            // Both fill paths reject self-intersecting contours; strokes remain unchanged.
             if (detail::PolygonIsConvex(screenScratchA_))
             {
                 FillConvexPolygon(screenScratchA_, fillColor, drawBudget_);

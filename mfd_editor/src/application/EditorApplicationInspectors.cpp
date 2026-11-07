@@ -2255,18 +2255,11 @@ void EditorApplication::DrawPageBlinkInspector(mfd::PageDefinition& page)
             const std::string removedName = blinkType.name;
             const std::string removedNormalizedName = blinkType.normalizedName;
             const std::size_t clearedBindingCount = CountBlinkReferences(page, removedNormalizedName);
-            const bool removedWasDefault = page.normalizedDefaultBlinkTypeName == removedNormalizedName;
-
             PushUndoSnapshot();
             page.blinkTypes.erase(page.blinkTypes.begin() + static_cast<std::ptrdiff_t>(index));
             ClearBlinkReferencesForRemovedType(page, removedNormalizedName);
 
-            if (removedWasDefault && !page.blinkTypes.empty())
-            {
-                page.defaultBlinkTypeName = page.blinkTypes.front().name;
-                page.normalizedDefaultBlinkTypeName = page.blinkTypes.front().normalizedName;
-            }
-
+            UpdateDefaultBlinkAfterRemoval(page, removedNormalizedName);
             RefreshPageBlinkStateForEditor(page);
 
             std::string status = "Blink type '" + removedName + "' removed from page '" + page.name + "'.";

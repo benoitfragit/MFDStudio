@@ -654,6 +654,27 @@ inline void RefreshBlinkBindingForEditor(const mfd::PageDefinition& page, mfd::R
 }
 
 /**
+ * @brief Repairs the authored default after removing a blink definition.
+ * @param page Page whose blink catalog has already been updated.
+ * @param removedNormalizedName Normalized identifier of the deleted definition.
+ * @note Both default identifiers must be empty when the catalog is empty.
+ */
+inline void UpdateDefaultBlinkAfterRemoval(mfd::PageDefinition& page,
+                                           const std::string_view removedNormalizedName)
+{
+    if (page.blinkTypes.empty())
+    {
+        page.defaultBlinkTypeName.clear();
+        page.normalizedDefaultBlinkTypeName.clear();
+    }
+    else if (page.normalizedDefaultBlinkTypeName == removedNormalizedName)
+    {
+        page.defaultBlinkTypeName = page.blinkTypes.front().name;
+        page.normalizedDefaultBlinkTypeName = page.blinkTypes.front().normalizedName;
+    }
+}
+
+/**
  * @brief Recomputes normalized page-blink metadata and every authored blink binding.
  * @param page Page to normalize in place.
  */
