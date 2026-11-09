@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
+#include <utility>
 #include <vector>
 
 namespace mfd
@@ -56,6 +58,9 @@ void main()
 
 constexpr int kMaxFieldSide = 128;
 constexpr int kMaxCachedGlyphs = 512;
+constexpr int kAtlasSide = 256;
+constexpr int kAtlasPadding = 8;
+constexpr std::size_t kMaxAtlasPages = 8U;
 constexpr std::array<int, 8> kDx {0, 1, 1, 1, 0, -1, -1, -1};
 constexpr std::array<int, 8> kDy {-1, -1, 0, 1, 1, 1, 0, -1};
 
@@ -78,6 +83,22 @@ struct Mask
             if (At(x + kDx[i], y + kDy[i])) bits |= 1 << i;
         }
         return bits;
+    }
+};
+
+struct StrokeFieldPixels
+{
+    int width = 0;
+    int height = 0;
+    int coreWidth = 0;
+    int coreHeight = 0;
+    int padding = 0;
+    std::vector<Color> pixels {};
+
+    [[nodiscard]] bool IsValid() const noexcept
+    {
+        return width > 0 && height > 0 && coreWidth > 0 && coreHeight > 0 &&
+               pixels.size() == static_cast<std::size_t>(width * height);
     }
 };
 
@@ -147,18 +168,43 @@ Mask ReadGlyphCoverage(const Image& image)
     return mask;
 }
 
+Vector2 FieldCoreSize(const Image& image) noexcept
+{
+    if (!image.data || image.width <= 0 || image.height <= 0)
+    {
+        return {};
+    }
+
+    const float fieldScale =
+        std::min(1.0f, static_cast<float>(kMaxFieldSide) / std::max(image.width, image.height));
+    return Vector2 {
+        static_cast<float>(std::max(1, static_cast<int>(std::round(image.width * fieldScale)))),
+        static_cast<float>(std::max(1, static_cast<int>(std::round(image.height * fieldScale))))};
+}
+
 int DistanceSquared(const Color seed, const int x, const int y) noexcept
 {
-    if (!seed.a) return 2 * kMaxFieldSide * kMaxFieldSide;
+    if (!seed.a) return std::numeric_limits<int>::max();
     const int dx = x - seed.r;
     const int dy = y - seed.g;
     return dx * dx + dy * dy;
 }
 
+int InitialPropagationJump(const int width, const int height) noexcept
+{
+    const int maximumSide = std::max(width, height);
+    int jump = 1;
+    while (jump <= (maximumSide - 1) / 2)
+    {
+        jump *= 2;
+    }
+    return jump;
+}
+
 void PropagateNearest(std::vector<Color>& nearest, const int width, const int height)
 {
     std::vector<Color> next(nearest.size());
-    for (int jump = kMaxFieldSide / 2; jump >= 1; jump /= 2)
+    for (int jump = InitialPropagationJump(width, height); jump >= 1; jump /= 2)
     {
         for (int y = 0; y < height; ++y)
         {
@@ -234,12 +280,16 @@ int EncodeOffset(const float offset) noexcept
     return std::clamp(static_cast<int>(std::lround(5.0f * offset)) + 8, 0, 15);
 }
 
-Texture2D BuildField(const Image& image)
+StrokeFieldPixels BuildFieldPixels(const Image& image, const int padding)
 {
-    if (!image.data || image.width <= 0 || image.height <= 0) return {};
+    if (!image.data || image.width <= 0 || image.height <= 0 || padding < 0)
+    {
+        return {};
+    }
+
     Mask mask = ReadGlyphCoverage(image);
     Thin(mask);
-    std::vector<Color> nearest(mask.data.size(), Color {0, 0, 0, 0});
+    std::vector<Color> coreSeeds(mask.data.size(), Color {0, 0, 0, 0});
     bool hasInk = false;
     for (int y = 0; y < mask.height; ++y)
     {
@@ -247,19 +297,70 @@ Texture2D BuildField(const Image& image)
         {
             if (!mask.At(x, y)) continue;
             hasInk = true;
-            nearest[y * mask.width + x] = {static_cast<unsigned char>(x), static_cast<unsigned char>(y),
-                                            static_cast<unsigned char>(StrokeLinks(mask, x, y)), 255};
+            coreSeeds[y * mask.width + x] = {
+                static_cast<unsigned char>(x),
+                static_cast<unsigned char>(y),
+                static_cast<unsigned char>(StrokeLinks(mask, x, y)),
+                255};
         }
     }
-    if (!hasInk) return {};
-    const auto offsets = SmoothCenterlines(mask, nearest);
-    PropagateNearest(nearest, mask.width, mask.height);
-    for (auto& pixel : nearest)
+    if (!hasInk)
     {
-        const auto& offset = offsets[static_cast<std::size_t>(pixel.g * mask.width + pixel.r)];
+        return {};
+    }
+
+    const std::vector<Vector2> offsets = SmoothCenterlines(mask, coreSeeds);
+    StrokeFieldPixels field;
+    field.width = mask.width + 2 * padding;
+    field.height = mask.height + 2 * padding;
+    field.coreWidth = mask.width;
+    field.coreHeight = mask.height;
+    field.padding = padding;
+    field.pixels.assign(static_cast<std::size_t>(field.width * field.height), Color {0, 0, 0, 0});
+    for (int y = 0; y < mask.height; ++y)
+    {
+        for (int x = 0; x < mask.width; ++x)
+        {
+            const Color& seed = coreSeeds[static_cast<std::size_t>(y * mask.width + x)];
+            if (!seed.a)
+            {
+                continue;
+            }
+
+            field.pixels[static_cast<std::size_t>((y + padding) * field.width + x + padding)] = {
+                static_cast<unsigned char>(x + padding),
+                static_cast<unsigned char>(y + padding),
+                seed.b,
+                seed.a};
+        }
+    }
+
+    PropagateNearest(field.pixels, field.width, field.height);
+    for (Color& pixel : field.pixels)
+    {
+        const int seedX = static_cast<int>(pixel.r) - padding;
+        const int seedY = static_cast<int>(pixel.g) - padding;
+        if (seedX < 0 || seedY < 0 || seedX >= mask.width || seedY >= mask.height)
+        {
+            return {};
+        }
+
+        const Vector2& offset = offsets[static_cast<std::size_t>(seedY * mask.width + seedX)];
         pixel.a = static_cast<unsigned char>(EncodeOffset(offset.x) | (EncodeOffset(offset.y) << 4));
     }
-    return LoadTextureFromImage(Image {nearest.data(), mask.width, mask.height, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8});
+    return field;
+}
+
+Texture2D LoadFieldTexture(const Image& image)
+{
+    StrokeFieldPixels field = BuildFieldPixels(image, 0);
+    if (!field.IsValid())
+    {
+        return {};
+    }
+
+    return LoadTextureFromImage(
+        Image {field.pixels.data(), field.width, field.height, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8});
 }
 
 void DrawGlyph(const Texture2D field, const Rectangle metrics, const GlyphInfo& glyph, const Vector2 pen,
@@ -276,6 +377,61 @@ void DrawGlyph(const Texture2D field, const Rectangle metrics, const GlyphInfo& 
                          width + 2.0f * pad, height + 2.0f * pad};
     DrawTexturePro(field, src, dst, {}, 0.0f, color);
 }
+
+bool AtlasPaddingSupportsGlyph(const Image& image,
+                               const Rectangle metrics,
+                               const float scale,
+                               const float radius) noexcept
+{
+    const Vector2 fieldSize = FieldCoreSize(image);
+    const float screenWidth = metrics.width * scale;
+    const float screenHeight = metrics.height * scale;
+    if (fieldSize.x <= 0.0f || fieldSize.y <= 0.0f ||
+        screenWidth <= 0.0f || screenHeight <= 0.0f)
+    {
+        return false;
+    }
+
+    const float screenPadding = radius + 1.0f;
+    const float horizontalFieldPadding = screenPadding * fieldSize.x / screenWidth;
+    const float verticalFieldPadding = screenPadding * fieldSize.y / screenHeight;
+    return std::isfinite(horizontalFieldPadding) && std::isfinite(verticalFieldPadding) &&
+           horizontalFieldPadding <= static_cast<float>(kAtlasPadding) &&
+           verticalFieldPadding <= static_cast<float>(kAtlasPadding);
+}
+
+void DrawAtlasGlyph(const Texture2D atlas,
+                    const Rectangle core,
+                    const Rectangle metrics,
+                    const GlyphInfo& glyph,
+                    const Vector2 pen,
+                    const float scale,
+                    const float radius,
+                    const Color color)
+{
+    const float width = metrics.width * scale;
+    const float height = metrics.height * scale;
+    if (width <= 0.0f || height <= 0.0f)
+    {
+        return;
+    }
+
+    const float screenPadding = radius + 1.0f;
+    const float horizontalFieldPadding = screenPadding * core.width / width;
+    const float verticalFieldPadding = screenPadding * core.height / height;
+    const Rectangle source {
+        core.x - horizontalFieldPadding,
+        core.y - verticalFieldPadding,
+        core.width + 2.0f * horizontalFieldPadding,
+        core.height + 2.0f * verticalFieldPadding};
+    const Rectangle destination {
+        pen.x + glyph.offsetX * scale - screenPadding,
+        pen.y + glyph.offsetY * scale - screenPadding,
+        width + 2.0f * screenPadding,
+        height + 2.0f * screenPadding};
+    DrawTexturePro(atlas, source, destination, {}, 0.0f, color);
+}
+
 // Restores drawing state even if building a previously unseen glyph fails to allocate.
 class StrokeDrawScope
 {
@@ -326,20 +482,34 @@ GlyphStrokeRenderer::~GlyphStrokeRenderer() { Clear(); }
 
 void GlyphStrokeRenderer::Clear() noexcept
 {
-    if ((shader_.id || !fields_.empty()) && IsWindowReady())
+    if ((shader_.id || !legacyFields_.empty() || !atlasPages_.empty()) && IsWindowReady())
     {
-        if (!fields_.empty()) rlDrawRenderBatchActive();
-        for (const auto& entry : fields_)
+        if (!legacyFields_.empty() || !atlasPages_.empty())
+        {
+            rlDrawRenderBatchActive();
+        }
+        for (const auto& entry : legacyFields_)
         {
             if (entry.second.id) UnloadTexture(entry.second);
         }
+        for (const AtlasPage& page : atlasPages_)
+        {
+            if (page.texture.id) UnloadTexture(page.texture);
+        }
         if (shader_.id && shader_.id != rlGetShaderIdDefault()) UnloadShader(shader_);
     }
-    fields_.clear();
+    legacyFields_.clear();
+    atlasGlyphs_.clear();
+    atlasPages_.clear();
+    glyphRunScratch_.clear();
+    uniqueGlyphScratch_.clear();
     shader_ = {};
     glyphs_ = nullptr;
-    fontTexture_ = 0;
+    fontTexture_ = 0U;
+    radiusLocation_ = -1;
     attempted_ = false;
+    atlasDrawCount_ = 0U;
+    legacyDrawCount_ = 0U;
 }
 
 bool GlyphStrokeRenderer::Prepare(const Font& font)
@@ -364,64 +534,433 @@ bool GlyphStrokeRenderer::Prepare(const Font& font)
     return shader_.id && radiusLocation_ >= 0;
 }
 
-Texture2D GlyphStrokeRenderer::Resolve(const Font& font, const int index)
+bool GlyphStrokeRenderer::BuildGlyphRun(const std::string& text, const Font& font)
 {
-    const auto it = fields_.find(index);
-    if (it != fields_.end()) return it->second;
-    if (fields_.size() >= kMaxCachedGlyphs)
+    glyphRunScratch_.clear();
+    glyphRunScratch_.reserve(text.size());
+    for (std::size_t offset = 0U; offset < text.size() && text[offset];)
+    {
+        int byteCount = 0;
+        const int codepoint = GetCodepointNext(text.c_str() + offset, &byteCount);
+        offset += static_cast<std::size_t>(std::max(1, byteCount));
+        if (codepoint == '\n')
+        {
+            glyphRunScratch_.push_back(GlyphRunItem {0, true, false, nullptr, {}});
+            continue;
+        }
+
+        const int index = GetGlyphIndex(font, codepoint);
+        if (index < 0 || index >= font.glyphCount)
+        {
+            glyphRunScratch_.clear();
+            return false;
+        }
+
+        glyphRunScratch_.push_back(
+            GlyphRunItem {index, false, codepoint != ' ' && codepoint != '\t', nullptr, {}});
+    }
+
+    return true;
+}
+
+bool GlyphStrokeRenderer::AtlasSupportsRun(const Font& font,
+                                           const float scale,
+                                           const float radius) const noexcept
+{
+    for (const GlyphRunItem& item : glyphRunScratch_)
+    {
+        if (!item.drawable)
+        {
+            continue;
+        }
+
+        if (!AtlasPaddingSupportsGlyph(
+                font.glyphs[item.index].image,
+                font.recs[item.index],
+                scale,
+                radius))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool GlyphStrokeRenderer::ResolveAtlasRun(const Font& font)
+{
+    for (GlyphRunItem& item : glyphRunScratch_)
+    {
+        if (!item.drawable)
+        {
+            continue;
+        }
+
+        item.atlasGlyph = ResolveAtlas(font, item.index);
+        if (item.atlasGlyph == nullptr)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool GlyphStrokeRenderer::ResolveLegacyRun(const Font& font)
+{
+    uniqueGlyphScratch_.clear();
+    uniqueGlyphScratch_.reserve(glyphRunScratch_.size());
+    for (const GlyphRunItem& item : glyphRunScratch_)
+    {
+        if (item.drawable)
+        {
+            uniqueGlyphScratch_.push_back(item.index);
+        }
+    }
+    std::sort(uniqueGlyphScratch_.begin(), uniqueGlyphScratch_.end());
+    uniqueGlyphScratch_.erase(
+        std::unique(uniqueGlyphScratch_.begin(), uniqueGlyphScratch_.end()),
+        uniqueGlyphScratch_.end());
+    if (uniqueGlyphScratch_.size() > kMaxCachedGlyphs)
+    {
+        return false;
+    }
+
+    std::size_t missingGlyphCount = 0U;
+    for (const int index : uniqueGlyphScratch_)
+    {
+        if (legacyFields_.find(index) == legacyFields_.end())
+        {
+            ++missingGlyphCount;
+        }
+    }
+    if (missingGlyphCount > kMaxCachedGlyphs - legacyFields_.size())
     {
         rlDrawRenderBatchActive();
-        const auto old = fields_.begin();
-        if (old->second.id) UnloadTexture(old->second);
-        fields_.erase(old);
+        for (const auto& entry : legacyFields_)
+        {
+            if (entry.second.id)
+            {
+                UnloadTexture(entry.second);
+            }
+        }
+        legacyFields_.clear();
     }
-    // Insert only a completed field. Allocation failure must allow a later retry.
-    auto entry = fields_.try_emplace(index);
+
+    for (const int index : uniqueGlyphScratch_)
+    {
+        if (!ResolveLegacy(font, index).id)
+        {
+            return false;
+        }
+    }
+    for (GlyphRunItem& item : glyphRunScratch_)
+    {
+        if (item.drawable)
+        {
+            item.legacyField = legacyFields_.find(item.index)->second;
+        }
+    }
+    return true;
+}
+
+const GlyphStrokeRenderer::AtlasGlyph* GlyphStrokeRenderer::ResolveAtlas(const Font& font,
+                                                                         const int index)
+{
+    const auto existing = atlasGlyphs_.find(index);
+    if (existing != atlasGlyphs_.end())
+    {
+        return &existing->second;
+    }
+    if (atlasGlyphs_.size() >= kMaxCachedGlyphs)
+    {
+        return nullptr;
+    }
+
+    StrokeFieldPixels field = BuildFieldPixels(font.glyphs[index].image, kAtlasPadding);
+    if (!field.IsValid() || field.width > kAtlasSide || field.height > kAtlasSide)
+    {
+        return nullptr;
+    }
+
+    std::size_t pageIndex = 0U;
+    int atlasX = 0;
+    int atlasY = 0;
+    if (!TryPlaceAtlasRegion(field.width, field.height, pageIndex, atlasX, atlasY))
+    {
+        return nullptr;
+    }
+
+    for (Color& pixel : field.pixels)
+    {
+        const int nearestX = static_cast<int>(pixel.r) + atlasX;
+        const int nearestY = static_cast<int>(pixel.g) + atlasY;
+        if (nearestX >= kAtlasSide || nearestY >= kAtlasSide)
+        {
+            return nullptr;
+        }
+        pixel.r = static_cast<unsigned char>(nearestX);
+        pixel.g = static_cast<unsigned char>(nearestY);
+    }
+
+    AtlasPage& page = atlasPages_[pageIndex];
+    UpdateTextureRec(
+        page.texture,
+        Rectangle {
+            static_cast<float>(atlasX),
+            static_cast<float>(atlasY),
+            static_cast<float>(field.width),
+            static_cast<float>(field.height)},
+        field.pixels.data());
+
+    AtlasGlyph glyph;
+    glyph.pageIndex = pageIndex;
+    glyph.core = Rectangle {
+        static_cast<float>(atlasX + field.padding),
+        static_cast<float>(atlasY + field.padding),
+        static_cast<float>(field.coreWidth),
+        static_cast<float>(field.coreHeight)};
+    return &atlasGlyphs_.emplace(index, glyph).first->second;
+}
+
+Texture2D GlyphStrokeRenderer::ResolveLegacy(const Font& font, const int index)
+{
+    const auto existing = legacyFields_.find(index);
+    if (existing != legacyFields_.end())
+    {
+        return existing->second;
+    }
+    if (legacyFields_.size() >= kMaxCachedGlyphs)
+    {
+        return {};
+    }
+
+    const Texture2D field = LoadFieldTexture(font.glyphs[index].image);
+    if (!field.id)
+    {
+        return {};
+    }
+
     try
     {
-        entry.first->second = BuildField(font.glyphs[index].image);
+        return legacyFields_.emplace(index, field).first->second;
     }
     catch (...)
     {
-        fields_.erase(entry.first);
+        UnloadTexture(field);
         throw;
     }
-    return entry.first->second;
 }
 
-bool GlyphStrokeRenderer::Draw(const std::string& text, const Font& font, const float size,
-                               const float spacing, const Vector2 anchor, const Vector2 origin,
-                               const float rotation, const Color color, const float width)
+bool GlyphStrokeRenderer::TryPlaceAtlasRegion(const int width,
+                                              const int height,
+                                              std::size_t& pageIndex,
+                                              int& x,
+                                              int& y)
 {
-    if (!std::isfinite(width) || !std::isfinite(size) || size <= 0.0f) return false;
-    if (!font.glyphs || !font.recs || font.baseSize <= 0 || !Prepare(font)) return false;
-    const float radius = 0.5f * width;
-    const float scale = size / font.baseSize;
-    const float lineStep = MeasureTextEx(font, "M\nM", size, spacing).y - MeasureTextEx(font, "M", size, spacing).y;
-    const StrokeDrawScope drawScope(shader_, radiusLocation_, radius, anchor, origin, rotation);
-    Vector2 pen {};
-    for (std::size_t offset = 0; offset < text.size() && text[offset];)
+    if (width <= 0 || height <= 0 || width > kAtlasSide || height > kAtlasSide)
     {
-        int bytes = 0;
-        const int cp = GetCodepointNext(text.c_str() + offset, &bytes);
-        offset += std::max(1, bytes);
-        if (cp == '\n')
+        return false;
+    }
+
+    for (std::size_t index = 0U; index < atlasPages_.size(); ++index)
+    {
+        AtlasPage& page = atlasPages_[index];
+        int candidateX = page.nextX;
+        int candidateY = page.nextY;
+        int candidateRowHeight = page.rowHeight;
+        if (candidateX + width > kAtlasSide)
+        {
+            candidateX = 0;
+            candidateY += candidateRowHeight;
+            candidateRowHeight = 0;
+        }
+        if (candidateY + height > kAtlasSide)
+        {
+            continue;
+        }
+
+        x = candidateX;
+        y = candidateY;
+        pageIndex = index;
+        page.nextX = candidateX + width;
+        page.nextY = candidateY;
+        page.rowHeight = std::max(candidateRowHeight, height);
+        return true;
+    }
+
+    if (!CreateAtlasPage())
+    {
+        return false;
+    }
+
+    AtlasPage& page = atlasPages_.back();
+    pageIndex = atlasPages_.size() - 1U;
+    x = 0;
+    y = 0;
+    page.nextX = width;
+    page.rowHeight = height;
+    return true;
+}
+
+bool GlyphStrokeRenderer::CreateAtlasPage()
+{
+    if (atlasPages_.size() >= kMaxAtlasPages)
+    {
+        return false;
+    }
+
+    Image emptyAtlas = GenImageColor(kAtlasSide, kAtlasSide, Color {0, 0, 0, 0});
+    if (!emptyAtlas.data)
+    {
+        return false;
+    }
+    const Texture2D texture = LoadTextureFromImage(emptyAtlas);
+    UnloadImage(emptyAtlas);
+    if (!texture.id)
+    {
+        return false;
+    }
+
+    try
+    {
+        if (atlasPages_.empty())
+        {
+            atlasPages_.reserve(kMaxAtlasPages);
+            atlasGlyphs_.reserve(kMaxCachedGlyphs);
+            legacyFields_.reserve(kMaxCachedGlyphs);
+        }
+        atlasPages_.push_back(AtlasPage {texture, 0, 0, 0});
+    }
+    catch (...)
+    {
+        UnloadTexture(texture);
+        throw;
+    }
+    return true;
+}
+
+void GlyphStrokeRenderer::DrawAtlasRun(const Font& font,
+                                       const float scale,
+                                       const float spacing,
+                                       const float lineStep,
+                                       const float radius,
+                                       const Color color) const
+{
+    Vector2 pen {};
+    for (const GlyphRunItem& item : glyphRunScratch_)
+    {
+        if (item.lineBreak)
         {
             pen.x = 0.0f;
             pen.y += lineStep;
             continue;
         }
-        const int index = GetGlyphIndex(font, cp);
-        const auto& glyph = font.glyphs[index];
-        const Rectangle metrics = font.recs[index];
-        if (cp != ' ' && cp != '\t')
+
+        const GlyphInfo& glyph = font.glyphs[item.index];
+        const Rectangle metrics = font.recs[item.index];
+        if (item.drawable && item.atlasGlyph != nullptr &&
+            item.atlasGlyph->pageIndex < atlasPages_.size())
         {
-            const Texture2D field = Resolve(font, index);
-            if (field.id) DrawGlyph(field, metrics, glyph, pen, scale, radius, color);
+            DrawAtlasGlyph(
+                atlasPages_[item.atlasGlyph->pageIndex].texture,
+                item.atlasGlyph->core,
+                metrics,
+                glyph,
+                pen,
+                scale,
+                radius,
+                color);
         }
         const float advance = glyph.advanceX ? static_cast<float>(glyph.advanceX) : metrics.width;
         pen.x += advance * scale + spacing;
     }
+}
+
+void GlyphStrokeRenderer::DrawLegacyRun(const Font& font,
+                                        const float scale,
+                                        const float spacing,
+                                        const float lineStep,
+                                        const float radius,
+                                        const Color color) const
+{
+    Vector2 pen {};
+    for (const GlyphRunItem& item : glyphRunScratch_)
+    {
+        if (item.lineBreak)
+        {
+            pen.x = 0.0f;
+            pen.y += lineStep;
+            continue;
+        }
+
+        const GlyphInfo& glyph = font.glyphs[item.index];
+        const Rectangle metrics = font.recs[item.index];
+        if (item.drawable && item.legacyField.id)
+        {
+            DrawGlyph(item.legacyField, metrics, glyph, pen, scale, radius, color);
+        }
+        const float advance = glyph.advanceX ? static_cast<float>(glyph.advanceX) : metrics.width;
+        pen.x += advance * scale + spacing;
+    }
+}
+
+bool GlyphStrokeRenderer::Draw(const std::string& text,
+                               const Font& font,
+                               const float size,
+                               const float spacing,
+                               const Vector2 anchor,
+                               const Vector2 origin,
+                               const float rotation,
+                               const Color color,
+                               const float width)
+{
+    if (!std::isfinite(width) || !std::isfinite(size) || size <= 0.0f)
+    {
+        return false;
+    }
+    if (!font.glyphs || !font.recs || font.glyphCount <= 0 || font.baseSize <= 0 || !Prepare(font) ||
+        !BuildGlyphRun(text, font))
+    {
+        return false;
+    }
+
+    const float radius = 0.5f * width;
+    const float scale = size / static_cast<float>(font.baseSize);
+    float lineStep = 0.0f;
+    for (const GlyphRunItem& item : glyphRunScratch_)
+    {
+        if (item.lineBreak)
+        {
+            lineStep = MeasureTextEx(font, "M\nM", size, spacing).y -
+                       MeasureTextEx(font, "M", size, spacing).y;
+            break;
+        }
+    }
+
+    if (AtlasSupportsRun(font, scale, radius) && ResolveAtlasRun(font))
+    {
+        const StrokeDrawScope drawScope(shader_, radiusLocation_, radius, anchor, origin, rotation);
+        DrawAtlasRun(font, scale, spacing, lineStep, radius, color);
+        ++atlasDrawCount_;
+        return true;
+    }
+
+    if (!ResolveLegacyRun(font))
+    {
+        return false;
+    }
+    const StrokeDrawScope drawScope(shader_, radiusLocation_, radius, anchor, origin, rotation);
+    DrawLegacyRun(font, scale, spacing, lineStep, radius, color);
+    ++legacyDrawCount_;
     return true;
+}
+
+GlyphStrokeRenderer::Stats GlyphStrokeRenderer::CacheStats() const noexcept
+{
+    return Stats {
+        atlasDrawCount_,
+        legacyDrawCount_,
+        atlasPages_.size(),
+        atlasGlyphs_.size(),
+        legacyFields_.size()};
 }
 } // namespace mfd

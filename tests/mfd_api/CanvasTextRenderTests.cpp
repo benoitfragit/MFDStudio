@@ -29,6 +29,12 @@ namespace
 {
 constexpr int kRenderSize = 128;
 
+std::filesystem::path StrokeFontPath()
+{
+    return std::filesystem::path(__FILE__).parent_path().parent_path().parent_path() /
+           "examples/apilevel1/widgets/assets/fonts/ShareTechMono-Regular.ttf";
+}
+
 mfd::ColorRgba Green() noexcept
 {
     return {0, 255, 0, 255};
@@ -291,8 +297,7 @@ TEST(CanvasTextRenderTests, LeftAndRightAlignedTextKeepTheirAnchoredSideWhenWidt
 }
 TEST(CanvasTextRenderTests, LargeConfiguredFontKeepsIndependentMeasuredStemWidths)
 {
-    const auto path = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path()
-                    / "examples/apilevel1/widgets/assets/fonts/ShareTechMono-Regular.ttf";
+    const std::filesystem::path path = StrokeFontPath();
     ASSERT_TRUE(std::filesystem::exists(path));
     SetConfigFlags(FLAG_WINDOW_HIDDEN);
     InitWindow(kRenderSize, kRenderSize, "large font stroke width");
@@ -348,5 +353,91 @@ TEST(CanvasTextRenderTests, LargeConfiguredFontKeepsIndependentMeasuredStemWidth
         EXPECT_EQ(cache.SelectFont(native, 64.0f).texture.id, enlarged.texture.id);
     }
     UnloadFont(native);
+    CloseWindow();
+}
+
+TEST(CanvasTextRenderTests, RepeatedStrokeLabelsShareOneBoundedAtlasPage)
+{
+    const std::filesystem::path path = StrokeFontPath();
+    ASSERT_TRUE(std::filesystem::exists(path));
+    SetConfigFlags(FLAG_WINDOW_HIDDEN);
+    InitWindow(kRenderSize, kRenderSize, "stroke glyph atlas batching");
+    ASSERT_TRUE(IsWindowReady());
+    const Font font = LoadFont(path.string().c_str());
+    ASSERT_NE(font.texture.id, GetFontDefault().texture.id);
+
+    mfd::GlyphStrokeRenderer renderer;
+    const std::string label = "TRACK0123";
+    const float fontSize = 20.0f;
+    const float spacing = 1.0f;
+    const Vector2 measured = MeasureTextEx(font, label.c_str(), fontSize, spacing);
+    const Vector2 anchor {kRenderSize * 0.5f, kRenderSize * 0.5f};
+    const Vector2 origin {measured.x * 0.5f, measured.y * 0.5f};
+
+    BeginDrawing();
+    ClearBackground(BLACK);
+    bool everyDrawSucceeded = true;
+    for (std::size_t labelIndex = 0U; labelIndex < 200U; ++labelIndex)
+    {
+        if (!renderer.Draw(label, font, fontSize, spacing, anchor, origin, 0.0f, GREEN, 2.0f))
+        {
+            everyDrawSucceeded = false;
+            break;
+        }
+    }
+    const mfd::Rgba32Framebuffer framebuffer = mfd::OpenGlFramebufferReader::ReadRgba32();
+    EndDrawing();
+
+    const mfd::GlyphStrokeRenderer::Stats stats = renderer.CacheStats();
+    EXPECT_TRUE(everyDrawSucceeded);
+    EXPECT_EQ(stats.atlasDraws, 200U);
+    EXPECT_EQ(stats.legacyDraws, 0U);
+    EXPECT_EQ(stats.atlasPages, 1U);
+    EXPECT_EQ(stats.atlasGlyphs, 9U);
+    EXPECT_EQ(stats.legacyGlyphs, 0U);
+    EXPECT_GT(CountForegroundPixels(framebuffer, 0, 32, kRenderSize, 96), 20U);
+
+    renderer.Clear();
+    UnloadFont(font);
+    CloseWindow();
+}
+
+TEST(CanvasTextRenderTests, WideStrokeUsesLegacyTextureFallback)
+{
+    const std::filesystem::path path = StrokeFontPath();
+    ASSERT_TRUE(std::filesystem::exists(path));
+    SetConfigFlags(FLAG_WINDOW_HIDDEN);
+    InitWindow(kRenderSize, kRenderSize, "wide stroke texture fallback");
+    ASSERT_TRUE(IsWindowReady());
+    const Font font = LoadFont(path.string().c_str());
+    ASSERT_NE(font.texture.id, GetFontDefault().texture.id);
+
+    mfd::GlyphStrokeRenderer renderer;
+    const float fontSize = 64.0f;
+    const Vector2 measured = MeasureTextEx(font, "I", fontSize, 0.0f);
+    BeginDrawing();
+    ClearBackground(BLACK);
+    const bool drawSucceeded = renderer.Draw(
+        "I",
+        font,
+        fontSize,
+        0.0f,
+        Vector2 {kRenderSize * 0.5f, kRenderSize * 0.5f},
+        Vector2 {measured.x * 0.5f, measured.y * 0.5f},
+        0.0f,
+        GREEN,
+        32.0f);
+    const mfd::Rgba32Framebuffer framebuffer = mfd::OpenGlFramebufferReader::ReadRgba32();
+    EndDrawing();
+
+    const mfd::GlyphStrokeRenderer::Stats stats = renderer.CacheStats();
+    EXPECT_TRUE(drawSucceeded);
+    EXPECT_EQ(stats.atlasDraws, 0U);
+    EXPECT_EQ(stats.legacyDraws, 1U);
+    EXPECT_EQ(stats.legacyGlyphs, 1U);
+    EXPECT_GT(CountForegroundPixels(framebuffer, 32, 16, 96, 112), 100U);
+
+    renderer.Clear();
+    UnloadFont(font);
     CloseWindow();
 }

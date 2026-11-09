@@ -61,7 +61,9 @@ primitives can always be patched directly through the generated client API.
   `useUtc`), plus the same font/spacing/align fields as `text`.
   For either type, optional `useStrokeThickness: true` draws the centerlines of
   the chosen font using the effective `lineWidth` in logical units (one screen
-  pixel minimum). Omit it or set it to false for the natural filled font.
+  pixel minimum). The renderer keeps these centerlines in bounded glyph atlases;
+  unusually wide strokes transparently use the compatible per-glyph fallback.
+  Omit the option or set it to false for the natural filled font.
 - **`line`** — `start` (alias `from`), `end` (alias `to`).
 - **`circle`** — `radius`.
 - **`ring`** — `outerRadius` (alias `radius`), `innerRadius` (alias
