@@ -125,6 +125,27 @@ bool IsMultiChunkFragment(const CommandBatch& batch) noexcept
     return batch.fragment.has_value() && batch.fragment->chunkCount > 1U;
 }
 
+/**
+ * @brief Checks whether one queued fragment belongs to an active atomic group.
+ * @param batch Candidate queued batch.
+ * @param group Identity of the first fragment drained during this call.
+ * @return `true` when both fragments share the complete reassembly identity.
+ */
+bool BelongsToFragmentGroup(const CommandBatch& batch,
+                            const CommandBatchFragment& group) noexcept
+{
+    if (!IsMultiChunkFragment(batch))
+    {
+        return false;
+    }
+
+    const CommandBatchFragment& fragment = *batch.fragment;
+    return fragment.clientId == group.clientId &&
+           fragment.sessionEpoch == group.sessionEpoch &&
+           fragment.batchId == group.batchId &&
+           fragment.chunkCount == group.chunkCount;
+}
+
 CoalescingIdentifier MakeCoalescingIdentifier(const std::uint64_t numericId, const std::string_view fallbackText)
 {
     CoalescingIdentifier identifier;
@@ -1249,11 +1270,27 @@ std::size_t UdpRuntimeBridge::DrainReceivedBatchesForCommandBudget(std::vector<C
     std::size_t batchCount = 0;
     std::size_t commandCount = 0;
     std::size_t commandWorkUnits = 0;
+    std::optional<CommandBatchFragment> fragmentGroup;
     while (!impl_->inboundBatches.empty() && batchCount < maxBatches)
     {
         const QueuedCommandBatch& nextBatch = impl_->inboundBatches.front();
         const bool isMultiChunkFragment = IsMultiChunkFragment(nextBatch.batch);
-        if (isMultiChunkFragment && batchCount > 0U)
+        if (isMultiChunkFragment)
+        {
+            if (!fragmentGroup.has_value())
+            {
+                if (batchCount > 0U)
+                {
+                    break;
+                }
+                fragmentGroup = *nextBatch.batch.fragment;
+            }
+            else if (!BelongsToFragmentGroup(nextBatch.batch, *fragmentGroup))
+            {
+                break;
+            }
+        }
+        else if (fragmentGroup.has_value())
         {
             break;
         }
@@ -1269,10 +1306,6 @@ std::size_t UdpRuntimeBridge::DrainReceivedBatchesForCommandBudget(std::vector<C
         ++batchCount;
         QueuedCommandBatch queued = impl_->TakeOldestQueuedBatch();
         destination.push_back(std::move(queued.batch));
-        if (isMultiChunkFragment)
-        {
-            break;
-        }
     }
 
     AddCounter(impl_->counters.drainedBatches, static_cast<std::uint64_t>(batchCount));

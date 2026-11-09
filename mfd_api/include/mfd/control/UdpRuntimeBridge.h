@@ -179,9 +179,10 @@ public:
      *
      * @note Batches are never split by this method. If the next queued batch
      * does not fit the remaining command budget, it stays queued with its
-     * sequence and mapping hash intact. A fragment belonging to a multi-chunk
-     * atomic batch is drained alone so its eventual reassembly cannot combine
-     * with unrelated work during the same frame.
+     * sequence and mapping hash intact. Contiguous fragments belonging to the
+     * same multi-chunk atomic batch may be drained together within both limits.
+     * The fragment group remains a frame barrier: unrelated work is never
+     * combined with it during the same call.
      */
     std::size_t DrainReceivedBatchesForCommandBudget(std::vector<CommandBatch>& destination,
                                                      std::size_t maxCommandWorkUnits,
