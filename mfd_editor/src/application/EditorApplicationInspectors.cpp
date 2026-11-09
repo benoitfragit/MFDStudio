@@ -91,6 +91,7 @@ using editor::app::SetActivePageStrobe;
 using editor::app::SuggestPageStrobeDraftName;
 using editor::app::SummarizeDynamicLayerBindings;
 using editor::app::SupportsPrimitiveLineStyle;
+using editor::app::UpdateDefaultBlinkAfterRemoval;
 }
 
 namespace
