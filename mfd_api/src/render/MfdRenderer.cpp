@@ -32,6 +32,7 @@
 #include "mfd/apilevel1/widgets/WidgetInputController.h"
 #include "ImageTextureCache.h"
 #include "ExternalStreamRegistry.h"
+#include "PolylineFillCache.h"
 #include "RenderWorkBudget.h"
 #include "RenderTextureUtils.h"
 #include "OpenGlCompat.h"
@@ -275,7 +276,8 @@ void DrawActivePageContent(const SceneRegistry& scene,
                            BezierPolylineCache* bezierCache,
                            ImageTextureCache* imageCache,
                            TextLayoutCache* textLayoutCache,
-                           ExternalStreamRegistry* externalStreams)
+                           ExternalStreamRegistry* externalStreams,
+                           PolylineFillCache* polylineFillCache)
 {
     const Vector2 mouse = GetMousePosition();
     const detail::ContainerDecorationPointerState containerPointer {
@@ -315,7 +317,10 @@ void DrawActivePageContent(const SceneRegistry& scene,
         bezierCache,
         imageCache,
         textLayoutCache,
-        std::move(restore), detail::kMaxCanvasDrawWorkUnits, externalStreams);
+        std::move(restore),
+        detail::kMaxCanvasDrawWorkUnits,
+        externalStreams,
+        polylineFillCache);
     restoreContext.canvas = &canvas;
     detail::DrawContainerDecorations(
         containerDefinitions,
@@ -394,6 +399,7 @@ struct MfdRenderer::Impl
     ImageTextureCache imageCache {};
     ExternalStreamRegistry externalStreams {};
     TextLayoutCache textLayoutCache {};
+    PolylineFillCache polylineFillCache {};
     TitleReticleCache titleReticleCache {};
 
     void ResolveContainers(const SceneRegistry& scene)
@@ -959,7 +965,9 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
             activeScrollbarHorizontal,
             impl_ == nullptr ? nullptr : &impl_->bezierCache,
             impl_ == nullptr ? nullptr : &impl_->imageCache,
-            impl_ == nullptr ? nullptr : &impl_->textLayoutCache, &impl_->externalStreams);
+            impl_ == nullptr ? nullptr : &impl_->textLayoutCache,
+            impl_ == nullptr ? nullptr : &impl_->externalStreams,
+            impl_ == nullptr ? nullptr : &impl_->polylineFillCache);
         return;
     }
 
@@ -985,7 +993,9 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
             activeScrollbarHorizontal,
             impl_ == nullptr ? nullptr : &impl_->bezierCache,
             impl_ == nullptr ? nullptr : &impl_->imageCache,
-            impl_ == nullptr ? nullptr : &impl_->textLayoutCache, &impl_->externalStreams);
+            impl_ == nullptr ? nullptr : &impl_->textLayoutCache,
+            impl_ == nullptr ? nullptr : &impl_->externalStreams,
+            impl_ == nullptr ? nullptr : &impl_->polylineFillCache);
 
         if (display.brightness < 0.9995f)
         {
@@ -1020,7 +1030,9 @@ void MfdRenderer::DrawActivePage(const SceneRegistry& scene, const int viewportW
             activeScrollbarHorizontal,
             &impl_->bezierCache,
             &impl_->imageCache,
-            &impl_->textLayoutCache, &impl_->externalStreams);
+            &impl_->textLayoutCache,
+            &impl_->externalStreams,
+            &impl_->polylineFillCache);
     }
 
     const Rectangle source {

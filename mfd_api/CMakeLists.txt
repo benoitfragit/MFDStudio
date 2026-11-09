@@ -173,6 +173,7 @@ set(MFD_RENDER_PRIVATE_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/ImageTextureCache.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/MfdStudioBrandMark.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlCompat.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/PolylineFillCache.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/PolygonTriangulation.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderWorkBudget.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderTextureUtils.h
@@ -196,6 +197,7 @@ set(MFD_RENDER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/MfdRenderer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlCompat.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/OpenGlFramebufferReader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/PolylineFillCache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/PolygonTriangulation.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/RenderTextureUtils.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/TextLayoutCache.cpp

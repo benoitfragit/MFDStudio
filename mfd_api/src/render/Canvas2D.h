@@ -25,6 +25,7 @@ class BezierPolylineCache;
 class ImageTextureCache;
 class TextLayoutCache;
 class ExternalStreamRegistry;
+class PolylineFillCache;
 
 /**
  * @brief Lightweight 2D renderer turning reticle data into raylib draw calls.
@@ -55,6 +56,7 @@ public:
      *        runtime behaviour of filling the erased region with @p backgroundColor is kept.
      * @param maximumDrawWorkUnits Logical render-work limit owned by this internal canvas instance.
      * @param externalStreams Optional renderer-owned registry providing borrowed GPU textures.
+     * @param polylineFillCache Optional persistent cache for closed-polyline fill topology.
      */
     Canvas2D(int width,
              int height,
@@ -67,7 +69,8 @@ public:
              TextLayoutCache* textLayoutCache = nullptr,
              BackgroundRestoreCallback backgroundRestore = {},
              std::size_t maximumDrawWorkUnits = detail::kMaxCanvasDrawWorkUnits,
-             ExternalStreamRegistry* externalStreams = nullptr);
+             ExternalStreamRegistry* externalStreams = nullptr,
+             PolylineFillCache* polylineFillCache = nullptr);
 
     /**
      * @brief Draws one full reticle group.
@@ -123,6 +126,31 @@ private:
                                     const Primitive& primitive,
                                     const ReticleGroup& group,
                                     std::vector<Vector2>& destination) const;
+    /**
+     * @brief Builds finite screen-relative points while retaining scale and rotation.
+     * @param points Logical source vertices.
+     * @param pointCount Number of source vertices.
+     * @param primitive Primitive providing the local transform.
+     * @param group Reticle providing the parent transform.
+     * @param destination Reusable output buffer receiving screen-relative vertices.
+     * @return `true` only when exactly @p pointCount finite points were produced.
+     */
+    bool BuildScreenRelativePointsExactInto(const Vec2* points,
+                                            std::size_t pointCount,
+                                            const Primitive& primitive,
+                                            const ReticleGroup& group,
+                                            std::vector<Vector2>& destination) const;
+    /**
+     * @brief Validates and fills one closed polyline without changing its stroke path.
+     * @param polyline Closed polyline geometry.
+     * @param primitive Primitive providing style-independent transforms.
+     * @param group Reticle providing the parent transform.
+     * @param fillColor Color emitted for accepted fill triangles.
+     */
+    void DrawClosedPolylineFill(const PolylineGeometry& polyline,
+                                const Primitive& primitive,
+                                const ReticleGroup& group,
+                                Color fillColor) const;
     void DrawReticlePrimitives(const ReticleGroup& reticle) const;
     void RestoreClippedBackground() const;
     /**
@@ -156,6 +184,7 @@ private:
     BezierPolylineCache* bezierCache_ = nullptr;
     ImageTextureCache* imageCache_ = nullptr;
     TextLayoutCache* textLayoutCache_ = nullptr;
+    PolylineFillCache* polylineFillCache_ = nullptr;
     mutable std::vector<Vec2> logicalScratchA_ {};
     mutable std::vector<Vec2> logicalScratchB_ {};
     mutable std::vector<Vector2> screenScratchA_ {};

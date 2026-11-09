@@ -26,6 +26,7 @@
 #include "ImageTextureCache.h"
 #include "ExternalStreamRegistry.h"
 #include "OpenGlCompat.h"
+#include "PolylineFillCache.h"
 #include "PolygonTriangulation.h"
 #include "TextAnchorSnap.h"
 #include "TextLayoutCache.h"
@@ -601,7 +602,8 @@ Canvas2D::Canvas2D(const int width,
                    TextLayoutCache* textLayoutCache,
                    BackgroundRestoreCallback backgroundRestore,
                    const std::size_t maximumDrawWorkUnits,
-                   ExternalStreamRegistry* externalStreams)
+                   ExternalStreamRegistry* externalStreams,
+                   PolylineFillCache* polylineFillCache)
     : externalStreams_(externalStreams)
     , width_(width)
     , height_(height)
@@ -613,6 +615,7 @@ Canvas2D::Canvas2D(const int width,
     , bezierCache_(bezierCache)
     , imageCache_(imageCache)
     , textLayoutCache_(textLayoutCache)
+    , polylineFillCache_(polylineFillCache)
     , drawBudget_(maximumDrawWorkUnits)
 {
 }
@@ -948,6 +951,84 @@ bool Canvas2D::BuildScreenPointsExactInto(const Vec2* points,
     }
 
     return destination.size() == pointCount;
+}
+
+bool Canvas2D::BuildScreenRelativePointsExactInto(const Vec2* points,
+                                                  const std::size_t pointCount,
+                                                  const Primitive& primitive,
+                                                  const ReticleGroup& group,
+                                                  std::vector<Vector2>& destination) const
+{
+    destination.clear();
+    destination.reserve(pointCount);
+
+    if (points == nullptr && pointCount != 0U)
+    {
+        return false;
+    }
+
+    Transform2D linearTransform = ResolvePrimitiveWorldTransform(primitive, group);
+    linearTransform.position = {};
+    for (std::size_t index = 0U; index < pointCount; ++index)
+    {
+        if (!IsFiniteVec2(points[index]))
+        {
+            destination.clear();
+            return false;
+        }
+
+        const Vec2 transformed = ApplyTransform(points[index], linearTransform);
+        const Vector2 screenRelative {
+            ToViewPixels(transformed.x),
+            -ToViewPixels(transformed.y)};
+        if (!IsFiniteVector(screenRelative))
+        {
+            destination.clear();
+            return false;
+        }
+        destination.push_back(screenRelative);
+    }
+
+    return destination.size() == pointCount;
+}
+
+void Canvas2D::DrawClosedPolylineFill(const PolylineGeometry& polyline,
+                                      const Primitive& primitive,
+                                      const ReticleGroup& group,
+                                      const Color fillColor) const
+{
+    if (polylineFillCache_ != nullptr &&
+        screenScratchA_.size() == polyline.points.size() &&
+        BuildScreenRelativePointsExactInto(polyline.points.data(),
+                                           polyline.points.size(),
+                                           primitive,
+                                           group,
+                                           screenScratchB_))
+    {
+        const PolylineFillCache::Result& result = polylineFillCache_->Resolve(screenScratchB_);
+        if (result.kind == PolylineFillCache::FillKind::Convex)
+        {
+            FillConvexPolygon(screenScratchA_, fillColor, drawBudget_);
+        }
+        else if (result.kind == PolylineFillCache::FillKind::Triangulated)
+        {
+            FillIndexedTriangles(screenScratchA_, result.triangleIndices, fillColor, drawBudget_);
+        }
+        return;
+    }
+
+    // Preserve the standalone-canvas path when no renderer-owned cache is available.
+    if (detail::PolygonIsConvex(screenScratchA_))
+    {
+        FillConvexPolygon(screenScratchA_, fillColor, drawBudget_);
+        return;
+    }
+
+    triangleIndexScratch_.clear();
+    if (detail::TriangulateSimplePolygon(screenScratchA_, triangleIndexScratch_))
+    {
+        FillIndexedTriangles(screenScratchA_, triangleIndexScratch_, fillColor, drawBudget_);
+    }
 }
 
 bool Canvas2D::PrepareClipMaskPolygon(const Vec2* points,
@@ -1338,18 +1419,7 @@ void Canvas2D::DrawPrimitive(const Primitive& primitive, const ReticleGroup& gro
         if (style.filled && polyline->closed)
         {
             // Both fill paths reject self-intersecting contours; strokes remain unchanged.
-            if (detail::PolygonIsConvex(screenScratchA_))
-            {
-                FillConvexPolygon(screenScratchA_, fillColor, drawBudget_);
-            }
-            else
-            {
-                triangleIndexScratch_.clear();
-                if (detail::TriangulateSimplePolygon(screenScratchA_, triangleIndexScratch_))
-                {
-                    FillIndexedTriangles(screenScratchA_, triangleIndexScratch_, fillColor, drawBudget_);
-                }
-            }
+            DrawClosedPolylineFill(*polyline, primitive, group, fillColor);
         }
 
         DrawPolylineStroke(

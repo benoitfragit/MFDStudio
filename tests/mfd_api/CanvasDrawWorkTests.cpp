@@ -25,6 +25,7 @@
 #include "Canvas2D.h"
 #include "CanvasDrawWork.h"
 #include "ImageTextureCache.h"
+#include "PolylineFillCache.h"
 #include "TextLayoutCache.h"
 #include "mfd/model/Reticle.h"
 #include "mfd/render/OpenGlFramebufferReader.h"
@@ -142,6 +143,23 @@ mfd::ReticleGroup MakeCircleClipBudgetReticle()
     return reticle;
 }
 
+mfd::ReticleGroup MakeFilledPolylineReticle()
+{
+    mfd::ReticleGroup reticle;
+    reticle.id = "cached_polyline";
+    mfd::Primitive polyline;
+    polyline.id = "filled_outline";
+    polyline.type = mfd::PrimitiveType::Polyline;
+    polyline.geometry = mfd::PolylineGeometry {
+        {{-0.25f, -0.20f}, {0.20f, -0.20f}, {0.10f, 0.0f}, {0.20f, 0.20f}, {-0.25f, 0.20f}},
+        true};
+    polyline.style.color = Green();
+    polyline.style.fillColor = Green();
+    polyline.style.filled = true;
+    reticle.primitives.push_back(std::move(polyline));
+    return reticle;
+}
+
 class RestoreCounter
 {
 public:
@@ -203,6 +221,28 @@ mfd::Rgba32Framebuffer RenderWithBudget(const mfd::ReticleGroup& reticle,
     const mfd::Rgba32Framebuffer framebuffer = mfd::OpenGlFramebufferReader::ReadRgba32();
     EndDrawing();
     return framebuffer;
+}
+
+void RenderPolylineWithCache(const mfd::ReticleGroup& reticle,
+                             mfd::PolylineFillCache& polylineFillCache)
+{
+    BeginDrawing();
+    ClearBackground(BLACK);
+    mfd::Canvas2D canvas(kRenderSize,
+                         kRenderSize,
+                         {},
+                         nullptr,
+                         BLACK,
+                         false,
+                         nullptr,
+                         nullptr,
+                         nullptr,
+                         {},
+                         mfd::detail::kMaxCanvasDrawWorkUnits,
+                         nullptr,
+                         &polylineFillCache);
+    canvas.DrawReticle(reticle);
+    EndDrawing();
 }
 
 std::size_t CountDominantPixels(const mfd::Rgba32Framebuffer& framebuffer,
@@ -287,6 +327,26 @@ TEST_F(CanvasDrawWorkRenderTests, FastCircleAndRingConsumeEquivalentTessellation
         mfd::detail::EstimateRingFillWorkUnits(kExplicitRingSegmentCount) +
         2U * mfd::detail::EstimateClosedStrokeWorkUnits(kExplicitRingSegmentCount);
     ExpectOnlyBudgetedPrimitiveRendered(RenderWithBudget(MakeRingBudgetReticle(), ringWorkUnits));
+}
+
+TEST_F(CanvasDrawWorkRenderTests, MovingFilledPolylineReusesTopologyButRotationInvalidatesIt)
+{
+    mfd::ReticleGroup reticle = MakeFilledPolylineReticle();
+    mfd::PolylineFillCache cache;
+
+    RenderPolylineWithCache(reticle, cache);
+    ASSERT_EQ(cache.CacheStats().misses, 1U);
+    ASSERT_EQ(cache.CacheStats().hits, 0U);
+
+    reticle.transform.position = {0.20f, -0.15f};
+    RenderPolylineWithCache(reticle, cache);
+    EXPECT_EQ(cache.CacheStats().misses, 1U);
+    EXPECT_EQ(cache.CacheStats().hits, 1U);
+
+    reticle.primitives.front().transform.rotationDegrees = 12.0f;
+    RenderPolylineWithCache(reticle, cache);
+    EXPECT_EQ(cache.CacheStats().misses, 2U);
+    EXPECT_EQ(cache.CacheStats().hits, 1U);
 }
 
 TEST_F(CanvasDrawWorkRenderTests, ImageResolveAndDrawConsumesOneDirectOperation)
