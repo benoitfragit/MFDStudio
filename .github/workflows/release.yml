@@ -106,7 +106,38 @@ jobs:
           $plantUmlDirectory = Join-Path $env:RUNNER_TEMP "plantuml"
           New-Item -ItemType Directory -Force $plantUmlDirectory | Out-Null
           $plantUmlJar = Join-Path $plantUmlDirectory "plantuml.jar"
-          Invoke-WebRequest -Uri "https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar" -OutFile $plantUmlJar
+          # Pin the documentation tool to a reproducible Maven Central artifact.
+          # Transient upstream failures must not immediately abort a release.
+          $plantUmlVersion = "1.2026.9"
+          $plantUmlUri = "https://repo.maven.apache.org/maven2/net/sourceforge/plantuml/plantuml/$plantUmlVersion/plantuml-$plantUmlVersion.jar"
+          $downloadSucceeded = $false
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            try {
+              Invoke-WebRequest -Uri $plantUmlUri -OutFile $plantUmlJar -TimeoutSec 120 -ErrorAction Stop
+              if ((Get-Item $plantUmlJar).Length -lt 1MB) {
+                throw "PlantUML download is unexpectedly small."
+              }
+
+              & java -jar $plantUmlJar -version
+              if ($LASTEXITCODE -ne 0) {
+                throw "Downloaded PlantUML JAR failed its version check."
+              }
+
+              $downloadSucceeded = $true
+              break
+            }
+            catch {
+              Remove-Item -Path $plantUmlJar -Force -ErrorAction SilentlyContinue
+              Write-Warning "PlantUML download attempt $attempt of 3 failed: $_"
+              if ($attempt -lt 3) {
+                Start-Sleep -Seconds (5 * $attempt)
+              }
+            }
+          }
+
+          if (-not $downloadSucceeded) {
+            throw "Unable to download and validate PlantUML $plantUmlVersion after 3 attempts."
+          }
 
           $candidatePaths = @(
             "${env:ProgramFiles}\doxygen\bin",
