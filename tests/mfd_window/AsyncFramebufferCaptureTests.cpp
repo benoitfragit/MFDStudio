@@ -150,6 +150,29 @@ TEST(AsyncFramebufferCaptureTests, PendingNeverPublishesOldFrameOrOverwritesPend
     EXPECT_EQ(state.createdFences, state.releasedFences);
 }
 
+TEST(AsyncFramebufferCaptureTests, CompletedReadbacksRemainValidAcrossRepeatedBufferTransfers)
+{
+    ReadbackState state;
+    ControlledReadback api(state);
+    {
+        AsyncFramebufferCapture capture(MfdWindowFramebufferPixelFormat_Rgba32, api);
+        EXPECT_FALSE(capture.Capture(2, 2).has_value());
+
+        for (int frameNumber = 1; frameNumber <= 16; ++frameNumber)
+        {
+            const auto frame = capture.Capture(2, 2);
+            ASSERT_TRUE(frame.has_value());
+            EXPECT_EQ(frame->width, 2);
+            EXPECT_EQ(frame->height, 2);
+            ASSERT_EQ(frame->pixels.size(), 16U);
+            EXPECT_EQ(frame->pixels.front(), static_cast<std::byte>(frameNumber));
+        }
+        EXPECT_EQ(state.syncCount, 0U);
+    }
+    EXPECT_EQ(state.generated, state.deleted);
+    EXPECT_EQ(state.createdFences, state.releasedFences);
+}
+
 TEST(AsyncFramebufferCaptureTests, FailedFenceFallsBackOnceAndNeverReturnsStalePixels)
 {
     ReadbackState state;
