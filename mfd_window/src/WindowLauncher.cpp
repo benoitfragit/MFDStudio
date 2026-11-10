@@ -1096,7 +1096,6 @@ public:
         ApplyRuntimeCommandTransactionMode();
         if (framebufferCallback)
         {
-            framebufferCapture_ = std::make_unique<AsyncFramebufferCapture>(framebufferPixelFormat_, PboReadbackApi::Instance());
             framebufferPublisher_ = std::make_unique<AsyncFramebufferPublisher>(std::move(framebufferCallback));
         }
     }
@@ -1537,6 +1536,7 @@ private:
 
         if (framebufferCapture_ == nullptr)
         {
+            // Load PBO entry points only after InitWindow() has created the OpenGL context.
             framebufferCapture_ = std::make_unique<AsyncFramebufferCapture>(framebufferPixelFormat_, PboReadbackApi::Instance());
         }
 
