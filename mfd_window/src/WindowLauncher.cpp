@@ -1551,7 +1551,7 @@ private:
             return;
         }
 
-        const std::optional<CapturedFramebuffer> framebuffer =
+        std::optional<CapturedFramebuffer> framebuffer =
             framebufferCapture_->Capture(captureSize.width, captureSize.height);
         if (!framebuffer.has_value())
         {
