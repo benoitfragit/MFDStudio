@@ -6,6 +6,7 @@
 #include "AsyncFramebufferCapture.h"
 #include <algorithm>
 #include <cstring>
+#include <utility>
 namespace mfd::window::detail
 {
 namespace
@@ -260,7 +261,7 @@ std::optional<CapturedFramebuffer> AsyncFramebufferCapture::TryConsume(const uns
     FlipRows(latestFramebuffer_.pixels,
              mfd::window::ComputeFramebufferByteCount(pixelFormat_, latestFramebuffer_.width, 1),
              latestFramebuffer_.height);
-    return latestFramebuffer_;
+    return std::move(latestFramebuffer_);
 }
 
 void AsyncFramebufferCapture::Release() noexcept
