@@ -113,11 +113,22 @@ Numeric bindings target an existing primitive's text, rotation, scale, position
 or visibility. Numeric text uses fixed decimal formatting; other text bindings
 use confirmed text. The logical hit rectangle is independent of painted shapes.
 
-The folder icon in the sidebar's **Widgets** section opens the **Widget definition
-library** browser. It creates, imports, searches, duplicates and exports shared
-definitions without inserting them. Selecting either a definition in that browser
-or an instance in the sidebar opens **Widget Studio** in the central workspace and
-routes the corresponding shared or Page-local properties to the right inspector.
+The folder icon in the sidebar's **Widgets** section shows the **Definition library**
+inline, below the Page instances, instead of a floating window. It creates, imports,
+searches, duplicates and exports shared definitions without inserting them.
+Clicking a definition or an instance selects it and routes its shared or Page-local
+properties to the right inspector while the Page stays visible; double-click, the
+open-in-studio icon or **Edit in Widget Studio** opens **Widget Studio** in the
+central workspace.
+
+Placing an instance never depends on what is selected while browsing the catalog.
+**Place in** shows the explicit target: the Page root or one container. It follows
+the last container you selected (selecting a definition does not change it) and can
+be changed before **Place on Page**. If that container is deleted meanwhile, nothing is
+inserted and the target falls back to the Page root. Dragging a definition onto the
+Page inserts the instance where it is dropped, in logical Page coordinates and
+snapped to the shared grid when **Snap to grid** is on. Each placement is one Undo
+step.
 
 Widget Studio initially fits the selected widget, then keeps an independent camera:
 the wheel zooms around the pointer, right-drag pans, and the recenter button fits the
@@ -132,8 +143,20 @@ In Widget Studio, select a visual state in the inspector, choose **Edit visual i
 Reticle studio**, edit with the complete reticle camera, labels, handles and snapping,
 then use the check-mark action in **Widgets**. Applying returns to the originating
 shared definition in Widget Studio. The working reticle is retained in the reticle
-library. Value bindings are edited beside the shared definition controls. The Page
-inspector edits only instance overrides unless **Edit shared definition** is enabled.
+library. Value bindings are edited beside the shared definition controls.
+
+The instance inspector is grouped by intent: **Instance** (id, parent, visibility),
+**Position and size**, **Placement in parent**, **State overrides**, then the
+collapsed **Shared definition** section, which is the only place that edits fields
+shared by every instance. **Parent** is picked from the Page root and the existing
+containers rather than typed. Placement fields follow the parent type: Canvas and
+Overlay expose the resize mode (Overlay also the render order), Grid exposes
+alignment and row/column/span, and a Linear parent orders children itself. When a
+Grid or Linear parent owns the position, Position X/Y is replaced by a short
+explanation; hidden values are kept unchanged. **State overrides** shows whether
+the text is inherited from the shared definition (with its current value) or
+overridden locally, with explicit **Override text locally** and **Reset text to
+inherited** actions.
 
 Simple instance-state edits (visible, enabled, exposed and checked/warning/value/
 text overrides) use a bounded page-local mutation after field validation and one

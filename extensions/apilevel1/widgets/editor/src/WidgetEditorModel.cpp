@@ -48,10 +48,19 @@ std::string WidgetEditorModel::UniqueId(const PageDefinition& page, const std::s
 std::string WidgetEditorModel::Insert(PageDefinition& page, std::shared_ptr<const WidgetDefinition> definition,
                                       std::string reference, const std::string_view parent, std::string& error)
 {
+    return Insert(page, std::move(definition), std::move(reference), parent, WidgetInstance {}.position, error);
+}
+std::string WidgetEditorModel::Insert(PageDefinition& page, std::shared_ptr<const WidgetDefinition> definition,
+                                      std::string reference, const std::string_view parent, const Vec2 position,
+                                      std::string& error)
+{
     if (!definition || page.widgets.size() >= kMaximumWidgetCount)
     { error = "A valid definition and room for another widget are required."; return {}; }
+    if (!std::isfinite(position.x) || !std::isfinite(position.y))
+    { error = "The widget position must be finite."; return {}; }
     PageDefinition candidate = page;
     WidgetInstance instance;
+    instance.position = position;
     instance.id = UniqueId(page, definition->id);
     instance.definition = std::move(definition);
     instance.definitionFile = std::move(reference);

@@ -217,6 +217,15 @@ private:
     [[nodiscard]] bool IsLibraryStudioWorkspaceVisible() const;
     /** @brief Returns whether a selected LEVEL 1 asset owns the focused central studio. */
     [[nodiscard]] bool IsFocusedLevel1StudioWorkspaceVisible() const;
+    /**
+     * @brief Opens the current container, widget or widget definition in its focused studio.
+     * @note Navigation only: no document mutation and no Undo step.
+     */
+    void OpenFocusedLevel1Studio();
+    /** @brief Leaves the focused studio and shows the Page again, keeping the selection and Page camera. */
+    void CloseFocusedLevel1Studio();
+    /** @brief Draws the inspector action that opens the selection in, or returns from, its studio. */
+    void DrawFocusedLevel1StudioInspectorAction();
     /** @brief Returns whether the fullscreen page preview can be toggled from the current workspace. */
     [[nodiscard]] bool CanToggleFullscreenPagePreview() const;
 
@@ -288,12 +297,25 @@ private:
     void DrawWidgetActionToolbar();
     void DrawWidgetInspector(bool definitionOnly = false);
     std::shared_ptr<const mfd::api1::WidgetDefinition> SelectedWidgetDefinition(bool definitionOnly);
-    void DrawWidgetLibrary();
+    /** @brief Draws the widget definition catalog inline in the Widgets sidebar section. */
+    void DrawWidgetDefinitionCatalog();
+    /** @brief Draws edit, placement and file actions for the definition selected in the catalog. */
+    void DrawWidgetDefinitionCatalogActions(const mfd::api1::WidgetDefinition& definition);
+    /** @brief Draws the explicit Page-root or container target used when placing a widget instance. */
+    void DrawWidgetInsertTargetSelector();
+    /** @brief Shows or hides the inline widget definition catalog and rescans the widgets folder. */
+    void ToggleWidgetDefinitionCatalog();
     void SelectWidget(int pageIndex, std::string id);
-    /** @brief Selects one shared widget definition and opens its focused studio. */
+    /** @brief Selects one shared widget definition for the inspector; the studio opens only on request. */
     void SelectWidgetDefinition(std::size_t index);
     void AddWidgetDefinition(bool duplicate);
-    void InsertWidgetDefinition(std::size_t index);
+    /**
+     * @brief Places one instance of a library definition on the active Page.
+     * @param index Definition index in the widget library.
+     * @param dropPosition Logical drop position, or empty to keep the default authored position.
+     * @note The parent is the explicit placement target, never the current selection. One Undo step.
+     */
+    void InsertWidgetDefinition(std::size_t index, std::optional<mfd::Vec2> dropPosition = std::nullopt);
     void DuplicateWidget();
     void DeleteWidget();
     void ScanWidgetLibrary();
@@ -454,6 +476,8 @@ private:
     void DrawReticleStudioPanel(float width = 0.0f);
     /** @brief Draws the focused Widget or Container studio in the central workspace. */
     void DrawFocusedLevel1StudioPanel();
+    /** @brief Draws the studio header: Back to Page, the edited context and the Esc hint. */
+    void DrawFocusedLevel1StudioHeader();
     /** @brief Renders the isolated selected Widget or Container subtree. */
     void DrawFocusedLevel1StudioPreview(const ViewportState& viewport);
     /** @brief Draws selection outlines and direct-manipulation handles over the focused studio. */
@@ -680,10 +704,16 @@ private:
     void SelectPageStrobe(int pageIndex, int strobeIndex = -1);
     /** @brief Selects one LEVEL 1 container on the active Page. */
     void SelectContainer(int pageIndex, std::string containerId);
-    /** @brief Creates and selects one root Canvas container on the active Page. */
-    void AddRootContainer();
-    /** @brief Creates and selects one Canvas child under the provided container. */
-    void AddChildContainer(std::string_view parentId);
+    /** @brief Creates and selects one root container of the chosen type on the active Page. */
+    void AddRootContainer(mfd::api1::ContainerType type = mfd::api1::ContainerType::Canvas);
+    /** @brief Creates and selects one child container of the chosen type under the provided container. */
+    void AddChildContainer(std::string_view parentId,
+                           mfd::api1::ContainerType type = mfd::api1::ContainerType::Canvas);
+    /**
+     * @brief Draws one menu item per container type inside the current popup or menu.
+     * @return The type the user picked this frame, if any.
+     */
+    [[nodiscard]] std::optional<mfd::api1::ContainerType> DrawContainerTypeMenuItems() const;
     /** @brief Duplicates and selects the provided container hierarchy. */
     void DuplicateContainer(std::string_view containerId);
     /** @brief Deletes the provided container hierarchy and restores Page selection. */
@@ -877,6 +907,8 @@ private:
     bool widgetLibraryOpen_ = false;
     std::size_t widgetLibrarySelected_ = 0;
     std::array<char, 256> widgetLibraryFilter_ {};
+    /** @brief Editor-only placement intent: target container id, or empty for the Page root. */
+    std::string widgetInsertTargetContainerId_ {};
     MfdWidgetEditorDraftV1 widgetDraft_ {};
     std::uint32_t pendingWidgetTextAction_ = 0;
     editor::app::Selection widgetTextOwner_ {};

@@ -92,13 +92,18 @@ section is read-only and explains the problem. Downgrading a Window that owns
 containers or widgets requires explicit, counted confirmation; deletion and the level change form
 one undoable operation. See [API LEVEL 1 containers](./containers.md).
 
-Selecting a widget, shared widget definition or container replaces the Page preview
-with its focused studio. These studios retain the reticle workflow's independent
-wheel zoom, right-drag pan, recenter control, View options and right inspector.
-Widget instances can be moved/resized directly; Container Studio renders only the
-selected subtree and lets a visible descendant become the next focus. Choose
-**Return to Page preview** from View or the canvas context menu, or select a Page in
-the sidebar.
+Selecting a widget, shared widget definition or container keeps the Page preview
+visible: the selection is outlined on the Page, gets its move/resize gizmo there,
+and the right inspector shows its properties. To isolate it, **double-click** it in
+the sidebar or on the Page, use the open-in-studio icon of its sidebar section, or
+the **Open in ... Studio** action at the top of the inspector. These studios retain
+the reticle workflow's independent wheel zoom, right-drag pan, recenter control,
+View options and right inspector. Widget instances can be moved/resized directly;
+Container Studio renders only the selected subtree and lets a visible descendant
+become the next focus. The studio header shows **Page > Container Studio > id**
+with a back arrow; the back arrow, **Esc**, or **Return to Page preview** from View
+or the canvas context menu returns to the Page with the same selection and Page
+camera. Opening or leaving a studio never creates an Undo step.
 
 The Page-preview pointer-and-response-ring tool enables session-only widget test
 mode. While armed, the left button executes the same button, toggle, checkbox,

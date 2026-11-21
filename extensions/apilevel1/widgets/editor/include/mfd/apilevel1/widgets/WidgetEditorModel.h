@@ -12,6 +12,18 @@ public:
     static std::string UniqueId(const PageDefinition& page, std::string_view base);
     static std::string Insert(PageDefinition& page, std::shared_ptr<const WidgetDefinition> definition,
                               std::string reference, std::string_view parent, std::string& error);
+    /**
+     * @brief Inserts one instance at an authored position, for example where a definition was dropped.
+     * @param page Page changed only after validation succeeds.
+     * @param definition Shared definition referenced by the new instance.
+     * @param reference Definition path relative to the page JSON.
+     * @param parent Target container id, or empty for the Page root.
+     * @param position Authored logical position; must be finite.
+     * @param error Reason when the insertion is refused.
+     * @return The new instance id, or an empty string when nothing was inserted.
+     */
+    static std::string Insert(PageDefinition& page, std::shared_ptr<const WidgetDefinition> definition,
+                              std::string reference, std::string_view parent, Vec2 position, std::string& error);
     static std::string Duplicate(PageDefinition& page, std::string_view id, std::string& error);
     static bool Remove(PageDefinition& page, std::string_view id, std::string& error);
     static bool Replace(PageDefinition& page, std::string_view previousId, WidgetInstance replacement,

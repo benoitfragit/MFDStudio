@@ -10,23 +10,29 @@
    The showcase uses visibly different
    avionics-style controls for every supported semantic type. It does not fake combo boxes or
    trees because API LEVEL 1 has no such types.
-3. Open **Widgets → Library**. Select the shared toggle definition. Edit its ID,
-   default text or preferred size directly in the library. **Save library and
-   document** writes the asset with the existing save transaction.
+3. Click the folder icon in **Widgets** to show the **Definition library** inline
+   in the sidebar. Select the shared toggle definition and edit its ID, default
+   text or preferred size in the inspector (the Page stays visible); double-click
+   it, or use **Edit in Widget Studio**, to isolate it. **Save all** writes the
+   asset with the existing save transaction.
 4. Select `checked` under **Visual state / preview**, click **Edit visual in
    Reticle studio**, change a primitive color and click **Apply edited visual**
    in Widgets. Both ToggleA and ToggleB use the changed shared visual.
 5. Select ToggleA on the Page. Change only **Override checked**. ToggleB keeps
    its own checked value. **Duplicate** adds another independent instance;
-   **Duplicate definition** in the library instead makes a new reusable asset.
+   **Duplicate** under the selected library definition instead makes a new
+   reusable asset. To add an instance, choose **Place in** (Page root or a
+   container) and click **Place on Page**, or drag the definition onto the Page
+   at the position you want.
    Repeat with warning, value and text overrides: each follows the same bounded
    state-only edit path and remains independently undoable.
-6. Edit the instance's **Parent**, grid row/column/span and alignment. An empty
-   parent moves it to Page root. Drag the selected widget's corner to resize;
+6. Pick the instance's **Parent** from the list, then set the placement fields the
+   parent type offers (grid row/column/span and alignment for a Grid). **Page
+   (root)** moves it to the Page root. Drag the selected widget's corner to resize;
    parent Grid/Linear placement still governs its resolved position. Select a
    parent container and resize/scroll it to inspect the shared layout and clip.
 7. Use **Import** in the widget library to bring in a definition package. Use
-   **Export definition and resources** to create one. Page import preserves
+   **Export** under the selected definition to create one. Page import preserves
    typed widget ownership edges and remaps colliding resources. Import into a
    LEVEL 0 Window is rejected before changing the document; explicitly upgrade
    the destination first. Undo/Redo applies to successful edits/imports.

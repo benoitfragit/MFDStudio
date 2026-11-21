@@ -69,6 +69,30 @@ enum class SelectionKind
     WidgetDefinition
 };
 
+/** @brief Whether one selection kind is edited by the focused Container or Widget studio. */
+constexpr bool IsFocusedLevel1StudioSelection(const SelectionKind kind) noexcept
+{
+    return kind == SelectionKind::Container || kind == SelectionKind::Widget ||
+           kind == SelectionKind::WidgetDefinition;
+}
+
+/**
+ * @brief Decides whether the focused LEVEL 1 studio replaces the Page preview.
+ * @param level1Window Whether the open window uses API LEVEL 1.
+ * @param kind Current selection kind.
+ * @param selectionResolvable Whether the selected container, widget or definition still exists.
+ * @param studioRequested Whether the user explicitly asked to edit the selection in its studio.
+ * @return `true` only for an explicit request on a resolvable LEVEL 1 selection, so a plain
+ * selection keeps the Page and its context visible.
+ */
+constexpr bool ShouldShowFocusedLevel1Studio(const bool level1Window,
+                                             const SelectionKind kind,
+                                             const bool selectionResolvable,
+                                             const bool studioRequested) noexcept
+{
+    return level1Window && studioRequested && selectionResolvable && IsFocusedLevel1StudioSelection(kind);
+}
+
 /** @brief Scope of the destructive Delete command inside the Reticle Studio library. */
 enum class LibraryDeleteScope
 {
@@ -648,6 +672,13 @@ struct LayoutState
     mfd::PageViewState focusedStudioView {};
     /** @brief Requests one content fit after the focused studio selection changes. */
     bool focusedStudioFitPending = true;
+    /**
+     * @brief Explicit user request to edit the LEVEL 1 selection in its focused studio.
+     * @note Selecting a container or widget no longer swaps the Page preview by itself; only an
+     * explicit action (double-click, Edit in studio) sets this flag, and leaving LEVEL 1 selections
+     * clears it.
+     */
+    bool focusedStudioRequested = false;
     /** @brief Prevents a completed right-button pan from opening a studio context action. */
     bool suppressNextFocusedStudioContextMenu = false;
     mfd::Vec2 minimapDragOffsetLogical {};

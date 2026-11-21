@@ -10,6 +10,7 @@
  * @brief Framing, cached layout and interaction helpers shared by focused LEVEL 1 studios.
  */
 
+#include <array>
 #include <cstddef>
 #include <optional>
 #include <vector>
@@ -21,6 +22,29 @@
 
 namespace editor::app
 {
+/** @brief One user-facing choice offered when a container is created. */
+struct ContainerCreationOption
+{
+    mfd::api1::ContainerType type;
+    const char* label;
+    const char* description;
+};
+
+/**
+ * @brief Container types offered by the create menus, in enum order, with user-facing names.
+ * @note Creation asks for the type first, so users no longer convert a default Canvas afterwards.
+ */
+inline const std::array<ContainerCreationOption, 4U>& ContainerCreationOptions() noexcept
+{
+    static const std::array<ContainerCreationOption, 4U> options {{
+        {mfd::api1::ContainerType::Canvas, "Canvas", "Free placement: children keep their authored positions."},
+        {mfd::api1::ContainerType::Linear, "Linear (row or column)", "Places children one after another."},
+        {mfd::api1::ContainerType::Grid, "Grid", "Places children in rows and columns."},
+        {mfd::api1::ContainerType::Overlay, "Overlay", "Stacks children on top of each other."},
+    }};
+    return options;
+}
+
 /**
  * @brief Owns the derived layout and widget visuals reused by the focused LEVEL 1 studio.
  *
