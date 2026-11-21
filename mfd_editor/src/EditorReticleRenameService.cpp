@@ -807,6 +807,13 @@ RenameReticlePlan ReticleRenameService::BuildPlan(const mfd::LoadedWindowConfigu
             {
                 continue;
             }
+            if (errorEntry.impact == AssetScanErrorImpact::ContentOnly)
+            {
+                // Page reticle lists and template ids were read, so this defect cannot hide a reference.
+                plan.warnings.push_back("Ignored unrelated scan issue in " + errorEntry.file.string() + ": " +
+                                        errorEntry.message);
+                continue;
+            }
 
             throw std::runtime_error(
                 "Safe global reticle rename requires valid page and reticle JSON files under the scanned assets root. "

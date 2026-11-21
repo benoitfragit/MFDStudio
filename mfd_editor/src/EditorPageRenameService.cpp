@@ -492,6 +492,13 @@ RenamePagePlan PageRenameService::BuildPlan(const mfd::LoadedWindowConfiguration
             {
                 continue;
             }
+            if (errorEntry.impact == AssetScanErrorImpact::ContentOnly)
+            {
+                // The window page list was read, so this defect cannot hide a reference to the page.
+                plan.warnings.push_back("Ignored unrelated scan issue in " + errorEntry.file.string() + ": " +
+                                        errorEntry.message);
+                continue;
+            }
 
             throw std::runtime_error(
                 "Safe global rename requires valid window JSON files under the scanned assets root. "

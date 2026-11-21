@@ -141,8 +141,22 @@ To rename an existing page, select it and edit **Page settings > Name** in the r
 inspector. Press Enter or **Review rename...** to open the global rename review.
 Alternatively, use the pencil icon or **Page > Rename current page globally...**.
 The new name is not applied until the review confirms all references and
-collisions. If confirmation is disabled, read the error message in that popup;
-save the source window and page assets if they have not been saved yet.
+collisions. If confirmation is disabled, the popup shows the scanned assets root
+and the wrapped reason next to the button; save the source window and page assets
+if they have not been saved yet.
+
+Global page and reticle renames scan one asset tree, resolved in this order:
+
+1. the nearest parent folder named `assets`;
+2. the folder passed with `--asset-directory`, when it contains the renamed file;
+3. the authoring tree of the open window: the parent of its `windows` folder, or
+   the window folder itself when it is not named `windows`.
+
+Your own projects therefore do not need an `assets` folder. Only scan errors that
+can hide references (unreadable JSON, malformed page lists, malformed reticle or
+strobe lists, duplicate template ids) block the rename. Defects that cannot hide a
+reference, such as an image primitive without a file in an unrelated template, are
+listed under **Warnings**.
 
 The **Pages** and **Reticle library** headers show live counts of entries passing
 the current filter, and a line near the filter surfaces pending validation
