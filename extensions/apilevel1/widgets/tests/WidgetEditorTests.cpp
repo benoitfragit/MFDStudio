@@ -8,7 +8,13 @@
 #include <nlohmann/json.hpp>
 #include <chrono>
 #include <fstream>
+#include <algorithm>
+#include <cstddef>
+#include <cstdio>
+#include <cstring>
 #include <limits>
+#include <string>
+#include <vector>
 namespace
 {
 using json = nlohmann::json;
@@ -48,6 +54,68 @@ protected:
     { return {source / "pages/Home.json", target / "pages", target / "reticles"}; }
     static bool Available(const std::filesystem::path&, std::string&) { return true; }
 };
+}
+namespace
+{
+/** @brief Records every label the widget editor DLL asks the host to draw. */
+class RecordingWidgetUi
+{
+public:
+    std::vector<std::string> labels;
+    std::vector<std::string> openedSections;
+    std::vector<std::string> collapsedSections;
+    std::string pressedButton;
+    bool sectionsOpen = true;
+
+    bool Drew(const std::string& label) const
+    { return std::find(labels.begin(), labels.end(), label) != labels.end(); }
+
+    static RecordingWidgetUi& From(void* context) { return *static_cast<RecordingWidgetUi*>(context); }
+    static void MFD_WIDGET_EDITOR_CALL Text(void* context, const char* label) { From(context).labels.emplace_back(label); }
+    static uint8_t MFD_WIDGET_EDITOR_CALL Input(void* context, const char* label, char*, size_t)
+    { From(context).labels.emplace_back(label); return 0U; }
+    static uint8_t MFD_WIDGET_EDITOR_CALL Checkbox(void* context, const char* label, uint8_t*)
+    { From(context).labels.emplace_back(label); return 0U; }
+    static uint8_t MFD_WIDGET_EDITOR_CALL Number(void* context, const char* label, double*, double, double)
+    { From(context).labels.emplace_back(label); return 0U; }
+    static uint8_t MFD_WIDGET_EDITOR_CALL Combo(void* context, const char* label, int32_t*, const char* const*, size_t)
+    { From(context).labels.emplace_back(label); return 0U; }
+    static uint8_t MFD_WIDGET_EDITOR_CALL Button(void* context, const char* label)
+    {
+        RecordingWidgetUi& ui = From(context);
+        ui.labels.emplace_back(label);
+        return ui.pressedButton == label ? 1U : 0U;
+    }
+    static uint8_t MFD_WIDGET_EDITOR_CALL Section(void* context, const char* id, const char*, uint8_t defaultOpen)
+    {
+        RecordingWidgetUi& ui = From(context);
+        (defaultOpen ? ui.openedSections : ui.collapsedSections).emplace_back(id);
+        return ui.sectionsOpen ? 1U : 0U;
+    }
+    static uint8_t MFD_WIDGET_EDITOR_CALL Parent(void* context, const char* label, char*, size_t)
+    { From(context).labels.emplace_back(label); return 0U; }
+
+    MfdWidgetEditorUiV1 Table()
+    { return {sizeof(MfdWidgetEditorUiV1), 1U, this, Text, Input, Checkbox, Number, Combo, Button, Section, Parent}; }
+};
+
+MfdWidgetEditorDraftV1 InstanceDraft(const char* parent, const int32_t parentType)
+{
+    MfdWidgetEditorDraftV1 draft {};
+    draft.struct_size = sizeof(draft);
+    std::snprintf(draft.parent, sizeof(draft.parent), "%s", parent);
+    std::snprintf(draft.default_text, sizeof(draft.default_text), "%s", "OK");
+    draft.parent_type = parentType;
+    return draft;
+}
+
+uint32_t DrawWidgetInspector(const MfdWidgetEditorUiV1& ui, MfdWidgetEditorDraftV1& draft)
+{
+    MfdWidgetEditorApiV1 api {};
+    api.struct_size = sizeof(api);
+    EXPECT_EQ(mfd_get_widgets_editor_api_v1(&api), 0U);
+    return api.draw(&ui, &draft);
+}
 }
 TEST(WidgetEditorAbi, RejectsShortTablesAndNeverCallsMissingCallbacks)
 {
@@ -241,4 +309,118 @@ TEST_F(WidgetFiles, ParentControlledGestureDoesNotRecordInvisibleGeometryChanges
         {std::numeric_limits<float>::quiet_NaN(),0.0f},true,error));
     EXPECT_EQ(page.widgets[0].size->x,size->x);
     EXPECT_EQ(page.widgets[0].size->y,size->y);
+}
+TEST_F(WidgetFiles, InsertAtDropPositionKeepsChosenTargetContainer)
+{
+    auto loaded = mfd::JsonLoader {}.LoadWindowConfigurationForAuthoring(source / "windows/window.json");
+    auto& page = loaded.document.pages.front();
+    const auto definition = page.widgets[0].definition;
+    std::string error;
+    const auto rootId = mfd::api1::WidgetEditorModel::Insert(
+        page, definition, "../widgets/Button.json", "", mfd::Vec2 {0.25f, -0.125f}, error);
+    ASSERT_FALSE(rootId.empty()) << error;
+    const auto* root = mfd::api1::WidgetEditorModel::Find(page, rootId);
+    ASSERT_NE(root, nullptr);
+    EXPECT_FLOAT_EQ(root->position.x, 0.25f);
+    EXPECT_FLOAT_EQ(root->position.y, -0.125f);
+    const auto childId = mfd::api1::WidgetEditorModel::Insert(page, definition, "../widgets/Button.json", "Panel", error);
+    ASSERT_FALSE(childId.empty()) << error;
+    EXPECT_EQ(page.containers.front().children.back().childId, childId);
+}
+TEST_F(WidgetFiles, InsertRejectsNonFinitePositionAndMissingTargetWithoutMutation)
+{
+    auto loaded = mfd::JsonLoader {}.LoadWindowConfigurationForAuthoring(source / "windows/window.json");
+    auto& page = loaded.document.pages.front();
+    const auto before = page.widgets.size();
+    const auto definition = page.widgets[0].definition;
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    std::string error;
+    EXPECT_TRUE(mfd::api1::WidgetEditorModel::Insert(
+        page, definition, "../widgets/Button.json", "", mfd::Vec2 {nan, 0.0f}, error).empty());
+    EXPECT_TRUE(mfd::api1::WidgetEditorModel::Insert(
+        page, definition, "../widgets/Button.json", "RemovedPanel", mfd::Vec2 {}, error).empty());
+    EXPECT_FALSE(error.empty());
+    EXPECT_EQ(page.widgets.size(), before);
+    EXPECT_EQ(page.containers.front().children.size(), 1U);
+}
+TEST(WidgetEditorAbi, PlacementFieldsFollowTheParentContainerType)
+{
+    RecordingWidgetUi grid;
+    auto gridDraft = InstanceDraft("Panel", 2);
+    const auto gridTable = grid.Table();
+    DrawWidgetInspector(gridTable, gridDraft);
+    EXPECT_TRUE(grid.Drew("Grid row"));
+    EXPECT_FALSE(grid.Drew("Resize"));
+    EXPECT_FALSE(grid.Drew("Position X"));
+    EXPECT_FALSE(grid.Drew("Render order"));
+
+    RecordingWidgetUi canvas;
+    auto canvasDraft = InstanceDraft("Panel", 0);
+    const auto canvasTable = canvas.Table();
+    DrawWidgetInspector(canvasTable, canvasDraft);
+    EXPECT_TRUE(canvas.Drew("Resize"));
+    EXPECT_TRUE(canvas.Drew("Position X"));
+    EXPECT_FALSE(canvas.Drew("Grid row"));
+
+    RecordingWidgetUi root;
+    auto rootDraft = InstanceDraft("", 0);
+    const auto rootTable = root.Table();
+    DrawWidgetInspector(rootTable, rootDraft);
+    EXPECT_TRUE(root.Drew("Position X"));
+    EXPECT_FALSE(root.Drew("Resize"));
+    EXPECT_FALSE(root.Drew("Grid row"));
+}
+TEST(WidgetEditorAbi, ParentIsPickedFromContainersAndLegacyHostsKeepTextEntry)
+{
+    RecordingWidgetUi current;
+    auto draft = InstanceDraft("", 0);
+    const auto table = current.Table();
+    DrawWidgetInspector(table, draft);
+    EXPECT_TRUE(current.Drew("Parent"));
+    EXPECT_FALSE(current.Drew("Parent (empty = root)"));
+
+    RecordingWidgetUi legacy;
+    auto legacyTable = legacy.Table();
+    legacyTable.struct_size = offsetof(MfdWidgetEditorUiV1, begin_section);
+    auto legacyDraft = InstanceDraft("Panel", MFD_WIDGET_EDITOR_PARENT_TYPE_UNKNOWN);
+    DrawWidgetInspector(legacyTable, legacyDraft);
+    EXPECT_TRUE(legacy.Drew("Parent (empty = root)"));
+    EXPECT_TRUE(legacy.Drew("Resize"));
+    EXPECT_TRUE(legacy.Drew("Grid row"));
+    EXPECT_TRUE(legacy.openedSections.empty());
+}
+TEST(WidgetEditorAbi, InheritedTextIsShownAndOverrideIsAnExplicitInstanceEdit)
+{
+    RecordingWidgetUi ui;
+    auto draft = InstanceDraft("", 0);
+    const auto table = ui.Table();
+    EXPECT_EQ(DrawWidgetInspector(table, draft), 0U);
+    EXPECT_TRUE(ui.Drew("Text: inherited from the shared definition"));
+    EXPECT_TRUE(ui.Drew("OK"));
+    EXPECT_FALSE(ui.Drew("Text"));
+
+    RecordingWidgetUi pressing;
+    pressing.pressedButton = "Override text locally";
+    const auto pressingTable = pressing.Table();
+    EXPECT_EQ(DrawWidgetInspector(pressingTable, draft) & 1U, 1U);
+    EXPECT_EQ(draft.override_text, 1U);
+
+    RecordingWidgetUi resetting;
+    resetting.pressedButton = "Reset text to inherited";
+    const auto resettingTable = resetting.Table();
+    EXPECT_EQ(DrawWidgetInspector(resettingTable, draft) & 1U, 1U);
+    EXPECT_EQ(draft.override_text, 0U);
+}
+TEST(WidgetEditorAbi, CollapsedSectionsDrawNoFieldAndSharedDefinitionStartsClosed)
+{
+    RecordingWidgetUi ui;
+    ui.sectionsOpen = false;
+    auto draft = InstanceDraft("Panel", 2);
+    const auto before = draft;
+    const auto table = ui.Table();
+    EXPECT_EQ(DrawWidgetInspector(table, draft), 0U);
+    EXPECT_TRUE(ui.labels.empty());
+    EXPECT_EQ(std::memcmp(&before, &draft, sizeof(draft)), 0);
+    EXPECT_NE(std::find(ui.collapsedSections.begin(), ui.collapsedSections.end(), "api1_widget_shared_definition"),
+              ui.collapsedSections.end());
 }

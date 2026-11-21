@@ -124,12 +124,29 @@ struct MissingAssetReference
 /**
  * @brief One non-fatal scan error such as invalid JSON or ambiguous metadata.
  */
+/**
+ * @brief Tells whether one scan error can hide page, window or template references.
+ */
+enum class AssetScanErrorImpact
+{
+    /** @brief The file or one of its reference lists could not be read, so references may be missing. */
+    ReferencesMayBeIncomplete,
+    /** @brief The file was read and its reference lists were scanned; only unrelated content is invalid. */
+    ContentOnly
+};
+
 struct AssetScanError
 {
     /** @brief File that triggered the scan error. */
     std::filesystem::path file;
     /** @brief Error message describing the scan failure. */
     std::string message;
+    /**
+     * @brief Whether the error can hide references.
+     * @note Global rename workflows must refuse on `ReferencesMayBeIncomplete` but may only warn on
+     * `ContentOnly`, otherwise one unrelated defect blocks every rename under the scanned root.
+     */
+    AssetScanErrorImpact impact = AssetScanErrorImpact::ReferencesMayBeIncomplete;
 };
 
 /**

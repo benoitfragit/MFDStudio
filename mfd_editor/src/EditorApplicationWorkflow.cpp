@@ -52,6 +52,44 @@ using editor::ui::EditorIcon;
 using editor::ui::IconButton;
 using editor::ui::ShowItemTooltip;
 
+/**
+ * @brief Shows the scanned root and, when refused, why a global rename is unavailable.
+ * @note Wrapped on purpose: an unwrapped refusal containing long asset paths was clipped at the popup
+ * edge, leaving a disabled Apply button with no readable reason.
+ */
+void DrawRenameBlockingReason(const std::string& error, const std::filesystem::path& assetsRoot)
+{
+    const std::string scannedRoot =
+        "Scanned assets root: " + (assetsRoot.empty() ? std::string("(none)") : assetsRoot.string());
+    ImGui::Spacing();
+    DisabledTextWrapped(scannedRoot.c_str());
+    if (error.empty())
+    {
+        return;
+    }
+
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.42f, 0.42f, 1.0f));
+    ImGui::TextWrapped("Rename unavailable: %s", error.c_str());
+    ImGui::PopStyleColor();
+}
+
+/** @brief Lists non-blocking rename warnings, wrapped so file paths stay readable. */
+void DrawRenameWarnings(const std::vector<std::string>& warnings)
+{
+    if (warnings.empty())
+    {
+        return;
+    }
+
+    ImGui::SeparatorText("Warnings");
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.78f, 0.38f, 1.0f));
+    for (const std::string& warning : warnings)
+    {
+        ImGui::TextWrapped("%s", warning.c_str());
+    }
+    ImGui::PopStyleColor();
+}
+
 const char* ReticleReferenceKindLabel(const editor::ReticleReferenceKind kind) noexcept
 {
     switch (kind)
@@ -171,7 +209,7 @@ editor::RenamePageRequest EditorApplication::BuildPageRenameRequest(const int pa
     return editor::RenamePageRequest {
         pageIndex,
         std::string(newPageName),
-        documentState_.assetPaths.ResolveAssetRootForPath(pageFile)};
+        documentState_.assetPaths.ResolveRenameScanRoot(pageFile, documentState_.loaded.window.sourceFile)};
 }
 
 void EditorApplication::OpenReticleRenamePopup(std::string templateId)
@@ -279,7 +317,7 @@ editor::RenameReticleRequest EditorApplication::BuildReticleRenameRequest(const 
     return editor::RenameReticleRequest {
         std::string(oldTemplateId),
         std::string(newTemplateId),
-        documentState_.assetPaths.ResolveAssetRootForPath(templateFile),
+        documentState_.assetPaths.ResolveRenameScanRoot(templateFile, documentState_.loaded.window.sourceFile),
         renameTemplateFile};
 }
 
@@ -1085,25 +1123,14 @@ void EditorApplication::DrawPageRenamePopup()
         }
     }
 
-    if (!plan.warnings.empty())
-    {
-        ImGui::SeparatorText("Warnings");
-        for (const std::string& warning : plan.warnings)
-        {
-            ImGui::TextColored(ImVec4(0.95f, 0.78f, 0.38f, 1.0f), "%s", warning.c_str());
-        }
-    }
+    DrawRenameWarnings(plan.warnings);
 
     ImGui::Spacing();
     DisabledTextWrapped("This workflow updates the scanned JSON assets directly across the current asset tree.");
     ImGui::TextColored(ImVec4(0.95f, 0.78f, 0.38f, 1.0f),
                        "These disk changes are not covered by Ctrl+Z once the rename starts.");
 
-    if (!plan.error.empty())
-    {
-        ImGui::Spacing();
-        ImGui::TextColored(ImVec4(0.95f, 0.42f, 0.42f, 1.0f), "%s", plan.error.c_str());
-    }
+    DrawRenameBlockingReason(plan.error, plan.assetsRoot);
 
     ImGui::Spacing();
     ImGui::BeginDisabled(!plan.canExecute);
@@ -1253,14 +1280,7 @@ void EditorApplication::DrawReticleRenamePopup()
         }
     }
 
-    if (!plan.warnings.empty())
-    {
-        ImGui::SeparatorText("Warnings");
-        for (const std::string& warning : plan.warnings)
-        {
-            ImGui::TextColored(ImVec4(0.95f, 0.78f, 0.38f, 1.0f), "%s", warning.c_str());
-        }
-    }
+    DrawRenameWarnings(plan.warnings);
 
     ImGui::Spacing();
     DisabledTextWrapped("This workflow updates the scanned JSON assets directly across the current asset tree.");
@@ -1268,11 +1288,7 @@ void EditorApplication::DrawReticleRenamePopup()
                        "These disk changes are not covered by Ctrl+Z once the rename starts.");
     DisabledTextWrapped("After a successful rename, regenerate the generated client API if this template is exposed there.");
 
-    if (!plan.error.empty())
-    {
-        ImGui::Spacing();
-        ImGui::TextColored(ImVec4(0.95f, 0.42f, 0.42f, 1.0f), "%s", plan.error.c_str());
-    }
+    DrawRenameBlockingReason(plan.error, plan.assetsRoot);
 
     ImGui::Spacing();
     ImGui::BeginDisabled(!plan.canExecute);

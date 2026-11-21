@@ -104,6 +104,41 @@ bool PathContainsSegment(const std::filesystem::path& path, const std::string_vi
     return false;
 }
 
+/** @brief Lexical containment test on absolute normalized paths; does not touch the file system. */
+bool IsInsideDirectory(const std::filesystem::path& path, const std::filesystem::path& directory)
+{
+    if (path.empty() || directory.empty())
+    {
+        return false;
+    }
+
+    const std::filesystem::path relative = std::filesystem::absolute(path).lexically_normal().lexically_relative(
+        std::filesystem::absolute(directory).lexically_normal());
+    return !relative.empty() && *relative.begin() != "..";
+}
+
+/**
+ * @brief Returns the authoring tree of one window JSON: the parent of a `windows` folder, otherwise the
+ * window folder itself. Returns an empty path for an unusable window file.
+ */
+std::filesystem::path WindowAuthoringRoot(const std::filesystem::path& windowFile)
+{
+    if (windowFile.empty() || !windowFile.has_parent_path())
+    {
+        return {};
+    }
+
+    const std::filesystem::path windowFolder = std::filesystem::absolute(windowFile).lexically_normal().parent_path();
+    if (Lowercase(windowFolder.filename().string()) == "windows" && windowFolder.has_parent_path() &&
+        windowFolder.parent_path() != windowFolder)
+    {
+        return windowFolder.parent_path();
+    }
+
+    // A window stored at a filesystem root would turn the whole drive into the scan root.
+    return windowFolder == windowFolder.root_path() ? std::filesystem::path {} : windowFolder;
+}
+
 std::filesystem::path StripLeadingAssetRootPrefix(const std::filesystem::path& path)
 {
     bool containsAssetRoot = false;
@@ -211,6 +246,33 @@ std::filesystem::path EditorAssetPathService::ResolveAssetRootForPath(const std:
     }
 
     return DefaultAssetPath("examples/demo/assets");
+}
+
+std::filesystem::path EditorAssetPathService::ResolveRenameScanRoot(const std::filesystem::path& authoredFile,
+                                                                    const std::filesystem::path& windowFile) const
+{
+    if (authoredFile.empty())
+    {
+        return ResolveAssetRootForPath(authoredFile);
+    }
+
+    if (const auto assetsRoot = FindAncestorNamed(authoredFile, "assets"); assetsRoot.has_value())
+    {
+        return assetsRoot->lexically_normal();
+    }
+
+    if (HasConfiguredAssetDirectory() && IsInsideDirectory(authoredFile, configuredAssetDirectory_))
+    {
+        return configuredAssetDirectory_;
+    }
+
+    if (const std::filesystem::path authoringRoot = WindowAuthoringRoot(windowFile);
+        !authoringRoot.empty() && IsInsideDirectory(authoredFile, authoringRoot))
+    {
+        return authoringRoot;
+    }
+
+    return ResolveAssetRootForPath(authoredFile);
 }
 
 std::filesystem::path EditorAssetPathService::CurrentPageImportTargetFolder(const std::filesystem::path& windowFile,

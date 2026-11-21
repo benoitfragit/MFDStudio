@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "internal/application/EditorApplicationInternal.h"
+#include "internal/application/EditorFocusedStudio.h"
 #include "internal/application/EditorSidebarLayout.h"
 #include "internal/application/EditorViewportGrid.h"
 #include "EditorResponsiveLayout.h"
@@ -695,18 +696,67 @@ bool EditorApplication::IsLibraryStudioWorkspaceVisible() const
 
 bool EditorApplication::IsFocusedLevel1StudioWorkspaceVisible() const
 {
-    if (documentState_.loaded.window.apiLevel != mfd::ApiLevel::Level1)
+    const SelectionKind kind = documentState_.selection.kind;
+    const bool selectionResolvable =
+        kind != SelectionKind::WidgetDefinition ||
+        documentState_.selection.widgetDefinitionIndex < documentState_.loaded.document.widgetLibrary.size();
+    return editor::app::ShouldShowFocusedLevel1Studio(documentState_.loaded.window.apiLevel == mfd::ApiLevel::Level1,
+                                                      kind,
+                                                      selectionResolvable,
+                                                      layoutState_.focusedStudioRequested);
+}
+
+void EditorApplication::OpenFocusedLevel1Studio()
+{
+    if (!editor::app::IsFocusedLevel1StudioSelection(documentState_.selection.kind))
     {
-        return false;
+        return;
     }
 
-    if (documentState_.selection.kind == SelectionKind::WidgetDefinition)
+    // Re-opening an already open studio (double-click inside it) must not reset its camera.
+    if (!layoutState_.focusedStudioRequested)
     {
-        return documentState_.selection.widgetDefinitionIndex <
-               documentState_.loaded.document.widgetLibrary.size();
+        layoutState_.focusedStudioFitPending = true;
     }
-    return documentState_.selection.kind == SelectionKind::Widget ||
-           documentState_.selection.kind == SelectionKind::Container;
+    layoutState_.focusedStudioRequested = true;
+}
+
+void EditorApplication::CloseFocusedLevel1Studio()
+{
+    layoutState_.focusedStudioRequested = false;
+}
+
+void EditorApplication::DrawFocusedLevel1StudioInspectorAction()
+{
+    const SelectionKind kind = documentState_.selection.kind;
+    if (documentState_.loaded.window.apiLevel != mfd::ApiLevel::Level1 ||
+        !editor::app::IsFocusedLevel1StudioSelection(kind))
+    {
+        return;
+    }
+
+    const char* const studioName = kind == SelectionKind::Container ? "Container Studio" : "Widget Studio";
+    if (IsFocusedLevel1StudioWorkspaceVisible())
+    {
+        if (IconButton("##inspector_close_level1_studio", EditorIcon::Back, "Return to the Page preview (Esc)."))
+        {
+            CloseFocusedLevel1Studio();
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("Editing in %s", studioName);
+    }
+    else
+    {
+        const std::string tooltip = std::string("Edit this selection in ") + studioName +
+                                    ". Double-click it in the sidebar or on the Page does the same.";
+        if (IconButton("##inspector_open_level1_studio", EditorIcon::OpenStudio, tooltip.c_str()))
+        {
+            OpenFocusedLevel1Studio();
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("Open in %s", studioName);
+    }
+    ImGui::Spacing();
 }
 
 bool EditorApplication::CanToggleFullscreenPagePreview() const
@@ -932,7 +982,6 @@ void EditorApplication::DrawSidebar(const editor::SidebarProblemSummary& problem
             layoutState_.sidebarWidgetsSplitFraction = editor::app::ResolveSidebarPagesFraction(
                 lowerLayout.pagesHeight, ImGui::GetIO().MouseDelta.y, lowerDistributableHeight);
         DrawSidebarWidgetsSection(lowerLayout.reticlesHeight);
-        DrawWidgetLibrary();
     }
 }
 
@@ -1043,7 +1092,6 @@ bool EditorApplication::DrawContainerTreeNode(const mfd::PageDefinition& page,
 {
     if (depth > mfd::api1::kMaximumContainerDepth) return false;
     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow |
-                               ImGuiTreeNodeFlags_OpenOnDoubleClick |
                                ImGuiTreeNodeFlags_SpanAvailWidth |
                                ImGuiTreeNodeFlags_AllowOverlap;
     if (container.children.empty()) flags |= ImGuiTreeNodeFlags_Leaf;
@@ -1054,9 +1102,12 @@ bool EditorApplication::DrawContainerTreeNode(const mfd::PageDefinition& page,
     const bool open = ImGui::TreeNodeEx(label.c_str(), flags);
     const ImVec2 rowMin = ImGui::GetItemRectMin();
     const ImVec2 rowMax = ImGui::GetItemRectMax();
-    ShowItemTooltip("Click to inspect this container. Drag it onto another container to reparent it.");
+    ShowItemTooltip("Click to select this container on the Page. Double-click to edit it in Container Studio. "
+                    "Drag it onto another container to reparent it.");
     if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
         SelectContainer(documentState_.selection.pageIndex, container.id);
+    if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !ImGui::IsItemToggledOpen())
+        OpenFocusedLevel1Studio();
     if (ImGui::BeginDragDropSource())
     {
         ImGui::SetDragDropPayload("MFD_CONTAINER_ID", container.id.c_str(), container.id.size() + 1U);
@@ -1088,9 +1139,18 @@ bool EditorApplication::DrawContainerTreeNode(const mfd::PageDefinition& page,
         Delete
     };
     ContainerRowAction requestedAction = ContainerRowAction::None;
+    mfd::api1::ContainerType requestedChildType = mfd::api1::ContainerType::Canvas;
     if (ImGui::BeginPopupContextItem(("ContainerContextMenu##" + container.id).c_str()))
     {
-        if (ImGui::MenuItem("Add child container")) requestedAction = ContainerRowAction::AddChild;
+        if (ImGui::BeginMenu("Add child container"))
+        {
+            if (const auto type = DrawContainerTypeMenuItems(); type.has_value())
+            {
+                requestedAction = ContainerRowAction::AddChild;
+                requestedChildType = *type;
+            }
+            ImGui::EndMenu();
+        }
         if (ImGui::MenuItem("Rename container...")) requestedAction = ContainerRowAction::Rename;
         if (ImGui::MenuItem("Duplicate container hierarchy")) requestedAction = ContainerRowAction::Duplicate;
         ImGui::Separator();
@@ -1127,7 +1187,7 @@ bool EditorApplication::DrawContainerTreeNode(const mfd::PageDefinition& page,
         switch (requestedAction)
         {
         case ContainerRowAction::AddChild:
-            AddChildContainer(containerId);
+            AddChildContainer(containerId, requestedChildType);
             return true;
         case ContainerRowAction::Rename:
             OpenContainerRenamePopup(containerId);
@@ -1150,8 +1210,12 @@ bool EditorApplication::DrawContainerTreeNode(const mfd::PageDefinition& page,
             if (child.kind == mfd::api1::ContainerChildKind::Widget)
             {
                 if (ImGui::Selectable((child.childId + " (widget)").c_str(),
-                    documentState_.selection.kind == SelectionKind::Widget && documentState_.selection.widgetId == child.childId))
+                    documentState_.selection.kind == SelectionKind::Widget && documentState_.selection.widgetId == child.childId,
+                    ImGuiSelectableFlags_AllowDoubleClick))
+                {
                     SelectWidget(documentState_.selection.pageIndex, child.childId);
+                    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) OpenFocusedLevel1Studio();
+                }
                 continue;
             }
             const mfd::api1::ContainerDefinition* definition =
@@ -1170,18 +1234,37 @@ bool EditorApplication::DrawContainerTreeNode(const mfd::PageDefinition& page,
 void EditorApplication::DrawContainerActionToolbar()
 {
     if (ActivePage() == nullptr) return;
-    if (IconButton("##sidebar_add_container_root", EditorIcon::Add, "Add a root container."))
+    // Both create buttons ask for the container type first instead of creating a Canvas to convert later.
+    if (IconButton("##sidebar_add_container_root", EditorIcon::Add, "Add a root container: choose its type."))
     {
-        AddRootContainer();
+        ImGui::OpenPopup("##sidebar_add_root_container_type");
+    }
+    if (ImGui::BeginPopup("##sidebar_add_root_container_type"))
+    {
+        ImGui::TextDisabled("New root container");
+        if (const auto type = DrawContainerTypeMenuItems(); type.has_value())
+        {
+            AddRootContainer(*type);
+        }
+        ImGui::EndPopup();
     }
     const bool hasSelection = SelectedContainer() != nullptr;
     ImGui::SameLine();
     if (IconButton("##sidebar_add_child_container",
                    EditorIcon::AddChild,
-                   "Add a child container to the selected container.",
+                   "Add a child to the selected container: choose its type.",
                    hasSelection))
     {
-        AddChildContainer(documentState_.selection.containerId);
+        ImGui::OpenPopup("##sidebar_add_child_container_type");
+    }
+    if (ImGui::BeginPopup("##sidebar_add_child_container_type"))
+    {
+        ImGui::TextDisabled("New child container");
+        if (const auto type = DrawContainerTypeMenuItems(); type.has_value())
+        {
+            AddChildContainer(documentState_.selection.containerId, *type);
+        }
+        ImGui::EndPopup();
     }
     ImGui::SameLine();
     if (IconButton("##sidebar_rename_container",
@@ -1207,6 +1290,28 @@ void EditorApplication::DrawContainerActionToolbar()
     {
         DeleteContainer(documentState_.selection.containerId);
     }
+    ImGui::SameLine();
+    if (IconButton("##sidebar_open_container_studio",
+                   EditorIcon::OpenStudio,
+                   "Edit the selected container in Container Studio (or double-click it).",
+                   hasSelection))
+    {
+        OpenFocusedLevel1Studio();
+    }
+}
+
+std::optional<mfd::api1::ContainerType> EditorApplication::DrawContainerTypeMenuItems() const
+{
+    std::optional<mfd::api1::ContainerType> picked;
+    for (const editor::app::ContainerCreationOption& option : editor::app::ContainerCreationOptions())
+    {
+        if (ImGui::MenuItem(option.label))
+        {
+            picked = option.type;
+        }
+        ShowItemTooltip(option.description);
+    }
+    return picked;
 }
 
 void EditorApplication::DrawPageActionToolbar()
@@ -1300,6 +1405,12 @@ void EditorApplication::DrawWorkspace(const std::vector<editor::PagePreviewProbl
         tutorial_->DrawCoach();
         DrawEmptyWorkspacePlaceholder();
         return;
+    }
+
+    if (!editor::app::IsFocusedLevel1StudioSelection(documentState_.selection.kind))
+    {
+        // Leaving LEVEL 1 selections ends the studio request, so a later plain selection keeps the Page.
+        CloseFocusedLevel1Studio();
     }
 
     const bool libraryStudioVisible = IsLibraryStudioWorkspaceVisible();
@@ -1468,6 +1579,7 @@ void EditorApplication::DrawFocusedLevel1StudioPanel()
     const float panelWidth = std::max(0.0f, std::floor(ImGui::GetContentRegionAvail().x));
     ImGui::BeginChild("FocusedLevel1StudioPanel", ImVec2(panelWidth, 0.0f), false);
     tutorial_->DrawCoach();
+    DrawFocusedLevel1StudioHeader();
 
     ViewportState studioViewport;
     studioViewport.origin = ImGui::GetCursorScreenPos();
@@ -1485,6 +1597,38 @@ void EditorApplication::DrawFocusedLevel1StudioPanel()
         HandleFocusedLevel1StudioInteraction(studioViewport);
     }
     ImGui::EndChild();
+}
+
+void EditorApplication::DrawFocusedLevel1StudioHeader()
+{
+    if (IconButton("##studio_back_to_page", EditorIcon::Back, "Return to the Page preview (Esc)."))
+    {
+        CloseFocusedLevel1Studio();
+    }
+    ImGui::SameLine();
+
+    const mfd::PageDefinition* page = ActivePage();
+    const std::string pageName = page == nullptr ? std::string("Page") : "Page '" + page->name + "'";
+    std::string edited;
+    switch (documentState_.selection.kind)
+    {
+    case SelectionKind::Container:
+        edited = "Container Studio > " + documentState_.selection.containerId;
+        break;
+    case SelectionKind::Widget:
+        edited = "Widget Studio > " + documentState_.selection.widgetId;
+        break;
+    case SelectionKind::WidgetDefinition:
+        edited = "Widget Studio > shared definition";
+        break;
+    default:
+        break;
+    }
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted((pageName + "  >  " + edited).c_str());
+    ImGui::SameLine();
+    ImGui::TextDisabled("(Esc returns to the Page)");
+    ImGui::Separator();
 }
 
 void EditorApplication::DrawEmptyWorkspacePlaceholder()
@@ -1663,6 +1807,7 @@ void EditorApplication::DrawInspector()
         ImGui::TextDisabled("%s", contextLabel);
         ImGui::Spacing();
     }
+    DrawFocusedLevel1StudioInspectorAction();
 
     switch (documentState_.selection.kind)
     {

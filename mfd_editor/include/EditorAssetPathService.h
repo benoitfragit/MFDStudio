@@ -79,6 +79,20 @@ public:
     [[nodiscard]] std::filesystem::path ResolveAssetRootForPath(const std::filesystem::path& path) const;
 
     /**
+     * @brief Resolves the asset tree scanned by global page and reticle renames.
+     * @param authoredFile Page or reticle-template JSON file being renamed.
+     * @param windowFile Window JSON currently open in the editor.
+     * @return In order: the nearest ancestor named `assets`; the configured asset root when it
+     * contains @p authoredFile; the authoring tree of @p windowFile (the parent of a `windows`
+     * folder, otherwise the window folder) when it contains @p authoredFile; otherwise
+     * `ResolveAssetRootForPath(authoredFile)`.
+     * @note User asset trees are not required to live in a folder named `assets`. Falling back to the
+     * repository demo tree for such files made every global rename refuse with an outside-root error.
+     */
+    [[nodiscard]] std::filesystem::path ResolveRenameScanRoot(const std::filesystem::path& authoredFile,
+                                                              const std::filesystem::path& windowFile) const;
+
+    /**
      * @brief Computes the default target folder for importing one page asset.
      * @param windowFile Current root window JSON file.
      * @param files Current editor file layout.

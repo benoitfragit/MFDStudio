@@ -387,6 +387,31 @@ void PaintFitToPage(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col
     PaintInwardCornerArrow(drawList, ImVec2(m.center.x - r, m.center.y + r), 1.0f, -1.0f, inset, length, col, m.thickness);
 }
 
+void PaintOpenStudio(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
+{
+    // Open-in-studio: an open frame whose top-right corner releases an outward diagonal arrow.
+    const float r = m.radius;
+    const float gap = r * 0.55f;
+    drawList.AddLine(ImVec2(m.center.x + r, m.center.y - r + gap), ImVec2(m.center.x + r, m.center.y + r), col, m.thickness);
+    drawList.AddLine(ImVec2(m.center.x + r, m.center.y + r), ImVec2(m.center.x - r, m.center.y + r), col, m.thickness);
+    drawList.AddLine(ImVec2(m.center.x - r, m.center.y + r), ImVec2(m.center.x - r, m.center.y - r), col, m.thickness);
+    drawList.AddLine(ImVec2(m.center.x - r, m.center.y - r), ImVec2(m.center.x + r - gap, m.center.y - r), col, m.thickness);
+    const ImVec2 tip(m.center.x + r * 1.05f, m.center.y - r * 1.05f);
+    drawList.AddLine(ImVec2(m.center.x - r * 0.10f, m.center.y + r * 0.10f), tip, col, m.thickness);
+    drawList.AddLine(tip, ImVec2(tip.x - r * 0.62f, tip.y), col, m.thickness);
+    drawList.AddLine(tip, ImVec2(tip.x, tip.y + r * 0.62f), col, m.thickness);
+}
+
+void PaintBack(ImDrawList& drawList, const GlyphMetrics& m, const ImU32 col)
+{
+    // Back: a horizontal shaft with a left-facing chevron head.
+    const float r = m.radius;
+    const ImVec2 tip(m.center.x - r, m.center.y);
+    drawList.AddLine(tip, ImVec2(m.center.x + r, m.center.y), col, m.thickness);
+    drawList.AddLine(tip, ImVec2(tip.x + r * 0.70f, tip.y - r * 0.70f), col, m.thickness);
+    drawList.AddLine(tip, ImVec2(tip.x + r * 0.70f, tip.y + r * 0.70f), col, m.thickness);
+}
+
 void PaintGlyph(ImDrawList& drawList, const EditorIcon icon, const ImVec2& topLeft, const float boxSize, const ImU32 col)
 {
     GlyphMetrics metrics {};
@@ -464,6 +489,12 @@ void PaintGlyph(ImDrawList& drawList, const EditorIcon icon, const ImVec2& topLe
         return;
     case EditorIcon::WidgetInteraction:
         PaintWidgetInteraction(drawList, metrics, col);
+        return;
+    case EditorIcon::OpenStudio:
+        PaintOpenStudio(drawList, metrics, col);
+        return;
+    case EditorIcon::Back:
+        PaintBack(drawList, metrics, col);
         return;
     }
 }

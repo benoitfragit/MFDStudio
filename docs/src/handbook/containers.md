@@ -193,7 +193,10 @@ For predictable frame cost:
 
 For LEVEL 1 Windows, **Containers** appears in the existing left sidebar directly
 below **Reticles**. The tree is the Page hierarchy itself and supports root/child
-creation, rename, duplicate, delete, and reparenting. Tree and canvas selection
+creation, rename, duplicate, delete, and reparenting. The **+** (root) and
+add-child buttons, and the **Add child container** context menus, first ask for
+the type: **Canvas**, **Linear (row or column)**, **Grid** or **Overlay**, each with
+a one-line description. There is no need to create a Canvas and convert it later. Tree and canvas selection
 share one selection state. The inspector edits geometry, layout, appearance,
 scrolling, visibility, enabled state, generated-API exposure, and all four size
 modes. One continuous inspector drag creates one Undo entry; releasing and
@@ -203,9 +206,17 @@ live document and validated before an Undo snapshot is recorded. Idle frames
 and rejected edits do not copy a full document snapshot. Both sidebar separators are draggable and their proportions persist.
 
 There is no container-library window because containers are Page-owned layout
-nodes, not reusable definition assets. Selecting one hierarchy entry opens
-**Container Studio** in the central workspace. The studio isolates that container
-and its descendants, while the right inspector edits the selected node. Clicking a
+nodes, not reusable definition assets. Clicking one hierarchy entry, or the
+container on the Page, selects it on the Page and shows its inspector.
+Double-clicking it, or using the open-in-studio icon, opens **Container Studio** in
+the central workspace. The studio isolates that container and its descendants,
+while the right inspector edits the selected node. Its header arrow or **Esc**
+returns to the Page.
+
+The inspector shows the essential sections first. Scrollbar geometry and the
+**Scrollbar style** section appear only when horizontal or vertical scrolling is
+enabled; background color appears only with **Draw background**, and border color
+and thickness only with **Draw border**. Hidden values are preserved, not reset. Clicking a
 visible descendant focuses it; widget leaves switch directly to Widget Studio.
 Collapsing any sidebar section releases its body height and keeps only the section
 header visible.

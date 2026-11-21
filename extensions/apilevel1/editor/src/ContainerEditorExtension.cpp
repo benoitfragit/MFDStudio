@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 
 namespace
 {
@@ -57,6 +58,12 @@ void MergeChange(bool& changed, const std::uint8_t callbackResult) noexcept
     changed = callbackResult != 0U || changed;
 }
 
+/** @brief Whether at least one axis may scroll; scrollbar geometry and style are irrelevant otherwise. */
+bool IsScrollingEnabled(const MfdContainerEditorSelectionV1& selection) noexcept
+{
+    return *selection.horizontal_scroll_mode != 0U || *selection.vertical_scroll_mode != 0U;
+}
+
 bool BeginSection(const MfdContainerEditorUiFacadeV1& ui,
                   const char* const id,
                   const char* const label,
@@ -79,7 +86,8 @@ bool DrawGeneralSection(const MfdContainerEditorUiFacadeV1& ui,
     }
 
     bool changed = false;
-    const char* const typeLabels[] {"CanvasBox", "LinearBox", "GridBox", "OverlayBox"};
+    const char* const typeLabels[] {
+        "Canvas (free placement)", "Linear (row or column)", "Grid (rows x columns)", "Overlay (stacked layers)"};
     std::int32_t type = static_cast<std::int32_t>(*selection.type);
     MergeChange(changed, ui.combo(ui.host_context, "Container type", &type, typeLabels, 4U));
     *selection.type = static_cast<std::uint32_t>(std::clamp(type, 0, 3));
@@ -270,6 +278,11 @@ bool DrawScrollingSection(const MfdContainerEditorUiFacadeV1& ui,
         static_cast<std::uint32_t>(std::clamp(verticalScroll, 0, 2));
 
     MergeChange(changed, ui.checkbox(ui.host_context, "Clip content", selection.clip_content));
+    if (!IsScrollingEnabled(selection))
+    {
+        // Scrollbar geometry is irrelevant without scrolling; hidden values are preserved untouched.
+        return changed;
+    }
     MergeChange(changed,
                 ui.drag_float2(
                     ui.host_context, "Scroll offset", selection.scroll_offset_xy, 0.005f, 0.0f, 16.0f));
@@ -298,34 +311,45 @@ bool DrawAppearanceSection(const MfdContainerEditorUiFacadeV1& ui,
         return false;
     }
 
+    // Style fields appear only once their decoration is drawn; hidden values are preserved untouched.
     bool changed = false;
     MergeChange(changed,
                 ui.checkbox(ui.host_context, "Draw background", selection.background_visible));
-    MergeChange(changed,
-                ui.color_edit4(ui.host_context, "Background color", selection.background_rgba));
+    if (*selection.background_visible != 0U)
+    {
+        MergeChange(changed,
+                    ui.color_edit4(ui.host_context, "Background color", selection.background_rgba));
+    }
     MergeChange(changed, ui.checkbox(ui.host_context, "Draw border", selection.border_visible));
-    MergeChange(changed, ui.color_edit4(ui.host_context, "Border color", selection.border_rgba));
-    MergeChange(changed,
-                ui.drag_float(ui.host_context,
-                              "Border thickness",
-                              selection.border_thickness,
-                              0.001f,
-                              0.0f,
-                              1.0f));
-    MergeChange(changed,
-                ui.drag_float(ui.host_context,
-                              "Corner radius",
-                              selection.corner_radius,
-                              0.001f,
-                              0.0f,
-                              1.0f));
+    if (*selection.border_visible != 0U)
+    {
+        MergeChange(changed, ui.color_edit4(ui.host_context, "Border color", selection.border_rgba));
+        MergeChange(changed,
+                    ui.drag_float(ui.host_context,
+                                  "Border thickness",
+                                  selection.border_thickness,
+                                  0.001f,
+                                  0.0f,
+                                  1.0f));
+    }
+    if (*selection.background_visible != 0U || *selection.border_visible != 0U)
+    {
+        MergeChange(changed,
+                    ui.drag_float(ui.host_context,
+                                  "Corner radius",
+                                  selection.corner_radius,
+                                  0.001f,
+                                  0.0f,
+                                  1.0f));
+    }
     return changed;
 }
 
 bool DrawScrollbarStyleSection(const MfdContainerEditorUiFacadeV1& ui,
                                MfdContainerEditorSelectionV1& selection) noexcept
 {
-    if (!BeginSection(ui, "api1_container_scrollbar_style", "Scrollbar style", false))
+    if (!IsScrollingEnabled(selection) ||
+        !BeginSection(ui, "api1_container_scrollbar_style", "Scrollbar style", false))
     {
         return false;
     }

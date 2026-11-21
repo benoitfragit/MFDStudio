@@ -92,13 +92,18 @@ section is read-only and explains the problem. Downgrading a Window that owns
 containers or widgets requires explicit, counted confirmation; deletion and the level change form
 one undoable operation. See [API LEVEL 1 containers](./containers.md).
 
-Selecting a widget, shared widget definition or container replaces the Page preview
-with its focused studio. These studios retain the reticle workflow's independent
-wheel zoom, right-drag pan, recenter control, View options and right inspector.
-Widget instances can be moved/resized directly; Container Studio renders only the
-selected subtree and lets a visible descendant become the next focus. Choose
-**Return to Page preview** from View or the canvas context menu, or select a Page in
-the sidebar.
+Selecting a widget, shared widget definition or container keeps the Page preview
+visible: the selection is outlined on the Page, gets its move/resize gizmo there,
+and the right inspector shows its properties. To isolate it, **double-click** it in
+the sidebar or on the Page, use the open-in-studio icon of its sidebar section, or
+the **Open in ... Studio** action at the top of the inspector. These studios retain
+the reticle workflow's independent wheel zoom, right-drag pan, recenter control,
+View options and right inspector. Widget instances can be moved/resized directly;
+Container Studio renders only the selected subtree and lets a visible descendant
+become the next focus. The studio header shows **Page > Container Studio > id**
+with a back arrow; the back arrow, **Esc**, or **Return to Page preview** from View
+or the canvas context menu returns to the Page with the same selection and Page
+camera. Opening or leaving a studio never creates an Undo step.
 
 The Page-preview pointer-and-response-ring tool enables session-only widget test
 mode. While armed, the left button executes the same button, toggle, checkbox,
@@ -141,8 +146,22 @@ To rename an existing page, select it and edit **Page settings > Name** in the r
 inspector. Press Enter or **Review rename...** to open the global rename review.
 Alternatively, use the pencil icon or **Page > Rename current page globally...**.
 The new name is not applied until the review confirms all references and
-collisions. If confirmation is disabled, read the error message in that popup;
-save the source window and page assets if they have not been saved yet.
+collisions. If confirmation is disabled, the popup shows the scanned assets root
+and the wrapped reason next to the button; save the source window and page assets
+if they have not been saved yet.
+
+Global page and reticle renames scan one asset tree, resolved in this order:
+
+1. the nearest parent folder named `assets`;
+2. the folder passed with `--asset-directory`, when it contains the renamed file;
+3. the authoring tree of the open window: the parent of its `windows` folder, or
+   the window folder itself when it is not named `windows`.
+
+Your own projects therefore do not need an `assets` folder. Only scan errors that
+can hide references (unreadable JSON, malformed page lists, malformed reticle or
+strobe lists, duplicate template ids) block the rename. Defects that cannot hide a
+reference, such as an image primitive without a file in an unrelated template, are
+listed under **Warnings**.
 
 The **Pages** and **Reticle library** headers show live counts of entries passing
 the current filter, and a line near the filter surfaces pending validation
@@ -226,7 +245,7 @@ For a selected **Line**, the blue **1** marks **Start** and the amber **2** mark
 
 Primitive IDs must be unique within a template. Press Enter or leave the ID field to commit a rename. The editor updates clipping references and the loaded page and strobe instances. In a widget working visual, **Apply edited visual** commits the corresponding binding names.
 
-Use the trash icon on a primitive’s row to delete it. If you remove the selected primitive, the inspector returns to the template. Undo restores the deleted primitive. When applying an edited widget visual, bindings to deleted primitives are removed; surviving bindings are retained.
+Use the trash icon on a primitive’s row, or press **Delete** while the primitive is selected, to delete it. Delete removes only the selected primitive, never its template; **Delete library reticle** stays available in the context menu and toolbar. If you remove the selected primitive, the inspector returns to the template. Undo restores the deleted primitive. When applying an edited widget visual, bindings to deleted primitives are removed; surviving bindings are retained.
 
 Use the trash icon beside **Point N** to remove that vertex from a polyline. The remaining vertices keep their order. An open polyline ends at its last vertex. The trash icons become disabled at two vertices.
 

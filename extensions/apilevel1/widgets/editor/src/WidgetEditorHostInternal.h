@@ -13,7 +13,10 @@
 #include "mfd/apilevel1/widgets/WidgetEditorAbi.h"
 
 #include <imgui.h>
+#include <cstddef>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace mfd::api1::internal
 {
@@ -22,6 +25,20 @@ struct TextFieldBounds
     ImVec2 min {};
     ImVec2 max {};
 };
+
+/** @brief Host-only state behind the opaque DLL callback context. */
+struct WidgetEditorDrawContext
+{
+    TextFieldBounds* textBounds = nullptr;
+    const std::vector<std::string>* parentChoices = nullptr;
+};
+
+/**
+ * @brief Writes one parent choice into a DLL-owned buffer.
+ * @param choice Container id, or empty for the Page root.
+ * @return `false` and leaves @p parent untouched when the id does not fit with its terminator.
+ */
+[[nodiscard]] bool CopyWidgetParentChoice(std::string_view choice, char* parent, std::size_t capacity) noexcept;
 
 /** @brief Draw the host text field and report a changed value only when the user commits. */
 bool DrawWidgetTextField(TextFieldBounds& bounds, const char* label, char* value, std::size_t capacity);

@@ -34,6 +34,14 @@ bool IsWidgetEditorDraftValidAfterDraw(const MfdWidgetEditorDraftV1& draft) noex
            HasNullTerminator(draft.default_text, sizeof(draft.default_text)) &&
            HasNullTerminator(draft.binding_primitive, sizeof(draft.binding_primitive));
 }
+bool CopyWidgetParentChoice(const std::string_view choice, char* parent, const std::size_t capacity) noexcept
+{
+    if (parent == nullptr || capacity == 0U || choice.size() >= capacity) return false;
+    std::memcpy(parent, choice.data(), choice.size());
+    parent[choice.size()] = '\0';
+    return true;
+}
+
 bool DrawWidgetTextField(TextFieldBounds& bounds, const char* label, char* value, std::size_t capacity)
 {
     if (!value || capacity == 0 || capacity > 4097) return 0;
@@ -59,7 +67,37 @@ namespace
 void MFD_WIDGET_EDITOR_CALL Text(void*, const char* label) { ImGui::TextWrapped("%s", label); }
 std::uint8_t MFD_WIDGET_EDITOR_CALL Input(void* context, const char* label, char* value, std::size_t capacity)
 {
-    return internal::DrawWidgetTextField(*static_cast<internal::TextFieldBounds*>(context), label, value, capacity);
+    return internal::DrawWidgetTextField(
+        *static_cast<internal::WidgetEditorDrawContext*>(context)->textBounds, label, value, capacity);
+}
+std::uint8_t MFD_WIDGET_EDITOR_CALL BeginSection(void*, const char* sectionId, const char* label, std::uint8_t defaultOpen)
+{
+    if (sectionId == nullptr || label == nullptr) return 0U;
+    return editor::ui::BeginInspectorSection(sectionId, label, defaultOpen != 0U, false) ? 1U : 0U;
+}
+std::uint8_t MFD_WIDGET_EDITOR_CALL ParentPicker(void* context, const char* label, char* parent, std::size_t capacity)
+{
+    const auto* drawContext = static_cast<internal::WidgetEditorDrawContext*>(context);
+    if (label == nullptr || parent == nullptr || capacity == 0U || std::memchr(parent, '\0', capacity) == nullptr) return 0U;
+    const std::string current(parent);
+    bool changed = false;
+    editor::ui::BeginInspectorField(label);
+    if (ImGui::BeginCombo("##value", current.empty() ? "Page (root)" : current.c_str()))
+    {
+        if (ImGui::Selectable("Page (root)", current.empty()))
+            changed = internal::CopyWidgetParentChoice({}, parent, capacity) && !current.empty();
+        if (drawContext->parentChoices != nullptr)
+        {
+            for (const std::string& choice : *drawContext->parentChoices)
+            {
+                if (ImGui::Selectable(choice.c_str(), choice == current) && choice != current)
+                    changed = internal::CopyWidgetParentChoice(choice, parent, capacity);
+            }
+        }
+        ImGui::EndCombo();
+    }
+    editor::ui::EndInspectorField();
+    return changed ? 1U : 0U;
 }
 std::uint8_t MFD_WIDGET_EDITOR_CALL Checkbox(void*, const char* label, std::uint8_t* value)
 {
@@ -155,10 +193,12 @@ bool WidgetEditorHost::LeavingTextField() const noexcept
            (outside && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right)));
 }
 
-std::uint32_t WidgetEditorHost::Draw(MfdWidgetEditorDraftV1& draft) const
+std::uint32_t WidgetEditorHost::Draw(MfdWidgetEditorDraftV1& draft, const std::vector<std::string>& parentChoices) const
 {
     if (!IsLoaded()) return 0;
-    const MfdWidgetEditorUiV1 ui {sizeof(ui), 1U, &impl_->textBounds, Text, Input, Checkbox, Number, Combo, Button};
+    internal::WidgetEditorDrawContext context {&impl_->textBounds, &parentChoices};
+    const MfdWidgetEditorUiV1 ui {
+        sizeof(ui), 1U, &context, Text, Input, Checkbox, Number, Combo, Button, BeginSection, ParentPicker};
     const std::uint32_t actions = impl_->api.draw(&ui, &draft);
     return internal::IsWidgetEditorDraftValidAfterDraw(draft) ? actions & 127U : 0U;
 }

@@ -179,7 +179,14 @@ ParsedAssetKind ClassifyDocument(const json& document)
 
 void AddScanError(AssetReferenceIndex& index, const std::filesystem::path& file, std::string message)
 {
-    index.errors.push_back(AssetScanError {NormalizePath(file), std::move(message)});
+    index.errors.push_back(
+        AssetScanError {NormalizePath(file), std::move(message), AssetScanErrorImpact::ReferencesMayBeIncomplete});
+}
+
+/** @brief Records an invalid field that cannot hide page, window or template references. */
+void AddContentScanError(AssetReferenceIndex& index, const std::filesystem::path& file, std::string message)
+{
+    index.errors.push_back(AssetScanError {NormalizePath(file), std::move(message), AssetScanErrorImpact::ContentOnly});
 }
 
 void AddMissingAsset(AssetReferenceIndex& index,
@@ -231,7 +238,7 @@ void ScanImageElements(const json& elements,
 {
     if (!elements.is_array())
     {
-        AddScanError(index, ownerFile, "Reticle elements must be a JSON array");
+        AddContentScanError(index, ownerFile, "Reticle elements must be a JSON array");
         return;
     }
 
@@ -252,9 +259,9 @@ void ScanImageElements(const json& elements,
         const json* fileField = FindField(element, {"file", "image", "source", "path"});
         if (fileField == nullptr || !fileField->is_string())
         {
-            AddScanError(index,
-                         ownerFile,
-                         "Image primitive '" + primitiveId + "' must declare one string file path");
+            AddContentScanError(index,
+                                ownerFile,
+                                "Image primitive '" + primitiveId + "' must declare one string file path");
             continue;
         }
 
@@ -388,7 +395,7 @@ void ProcessWindowAssetReference(const json& document,
 
     if (!field->is_string())
     {
-        AddScanError(index, ownerFile, "Window asset path fields must be strings");
+        AddContentScanError(index, ownerFile, "Window asset path fields must be strings");
         return;
     }
 
@@ -462,7 +469,7 @@ void ProcessPageDocument(const ParsedAssetFile& asset,
 
     if (const json* widgets = FindField(pageNode, {"widgets"}); widgets != nullptr)
     {
-        if (!widgets->is_array() || widgets->size() > 4096) AddScanError(index, asset.file, "Invalid widgets array");
+        if (!widgets->is_array() || widgets->size() > 4096) AddContentScanError(index, asset.file, "Invalid widgets array");
         else for (const auto& widget : *widgets)
         {
             try
@@ -475,7 +482,7 @@ void ProcessPageDocument(const ParsedAssetFile& asset,
                     AddMissingAsset(index, MissingAssetKind::WidgetDefinition, asset.file, target,
                         asset.pageName, widget.value("id", ""), {}, {}, "Widget definition does not exist");
             }
-            catch (const std::exception& failure) { AddScanError(index, asset.file, failure.what()); }
+            catch (const std::exception& failure) { AddContentScanError(index, asset.file, failure.what()); }
         }
     }
     if (const json* staticReticles = FindField(pageNode, {"staticReticles"}); staticReticles != nullptr)
@@ -779,7 +786,7 @@ AssetReferenceIndex AssetReferenceIndexService::BuildIndex(const AssetReferenceI
                     parsedAsset.templateId = parsedAsset.document.value("id", "");
                     if (parsedAsset.templateId.empty())
                     {
-                        AddScanError(index, entryPath, "Reticle template files must declare one non-empty id");
+                        AddContentScanError(index, entryPath, "Reticle template files must declare one non-empty id");
                     }
                     else if (const auto [iteratorTemplate, inserted] =
                                  templateFilesById.emplace(parsedAsset.templateId, parsedAsset.file);

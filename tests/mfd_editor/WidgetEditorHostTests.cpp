@@ -189,3 +189,15 @@ TEST_F(WidgetEditorHostFrame, TextCommitsOnBlurAndEscapeRestoresTheOriginal)
     io.AddMouseButtonEvent(0, false);
     EXPECT_FALSE(DrawTextFrame());
 }
+
+TEST(WidgetEditorHostValidation, ParentChoiceIsCopiedOnlyWhenItFitsItsBuffer)
+{
+    std::array<char, 8> parent {'o', 'l', 'd', '\0'};
+    EXPECT_TRUE(mfd::api1::internal::CopyWidgetParentChoice("Panel", parent.data(), parent.size()));
+    EXPECT_STREQ(parent.data(), "Panel");
+    EXPECT_TRUE(mfd::api1::internal::CopyWidgetParentChoice("", parent.data(), parent.size()));
+    EXPECT_STREQ(parent.data(), "");
+    EXPECT_FALSE(mfd::api1::internal::CopyWidgetParentChoice("TooLongId", parent.data(), parent.size()));
+    EXPECT_STREQ(parent.data(), "");
+    EXPECT_FALSE(mfd::api1::internal::CopyWidgetParentChoice("A", nullptr, parent.size()));
+}

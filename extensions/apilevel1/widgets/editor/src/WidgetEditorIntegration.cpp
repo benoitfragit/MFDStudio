@@ -163,7 +163,12 @@ void EditorApplication::DrawSidebarWidgetsSection(const float height)
             ImVec2(0, std::max(1.0f, ImGui::GetContentRegionAvail().y)),
             false);
         page = ActivePage();
-        if (!page || page->widgets.empty()) ImGui::TextDisabled("No widget. Use + or the definition library.");
+        if (widgetLibraryOpen_)
+        {
+            ImGui::SeparatorText("Instances on this Page");
+        }
+        if (!page || page->widgets.empty()) ImGui::TextDisabled("No widget. Place one from the definition library.");
+        else editor::ui::DisabledTextWrapped("Click selects on the Page; double-click opens Widget Studio.");
         if (page)
         {
             const auto filter = mfd::NormalizePageName(ResolveSidebarFilter().text);
@@ -172,10 +177,13 @@ void EditorApplication::DrawSidebarWidgetsSection(const float height)
                 if (!filter.empty() && mfd::NormalizePageName(widget.id).find(filter) == std::string::npos) continue;
                 const auto parent = WidgetParent(*page, widget.id);
                 const std::string label = widget.id + (parent.empty() ? " (root)" : " / " + parent);
-                if (ImGui::Selectable(label.c_str(), documentState_.selection.kind == SelectionKind::Widget &&
-                                      documentState_.selection.widgetId == widget.id))
+                if (ImGui::Selectable(label.c_str(),
+                                      documentState_.selection.kind == SelectionKind::Widget &&
+                                          documentState_.selection.widgetId == widget.id,
+                                      ImGuiSelectableFlags_AllowDoubleClick))
                 {
                     SelectWidget(documentState_.selection.pageIndex, widget.id);
+                    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) OpenFocusedLevel1Studio();
                 }
                 if (widget.definition != nullptr)
                 {
@@ -190,6 +198,10 @@ void EditorApplication::DrawSidebarWidgetsSection(const float height)
                 }
             }
         }
+        if (widgetLibraryOpen_)
+        {
+            DrawWidgetDefinitionCatalog();
+        }
         ImGui::EndChild();
     }
     ImGui::EndChild();
@@ -202,7 +214,7 @@ void EditorApplication::DrawWidgetActionToolbar()
 
     if (IconButton("##sidebar_add_widget_definition",
                    EditorIcon::Add,
-                   "Create a widget definition and open its dedicated library editor."))
+                   "Create a widget definition and edit it in Widget Studio."))
     {
         AddWidgetDefinition(false);
     }
@@ -210,10 +222,10 @@ void EditorApplication::DrawWidgetActionToolbar()
     ImGui::SameLine();
     if (IconButton("##sidebar_open_widget_library",
                    EditorIcon::Library,
-                   "Open the widget definition library and editor."))
+                   widgetLibraryOpen_ ? "Hide the widget definition library."
+                                      : "Show the widget definition library in this section."))
     {
-        widgetLibraryOpen_ = true;
-        ScanWidgetLibrary();
+        ToggleWidgetDefinitionCatalog();
     }
 
     const bool hasSelection = SelectedWidget() != nullptr;
@@ -235,6 +247,15 @@ void EditorApplication::DrawWidgetActionToolbar()
         DeleteWidget();
     }
 
+    ImGui::SameLine();
+    if (IconButton("##sidebar_open_widget_studio",
+                   EditorIcon::OpenStudio,
+                   "Edit the selected widget in Widget Studio (or double-click it).",
+                   hasSelection))
+    {
+        OpenFocusedLevel1Studio();
+    }
+
     if (!documentState_.widgetVisual.templateId.empty())
     {
         ImGui::SameLine();
@@ -246,6 +267,19 @@ void EditorApplication::DrawWidgetActionToolbar()
         }
     }
 }
+
+void EditorApplication::ToggleWidgetDefinitionCatalog()
+{
+    widgetLibraryOpen_ = !widgetLibraryOpen_;
+    if (!widgetLibraryOpen_)
+    {
+        return;
+    }
+
+    // The placement target is left untouched: it follows explicit container selections only.
+    ScanWidgetLibrary();
+}
+
 void EditorApplication::ScanWidgetLibrary()
 {
     try
@@ -267,22 +301,30 @@ void EditorApplication::ScanWidgetLibrary()
     }
     catch (const std::exception& error) { RebuildStatus(error.what(), true); }
 }
-void EditorApplication::DrawWidgetLibrary()
+void EditorApplication::DrawWidgetDefinitionCatalog()
 {
-    if (!widgetLibraryOpen_) return;
-    if (!ImGui::Begin("Widget definition library", &widgetLibraryOpen_)) { ImGui::End(); return; }
+    ImGui::SeparatorText("Definition library");
     if (ImGui::Button("New definition")) AddWidgetDefinition(false);
     ImGui::SameLine();
     if (ImGui::Button("Import")) ImportWidgetDefinition();
-    ImGui::InputText("Search", widgetLibraryFilter_.data(), widgetLibraryFilter_.size());
+    ImGui::SetNextItemWidth(-1.0f);
+    ImGui::InputTextWithHint("##widget_library_search", "Search definitions...",
+                             widgetLibraryFilter_.data(), widgetLibraryFilter_.size());
     const auto& library = documentState_.loaded.document.widgetLibrary;
+    if (library.empty()) ImGui::TextDisabled("No definition yet. Use New definition or Import.");
+    else editor::ui::DisabledTextWrapped("Double-click edits a definition; drag one onto the Page to place it there.");
+    const std::string filter = mfd::NormalizePageName(widgetLibraryFilter_.data());
     for (std::size_t index = 0; index < library.size(); ++index)
     {
-        if (mfd::NormalizePageName(library[index]->id).find(mfd::NormalizePageName(widgetLibraryFilter_.data())) == std::string::npos) continue;
+        if (mfd::NormalizePageName(library[index]->id).find(filter) == std::string::npos) continue;
         ImGui::PushID(static_cast<int>(index));
         const bool selected = documentState_.selection.kind == SelectionKind::WidgetDefinition &&
                               documentState_.selection.widgetDefinitionIndex == index;
-        if (ImGui::Selectable(library[index]->id.c_str(), selected)) SelectWidgetDefinition(index);
+        if (ImGui::Selectable(library[index]->id.c_str(), selected, ImGuiSelectableFlags_AllowDoubleClick))
+        {
+            SelectWidgetDefinition(index);
+            if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) OpenFocusedLevel1Studio();
+        }
         mfd::api1::WidgetInstance previewWidget;
         previewWidget.id = library[index]->id;
         previewWidget.definition = library[index];
@@ -301,18 +343,75 @@ void EditorApplication::DrawWidgetLibrary()
     }
     if (widgetLibrarySelected_ < library.size())
     {
-        ImGui::TextWrapped("%s", library[widgetLibrarySelected_]->sourceFile.string().c_str());
-        ImGui::TextWrapped("%zu state visuals. Shared definition edits preserve instance overrides.", library[widgetLibrarySelected_]->visuals.size());
-        if (ImGui::Button("Insert into active Page")) InsertWidgetDefinition(widgetLibrarySelected_);
-        if (ImGui::Button("Duplicate definition")) AddWidgetDefinition(true);
-        ImGui::SameLine();
-        if (ImGui::Button("Export definition and resources")) ExportWidgetDefinition();
-        if (ImGui::Button("Save library and document")) SaveAll();
-        ImGui::TextDisabled("Select the definition to edit it in Widget Studio and the inspector.");
+        DrawWidgetDefinitionCatalogActions(*library[widgetLibrarySelected_]);
     }
-    if (!documentState_.widgetVisual.templateId.empty() && ImGui::Button("Apply edited visual")) ApplyWidgetVisual();
-    ImGui::End();
 }
+
+void EditorApplication::DrawWidgetDefinitionCatalogActions(const mfd::api1::WidgetDefinition& definition)
+{
+    ImGui::SeparatorText(("Definition '" + definition.id + "'").c_str());
+    editor::ui::DisabledTextWrapped(definition.sourceFile.string().c_str());
+    const std::string visuals = std::to_string(definition.visuals.size()) +
+                                " state visuals. Editing the definition affects every instance without an override.";
+    editor::ui::DisabledTextWrapped(visuals.c_str());
+
+    if (ImGui::Button("Edit in Widget Studio"))
+    {
+        SelectWidgetDefinition(widgetLibrarySelected_);
+        OpenFocusedLevel1Studio();
+    }
+
+    DrawWidgetInsertTargetSelector();
+    if (editor::ui::AccentButton("Place on Page"))
+    {
+        InsertWidgetDefinition(widgetLibrarySelected_);
+    }
+    editor::ui::ShowItemTooltip("Insert one independent instance into the target above. Drag the definition onto the Page to choose its position.");
+
+    if (ImGui::Button("Duplicate")) AddWidgetDefinition(true);
+    ImGui::SameLine();
+    if (ImGui::Button("Export")) ExportWidgetDefinition();
+    ImGui::SameLine();
+    if (ImGui::Button("Save all")) SaveAll();
+}
+
+void EditorApplication::DrawWidgetInsertTargetSelector()
+{
+    const auto* page = ActivePage();
+    if (page == nullptr)
+    {
+        return;
+    }
+
+    if (!widgetInsertTargetContainerId_.empty() &&
+        mfd::api1::FindContainer(page->containers, widgetInsertTargetContainerId_) == nullptr)
+    {
+        // The chosen container was deleted or renamed meanwhile: fall back to an explicit root target.
+        widgetInsertTargetContainerId_.clear();
+    }
+
+    const std::string preview =
+        widgetInsertTargetContainerId_.empty() ? std::string("Page (root)") : widgetInsertTargetContainerId_;
+    editor::ui::BeginInspectorField("Place in");
+    if (ImGui::BeginCombo("##widget_insert_target", preview.c_str()))
+    {
+        if (ImGui::Selectable("Page (root)", widgetInsertTargetContainerId_.empty()))
+        {
+            widgetInsertTargetContainerId_.clear();
+        }
+        for (const auto& container : page->containers)
+        {
+            const std::string label = (container.name.empty() ? container.id : container.name) + "##" + container.id;
+            if (ImGui::Selectable(label.c_str(), widgetInsertTargetContainerId_ == container.id))
+            {
+                widgetInsertTargetContainerId_ = container.id;
+            }
+        }
+        ImGui::EndCombo();
+    }
+    editor::ui::EndInspectorField();
+}
+
 void EditorApplication::AddWidgetDefinition(const bool duplicate)
 {
     if (documentState_.loaded.window.apiLevel != mfd::ApiLevel::Level1 || !ActivePage()) return;
@@ -346,26 +445,39 @@ void EditorApplication::AddWidgetDefinition(const bool duplicate)
         PushUndoSnapshot(std::move(before));
         widgetLibraryOpen_ = true;
         SelectWidgetDefinition(widgetLibrarySelected_);
-        RebuildStatus("Widget definition created. Edit it in Widget Studio, then insert independent instances.", false);
+        OpenFocusedLevel1Studio();
+        RebuildStatus("Widget definition created. Edit it in Widget Studio, then place independent instances.", false);
     }
     catch (const std::exception& error) { RebuildStatus(error.what(), true); }
 }
-void EditorApplication::InsertWidgetDefinition(const std::size_t index)
+void EditorApplication::InsertWidgetDefinition(const std::size_t index, const std::optional<mfd::Vec2> dropPosition)
 {
     auto* page = ActivePage();
     const auto& library = documentState_.loaded.document.widgetLibrary;
-    if (!page || index >= library.size() || documentState_.loaded.window.apiLevel != mfd::ApiLevel::Level1) return;
+    const int pageIndex = documentState_.selection.pageIndex;
+    if (!page || index >= library.size() || documentState_.loaded.window.apiLevel != mfd::ApiLevel::Level1 ||
+        pageIndex < 0 || static_cast<std::size_t>(pageIndex) >= documentState_.files.pageFiles.size()) return;
     if (!widgetEditorHost_.EnsureLoaded(documentState_.loaded.window.sourceFile))
     { RebuildStatus(widgetEditorHost_.Diagnostic(), true); return; }
+    // The target is the explicit placement intent, never the selection, which browsing the catalog changes.
+    const std::string parent = widgetInsertTargetContainerId_;
+    if (!parent.empty() && mfd::api1::FindContainer(page->containers, parent) == nullptr)
+    {
+        widgetInsertTargetContainerId_.clear();
+        RebuildStatus("Container '" + parent + "' no longer exists. Choose another target in Place in.", true);
+        return;
+    }
     const auto before = CaptureCurrentSnapshot();
-    const std::string parent = documentState_.selection.kind == SelectionKind::Container ? documentState_.selection.containerId : "";
     const auto reference = std::filesystem::relative(library[index]->sourceFile,
-        documentState_.files.pageFiles[documentState_.selection.pageIndex].parent_path()).generic_string();
+        documentState_.files.pageFiles[static_cast<std::size_t>(pageIndex)].parent_path()).generic_string();
     std::string error;
-    const auto id = mfd::api1::WidgetEditorModel::Insert(*page, library[index], reference, parent, error);
+    const auto id = dropPosition.has_value()
+        ? mfd::api1::WidgetEditorModel::Insert(*page, library[index], reference, parent, *dropPosition, error)
+        : mfd::api1::WidgetEditorModel::Insert(*page, library[index], reference, parent, error);
     if (id.empty()) { RebuildStatus(error, true); return; }
     PushUndoSnapshot(before);
-    SelectWidget(documentState_.selection.pageIndex, id);
+    SelectWidget(pageIndex, id);
+    RebuildStatus("Widget '" + id + "' placed in " + (parent.empty() ? std::string("the Page root") : "'" + parent + "'") + ".", false);
 }
 void EditorApplication::DuplicateWidget()
 {
@@ -438,6 +550,14 @@ void EditorApplication::DrawWidgetInspector(const bool definitionOnly)
     draft.type = static_cast<int>(definition.type);
     draft.hit_x = definition.hitRegion.center.x; draft.hit_y = definition.hitRegion.center.y;
     draft.hit_width = definition.hitRegion.size.x; draft.hit_height = definition.hitRegion.size.y;
+    draft.parent_type = MFD_WIDGET_EDITOR_PARENT_TYPE_UNKNOWN;
+    std::vector<std::string> parentChoices;
+    parentChoices.reserve(page->containers.size());
+    for (const auto& container : page->containers)
+    {
+        parentChoices.push_back(container.id);
+        if (container.id == parent) draft.parent_type = static_cast<std::int32_t>(container.type);
+    }
     for (const auto& container : page->containers)
         for (const auto& edge : container.children)
             if (edge.kind == mfd::api1::ContainerChildKind::Widget && edge.childId == widget->id)
@@ -451,7 +571,7 @@ void EditorApplication::DrawWidgetInspector(const bool definitionOnly)
     ImGui::PushID(documentState_.selection.pageIndex);
     ImGui::PushID(definitionOnly ? "definition" : "instance");
     ImGui::PushID(widget->id.c_str());
-    const auto actions = widgetEditorHost_.Draw(draft);
+    const auto actions = widgetEditorHost_.Draw(draft, parentChoices);
     ImGui::PopID();
     ImGui::PopID();
     ImGui::PopID();
@@ -652,6 +772,8 @@ void EditorApplication::ApplyWidgetVisual()
     documentState_.widgetVisual.renames.clear();
     PushUndoSnapshot(before);
     SelectWidgetDefinition(definitionIndex);
+    // The visual was edited from the definition: return to it in Widget Studio, not to the bare Page.
+    OpenFocusedLevel1Studio();
     std::string status = "Shared widget visual updated; instance overrides retained.";
     if (removedBindingCount != 0U)
     {
@@ -751,6 +873,7 @@ bool EditorApplication::BeginWidgetPreviewGesture(const ViewportState& viewport,
         const auto hit = mfd::api1::WidgetHitRegion(widget, layout->bounds);
         if (!resize && (std::abs(pointer.x - hit.center.x) > hit.size.x * 0.5f || std::abs(pointer.y - hit.center.y) > hit.size.y * 0.5f)) continue;
         SelectWidget(documentState_.selection.pageIndex, widget.id);
+        if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) OpenFocusedLevel1Studio();
         widgetGestureBefore_ = CaptureCurrentSnapshot();
         widgetGestureStart_ = widget;
         widgetGesturePointer_ = pointer;

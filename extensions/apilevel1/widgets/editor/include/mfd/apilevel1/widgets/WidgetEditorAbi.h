@@ -30,7 +30,22 @@ typedef struct MfdWidgetEditorUiV1
     uint8_t(MFD_WIDGET_EDITOR_CALL* number)(void*, const char*, double*, double, double);
     uint8_t(MFD_WIDGET_EDITOR_CALL* combo)(void*, const char*, int32_t*, const char* const*, size_t);
     uint8_t(MFD_WIDGET_EDITOR_CALL* button)(void*, const char*);
+    /**
+     * @brief Optional tail: draws a host-themed collapsible section.
+     * @return Non-zero when the editor should draw the section body.
+     * @note Check `struct_size` before reading; a host built before section support omits it.
+     */
+    uint8_t(MFD_WIDGET_EDITOR_CALL* begin_section)(void*, const char* section_id, const char* label, uint8_t default_open);
+    /**
+     * @brief Optional tail: host-drawn picker listing the Page root and the existing containers.
+     * @param parent In/out null-terminated container id; empty selects the Page root.
+     * @return Non-zero when the user picked another parent.
+     * @note Check `struct_size` before reading; without it the editor falls back to `input_text`.
+     */
+    uint8_t(MFD_WIDGET_EDITOR_CALL* parent_picker)(void*, const char* label, char* parent, size_t capacity);
 } MfdWidgetEditorUiV1;
+/** @brief `parent_type` value when the host does not report the parent container type. */
+#define MFD_WIDGET_EDITOR_PARENT_TYPE_UNKNOWN (-1)
 /** @brief Mutable bounded draft, copied and validated by the host before committing. */
 typedef struct MfdWidgetEditorDraftV1
 {
@@ -53,6 +68,12 @@ typedef struct MfdWidgetEditorDraftV1
     char binding_primitive[257];
     int32_t binding_target;
     double binding_from, binding_to;
+    /**
+     * @brief Optional tail: type of the current parent container (0 Canvas, 1 Linear, 2 Grid, 3 Overlay).
+     * @note Meaningful only when `parent` is not empty. Editors check `struct_size` before reading it and
+     * treat an absent or `MFD_WIDGET_EDITOR_PARENT_TYPE_UNKNOWN` value as "show every placement field".
+     */
+    int32_t parent_type;
 } MfdWidgetEditorDraftV1;
 /** @brief Result flags: 1 instance edit, 2 definition edit, 4 edit visual, 8 apply visual, 16 reset overrides. */
 typedef struct MfdWidgetEditorApiV1

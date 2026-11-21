@@ -693,3 +693,96 @@ TEST(EditorApplicationInternalTests, RemovingDefaultBlinkSelectsRemainingDefinit
     EXPECT_EQ(page.defaultBlinkTypeName, "Slow");
     EXPECT_EQ(page.normalizedDefaultBlinkTypeName, "slow");
 }
+
+namespace
+{
+mfd::ReticleGroup MakeLibraryTemplateWithPrimitives(const std::vector<std::string>& primitiveIds)
+{
+    mfd::ReticleGroup source;
+    source.id = "cursor";
+    for (const std::string& primitiveId : primitiveIds)
+    {
+        mfd::Primitive primitive;
+        primitive.id = primitiveId;
+        primitive.type = mfd::PrimitiveType::Circle;
+        primitive.geometry = mfd::CircleGeometry {};
+        source.primitives.push_back(primitive);
+    }
+    return source;
+}
+
+std::vector<std::string> PrimitiveIds(const mfd::ReticleGroup& reticle)
+{
+    std::vector<std::string> ids;
+    ids.reserve(reticle.primitives.size());
+    for (const mfd::Primitive& primitive : reticle.primitives)
+    {
+        ids.push_back(primitive.id);
+    }
+    return ids;
+}
+} // namespace
+
+TEST(EditorApplicationInternalTests, DeleteScopeNeverEscalatesSelectedPrimitiveToWholeTemplate)
+{
+    using editor::app::LibraryDeleteScope;
+    using editor::app::ResolveLibraryDeleteScope;
+    using editor::app::SelectionKind;
+
+    EXPECT_EQ(ResolveLibraryDeleteScope(SelectionKind::LibraryPrimitive), LibraryDeleteScope::Primitive);
+    EXPECT_EQ(ResolveLibraryDeleteScope(SelectionKind::LibraryReticle), LibraryDeleteScope::Reticle);
+    EXPECT_EQ(ResolveLibraryDeleteScope(SelectionKind::Page), LibraryDeleteScope::None);
+    EXPECT_EQ(ResolveLibraryDeleteScope(SelectionKind::PageReticle), LibraryDeleteScope::None);
+    EXPECT_EQ(ResolveLibraryDeleteScope(SelectionKind::Widget), LibraryDeleteScope::None);
+}
+
+TEST(EditorApplicationInternalTests, DeletingSelectedTemplatePrimitiveKeepsNeighborsAndOtherTemplates)
+{
+    struct Case
+    {
+        int index;
+        std::vector<std::string> expected;
+    };
+    const std::vector<Case> cases {
+        {0, {"b", "c"}},
+        {1, {"a", "c"}},
+        {2, {"a", "b"}},
+    };
+
+    for (const Case& deletion : cases)
+    {
+        mfd::MfdDocument document;
+        document.reticleLibrary.emplace("cursor", MakeLibraryTemplateWithPrimitives({"a", "b", "c"}));
+        document.reticleLibrary.emplace("other", MakeLibraryTemplateWithPrimitives({"x", "y"}));
+        mfd::ReticleGroup& source = document.reticleLibrary.at("cursor");
+        document.pages.emplace_back().staticReticles.push_back(mfd::InstantiateReticle(source, "instance"));
+
+        const int selection = editor::app::EraseTemplatePrimitive(document, source, deletion.index, deletion.index);
+
+        EXPECT_EQ(selection, -1) << "index " << deletion.index;
+        EXPECT_EQ(PrimitiveIds(source), deletion.expected) << "index " << deletion.index;
+        EXPECT_EQ(PrimitiveIds(document.pages.front().staticReticles.front()), deletion.expected);
+        EXPECT_EQ(PrimitiveIds(document.reticleLibrary.at("other")), (std::vector<std::string> {"x", "y"}));
+    }
+}
+
+TEST(EditorApplicationInternalTests, DeletingSoleTemplatePrimitiveKeepsTemplateAndUndoRestoresIt)
+{
+    mfd::MfdDocument document;
+    document.reticleLibrary.emplace("cursor", MakeLibraryTemplateWithPrimitives({"only"}));
+    editor::UndoHistory<mfd::MfdDocument> history;
+    history.Record(document);
+
+    mfd::ReticleGroup& source = document.reticleLibrary.at("cursor");
+    EXPECT_EQ(editor::app::EraseTemplatePrimitive(document, source, 0, 0), -1);
+    ASSERT_EQ(document.reticleLibrary.count("cursor"), 1U);
+    EXPECT_TRUE(document.reticleLibrary.at("cursor").primitives.empty());
+
+    const auto restored = history.Undo(document);
+    ASSERT_TRUE(restored.has_value());
+    EXPECT_EQ(PrimitiveIds(restored->reticleLibrary.at("cursor")), (std::vector<std::string> {"only"}));
+    const auto redone = history.Redo(*restored);
+    ASSERT_TRUE(redone.has_value());
+    EXPECT_TRUE(redone->reticleLibrary.at("cursor").primitives.empty());
+    EXPECT_FALSE(history.CanRedo());
+}

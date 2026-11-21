@@ -46,7 +46,9 @@ enum class EditorIcon
     ZoomBox,          ///< Magnifier-over-a-square used to arm the drag-a-box-to-zoom tool.
     SmartSelect,      ///< Dashed marquee with a pointer used to arm the rectangular reticle picker.
     FitToPage,        ///< Frame with inward corner arrows used to scale page content to the border.
-    WidgetInteraction ///< Pointer and response ring used to toggle semantic widget test mode.
+    WidgetInteraction, ///< Pointer and response ring used to toggle semantic widget test mode.
+    OpenStudio,        ///< Frame with an outward arrow used to open the selection in its focused studio.
+    Back               ///< Left arrow used to leave a focused studio and return to the Page.
 };
 
 /**

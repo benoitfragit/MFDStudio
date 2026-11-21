@@ -2297,7 +2297,9 @@ void EditorApplication::HandleShortcuts()
         }
     }
 
-    if (!io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Delete))
+    if (!io.WantTextInput &&
+        !ImGui::IsPopupOpen(static_cast<const char*>(nullptr), ImGuiPopupFlags_AnyPopupId) &&
+        ImGui::IsKeyPressed(ImGuiKey_Delete))
     {
         DeleteSelection();
     }
@@ -2309,6 +2311,12 @@ void EditorApplication::HandleShortcuts()
         if (services_.fullscreenPreview.IsActive())
         {
             ToggleFullscreenPagePreview();
+            return;
+        }
+
+        if (IsFocusedLevel1StudioWorkspaceVisible())
+        {
+            CloseFocusedLevel1Studio();
             return;
         }
 
@@ -2444,7 +2452,14 @@ void EditorApplication::DeleteSelection()
         return;
     }
 
-    if (documentState_.selection.kind == SelectionKind::LibraryReticle || documentState_.selection.kind == SelectionKind::LibraryPrimitive)
+    const editor::app::LibraryDeleteScope libraryScope =
+        editor::app::ResolveLibraryDeleteScope(documentState_.selection.kind);
+    if (libraryScope == editor::app::LibraryDeleteScope::Primitive)
+    {
+        DeleteSelectedLibraryPrimitive();
+        return;
+    }
+    if (libraryScope == editor::app::LibraryDeleteScope::Reticle)
     {
         DeleteSelectedLibraryReticle();
         return;
@@ -4000,7 +4015,17 @@ void EditorApplication::DrawPagePreview(const ViewportState& viewport)
         if (const ImGuiPayload* widgetPayload = ImGui::AcceptDragDropPayload("MFD_WIDGET_DEFINITION"))
         {
             if (widgetPayload->DataSize == sizeof(std::size_t))
-                InsertWidgetDefinition(*static_cast<const std::size_t*>(widgetPayload->Data));
+            {
+                // Same placement rule as reticle drops: logical pointer position, snapped when enabled.
+                const ImVec2 dropMousePosition = ImGui::GetMousePos();
+                std::optional<mfd::Vec2> dropPosition;
+                if (IsPointInsideRect(dropMousePosition, viewport.origin, viewportMax))
+                {
+                    dropPosition = SnapToSharedGridIfEnabled(viewport.ToLogical(dropMousePosition),
+                                                             layoutState_.pagePreviewViewOptions);
+                }
+                InsertWidgetDefinition(*static_cast<const std::size_t*>(widgetPayload->Data), dropPosition);
+            }
         }
         if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("MFD_LIBRARY_RETICLE"))
         {
@@ -4220,7 +4245,17 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
             OpenReticleRenamePopup(reticle->id);
         }
 
-        if (ImGui::MenuItem("Delete library reticle", "Del"))
+        if (hasSelectedPrimitive && ImGui::MenuItem("Delete primitive", "Del"))
+        {
+            DeleteSelectedLibraryPrimitive();
+            ImGui::CloseCurrentPopup();
+            ImGui::EndPopup();
+            return;
+        }
+
+        // The Del shortcut follows the focused item, so it is only advertised here for the template
+        // when no primitive is selected.
+        if (ImGui::MenuItem("Delete library reticle", hasSelectedPrimitive ? nullptr : "Del"))
         {
             DeleteSelectedLibraryReticle();
             ImGui::CloseCurrentPopup();
@@ -4500,7 +4535,7 @@ void EditorApplication::DrawFocusedLevel1StudioContextMenu()
         {
             EditWidgetVisual(true);
         }
-        if (ImGui::MenuItem("Insert into active Page"))
+        if (ImGui::MenuItem("Place on Page"))
         {
             InsertWidgetDefinition(widgetLibrarySelected_);
         }
@@ -4522,9 +4557,13 @@ void EditorApplication::DrawFocusedLevel1StudioContextMenu()
     }
     else if (documentState_.selection.kind == SelectionKind::Container)
     {
-        if (ImGui::MenuItem("Add child container"))
+        if (ImGui::BeginMenu("Add child container"))
         {
-            AddChildContainer(documentState_.selection.containerId);
+            if (const auto type = DrawContainerTypeMenuItems(); type.has_value())
+            {
+                AddChildContainer(documentState_.selection.containerId, *type);
+            }
+            ImGui::EndMenu();
         }
         if (ImGui::MenuItem("Duplicate container hierarchy"))
         {
@@ -4536,9 +4575,9 @@ void EditorApplication::DrawFocusedLevel1StudioContextMenu()
         }
     }
     ImGui::Separator();
-    if (ImGui::MenuItem("Return to Page preview"))
+    if (ImGui::MenuItem("Return to Page preview", "Esc"))
     {
-        SelectPage(documentState_.selection.pageIndex, false);
+        CloseFocusedLevel1Studio();
     }
     ImGui::EndPopup();
 }
@@ -5068,9 +5107,9 @@ void EditorApplication::DrawFocusedLevel1StudioViewMenuItems()
             editor::app::SanitizeGridStepLogical(layoutState_.pagePreviewViewOptions.gridStepLogical);
     }
     ImGui::Separator();
-    if (ImGui::MenuItem("Return to Page preview"))
+    if (ImGui::MenuItem("Return to Page preview", "Esc"))
     {
-        SelectPage(documentState_.selection.pageIndex, false);
+        CloseFocusedLevel1Studio();
     }
     ImGui::Separator();
     DrawFullscreenPreviewMenuItem();
@@ -6824,6 +6863,7 @@ void EditorApplication::HandlePreviewInteraction(const ViewportState& viewport)
                                         pointer.y <= bounds.center.y + bounds.size.y * 0.5f;
                     if (!inside) continue;
                     SelectContainer(documentState_.selection.pageIndex, iterator->id);
+                    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) OpenFocusedLevel1Studio();
                     return;
                 }
             }
@@ -7999,6 +8039,8 @@ void EditorApplication::SelectContainer(const int pageIndex, std::string contain
     const bool selectionChanged = documentState_.selection.kind != SelectionKind::Container ||
                                   documentState_.selection.pageIndex != pageIndex ||
                                   documentState_.selection.containerId != containerId;
+    // Choosing a container is an explicit placement intent for the widget catalog; browsing definitions is not.
+    widgetInsertTargetContainerId_ = containerId;
     documentState_.selection.kind = SelectionKind::Container;
     documentState_.selection.pageIndex = pageIndex;
     documentState_.selection.containerId = std::move(containerId);
@@ -8008,7 +8050,7 @@ void EditorApplication::SelectContainer(const int pageIndex, std::string contain
     layoutState_.focusedStudioFitPending = selectionChanged;
 }
 
-void EditorApplication::AddRootContainer()
+void EditorApplication::AddRootContainer(const mfd::api1::ContainerType type)
 {
     mfd::PageDefinition* page = ActivePage();
     if (page == nullptr)
@@ -8018,7 +8060,7 @@ void EditorApplication::AddRootContainer()
 
     const UndoSnapshot before = CaptureCurrentSnapshot();
     const std::string id =
-        mfd::api1::ContainerEditorModel::AddRoot(*page, mfd::api1::ContainerType::Canvas);
+        mfd::api1::ContainerEditorModel::AddRoot(*page, type);
     if (id.empty())
     {
         RebuildStatus("The Page has reached the container limit.", true);
@@ -8028,7 +8070,7 @@ void EditorApplication::AddRootContainer()
     SelectContainer(documentState_.selection.pageIndex, id);
 }
 
-void EditorApplication::AddChildContainer(const std::string_view parentId)
+void EditorApplication::AddChildContainer(const std::string_view parentId, const mfd::api1::ContainerType type)
 {
     mfd::PageDefinition* page = ActivePage();
     if (page == nullptr)
@@ -8039,7 +8081,7 @@ void EditorApplication::AddChildContainer(const std::string_view parentId)
     const UndoSnapshot before = CaptureCurrentSnapshot();
     std::string error;
     const std::string id = mfd::api1::ContainerEditorModel::AddChild(
-        *page, parentId, mfd::api1::ContainerType::Canvas, error);
+        *page, parentId, type, error);
     if (id.empty())
     {
         RebuildStatus(std::move(error), true);

@@ -9,8 +9,10 @@
  * @brief Unit tests covering the global page-rename planning service.
  */
 
+#include "EditorAssetPathService.h"
 #include "EditorPageRenameService.h"
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -649,3 +651,73 @@ TEST(PageRenameServiceTests, FailedWindowPromotionRestoresPageAndLeavesEditorSta
     EXPECT_EQ(loaded.document.pages.front().name, "Radar");
 }
 #endif
+
+TEST(PageRenameServiceTests, RenamesPageInsideUserTreeWithoutAssetsFolder)
+{
+    ScopedTempDir tempDir;
+    const std::filesystem::path projectRoot = tempDir.Path() / "my_mfd";
+    const std::filesystem::path windowFile = projectRoot / "windows" / "demo.json";
+    const std::filesystem::path radarFile = projectRoot / "pages" / "radar.json";
+
+    WriteTextFile(windowFile, R"json({"pages":["../pages/radar.json"],"defaultPage":"Radar"})json");
+    WriteTextFile(radarFile, R"json({"name":"Radar","staticReticles":[]})json");
+    auto [loaded, files] = MakeLoadedWindow(windowFile, {{radarFile, "Radar", true}});
+
+    const editor::EditorAssetPathService paths;
+    const std::filesystem::path scanRoot = paths.ResolveRenameScanRoot(radarFile, windowFile);
+    editor::PageRenameService service;
+    const editor::RenamePagePlan plan =
+        service.BuildPlan(loaded, files, editor::RenamePageRequest {0, "Tactical", scanRoot});
+
+    ASSERT_TRUE(plan.canExecute) << plan.error;
+    std::string error;
+    ASSERT_TRUE(service.Execute(plan, loaded, files, nullptr, &error)) << error;
+    EXPECT_EQ(json::parse(ReadTextFile(radarFile)).at("name").get<std::string>(), "Tactical");
+    EXPECT_EQ(json::parse(ReadTextFile(windowFile)).at("defaultPage").get<std::string>(), "Tactical");
+}
+
+TEST(PageRenameServiceTests, ContentOnlyIssueInUnrelatedWindowWarnsInsteadOfBlocking)
+{
+    ScopedTempDir tempDir;
+    const std::filesystem::path assetRoot = tempDir.Path() / "assets";
+    const std::filesystem::path windowFile = assetRoot / "windows" / "demo.json";
+    const std::filesystem::path otherWindowFile = assetRoot / "windows" / "other.json";
+    const std::filesystem::path radarFile = assetRoot / "pages" / "radar.json";
+
+    WriteTextFile(windowFile, R"json({"pages":["../pages/radar.json"],"defaultPage":"Radar"})json");
+    WriteTextFile(otherWindowFile, R"json({"pages":[],"icon":42})json");
+    WriteTextFile(radarFile, R"json({"name":"Radar","staticReticles":[]})json");
+    auto [loaded, files] = MakeLoadedWindow(windowFile, {{radarFile, "Radar", true}});
+
+    editor::PageRenameService service;
+    const editor::RenamePagePlan plan =
+        service.BuildPlan(loaded, files, editor::RenamePageRequest {0, "Tactical", assetRoot});
+
+    ASSERT_TRUE(plan.canExecute) << plan.error;
+    const bool warned = std::any_of(plan.warnings.begin(),
+                                    plan.warnings.end(),
+                                    [](const std::string& warning)
+                                    { return warning.find("other.json") != std::string::npos; });
+    EXPECT_TRUE(warned);
+}
+
+TEST(PageRenameServiceTests, MalformedPageListInUnrelatedWindowStillBlocks)
+{
+    ScopedTempDir tempDir;
+    const std::filesystem::path assetRoot = tempDir.Path() / "assets";
+    const std::filesystem::path windowFile = assetRoot / "windows" / "demo.json";
+    const std::filesystem::path otherWindowFile = assetRoot / "windows" / "other.json";
+    const std::filesystem::path radarFile = assetRoot / "pages" / "radar.json";
+
+    WriteTextFile(windowFile, R"json({"pages":["../pages/radar.json"],"defaultPage":"Radar"})json");
+    WriteTextFile(otherWindowFile, R"json({"pages":[42]})json");
+    WriteTextFile(radarFile, R"json({"name":"Radar","staticReticles":[]})json");
+    auto [loaded, files] = MakeLoadedWindow(windowFile, {{radarFile, "Radar", true}});
+
+    editor::PageRenameService service;
+    const editor::RenamePagePlan plan =
+        service.BuildPlan(loaded, files, editor::RenamePageRequest {0, "Tactical", assetRoot});
+
+    EXPECT_FALSE(plan.canExecute);
+    EXPECT_NE(plan.error.find("other.json"), std::string::npos);
+}

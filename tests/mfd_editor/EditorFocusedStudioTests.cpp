@@ -10,6 +10,7 @@
  */
 
 #include "internal/application/EditorFocusedStudio.h"
+#include "internal/application/EditorApplicationState.h"
 
 #include <limits>
 
@@ -148,4 +149,42 @@ TEST(EditorFocusedStudioTests, DetectsOnlyRealContainerGeometryChanges)
     changed = initial;
     changed.center.y = 0.25f;
     EXPECT_TRUE(editor::app::ContainerGeometryChanged(initial, changed));
+}
+
+TEST(EditorFocusedStudioTests, ContainerCreationOffersEveryTypeOnceWithGuidance)
+{
+    const auto& options = editor::app::ContainerCreationOptions();
+    ASSERT_EQ(options.size(), 4U);
+    for (std::size_t index = 0; index < options.size(); ++index)
+    {
+        EXPECT_EQ(static_cast<std::size_t>(options[index].type), index);
+        ASSERT_NE(options[index].label, nullptr);
+        ASSERT_NE(options[index].description, nullptr);
+        EXPECT_NE(options[index].label[0], '\0');
+        EXPECT_NE(options[index].description[0], '\0');
+    }
+}
+
+TEST(EditorFocusedStudioTests, SelectionAloneNeverReplacesThePageWithTheStudio)
+{
+    using editor::app::SelectionKind;
+    using editor::app::ShouldShowFocusedLevel1Studio;
+
+    EXPECT_FALSE(ShouldShowFocusedLevel1Studio(true, SelectionKind::Container, true, false));
+    EXPECT_FALSE(ShouldShowFocusedLevel1Studio(true, SelectionKind::Widget, true, false));
+    EXPECT_FALSE(ShouldShowFocusedLevel1Studio(true, SelectionKind::WidgetDefinition, true, false));
+    EXPECT_TRUE(ShouldShowFocusedLevel1Studio(true, SelectionKind::Container, true, true));
+    EXPECT_TRUE(ShouldShowFocusedLevel1Studio(true, SelectionKind::Widget, true, true));
+}
+
+TEST(EditorFocusedStudioTests, StudioRequestNeedsLevelOneAndAResolvableStudioSelection)
+{
+    using editor::app::SelectionKind;
+    using editor::app::ShouldShowFocusedLevel1Studio;
+
+    EXPECT_FALSE(ShouldShowFocusedLevel1Studio(false, SelectionKind::Container, true, true));
+    EXPECT_FALSE(ShouldShowFocusedLevel1Studio(true, SelectionKind::WidgetDefinition, false, true));
+    EXPECT_FALSE(ShouldShowFocusedLevel1Studio(true, SelectionKind::Page, true, true));
+    EXPECT_FALSE(ShouldShowFocusedLevel1Studio(true, SelectionKind::LibraryReticle, true, true));
+    EXPECT_FALSE(editor::app::IsFocusedLevel1StudioSelection(SelectionKind::PageReticle));
 }

@@ -9,8 +9,10 @@
  * @brief Unit tests covering the global reticle-template rename planning service.
  */
 
+#include "EditorAssetPathService.h"
 #include "EditorReticleRenameService.h"
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -899,3 +901,98 @@ TEST(ReticleRenameServiceTests, FailedPagePromotionRestoresTemplateAndKeepsRefer
     EXPECT_EQ(ReadTextFile(page), pageBefore);
 }
 #endif
+
+TEST(ReticleRenameServiceTests, ContentOnlyIssueInUnrelatedTemplateWarnsInsteadOfBlocking)
+{
+    ScopedTempDir tempDir;
+    const std::filesystem::path assetsRoot = tempDir.Path() / "assets";
+    const std::filesystem::path reticleFolder = assetsRoot / "reticles";
+    const std::filesystem::path windowFile = assetsRoot / "windows" / "current.json";
+    const std::filesystem::path radarFile = assetsRoot / "pages" / "radar.json";
+    const std::filesystem::path templateFile = reticleFolder / "track_box.json";
+    const std::filesystem::path unrelatedTemplateFile = reticleFolder / "legacy_badge.json";
+
+    WritePageJson(radarFile, "Radar", {{"track", "track_box"}});
+    WriteTemplateJson(templateFile, "track_box");
+    WriteTextFile(unrelatedTemplateFile,
+                  R"json({"id":"legacy_badge","elements":[{"id":"logo","type":"image"}]})json");
+    WriteWindowJson(windowFile, reticleFolder, {radarFile}, "Radar");
+
+    mfd::PageDefinition radarPage = MakePage("Radar", true);
+    AddStaticTemplateReference(radarPage, "track", "track_box");
+    auto [loaded, files] = MakeLoadedWindow(windowFile, reticleFolder, {{radarFile, radarPage}});
+    AddTemplate(loaded, files, templateFile, MakeTemplate("track_box"));
+
+    editor::ReticleRenameService service;
+    const editor::RenameReticlePlan plan = service.BuildPlan(
+        loaded, files, editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false});
+
+    ASSERT_TRUE(plan.canExecute) << plan.error;
+    EXPECT_EQ(plan.references.size(), 1U);
+    const bool warned = std::any_of(plan.warnings.begin(),
+                                    plan.warnings.end(),
+                                    [](const std::string& warning)
+                                    { return warning.find("legacy_badge.json") != std::string::npos; });
+    EXPECT_TRUE(warned);
+}
+
+TEST(ReticleRenameServiceTests, UnreadableUnrelatedPageStillBlocks)
+{
+    ScopedTempDir tempDir;
+    const std::filesystem::path assetsRoot = tempDir.Path() / "assets";
+    const std::filesystem::path reticleFolder = assetsRoot / "reticles";
+    const std::filesystem::path windowFile = assetsRoot / "windows" / "current.json";
+    const std::filesystem::path radarFile = assetsRoot / "pages" / "radar.json";
+    const std::filesystem::path brokenPageFile = assetsRoot / "pages" / "broken.json";
+    const std::filesystem::path templateFile = reticleFolder / "track_box.json";
+
+    WritePageJson(radarFile, "Radar", {{"track", "track_box"}});
+    WriteTextFile(brokenPageFile, "{ \"name\": \"Broken\", \"staticReticles\": [");
+    WriteTemplateJson(templateFile, "track_box");
+    WriteWindowJson(windowFile, reticleFolder, {radarFile}, "Radar");
+
+    mfd::PageDefinition radarPage = MakePage("Radar", true);
+    AddStaticTemplateReference(radarPage, "track", "track_box");
+    auto [loaded, files] = MakeLoadedWindow(windowFile, reticleFolder, {{radarFile, radarPage}});
+    AddTemplate(loaded, files, templateFile, MakeTemplate("track_box"));
+
+    editor::ReticleRenameService service;
+    const editor::RenameReticlePlan plan = service.BuildPlan(
+        loaded, files, editor::RenameReticleRequest {"track_box", "threat_box", assetsRoot, false});
+
+    EXPECT_FALSE(plan.canExecute);
+    EXPECT_NE(plan.error.find("broken.json"), std::string::npos);
+}
+
+TEST(ReticleRenameServiceTests, RenamesReticleInsideUserTreeWithoutAssetsFolder)
+{
+    ScopedTempDir tempDir;
+    const std::filesystem::path projectRoot = tempDir.Path() / "my_mfd";
+    const std::filesystem::path reticleFolder = projectRoot / "reticles";
+    const std::filesystem::path windowFile = projectRoot / "windows" / "current.json";
+    const std::filesystem::path radarFile = projectRoot / "pages" / "radar.json";
+    const std::filesystem::path templateFile = reticleFolder / "track_box.json";
+
+    WritePageJson(radarFile, "Radar", {{"track", "track_box"}});
+    WriteTemplateJson(templateFile, "track_box");
+    WriteWindowJson(windowFile, reticleFolder, {radarFile}, "Radar");
+
+    mfd::PageDefinition radarPage = MakePage("Radar", true);
+    AddStaticTemplateReference(radarPage, "track", "track_box");
+    auto [loaded, files] = MakeLoadedWindow(windowFile, reticleFolder, {{radarFile, radarPage}});
+    AddTemplate(loaded, files, templateFile, MakeTemplate("track_box"));
+
+    const editor::EditorAssetPathService paths;
+    editor::ReticleRenameService service;
+    const editor::RenameReticlePlan plan = service.BuildPlan(
+        loaded,
+        files,
+        editor::RenameReticleRequest {
+            "track_box", "threat_box", paths.ResolveRenameScanRoot(templateFile, windowFile), true});
+
+    ASSERT_TRUE(plan.canExecute) << plan.error;
+    std::string error;
+    ASSERT_TRUE(service.Execute(plan, loaded, files, nullptr, &error)) << error;
+    const json pageDocument = json::parse(ReadTextFile(radarFile));
+    EXPECT_EQ(pageDocument.at("staticReticles").front().at("template").get<std::string>(), "threat_box");
+}

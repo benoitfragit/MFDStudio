@@ -112,3 +112,58 @@ TEST(EditorAssetPathServiceTests, ExecStagingPathDetectionIsCaseInsensitive)
     EXPECT_TRUE(editor::EditorAssetPathService::IsExecStagingPath(stagedPath));
     EXPECT_FALSE(editor::EditorAssetPathService::IsExecStagingPath("examples/demo/assets/windows/demo.json"));
 }
+
+TEST(EditorAssetPathServiceTests, RenameScanRootUsesWindowAuthoringTreeWithoutAssetsFolder)
+{
+    ScopedTempDir tempDir;
+    const std::filesystem::path projectRoot = tempDir.Path() / "my_mfd";
+    const std::filesystem::path windowFile = projectRoot / "windows" / "main.json";
+    const std::filesystem::path pageFile = projectRoot / "pages" / "radar.json";
+    const std::filesystem::path templateFile = projectRoot / "reticles" / "cross.json";
+
+    const editor::EditorAssetPathService service;
+
+    EXPECT_EQ(service.ResolveRenameScanRoot(pageFile, windowFile),
+              std::filesystem::absolute(projectRoot).lexically_normal());
+    EXPECT_EQ(service.ResolveRenameScanRoot(templateFile, windowFile),
+              std::filesystem::absolute(projectRoot).lexically_normal());
+}
+
+TEST(EditorAssetPathServiceTests, RenameScanRootUsesWindowFolderWhenItIsNotNamedWindows)
+{
+    ScopedTempDir tempDir;
+    const std::filesystem::path projectRoot = tempDir.Path() / "flat_project";
+    const std::filesystem::path windowFile = projectRoot / "cockpit.json";
+    const std::filesystem::path pageFile = projectRoot / "pages" / "radar.json";
+
+    const editor::EditorAssetPathService service;
+
+    EXPECT_EQ(service.ResolveRenameScanRoot(pageFile, windowFile),
+              std::filesystem::absolute(projectRoot).lexically_normal());
+}
+
+TEST(EditorAssetPathServiceTests, RenameScanRootKeepsAssetsAncestorAndConfiguredRootPriority)
+{
+    ScopedTempDir tempDir;
+    const std::filesystem::path assetsRoot = tempDir.Path() / "project" / "assets";
+    const std::filesystem::path configuredRoot = tempDir.Path() / "configured";
+    const std::filesystem::path windowFile = tempDir.Path() / "elsewhere" / "windows" / "main.json";
+
+    const editor::EditorAssetPathService service(configuredRoot);
+
+    EXPECT_EQ(service.ResolveRenameScanRoot(assetsRoot / "pages" / "radar.json", windowFile),
+              std::filesystem::absolute(assetsRoot).lexically_normal());
+    EXPECT_EQ(service.ResolveRenameScanRoot(configuredRoot / "pages" / "radar.json", windowFile),
+              std::filesystem::absolute(configuredRoot).lexically_normal());
+}
+
+TEST(EditorAssetPathServiceTests, RenameScanRootDoesNotAdoptUnrelatedWindowTree)
+{
+    ScopedTempDir tempDir;
+    const std::filesystem::path windowFile = tempDir.Path() / "project_a" / "windows" / "main.json";
+    const std::filesystem::path foreignPage = tempDir.Path() / "project_b" / "pages" / "radar.json";
+
+    const editor::EditorAssetPathService service;
+
+    EXPECT_EQ(service.ResolveRenameScanRoot(foreignPage, windowFile), service.ResolveAssetRootForPath(foreignPage));
+}
