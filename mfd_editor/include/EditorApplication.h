@@ -195,6 +195,11 @@ private:
     bool ExecuteDesignExportPlan(const editor::DesignExportPlan& plan);
     /** @brief Deletes the currently selected reticle from the shared library. */
     void DeleteSelectedLibraryReticle();
+    /**
+     * @brief Deletes only the primitive focused in Reticle Studio.
+     * @note Reuses `RemoveLibraryPrimitive`, so the edit is one Undo step and selection is repaired.
+     */
+    void DeleteSelectedLibraryPrimitive();
 
     /** @brief Draws the top-level menu bar and file actions. */
     void DrawMenuBar();

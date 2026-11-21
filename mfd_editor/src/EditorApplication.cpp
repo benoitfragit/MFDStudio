@@ -2297,7 +2297,9 @@ void EditorApplication::HandleShortcuts()
         }
     }
 
-    if (!io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Delete))
+    if (!io.WantTextInput &&
+        !ImGui::IsPopupOpen((const char*)nullptr, ImGuiPopupFlags_AnyPopupId) &&
+        ImGui::IsKeyPressed(ImGuiKey_Delete))
     {
         DeleteSelection();
     }
@@ -2444,7 +2446,14 @@ void EditorApplication::DeleteSelection()
         return;
     }
 
-    if (documentState_.selection.kind == SelectionKind::LibraryReticle || documentState_.selection.kind == SelectionKind::LibraryPrimitive)
+    const editor::app::LibraryDeleteScope libraryScope =
+        editor::app::ResolveLibraryDeleteScope(documentState_.selection.kind);
+    if (libraryScope == editor::app::LibraryDeleteScope::Primitive)
+    {
+        DeleteSelectedLibraryPrimitive();
+        return;
+    }
+    if (libraryScope == editor::app::LibraryDeleteScope::Reticle)
     {
         DeleteSelectedLibraryReticle();
         return;
@@ -4220,7 +4229,17 @@ void EditorApplication::DrawLibraryPreview(const ViewportState& viewport)
             OpenReticleRenamePopup(reticle->id);
         }
 
-        if (ImGui::MenuItem("Delete library reticle", "Del"))
+        if (hasSelectedPrimitive && ImGui::MenuItem("Delete primitive", "Del"))
+        {
+            DeleteSelectedLibraryPrimitive();
+            ImGui::CloseCurrentPopup();
+            ImGui::EndPopup();
+            return;
+        }
+
+        // The Del shortcut follows the focused item, so it is only advertised here for the template
+        // when no primitive is selected.
+        if (ImGui::MenuItem("Delete library reticle", hasSelectedPrimitive ? nullptr : "Del"))
         {
             DeleteSelectedLibraryReticle();
             ImGui::CloseCurrentPopup();

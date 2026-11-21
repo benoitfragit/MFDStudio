@@ -3551,6 +3551,22 @@ void EditorApplication::RemoveLibraryPrimitive(mfd::ReticleGroup& reticle, const
     }
 }
 
+void EditorApplication::DeleteSelectedLibraryPrimitive()
+{
+    mfd::ReticleGroup* reticle = SelectedLibraryReticle();
+    const mfd::Primitive* primitive = SelectedLibraryPrimitive();
+    if (reticle == nullptr || primitive == nullptr)
+    {
+        RebuildStatus("No library primitive selected to delete.", true);
+        return;
+    }
+
+    const std::string removedPrimitiveId = primitive->id;
+    const std::string reticleId = reticle->id;
+    RemoveLibraryPrimitive(*reticle, documentState_.selection.primitiveIndex);
+    RebuildStatus("Primitive '" + removedPrimitiveId + "' removed from reticle '" + reticleId + "'.", false);
+}
+
 void EditorApplication::DrawLibraryReticleInspector()
 {
     mfd::ReticleGroup* reticle = SelectedLibraryReticle();

@@ -69,6 +69,35 @@ enum class SelectionKind
     WidgetDefinition
 };
 
+/** @brief Scope of the destructive Delete command inside the Reticle Studio library. */
+enum class LibraryDeleteScope
+{
+    None,
+    Primitive,
+    Reticle
+};
+
+/**
+ * @brief Resolves what the Delete command removes for one library selection.
+ * @param kind Current editor selection kind.
+ * @return `Primitive` when one template primitive is focused, `Reticle` when the whole template is
+ * focused, otherwise `None`.
+ * @note The keyboard shortcut and the studio context menu share this rule so a selected primitive can
+ * never escalate into deleting its whole library template.
+ */
+constexpr LibraryDeleteScope ResolveLibraryDeleteScope(const SelectionKind kind) noexcept
+{
+    if (kind == SelectionKind::LibraryPrimitive)
+    {
+        return LibraryDeleteScope::Primitive;
+    }
+    if (kind == SelectionKind::LibraryReticle)
+    {
+        return LibraryDeleteScope::Reticle;
+    }
+    return LibraryDeleteScope::None;
+}
+
 /** @brief Current direct-manipulation mode active in one preview viewport. */
 enum class InteractionMode
 {
